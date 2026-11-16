@@ -861,8 +861,15 @@ int main(int argc, char** argv) {
                                    h_words + 32, h_words + 48, d_seen);
                 if (late) {   // the peer's rows land, then the pool's word
                     std::this_thread::sleep_for(std::chrono::milliseconds(2));
-                    for (int i = 0; i < n; ++i)
-                        if (kind[i] == 2) std::memcpy(h_peer + (size_t) i * H, peer.data() + (size_t) i * H, H * 4);
+                    // each dword stored exactly once, in order, as a peer's copy lands. Not memcpy: glibc's vector copy
+                    // stores some head and tail vectors twice, and a second store can overwrite the tag word the kernel
+                    // has already put back after reading the first one (16-dword "not restored" counts, sums correct)
+                    for (int i = 0; i < n; ++i) {
+                        if (kind[i] != 2) continue;
+                        volatile uint32_t* d = reinterpret_cast<volatile uint32_t*>(h_peer + (size_t) i * H);
+                        const uint32_t* sp = reinterpret_cast<const uint32_t*>(peer.data() + (size_t) i * H);
+                        for (int c = 0; c < (int) H; ++c) d[c] = sp[c];
+                    }
                     std::atomic_thread_fence(std::memory_order_seq_cst);
                     *(volatile uint32_t*) (h_words + 32) = 6u;
                     std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -872,19 +879,25 @@ int main(int argc, char** argv) {
                 const auto c4 = down(d_bo4, (size_t) T * H);
                 size_t nd4 = 0;
                 for (size_t i = 0; i < a.size(); ++i) nd4 += std::memcmp(&a[i], &c4[i], 4) != 0;
+                const size_t nd_out = nd4;
                 unsigned seen = 0;
                 ck(cudaMemcpy(&seen, d_seen, 4, cudaMemcpyDeviceToHost), "seen");
                 nd4 += seen != 6u;
+                size_t nd_tag = 0;
                 for (int i = 0; i < n; ++i) {
                     if (kind[i] != 2) continue;
                     float* r = h_peer + (size_t) i * H;
                     for (int c = 0; c < (int) H; ++c) {
                         uint32_t u;
                         std::memcpy(&u, r + c, 4);
-                        nd4 += u != tagw;
+                        nd_tag += u != tagw;
                     }
                     std::memcpy(r, peer.data() + (size_t) i * H, H * 4);   // for the cases below
                 }
+                nd4 += nd_tag;
+                if (nd4 != 0)
+                    std::printf("  combine, own wait%s T=%d: %zu output values differ, cpu_seen %u, %zu peer dwords "
+                                "not restored to the tag\n", late ? " (landing late)" : "", T, nd_out, seen, nd_tag);
                 std::snprintf(what, sizeof what, "combine, own wait%s T=%d", late ? " (landing late)" : "", T);
                 report(what, l, nd4, a.size());
                 if (bench && !late) {   // one launch at a time: each puts back the tag words the next would wait on
