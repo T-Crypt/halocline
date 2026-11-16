@@ -37,23 +37,16 @@ int main() {
 #else
     expect("qwen4exp", false);
 #endif
-#ifdef BASALT_MODEL_DEEPSEEK41
-    expect("deepseek41", true);
-#else
-    expect("deepseek41", false);
-#endif
 #ifdef BASALT_MODEL_QWEN35
     expect("qwen35", true);
 #else
     expect("qwen35", false);
 #endif
     check(model::adapter_names().size() == built, "registering twice keeps one adapter per name");
-    if (const model::ModelAdapter* ds = model::find_adapter("deepseek41")) {
-        std::unique_ptr<model::LoadedModel> loaded;
-        check(ds->load({}, loaded).status == model::Status::Error, "deepseek41 load without a path is an error");
-        const auto o = ds->make_options();
-        check(!ds->finish_flags(*o) && o->lossy.empty(), "deepseek41 has no lossy flag");
-    }
+    // DeepSeek was removed from the tree, not left out of this build: it is an unknown architecture
+    check(model::find_adapter("deepseek41") == nullptr &&
+              model::unavailable_architecture("deepseek41").find("no model adapter is registered") != std::string::npos,
+          "deepseek41 is not a known model");
     // the flags as the command line gives them, through the model's own parser and finish_flags
     const auto lossy_of = [](const model::ModelAdapter& a, std::vector<std::string> words) {
         const auto o = a.make_options();
