@@ -9,9 +9,6 @@
 #include <fstream>
 #include <string>
 
-#if defined(_WIN32)
-#include "basalt/platform/win.hpp"
-#endif
 
 namespace {
 int failures = 0;
@@ -55,15 +52,6 @@ int main() {
 
     check(keep_full_speed(), "keep_full_speed is accepted");
     check(keep_full_speed(), "and accepted again");
-#if defined(_WIN32)
-    // older Windows builds accept the state but cannot report it back
-    PROCESS_POWER_THROTTLING_STATE pt{};
-    pt.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
-    if (GetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &pt, sizeof pt) != 0)
-        check((pt.ControlMask & PROCESS_POWER_THROTTLING_EXECUTION_SPEED) != 0 &&
-                  (pt.StateMask & PROCESS_POWER_THROTTLING_EXECUTION_SPEED) == 0,
-              "and the OS reports execution speed as never lowered");
-#endif
 
     const std::string os = host_os_name();
     check(gpu_memory_pages() == (os == "Windows" || os == "WSL2"), "gpu_memory_pages: only the Windows driver pages");
@@ -79,13 +67,8 @@ int main() {
 
     // application libraries: a name nobody ships loads nothing; the C runtime's own does load, and names its file
     check(!DynLib::open_app(DynLib::versioned_name("basalt_no_such_library", 99)), "open_app: a missing library is empty");
-#if defined(_WIN32)
-    check(DynLib::versioned_name("avformat", 62) == "avformat-62.dll", "versioned_name follows the platform's spelling");
-    const DynLib crt = DynLib::open_app("ucrtbase.dll");
-#else
     check(DynLib::versioned_name("avformat", 62) == "libavformat.so.62", "versioned_name follows the platform's spelling");
     const DynLib crt = DynLib::open_app("libc.so.6");
-#endif
     check((bool) crt && !crt.path().empty(), "open_app: the C runtime loads and path() names its file");
     return failures ? 1 : 0;
 }

@@ -12,24 +12,15 @@
 #include <fstream>
 #include <string>
 
-#if defined(_WIN32)
-#include "basalt/platform/win.hpp"
-#include <fcntl.h>   // _O_BINARY
-#include <io.h>      // _fileno, _setmode
-#else
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <unistd.h>
-#endif
 
 namespace basalt::platform {
 
 namespace {
 /// An argument for a shell's command line: wrapped in quotes the shell reads literally.
 std::string shell_quote(const std::string& a) {
-#if defined(_WIN32)
-    return quote_arg(a);
-#else
     std::string out = "'";
     for (char c : a) {
         if (c == '\'') out += "'\\''";
@@ -37,7 +28,6 @@ std::string shell_quote(const std::string& a) {
     }
     out += '\'';
     return out;
-#endif
 }
 }  // namespace
 
@@ -48,81 +38,16 @@ std::optional<std::string> capture_output(const std::vector<std::string>& argv, 
         if (!cmd.empty()) cmd += ' ';
         cmd += shell_quote(a);
     }
-#if defined(_WIN32)
-    cmd += include_stderr ? " 2>&1" : " 2>nul";
-    // cmd.exe drops the first and last quote of a command line that holds more than one quoted word or a redirection,
-    // so the whole line is wrapped in one more pair
-    cmd = "\"" + cmd + "\"";
-    std::FILE* pf = _popen(cmd.c_str(), "r");
-#else
     cmd += include_stderr ? " 2>&1" : " 2>/dev/null";
     std::FILE* pf = popen(cmd.c_str(), "r");
-#endif
     if (pf == nullptr) return std::nullopt;
     std::string out;
     char buf[4096];
     for (size_t n; (n = std::fread(buf, 1, sizeof buf, pf)) > 0;) out.append(buf, n);
-#if defined(_WIN32)
-    _pclose(pf);
-#else
     pclose(pf);
-#endif
     return out;
 }
 
-#if defined(_WIN32)
-// --------------------------------------------------------------------------------------------- Windows
-
-int64_t process_id() { return (int64_t) GetCurrentProcessId(); }
-
-std::string host_os_name() { return "Windows"; }
-
-std::string python_interpreter(const std::string& root) {
-    const std::string venv = root + "/.venv/Scripts/python.exe";
-    return path_executable(venv) ? venv : "python";
-}
-
-void prefer_oom_victim() {}
-
-bool keep_full_speed() {
-    PROCESS_POWER_THROTTLING_STATE s{};
-    s.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
-    s.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;   // the process sets its execution speed itself
-    s.StateMask = 0;                                            // and it is never lowered
-    return SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &s, sizeof s) != 0;
-}
-
-bool gpu_memory_pages() { return true; }
-
-bool stderr_is_terminal() {
-    if (!_isatty(_fileno(stderr))) return false;
-    const HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
-    DWORD mode = 0;
-    if (h == INVALID_HANDLE_VALUE || !GetConsoleMode(h, &mode)) return false;
-    return (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0 || SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
-}
-
-void set_stdio_binary() {
-    _setmode(_fileno(stdin), _O_BINARY);
-    _setmode(_fileno(stdout), _O_BINARY);
-    _setmode(_fileno(stderr), _O_BINARY);
-}
-
-std::string meminfo_path() { return std::string(); }
-std::string self_cgroup_path() { return std::string(); }
-std::string cgroup_root() { return std::string(); }
-
-ProcessMemory process_memory() { return ProcessMemory{}; }   // the stall report names the Linux readings only
-
-int disk_rotational(const std::string&, std::string&) {
-    return -1;   // sysfs names the queue on Linux; unknown means the caller does not warn
-}
-
-ThreadWaits threads_in_disk_wait() {
-    return ThreadWaits{};   // state D and wchan are Linux readings; there is no per-thread wait address to list here
-}
-
-#else
 // --------------------------------------------------------------------------------------------- Linux
 
 int64_t process_id() { return (int64_t) getpid(); }
@@ -222,6 +147,5 @@ ThreadWaits threads_in_disk_wait() {
     return w;
 }
 
-#endif
 
 }  // namespace basalt::platform

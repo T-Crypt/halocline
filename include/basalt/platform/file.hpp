@@ -21,20 +21,6 @@
 
 namespace basalt::platform {
 
-#if defined(_WIN32)
-/// UTF-8 to UTF-16, the conversion every path open here goes through. An empty string converts to an empty one.
-/// Bytes that are not valid UTF-8 become the replacement character rather than an error, so a name that came from
-/// somewhere broken fails at the open that follows rather than here.
-std::wstring to_wide(const std::string& utf8);
-
-/// `to_wide` for a path the OS is asked to open, create or query. A path past the length the plain Win32 calls
-/// accept is made absolute and given the `\\?\` prefix, so it opens whether or not the system's long-path policy is
-/// on (the manifest's `longPathAware` only takes effect where it is). Shorter paths convert as `to_wide` does.
-std::wstring to_wide_path(const std::string& utf8);
-
-/// UTF-16 back to UTF-8, for a name the OS hands out. Empty when the name cannot be read or is not representable.
-std::string to_utf8(const wchar_t* w);
-#endif
 
 /// Opens `path` as `mode` spells it ("rb", "wb", "ab"). nullptr on failure. `mode` is passed through as given: text
 /// or binary stays the caller's choice, because the serve protocol and the dump files depend on which one they get.

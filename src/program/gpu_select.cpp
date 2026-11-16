@@ -341,6 +341,10 @@ bool select_gpus(const std::string& text, const char* label, std::string& engine
     const std::vector<GpuCard> visible = visible_gpus(known);
     const GpuChoice c = choose_gpus(spec, visible, known);
     if (!c.error.empty()) { err = c.error; return false; }
+    if (c.cards.size() != 1) {   // Halocline: exactly one GPU (see cli/gpu.cpp)
+        err = "Halocline runs on exactly one GPU; " + std::to_string(c.cards.size()) + " were chosen";
+        return false;
+    }
     for (const std::string& s : c.notes) basalt::log::info(label, "%s", s.c_str());
     if (!c.warning.empty()) basalt::log::warn(label, "%s", c.warning.c_str());
     apply_gpus(visible, c.cards);

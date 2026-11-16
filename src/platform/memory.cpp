@@ -12,18 +12,12 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#if defined(_WIN32)
-#include "basalt/platform/win.hpp"
-#include <dxgi1_4.h>
-#include <malloc.h>   // _aligned_malloc, _aligned_free, _heapmin
-#else
 #include <fcntl.h>
 #include <malloc.h>   // malloc_trim
 #include <linux/mman.h>   // MAP_HUGE_2MB
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#endif
 #include <cerrno>
 #include <cstring>
 #include "basalt/log.hpp"
@@ -31,72 +25,10 @@
 
 namespace basalt::platform {
 
-#if defined(_WIN32)
-namespace {
-/// Enables one privilege in this process's token. A privilege can be assigned to the account and still be absent
-/// from the token until the process asks for it, which is the normal state for an interactive one.
-void enable_privilege(LPCWSTR name) {
-    HANDLE tok = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &tok)) return;
-    TOKEN_PRIVILEGES tp{};
-    tp.PrivilegeCount = 1;
-    if (LookupPrivilegeValueW(nullptr, name, &tp.Privileges[0].Luid)) {
-        tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-        (void) AdjustTokenPrivileges(tok, FALSE, &tp, 0, nullptr, nullptr);
-    }
-    CloseHandle(tok);
-}
-}  // namespace
-#endif
 
 LockResult lock_resident(void* p, uint64_t bytes, const LockProgress& progress) {
     LockResult r;
     if (p == nullptr || bytes == 0) { r.note = "nothing to lock"; return r; }
-#if defined(_WIN32)
-    enable_privilege(L"SeIncreaseWorkingSetPrivilege");   // to raise this process's working set
-    enable_privilege(L"SeLockMemoryPrivilege");          // and to lock pages in it
-    HANDLE self = GetCurrentProcess();
-    SIZE_T min_ws = 0, max_ws = 0;
-    DWORD flags = 0;
-    // Locked pages count against the minimum working set, so it has to grow by the region plus room for the rest of
-    // the process first: VirtualLock can lock no more pages than that minimum holds. A quota that cannot be raised
-    // is reported and the lock tried anyway: whatever the existing quota covers is still worth having.
-    std::string quota_note;
-    if (!GetProcessWorkingSetSizeEx(self, &min_ws, &max_ws, &flags)) {
-        quota_note = "GetProcessWorkingSetSizeEx failed (error " + std::to_string(GetLastError()) + ")";
-    } else {
-        const SIZE_T margin = (SIZE_T) 512 << 20;
-        const SIZE_T new_min = min_ws + (SIZE_T) bytes + margin;
-        const SIZE_T new_max = max_ws > new_min + margin ? max_ws : new_min + margin;
-        // The minimum goes in as the hard limit: only a hard minimum keeps the locked pages from being trimmed back
-        // out. The maximum stays soft, so the process can still grow past it.
-        if (!SetProcessWorkingSetSizeEx(self, new_min, new_max,
-                                        QUOTA_LIMITS_HARDWS_MIN_ENABLE | QUOTA_LIMITS_HARDWS_MAX_DISABLE))
-            quota_note = "SetProcessWorkingSetSizeEx(" + std::to_string((unsigned long long) (new_min >> 20)) +
-                         " MiB) failed (error " + std::to_string(GetLastError()) + ")";
-    }
-    // Chunked, because one call over the whole region loses everything past the first page that does not fit.
-    const uint64_t chunk = progress ? 256ull << 20 : 1ull << 30;
-    uint8_t* base = (uint8_t*) p;
-    for (uint64_t off = 0; off < bytes; off += chunk) {
-        const uint64_t n = bytes - off < chunk ? bytes - off : chunk;
-        if (!VirtualLock(base + off, (SIZE_T) n)) {
-            r.note = (quota_note.empty() ? "" : quota_note + "; ") + "VirtualLock stopped at " +
-                     std::to_string((unsigned long long) (off >> 20)) + " of " +
-                     std::to_string((unsigned long long) (bytes >> 20)) + " MiB (error " +
-                     std::to_string(GetLastError()) + ")";
-            r.ok = off > 0;   // what it did lock stays locked; the rest of the region is merely pageable
-            return r;
-        }
-        r.locked_bytes = off + n;
-        if (progress) progress(r.locked_bytes);
-    }
-    r.ok = true;
-    const std::string locked = std::to_string((unsigned long long) (bytes >> 20)) + " MiB";
-    r.note = quota_note.empty() ? "locked " + locked + " via working-set minimum + VirtualLock"
-                                : quota_note + "; locked " + locked + " with the quota already in place";
-    return r;
-#else
     if (!progress) {
         if (mlock(p, bytes) != 0) { r.note = "mlock failed (raise ulimit -l)"; return r; }
         r.ok = true;
@@ -118,51 +50,18 @@ LockResult lock_resident(void* p, uint64_t bytes, const LockProgress& progress) 
     r.ok = true;
     r.note = "mlock";
     return r;
-#endif
 }
 
 void unlock_resident(void* p, uint64_t bytes) {
     if (p == nullptr || bytes == 0) return;
-#if defined(_WIN32)
-    const uint64_t chunk = 1ull << 30;
-    for (uint64_t off = 0; off < bytes; off += chunk)
-        VirtualUnlock((uint8_t*) p + off, (SIZE_T) (bytes - off < chunk ? bytes - off : chunk));
-#else
     munlock(p, bytes);
-#endif
 }
 
 uint64_t total_physical_memory() {
-#if defined(_WIN32)
-    MEMORYSTATUSEX ms{};
-    ms.dwLength = sizeof ms;
-    return GlobalMemoryStatusEx(&ms) ? (uint64_t) ms.ullTotalPhys : 0;
-#else
     const long pages = sysconf(_SC_PHYS_PAGES), page = sysconf(_SC_PAGE_SIZE);
     return pages > 0 && page > 0 ? (uint64_t) pages * (uint64_t) page : 0;
-#endif
 }
 
-#if defined(_WIN32)
-namespace {
-/// The two figures the sizing reads, from one query: available and total physical RAM in bytes. Both are 0 when the
-/// query fails, which the callers read as unknown rather than as none.
-void memory_status(uint64_t& avail, uint64_t& total) {
-    MEMORYSTATUSEX ms{};
-    ms.dwLength = sizeof ms;
-    if (!GlobalMemoryStatusEx(&ms)) { avail = 0; total = 0; return; }
-    avail = (uint64_t) ms.ullAvailPhys;
-    total = (uint64_t) ms.ullTotalPhys;
-}
-
-// The OS's own reading, before a container limit lowers it (available_memory).
-uint64_t os_available_memory() {
-    uint64_t avail = 0, total = 0;
-    memory_status(avail, total);
-    return avail;
-}
-}  // namespace
-#else
 namespace {
 // One "<key>: <n> kB" line of /proc/meminfo in bytes (0 when absent).
 uint64_t meminfo_bytes(const char* key) {
@@ -177,7 +76,6 @@ uint64_t meminfo_bytes(const char* key) {
 // The OS's own reading, before a container limit lowers it (available_memory).
 uint64_t os_available_memory() { return meminfo_bytes("MemAvailable"); }
 }  // namespace
-#endif
 
 namespace {
 
@@ -461,15 +359,11 @@ MemoryStalls parse_memory_stalls(const std::string& text) {
 }
 
 MemoryStalls memory_stalls() {
-#if defined(_WIN32)
-    return {};
-#else
     std::ifstream in("/proc/pressure/memory");
     if (!in) return {};
     std::string text, line;
     while (std::getline(in, line)) text += line + "\n";
     return parse_memory_stalls(text);
-#endif
 }
 
 std::string ram_stop_message(uint64_t avail, uint64_t floor, uint64_t hard, const MemoryStalls& stalls,
@@ -496,9 +390,7 @@ std::string ram_stop_message(uint64_t avail, uint64_t floor, uint64_t hard, cons
 }
 
 void release_free_heap() {
-#if defined(_WIN32)
-    (void) _heapmin();
-#elif defined(__GLIBC__)
+#if   defined(__GLIBC__)
     (void) malloc_trim(0);
 #endif
 }
@@ -548,80 +440,22 @@ void guard_judge(uint64_t avail) {
     if (level == RamLevel::Ok && was != RamLevel::Ok) basalt::log::info("basalt", "RAM back: %llu MiB free", mib);
     g_judged = level;
 }
-#if defined(_WIN32)
-constexpr uint64_t kReclaimLead = 1ull << 30;       // how far above the floor the guard gives the view back
-constexpr uint64_t kReclaimChunk = 256ull << 20;    // bytes given back per lock hold
-std::mutex g_reclaim_mu;                            // held per chunk, so a withdrawn view is not touched afterwards
-const void* g_reclaim_base = nullptr;
-uint64_t g_reclaim_bytes = 0;
-
-// Gives the registered view back in chunks, releasing the lock between them so a withdrawal waits for one chunk.
-void reclaim_view_now() {
-    const void* base;
-    uint64_t bytes;
-    {
-        std::lock_guard<std::mutex> lock(g_reclaim_mu);
-        base = g_reclaim_base;
-        bytes = g_reclaim_bytes;
-    }
-    for (uint64_t off = 0; base != nullptr && off < bytes; off += kReclaimChunk) {
-        std::lock_guard<std::mutex> lock(g_reclaim_mu);
-        if (g_reclaim_base != base) return;
-        (void) drop_mapped_view(base, bytes, off, std::min(kReclaimChunk, bytes - off));
-    }
-}
-#endif
 }  // namespace
 
 void ram_guard_reclaim_view(const void* base, uint64_t bytes) {
-#if defined(_WIN32)
-    std::lock_guard<std::mutex> lock(g_reclaim_mu);
-    g_reclaim_base = bytes > 0 ? base : nullptr;
-    g_reclaim_bytes = g_reclaim_base != nullptr ? bytes : 0;
-#else
     (void) base, (void) bytes;   // MemAvailable already counts a view's pages
-#endif
 }
 
 void start_ram_guard(uint64_t floor_bytes) {
     g_guard_floor = floor_bytes;
     if (g_guard_on.exchange(true)) return;
     std::thread([] {
-#if defined(_WIN32)
-        bool logged_reclaim = false;
-        uint64_t avail_after = 0;   // the reading right after the last give-back
-        auto last_reclaim = std::chrono::steady_clock::now();
-#endif
         for (;;) {
             if (g_guard_paused.load()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 continue;
             }
             uint64_t avail = available_memory();
-#if defined(_WIN32)
-            const uint64_t floor = g_guard_floor.load();
-            // A later give-back waits for the view to be read in again, so a long prompt read keeps it in check.
-            const auto since = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - last_reclaim).count();
-            if (reclaim_due(avail, floor, kReclaimLead, avail_after, (uint64_t) since)) {
-                bool have;
-                {
-                    std::lock_guard<std::mutex> lock(g_reclaim_mu);
-                    have = g_reclaim_base != nullptr;
-                }
-                if (have) {
-                    if (!logged_reclaim) {
-                        basalt::log::info("basalt", "RAM guard: mapped experts view given back at %llu MiB free",
-                                     (unsigned long long) (avail >> 20));
-                        logged_reclaim = true;
-                    }
-                    reclaim_view_now();
-                    avail = available_memory();
-                    avail_after = avail;
-                    last_reclaim = std::chrono::steady_clock::now();
-                }
-            }
-#endif
             guard_judge(avail);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
@@ -652,48 +486,6 @@ void ram_guard_pause(bool paused) {
     if (g_guard_paused.exchange(false) && g_guard_on.load()) guard_judge(available_memory());
 }
 
-#if defined(_WIN32)
-namespace {
-constexpr uint64_t kPrefetchStep = 128ull << 10;
-
-/// The page size, so a prefetch window starts on a page boundary.
-uintptr_t page_bytes() {
-    static const uintptr_t ps = [] {
-        SYSTEM_INFO si{};
-        GetSystemInfo(&si);
-        return si.dwPageSize > 0 ? (uintptr_t) si.dwPageSize : (uintptr_t) 4096;
-    }();
-    return ps;
-}
-}  // namespace
-
-bool read_ahead_enabled() { return true; }
-
-void advise_willneed(const void* p, uint64_t bytes) {
-    if (p == nullptr || bytes == 0 || !read_ahead_enabled()) return;
-    // A view of a file mapping takes its pages one fault at a time as they are touched, so asking for the range
-    // ahead of the access replaces those faults with large background reads.  The hint is best effort: a range the
-    // system will not serve is skipped without an error, and pages already in memory cost nothing.  The range is
-    // asked for in bounded windows, which keeps the reads in flight - and the memory they hold - bounded instead of
-    // asking for a whole layer at once.
-    const uintptr_t pg = page_bytes(), end = (uintptr_t) p + bytes;
-    for (uintptr_t a = (uintptr_t) p & ~(pg - 1); a < end; a += kPrefetchStep) {
-        WIN32_MEMORY_RANGE_ENTRY entry{};
-        entry.VirtualAddress = (PVOID) a;
-        entry.NumberOfBytes = (SIZE_T) std::min<uintptr_t>(kPrefetchStep, end - a);
-        (void) PrefetchVirtualMemory(GetCurrentProcess(), 1, &entry, 0);
-    }
-}
-
-void advise_willneed(int fd, uint64_t offset, uint64_t bytes) {
-    // No descriptor-range hint on Windows: the cache manager takes no "will need" for an open handle.  Reads through
-    // a descriptor are cached reads unless the caller opted out of the cache, and the cache manager already reads
-    // ahead around the position a sequential reader is at.  Warming a range by reading it into a scratch buffer
-    // would move the bytes twice and cost the file cache the room, so nothing is asked.  A caller holding a mapped
-    // view of the same file gets the prefetch from the overload above.
-    (void) fd; (void) offset; (void) bytes;
-}
-#else
 namespace {
 constexpr uint64_t kAdviseStep = 128ull << 10;
 }
@@ -713,44 +505,21 @@ void advise_willneed(int fd, uint64_t offset, uint64_t bytes) {
     for (uint64_t at = 0; at < bytes; at += kAdviseStep)
         (void) posix_fadvise(fd, (off_t) (offset + at), (off_t) std::min(kAdviseStep, bytes - at), POSIX_FADV_WILLNEED);
 }
-#endif
 
 void* alloc_aligned(size_t bytes, size_t alignment) {
     if (bytes == 0 || alignment == 0 || (alignment & (alignment - 1)) != 0) return nullptr;
-#if defined(_WIN32)
-    return _aligned_malloc(bytes, alignment);
-#else
     void* p = nullptr;
     if (posix_memalign(&p, alignment, bytes) != 0) return nullptr;
     return p;
-#endif
 }
 
 void free_aligned(void* p) {
     if (p == nullptr) return;
-#if defined(_WIN32)
-    _aligned_free(p);
-#else
     std::free(p);
-#endif
 }
 
 bool drop_mapped_view(const void* base, uint64_t view_bytes, uint64_t off, uint64_t bytes) {
     if (base == nullptr || bytes == 0) return true;
-#if defined(_WIN32)
-    // Unlocking a range that is not locked takes its pages out of this process's working set, which is the only
-    // per-range release a view has: a clean page then waits on the standby list, counted as available, and is read
-    // back from the file if touched again. The call reports ERROR_NOT_LOCKED for pages that were never locked even
-    // though they were released, so its result carries nothing and a range the OS declines is simply left alone.
-    if (off > view_bytes || bytes > view_bytes - off) return false;
-    const uintptr_t pg = page_bytes();
-    const uintptr_t first = ((uintptr_t) base + (uintptr_t) off) & ~(pg - 1);
-    const uintptr_t last = ((uintptr_t) base + (uintptr_t) (off + bytes) + pg - 1) & ~(pg - 1);
-    constexpr uintptr_t kStep = (uintptr_t) 1 << 30;
-    for (uintptr_t a = first; a < last; a += kStep)
-        (void) VirtualUnlock((LPVOID) a, (SIZE_T) std::min<uintptr_t>(kStep, last - a));
-    return true;
-#else
     // Only whole pages can be given back: a page the range shares with a neighbour still holds bytes the caller may
     // read. So the range is widened to the page boundaries and then clipped to the view.
     const long ps = sysconf(_SC_PAGE_SIZE);
@@ -764,152 +533,11 @@ bool drop_mapped_view(const void* base, uint64_t view_bytes, uint64_t off, uint6
     const uint64_t wide = extra > view_bytes - end ? view_bytes : end + extra;
     if (wide <= start) return true;
     return madvise((void*) ((const uint8_t*) base + (size_t) start), (size_t) (wide - start), MADV_DONTNEED) == 0;
-#endif
 }
 
 
 // ---------------------------------------------------------------------------------------------------- host regions
 
-#if defined(_WIN32)
-namespace {
-// A size in GiB, for the notes that have to say how big something was.
-std::string gib_size(uint64_t bytes) {
-    char buf[32];
-    std::snprintf(buf, sizeof buf, "%.1f GiB", (double) bytes / (double) (1ull << 30));
-    return buf;
-}
-
-// What the OS could still commit, for the note that has to say why the arena did not fit.  The commit charge is the
-// sum of RAM and the page file, so its free part is the headroom the arena has to fit into.  Empty when the OS
-// gives no reading.
-std::string commit_headroom_note() {
-    MEMORYSTATUSEX ms{};
-    ms.dwLength = sizeof ms;
-    if (!GlobalMemoryStatusEx(&ms)) return "; the commit headroom is unknown";
-    return "; " + gib_size((uint64_t) ms.ullAvailPageFile) + " of commit charge free out of " +
-           gib_size((uint64_t) ms.ullTotalPageFile) + " (RAM plus page file), " +
-           gib_size((uint64_t) ms.ullTotalPhys) + " of RAM";
-}
-}  // namespace
-
-
-static void* alloc_region_raw(uint64_t bytes, RegionBacking& got, std::string& note, const std::string& shared_file,
-                              uint64_t shared_hash, void*& mapping_base, uint64_t& mapping_bytes) {
-    mapping_base = nullptr;
-    mapping_bytes = 0;
-    if (!shared_file.empty()) {
-        note = "shared arena files are not available on Windows";
-        return nullptr;
-    }
-    // MEM_LARGE_PAGES needs SeLockMemoryPrivilege, and the account having it assigned is not enough: the process
-    // enables it in its own token first. An account without the assignment fails here and falls through to the
-    // ordinary allocation below, which is the expected outcome rather than an error.
-    enable_privilege(L"SeLockMemoryPrivilege");
-    const SIZE_T large = GetLargePageMinimum();
-    if (large > 0) {
-        // The requested size must be an exact multiple of the large-page minimum; the slack is under one page.
-        const SIZE_T lbytes = (SIZE_T) (((SIZE_T) bytes + large - 1) / large * large);
-        void* p = VirtualAlloc(nullptr, lbytes, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
-        if (p != nullptr) {
-            got = RegionBacking::LargePages;
-            note = "large pages (" + std::to_string((unsigned long long) large) + " B)";
-            return p;
-        }
-        // ERROR_NO_SYSTEM_RESOURCES is the page pool declining, ERROR_PRIVILEGE_NOT_HELD is the token and
-        // ERROR_INVALID_PARAMETER a size that is not a multiple of the minimum. They need different fixes, so the
-        // note carries the number.
-        note = "large pages refused for " + std::to_string((unsigned long long) lbytes) +
-               " B (GetLargePageMinimum=" + std::to_string((unsigned long long) large) + ", VirtualAlloc error " +
-               std::to_string((unsigned long long) GetLastError()) + "); using 4 KB pages";
-    } else {
-        note = "this system has no large-page minimum; using 4 KB pages";
-    }
-    {
-        // Reserve first, then commit in chunks.  A single MEM_COMMIT over the whole arena only ever says that the
-        // allocation failed, and whether it can succeed depends on RAM plus page file together, which is not known
-        // before the commit reaches that far.  Committing a chunk at a time makes the failure name the size it
-        // reached, and the region is released before anything is returned, so a half-committed arena is never
-        // handed to the caller and nothing is reported as pinned that was not.
-        void* p = VirtualAlloc(nullptr, (SIZE_T) bytes, MEM_RESERVE, PAGE_READWRITE);
-        if (p == nullptr) {
-            got = RegionBacking::NormalPages;
-            note = "cannot reserve " + gib_size(bytes) + " of arena (VirtualAlloc error " +
-                   std::to_string((unsigned long long) GetLastError()) + ")" + commit_headroom_note() +
-                   "; the arena needs RAM plus page file; " + note;
-            return nullptr;
-        }
-        constexpr uint64_t kCommitChunk = 1ull << 30;
-        for (uint64_t off = 0; off < bytes; off += kCommitChunk) {
-            const uint64_t n = bytes - off < kCommitChunk ? bytes - off : kCommitChunk;
-            if (VirtualAlloc((uint8_t*) p + off, (SIZE_T) n, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
-                const DWORD err = GetLastError();
-                VirtualFree(p, 0, MEM_RELEASE);
-                got = RegionBacking::NormalPages;
-                note = "cannot commit the arena: " + gib_size(off) + " of " + gib_size(bytes) +
-                       " committed (VirtualAlloc error " + std::to_string((unsigned long long) err) + ")" +
-                       commit_headroom_note() + "; the arena needs RAM plus page file; " + note;
-                return nullptr;
-            }
-        }
-        got = RegionBacking::NormalPages;
-        return p;
-    }
-}
-
-void free_region(void* p, uint64_t bytes) {
-    if (!p) return;
-    (void) bytes;   // one VirtualAlloc owns the whole region
-    VirtualFree(p, 0, MEM_RELEASE);
-}
-
-bool pin_budget(uint64_t& limit, std::string& why, const char* luid, uint32_t node_mask, bool shared_mapping) {
-    limit = 0;
-    why.clear();
-    if (!luid || !node_mask) return false;
-    IDXGIFactory1* factory = nullptr;
-    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**) &factory))) return false;
-    bool found = false;
-    for (UINT i = 0; !found; ++i) {
-        IDXGIAdapter1* adapter = nullptr;
-        if (factory->EnumAdapters1(i, &adapter) != S_OK) break;
-        DXGI_ADAPTER_DESC1 desc{};
-        IDXGIAdapter3* budget_adapter = nullptr;
-        if (SUCCEEDED(adapter->GetDesc1(&desc)) && std::memcmp(&desc.AdapterLuid, luid, 8) == 0 &&
-            SUCCEEDED(adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**) &budget_adapter))) {
-            for (UINT node = 0; node < 32; ++node) {
-                if (!(node_mask & (uint32_t(1) << node))) continue;
-                DXGI_QUERY_VIDEO_MEMORY_INFO info{};
-                if (FAILED(budget_adapter->QueryVideoMemoryInfo(node, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &info))) continue;
-                uint64_t budget = info.Budget;
-                if (shared_mapping) {
-                    // Multiple mapping consumers stay within the OS's reservable working-set allowance.
-                    const uint64_t available = std::min<uint64_t>(info.AvailableForReservation, budget);
-                    budget = available + std::min<uint64_t>(info.CurrentReservation, budget - available);
-                }
-                const uint64_t reserve = pin_reserve(budget);
-                const uint64_t free = budget > info.CurrentUsage ? budget - info.CurrentUsage : 0;
-                const uint64_t allowance = free > reserve ? free - reserve : 0;
-                if (!found || allowance < limit) {
-                    limit = allowance;
-                    char buf[224];
-                    constexpr double GiB = 1073741824.0;
-                    std::snprintf(buf, sizeof buf,
-                                  "DXGI non-local budget %.2f GiB, mapping allowance %.2f GiB, used %.2f GiB, reserve %.2f GiB",
-                                  (double) info.Budget / GiB, (double) budget / GiB,
-                                  (double) info.CurrentUsage / GiB, (double) reserve / GiB);
-                    why = buf;
-                }
-                found = true;
-            }
-            budget_adapter->Release();
-        }
-        adapter->Release();
-    }
-    factory->Release();
-    return found;
-}
-
-#else
 #ifndef MAP_HUGE_2MB
 #define MAP_HUGE_2MB (21 << 26)
 #endif
@@ -1071,7 +699,6 @@ void free_region(void* p, uint64_t bytes) {
 }
 
 bool pin_budget(uint64_t&, std::string&, const char*, uint32_t, bool) { return false; }   // no OS-side budget below the driver's own limit
-#endif
 
 void* alloc_region(uint64_t bytes, RegionBacking& got, std::string& note, const std::string& shared_file,
                    uint64_t shared_hash, void*& mapping_base, uint64_t& mapping_bytes) {
@@ -1085,12 +712,8 @@ void* alloc_region(uint64_t bytes, RegionBacking& got, std::string& note, const 
 
 
 uint64_t system_page_size() {
-#if defined(_WIN32)
-    return (uint64_t) page_bytes();
-#else
     const long page = sysconf(_SC_PAGESIZE);
     return page > 0 ? (uint64_t) page : 0;
-#endif
 }
 
 }  // namespace basalt::platform

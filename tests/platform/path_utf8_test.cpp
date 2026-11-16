@@ -178,12 +178,7 @@ int long_path_case() {
     std::printf("path_utf8 %-56s %zu chars\n", "path length", file.size());
     check(wrote && read_file(file, bytes), "a path past 260 chars opens");
     // The tree's own paths are long, so the removal walks it through the prefixed form of its root.
-#if defined(_WIN32)
-    const std::wstring abs = std::filesystem::absolute(basalt::platform::to_wide(base)).make_preferred().wstring();
-    const std::filesystem::path root(L"\\\\?\\" + abs);
-#else
     const std::filesystem::path root(base);
-#endif
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     check(!ec && !std::filesystem::exists(root, ec), "the directory past 260 chars is removed");

@@ -6,9 +6,7 @@
 #include "basalt/platform/file.hpp"
 #include "basalt/platform/system.hpp"
 
-#if !defined(_WIN32)
 #include <sys/stat.h>
-#endif
 
 #include <cstdint>
 #include <cstdio>
@@ -24,13 +22,11 @@ void check(bool ok, const char* what) {
     failures |= !ok;
 }
 
-#if !defined(_WIN32)
 // the permission bits of `path`, or -1
 int mode_of(const std::string& path) {
     struct stat st {};
     return ::stat(path.c_str(), &st) == 0 ? (int) (st.st_mode & 0777) : -1;
 }
-#endif
 
 const basalt::platform::DirFile* find(const std::vector<basalt::platform::DirFile>& files, const std::string& name) {
     for (const auto& f : files)
@@ -43,19 +39,15 @@ int main() {
     using namespace basalt::platform;
     const std::string dir = temp_dir() + "/basalt-file-write-" + std::to_string((long long) process_id()) +
                             "/\xc3\xa9-\xe6\x97\xa5";   // é-日 under a fresh parent
-#if !defined(_WIN32)
     ::umask(022);
-#endif
     check(make_dirs(dir), "nested directories are made");
     check(make_dirs(dir), "making them again is fine");
-#if !defined(_WIN32)
     const std::string parent = dir.substr(0, dir.rfind('/'));
     check(mode_of(dir) == 0700 && mode_of(parent) == 0700, "new directories are owner-only");
     ::chmod(parent.c_str(), 0755);
     check(make_dirs(dir + "/x") && mode_of(parent) == 0755 && mode_of(dir + "/x") == 0700,
           "an existing directory keeps its mode");
     remove_file(dir + "/x");
-#endif
 
     const std::string a = dir + "/a.bin", b = dir + "/b.bin";
     std::vector<uint8_t> data(3 * 4096);
@@ -76,9 +68,7 @@ int main() {
     fd = open_write_utf8(b);
     check(fd >= 0 && pwrite_all(fd, data.data(), 100, 0), "a second file");
     close_fd(fd);
-#if !defined(_WIN32)
     check(mode_of(a) == 0600 && mode_of(b) == 0600, "written files are owner-only");
-#endif
     std::vector<DirFile> files;
     check(list_files(dir, files) && files.size() == 2 && find(files, "a.bin") && find(files, "b.bin") &&
               find(files, "a.bin")->bytes == data.size() && find(files, "b.bin")->bytes == 100,
@@ -104,9 +94,7 @@ int main() {
             DirectFile::free_aligned(buf);
         }
         close_fd(direct);
-#if !defined(_WIN32)
         check(mode_of(dir + "/c.bin") == 0600, "an unbuffered file is owner-only");
-#endif
         remove_file(dir + "/c.bin");
     }
     remove_file(dir);

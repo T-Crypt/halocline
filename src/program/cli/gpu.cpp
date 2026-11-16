@@ -36,6 +36,14 @@ std::optional<int> select_gpus(CommonOptions& o, std::vector<GpuCard>& chosen_ca
         return choice.error.empty() ? 0 : 2;
     }
     if (!choice.error.empty()) { basalt::log::error("basalt", "%s", choice.error.c_str()); return 2; }
+    // Halocline runs on exactly one card (operator, 2026-11-16: one GPU, high bandwidth, sm_89 only). Every second-card
+    // path (expert tiers on a peer, the layer split, the prompt line, the GDN head split) is unreachable from here on;
+    // the dead branches are removed subsystem by subsystem behind the SASS and test gates.
+    if (choice.cards.size() != 1) {
+        basalt::log::error("basalt", "gpu %s: Halocline runs on exactly one GPU; %zu were chosen",
+                           o.gpu.empty() ? "0" : o.gpu.c_str(), choice.cards.size());
+        return 2;
+    }
     for (const std::string& s : choice.notes) basalt::log::info("basalt", "%s", s.c_str());
     if (!choice.warning.empty()) basalt::log::warn("basalt", "%s", choice.warning.c_str());
     bp::apply_gpus(visible, choice.cards);

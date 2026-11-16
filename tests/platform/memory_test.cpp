@@ -14,15 +14,10 @@
 #include <thread>
 #include <vector>
 
-#if defined(_WIN32)
-#include "basalt/platform/win.hpp"
-#include <psapi.h>   // QueryWorkingSetEx
-#else
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <unistd.h>
-#endif
 
 
 namespace {
@@ -113,27 +108,12 @@ int read_ahead_cases() {
     }
     // mapped the way the engine maps its file views: whole file, read-only
     const uint8_t* base = nullptr;
-#if defined(_WIN32)
-    const std::wstring wpath = basalt::platform::to_wide(path);
-    if (!wpath.empty()) {
-        HANDLE h = CreateFileW(wpath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h != INVALID_HANDLE_VALUE) {
-            HANDLE m = CreateFileMappingW(h, nullptr, PAGE_READONLY, 0, 0, nullptr);
-            base = (const uint8_t*) MapViewOfFile(m, FILE_MAP_READ, 0, 0, 0);
-            // the view holds the section and the file open, so both handles go now
-            CloseHandle(m);
-            CloseHandle(h);
-        }
-    }
-#else
     const int fd = ::open(path.c_str(), O_RDONLY);
     if (fd >= 0) {
         void* view = mmap(nullptr, (size_t) bytes, PROT_READ, MAP_PRIVATE, fd, 0);
         ::close(fd);
         if (view != MAP_FAILED) base = (const uint8_t*) view;
     }
-#endif
     if (base == nullptr) {
         std::printf("read-ahead %-58s   <-- cannot map %s\n", "read-only view", path.c_str());
         std::error_code ec;
@@ -163,11 +143,7 @@ int read_ahead_cases() {
         std::printf("read-ahead %-58s -> returned\n", c.what);
     }
     spots_intact("view reads back as written, after every hint");
-#if defined(_WIN32)
-    UnmapViewOfFile((void*) base);
-#else
     munmap((void*) base, (size_t) bytes);
-#endif
     std::error_code ec;
     std::filesystem::remove(path, ec);
     return fail;
@@ -187,24 +163,12 @@ int drop_view_cases() {
         if (!f) return 1;
     }
     const uint8_t* base = nullptr;
-#if defined(_WIN32)
-    const std::wstring wpath = basalt::platform::to_wide(path);
-    HANDLE h = CreateFileW(wpath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h != INVALID_HANDLE_VALUE) {
-        HANDLE m = CreateFileMappingW(h, nullptr, PAGE_READONLY, 0, 0, nullptr);
-        base = (const uint8_t*) MapViewOfFile(m, FILE_MAP_READ, 0, 0, 0);
-        CloseHandle(m);
-        CloseHandle(h);
-    }
-#else
     const int fd = ::open(path.c_str(), O_RDONLY);
     if (fd >= 0) {
         void* view = mmap(nullptr, (size_t) bytes, PROT_READ, MAP_PRIVATE, fd, 0);
         ::close(fd);
         if (view != MAP_FAILED) base = (const uint8_t*) view;
     }
-#endif
     if (base == nullptr) {
         std::printf("drop view %-58s   <-- cannot map\n", "read-only view");
         std::filesystem::remove(path);
@@ -235,11 +199,7 @@ int drop_view_cases() {
     const bool null_ok = drop_mapped_view(nullptr, 0, 0, 4096);
     std::printf("drop view %-58s -> %s%s\n", "null base", null_ok ? "ok" : "refused", null_ok ? "" : "   <-- WRONG");
     fail |= !null_ok;
-#if defined(_WIN32)
-    UnmapViewOfFile((void*) base);
-#else
     munmap((void*) base, (size_t) bytes);
-#endif
     std::error_code ec;
     std::filesystem::remove(path, ec);
     return fail;
@@ -260,24 +220,12 @@ int guard_reclaim_cases() {
         if (!f) return 1;
     }
     const uint8_t* base = nullptr;
-#if defined(_WIN32)
-    const std::wstring wpath = basalt::platform::to_wide(path);
-    HANDLE h = CreateFileW(wpath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h != INVALID_HANDLE_VALUE) {
-        HANDLE m = CreateFileMappingW(h, nullptr, PAGE_READONLY, 0, 0, nullptr);
-        base = (const uint8_t*) MapViewOfFile(m, FILE_MAP_READ, 0, 0, 0);
-        CloseHandle(m);
-        CloseHandle(h);
-    }
-#else
     const int fd = ::open(path.c_str(), O_RDONLY);
     if (fd >= 0) {
         void* view = mmap(nullptr, (size_t) bytes, PROT_READ, MAP_PRIVATE, fd, 0);
         ::close(fd);
         if (view != MAP_FAILED) base = (const uint8_t*) view;
     }
-#endif
     if (base == nullptr) {
         std::printf("guard view %-57s   <-- cannot map\n", "read-only view");
         std::filesystem::remove(path);
@@ -293,17 +241,7 @@ int guard_reclaim_cases() {
     };
     // the share of the view's pages in the process's working set; -1 where it is not measured
     auto resident = [&]() -> double {
-#if defined(_WIN32)
-        const uint64_t pages = bytes / 4096;
-        std::vector<PSAPI_WORKING_SET_EX_INFORMATION> ws(pages);
-        for (uint64_t i = 0; i < pages; ++i) ws[i].VirtualAddress = (PVOID) (base + i * 4096);
-        if (!QueryWorkingSetEx(GetCurrentProcess(), ws.data(), (DWORD) (pages * sizeof ws[0]))) return 0.0;
-        uint64_t in = 0;
-        for (const PSAPI_WORKING_SET_EX_INFORMATION& w : ws) in += w.VirtualAttributes.Valid;
-        return (double) in / (double) pages;
-#else
         return -1.0;
-#endif
     };
     // half a GiB under the reading: inside the guard's lead without reading as low; set again on every poll, so the
     // machine's own drift does not carry the reading out of the lead
@@ -343,11 +281,7 @@ int guard_reclaim_cases() {
     report("withdrawn, read again, reading within the lead", kept, !measured || kept > 0.9);
     start_ram_guard(0);
 
-#if defined(_WIN32)
-    UnmapViewOfFile((void*) base);
-#else
     munmap((void*) base, (size_t) bytes);
-#endif
     std::error_code ec;
     std::filesystem::remove(path, ec);
     return fail;
@@ -586,9 +520,6 @@ int stop_message_cases() {
 uint64_t lock_test_bytes(bool& reduced) {
     const uint64_t want = 256ull << 20;
     reduced = false;
-#if defined(_WIN32)
-    return want;
-#else
     struct rlimit rl {};
     if (getrlimit(RLIMIT_MEMLOCK, &rl) != 0 || rl.rlim_cur == RLIM_INFINITY) return want;
     // headroom for locks the process already holds (the engine's own allocations, thread stacks)
@@ -598,7 +529,6 @@ uint64_t lock_test_bytes(bool& reduced) {
     const uint64_t page = (uint64_t) sysconf(_SC_PAGE_SIZE);
     const uint64_t half = limit / 2 / page * page;
     return half >= 16 * page ? half : 0;
-#endif
 }
 }  // namespace
 
@@ -624,18 +554,6 @@ int main() {
                 (unsigned long long) (r.locked_bytes >> 10), (unsigned long long) (bytes >> 10), r.note.c_str());
     int fail = !(r.ok && r.locked_bytes == bytes) || fail_keeps;
     basalt::platform::unlock_resident(p, bytes);
-#if defined(_WIN32)
-    // A successful lock proves nothing on its own: an elevated token locks the region with a soft minimum too. The
-    // flag readback is what shows the quota call set the minimum as hard, and only a hard minimum keeps the locked
-    // pages from being trimmed back out.
-    SIZE_T ws_min = 0, ws_max = 0;
-    DWORD ws_flags = 0;
-    const bool hard_min = GetProcessWorkingSetSizeEx(GetCurrentProcess(), &ws_min, &ws_max, &ws_flags) &&
-                          (ws_flags & QUOTA_LIMITS_HARDWS_MIN_ENABLE);
-    std::printf("working set: min=%llu KiB max=%llu KiB hard-min=%d%s\n", (unsigned long long) (ws_min >> 10),
-                (unsigned long long) (ws_max >> 10), (int) hard_min, hard_min ? "" : "   <-- WRONG");
-    fail |= r.ok && !hard_min;
-#endif
     // With a progress callback the lock runs in chunks: the counts only rise and the last one is the whole region.
     std::vector<uint64_t> seen;
     const basalt::platform::LockResult rp =

@@ -13,11 +13,7 @@
 #include <string>
 #include <thread>
 #include <vector>
-#if defined(_WIN32)
-#include "basalt/platform/win.hpp"
-#else
 #include <unistd.h>
-#endif
 using basalt::platform::DirectFile;
 using basalt::platform::Completion;
 
@@ -36,18 +32,10 @@ static void call_ok(bool ok, const std::string& error, const char* what) {
 static std::string temp_path() {
 #if defined(BASALT_TEST_TMPDIR)
     const std::string base = BASALT_TEST_TMPDIR;
-#elif defined(_WIN32)
-    char dir[MAX_PATH];
-    const DWORD n = GetTempPathA((DWORD) sizeof dir, dir);
-    const std::string base = (n > 0 && n < (DWORD) sizeof dir) ? std::string(dir, n) : std::string(".");
 #else
     const std::string base = "/tmp";
 #endif
-#if defined(_WIN32)
-    const unsigned long owner = (unsigned long) GetCurrentProcessId();
-#else
     const unsigned long owner = (unsigned long) getpid();
-#endif
     static std::atomic<unsigned> seq{0};
     return base + "/basalt-direct-test-" + std::to_string(owner) + "-" + std::to_string(seq++) + ".bin";
 }
@@ -224,155 +212,6 @@ static void test_mapped_elsewhere() {
     check(view->data()[file_bytes - 1] == 'z', "the view changed under the reads");
 }
 
-#if defined(_WIN32)
-// ----------------------------------------------------------------------------------- Windows stress tests
-
-/// The same descriptor serves concurrent positional reads without mixing offsets, including a short final sector.
-static void test_unbuffered_descriptor() {
-    namespace fp = basalt::platform;
-    const size_t page = 4096, pages = 64;
-    Fixture fx((unsigned) pages, 'x');
-    std::string expected(page * pages + 17, 'z');
-    for (size_t i = 0; i < pages; ++i)
-        std::memset(expected.data() + i * page, (int) (i + 1), page);
-    {
-        std::ofstream f(fx.name, std::ios::binary | std::ios::trunc);
-        f.write(expected.data(), (std::streamsize) expected.size());
-        check((bool) f, "write positional fixture");
-    }
-    for (bool by_path : {false, true}) {
-        const int cached = fp::open_fd_utf8(fx.name);
-        check(cached >= 0, "open cached descriptor");
-        const int fd = by_path ? fp::open_unbuffered(fx.name) : fp::open_unbuffered(cached);
-        fp::close_fd(cached);
-        check(fd >= 0, "open unbuffered descriptor");
-        struct Close { int fd; ~Close() { fp::close_fd(fd); } } close{fd};
-        std::atomic<bool> correct{true};
-        std::vector<std::thread> readers;
-        for (size_t w = 0; w < 8; ++w) readers.emplace_back([&, w] {
-            for (int rep = 0; rep < 20; ++rep)
-                for (size_t i = w; i < pages; i += 8) {
-                    char* dst = fx.at(i);
-                    if (fp::pread(fd, dst, page, i * page) != (int64_t) page ||
-                        std::memcmp(dst, expected.data() + i * page, page) != 0) correct.store(false);
-                }
-        });
-        for (auto& r : readers) r.join();
-        check(correct.load(), "concurrent positional read bytes differ");
-        check(fp::pread(fd, fx.at(pages), page, pages * page) == 17, "short final sector");
-        check(std::memcmp(fx.at(pages), expected.data() + pages * page, 17) == 0, "short sector data");
-        check(fp::pread(fd, fx.at(pages + 1), page, (pages + 1) * page) == 0, "read beyond EOF");
-        check(fp::pread(fd, fx.memory, page, 1) == -1, "unaligned direct offset accepted");
-        check(fp::pread(fd, fx.memory, 1, 0) == -1, "unaligned direct size accepted");
-    }
-    const int cached = fp::open_fd_utf8(fx.name);
-    check(cached >= 0, "reopen cached descriptor");
-    char byte = 0;
-    const int64_t got = fp::pread(cached, &byte, 1, page + 1);
-    fp::close_fd(cached);
-    check(got == 1 && byte == expected[page + 1], "reused descriptor kept direct mode");
-}
-
-/// `close` must not return while a read can still write: a caller that abandons a prefill releases its buffers as
-/// soon as close returns. No read here is ever waited on, so all of them are still queued or in flight when close
-/// runs.
-static void test_close_with_reads_in_flight() {
-    const uint32_t page = DirectFile::alignment();
-    const unsigned pages = 128;   // more than the issuers can have finished by the time close runs
-    Fixture fx(pages, 'x');
-    DirectFile f;
-    std::string error;
-    call_ok(f.open(fx.name, error), error, "open");
-    for (unsigned i = 0; i < pages; ++i)
-        call_ok(f.submit((uint64_t) i * page, fx.at(i), page, i, error), error, "submit");
-    f.close();
-    check(!f.is_open(), "close left the file open");
-    // No write, late completion or otherwise, may land in the caller's buffer once close has returned.
-    std::memset(fx.memory, 0, (size_t) pages * page);
-    Sleep(200);
-    for (unsigned i = 0; i < pages; ++i)
-        check(fx.at(i)[0] == 0 && fx.at(i)[page - 1] == 0, "a read wrote into the buffer after close");
-    // close() reaped the requests back into the free list, so these cycles reuse them: a request handed out
-    // twice would put two reads on one OVERLAPPED and lose or repeat a completion.
-    for (int cycle = 0; cycle < 3; ++cycle) {
-        call_ok(f.open(fx.name, error), error, "reopen");
-        for (unsigned i = 0; i < pages; ++i)
-            call_ok(f.submit((uint64_t) i * page, fx.at(i), page, i, error), error, "submit after reopen");
-        std::vector<bool> seen(pages, false);
-        unsigned got = 0;
-        while (got < pages) {
-            Completion c[16];
-            const int n = f.wait(c, 16, 1000);
-            check(n > 0, "completion timeout after reopen");
-            for (int i = 0; i < n; ++i) {
-                check(c[i].tag < pages && !seen[c[i].tag], "wrong or repeated completion after reopen");
-                seen[c[i].tag] = true; ++got;
-                check(c[i].ok && c[i].bytes == page, "incorrect completion after reopen");
-                check(fx.at(c[i].tag)[0] == 'x' && fx.at(c[i].tag)[page - 1] == 'x', "read data mismatch after reopen");
-            }
-        }
-        f.close();
-        Completion extra;
-        check(f.wait(&extra, 1, 0) == 0, "stale completion after close");
-    }
-}
-
-/// Hand the completions of a mixed workload through an array of `max` slots followed by guard slots: nothing may
-/// be written outside the slots, every completion arrives exactly once, and the caller sees only the wakes it
-/// asked for, never the nudge left behind by a read that finished inside the backend.
-static void test_wait_bounds_and_wakes(unsigned max) {
-    const uint32_t page = DirectFile::alignment();
-    const unsigned pages = 24, past_end = Fixture::spare, wakes = 3;
-    Fixture fx(pages, 'y');
-    DirectFile f;
-    std::string error;
-    call_ok(f.open(fx.name, error), error, "open");
-    for (unsigned i = 0; i < pages; ++i)
-        call_ok(f.submit((uint64_t) i * page, fx.at(i), page, i, error), error, "submit");
-    // Reads starting past the end of the file finish inside the backend rather than as a packet of their own, and
-    // each still owes exactly one completion.
-    const uint64_t eof_tag = 900;
-    for (unsigned i = 0; i < past_end; ++i)
-        call_ok(f.submit((uint64_t) (pages + 4 + i) * page, fx.at(pages + i), page, eof_tag + i, error),
-                error, "submit past the end of the file");
-    for (unsigned i = 0; i < wakes; ++i) f.wake();
-
-    constexpr unsigned slots = 32;
-    Completion buf[slots];
-    std::vector<bool> seen(pages, false), seen_end(past_end, false);
-    unsigned real = 0, ended = 0, woken = 0, empty = 0;
-    while (real < pages || ended < past_end || woken < wakes) {
-        for (unsigned i = 0; i < slots; ++i) buf[i] = Completion{};
-        const int n = f.wait(buf, (int) max, 1000);
-        check(n >= 0 && n <= (int) max, "wait returned more completions than max");
-        for (unsigned i = max; i < slots; ++i)
-            check(buf[i].tag == 0 && buf[i].bytes == 0 && !buf[i].ok, "wait wrote past max");
-        if (n == 0) ++empty; else empty = 0;
-        check(empty < 10, "wait stopped making progress");
-        for (int i = 0; i < n; ++i) {
-            if (buf[i].tag == DirectFile::WAKE_TAG) {
-                check(buf[i].ok && buf[i].bytes == 0, "a wake completion is wrong");
-                ++woken;
-                continue;
-            }
-            if (buf[i].tag >= eof_tag && buf[i].tag < eof_tag + past_end) {
-                check(!seen_end[buf[i].tag - eof_tag], "a read past the end completed twice");
-                seen_end[buf[i].tag - eof_tag] = true; ++ended;
-                continue;
-            }
-            check(buf[i].tag < pages && !seen[buf[i].tag], "wrong or repeated completion");
-            seen[buf[i].tag] = true; ++real;
-            check(buf[i].ok && buf[i].bytes == page, "incorrect read completion");
-            check(fx.at(buf[i].tag)[0] == 'y' && fx.at(buf[i].tag)[page - 1] == 'y', "read data mismatch");
-        }
-    }
-    check(woken == wakes, "a wake was lost or an internal nudge reached the caller");
-    check(ended == past_end, "a read past the end of the file did not complete exactly once");
-    Completion extra;
-    check(f.wait(&extra, 1, 0) == 0, "extra completion after every one was returned");
-    f.close();
-}
-#endif
 
 int main() {
     const std::string name = temp_path();
@@ -416,13 +255,6 @@ int main() {
         f.close();
         test_bounded_opens();
         test_mapped_elsewhere();
-#if defined(_WIN32)
-        test_unbuffered_descriptor();
-        test_close_with_reads_in_flight();
-        const unsigned maxes[] = {1u, 2u, 3u, 7u, 17u};   // one slot and a batch across the boundary
-        for (unsigned max : maxes) test_wait_bounds_and_wakes(max);
-        std::cout << "direct_file_async: passed Windows close with reads in flight, waits bounded by max\n";
-#endif
         DirectFile::free_aligned(memory); std::remove(name.c_str());
         std::cout << "direct_file_async: passed queued reads, short EOF, wake, close drain, reopen, beside a view\n";
         return 0;
