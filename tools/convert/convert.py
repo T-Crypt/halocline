@@ -544,14 +544,8 @@ def from_checkpoint(a) -> None:
     import multiprocessing
     import checkpoint as C
     out, src = Path(a.out), Path(a.sections_from)
-    if src.is_file() and json.loads(ModelFile(str(src)).read("meta")).get("arch") == "deepseek41":
-        if a.dense_q8_0 or a.mtp_dense:
-            die("a deepseek41 BASE takes no --dense-q8-0 or --mtp-dense")
-        import checkpoint_deepseek41 as D
-        D.build(a, Job, fingerprint, source_record)
-        return
     if a.stream_shards:
-        die("--stream-shards takes a deepseek41 BASE")
+        die("--stream-shards is not supported (it served the removed deepseek41 BASE)")
     partial = Path(str(out) + ".partial")
     if out.exists() and not a.force:
         die(f"{out} exists (use --force to overwrite)")

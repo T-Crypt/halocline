@@ -93,14 +93,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   string(APPEND CMAKE_CUDA_FLAGS " -Xcompiler=/Zc:__cplusplus")
 endif()
 # CCCL in CUDA 13.2 and later rejects cl.exe's traditional preprocessor (C1189); nvcc's default Windows host is cl.exe.
-if(WIN32)
-  file(TO_CMAKE_PATH "${CMAKE_CUDA_HOST_COMPILER}" _cuda_host)
-  get_filename_component(_cuda_host "${_cuda_host}" NAME)
-  string(TOLOWER "${_cuda_host}" _cuda_host)
-  if(_cuda_host STREQUAL "" OR _cuda_host MATCHES "^cl(\\.exe)?$")
-    string(APPEND CMAKE_CUDA_FLAGS " -Xcompiler=/Zc:preprocessor")
-  endif()
-endif()
 
 # The `warnings` and `platform` targets, one file shared with the standalone `tools/vision` configuration.
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/platform.cmake)
@@ -115,11 +107,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/models.cmake)
 # and no external .manifest beside the exe. Nothing changes on Linux, where a path is bytes.
 set(_basalt_manifest ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/basalt.exe.manifest)
 function(basalt_embed_manifest target)
-  if(MSVC)
-    target_link_options(${target} PRIVATE "/MANIFEST:EMBED" "/MANIFESTINPUT:${_basalt_manifest}")
-    # a manifest edit has to relink the program, and the link command is the only thing that reads the file
-    set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS ${_basalt_manifest})
-  endif()
 endfunction()
 
 # The vector-extension flags per file, in each compiler's spelling. MSVC has no per-feature ISA switches: /arch:
@@ -131,13 +118,6 @@ endfunction()
 # ggml dot products pick their VNNI form by __AVX512VNNI__), so they are defined to match what the GNU flags give:
 # without it a file compiles down its no-VNNI path and runs slower than the same build on Linux. __BMI2__ is left
 # alone because -mavx2 and -mavx512* do not enable BMI2 either, so that branch is out on both platforms.
-if(MSVC)
-  set(_isa_avx512_flags "/arch:AVX512;-D__F16C__=1;-D__AVX512VNNI__=1;-D__AVX512VBMI__=1")
-  set(_isa_avx2_flags "/arch:AVX2;-D__F16C__=1")
-  set(_isa_avxvnni_flags "/arch:AVX2;-D__F16C__=1")
-  set(_isa_avxvnniint8_flags "/arch:AVX2;-D__F16C__=1")
-  set(_isa_avx1_flags "/arch:AVX")
-else()
   set(_isa_avx512_flags "-mavx512f;-mavx512bw;-mavx512vl;-mavx512dq;-mavx512vnni;-mavx512vbmi;-mf16c;-mfma")
   set(_isa_avx2_flags "-mavx2;-mfma;-mf16c")
   set(_isa_avxvnni_flags "-mavx2;-mfma;-mf16c;-mavxvnni;-mbmi2")
@@ -145,7 +125,6 @@ else()
   # only its AVX10.2 form encodes, so the assembler refuses it or emits an instruction AVX-512 CPUs do not run.
   set(_isa_avxvnniint8_flags "-mavx2;-mfma;-mf16c;-mavxvnniint8;-mno-avx512f")
   set(_isa_avx1_flags "-mavx")
-endif()
 
 # ---- artifact -------------------------------------------------------
 # Header-only, and that is a deliberate property rather than an unfinished split: the GGUF reader and the
@@ -217,15 +196,6 @@ target_include_directories(model_qwen4exp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
 target_link_libraries(model_qwen4exp PUBLIC model tokenizer serve_shared model_qwen4exp_engine engine_session grammar model_qwen4exp_prefill spec ${_gpu_runtime_target})
 endif()
 
-if(BASALT_MODEL_DEEPSEEK41)
-add_library(model_deepseek41 STATIC src/models/deepseek41/adapter.cpp src/models/deepseek41/tokenizer/pretok_joyai.cpp src/models/deepseek41/pack.cpp
-  src/models/deepseek41/model.cpp src/models/deepseek41/session.cpp src/models/deepseek41/layer_ops.cpp
-  src/models/deepseek41/elastic.cpp src/models/deepseek41/ops_kernels.cpp src/models/deepseek41/tier.cpp src/models/deepseek41/file_reads.cpp src/models/deepseek41/prompt_host.cpp src/models/deepseek41/ops.cu
-  src/models/deepseek41/prefill.cpp src/models/deepseek41/prefill_ffn.cpp src/models/deepseek41/prefill_ffn.cu src/models/deepseek41/attn_batch.cpp src/models/deepseek41/attn_dense.cu
-  src/models/deepseek41/dspark.cpp src/models/deepseek41/dspark_kernels.cu)
-target_include_directories(model_deepseek41 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src PRIVATE ${_gpu_include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src/program/tokenizer)
-target_link_libraries(model_deepseek41 PUBLIC model tokenizer serve_shared deepseek41_kernels deepseek41_attn deepseek41_vision tiers mmq peer_share kernels core ${_gpu_runtime_target})
-endif()
 
 if(BASALT_MODEL_QWEN35)
 # The shared dense stack (hybrid GDN / gated attention layers, dense FFN) and the model built on it; qwen35 is its
@@ -275,29 +245,6 @@ foreach(_m IN LISTS BASALT_MODELS)
   target_compile_definitions(models PUBLIC BASALT_MODEL_${_up}=1)
 endforeach()
 
-if(BASALT_MODEL_DEEPSEEK41)
-# DeepSeek-V4.1 kernels and their tests (own file)
-include(src/models/deepseek41/kernels/kernels.cmake)
-if(BUILD_TESTING)
-  # the DSpark drafter's kernels against CPU references (GPU)
-  add_executable(ds41_dspark_parity src/models/deepseek41/dspark_parity.cpp)
-  target_include_directories(ds41_dspark_parity PRIVATE ${_gpu_include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  target_link_libraries(ds41_dspark_parity PRIVATE model_deepseek41 ${_gpu_runtime_target})
-  basalt_gpu_test(NAME ds41_dspark_parity COMMAND ds41_dspark_parity)
-  # the layer loop's copy kernels across the bus against the source bytes (GPU)
-  add_executable(ds41_ops_parity src/models/deepseek41/ops_parity.cpp)
-  target_include_directories(ds41_ops_parity PRIVATE ${_gpu_include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  target_link_libraries(ds41_ops_parity PRIVATE model_deepseek41 ${_gpu_runtime_target})
-  basalt_gpu_test(NAME ds41_ops_parity COMMAND ds41_ops_parity)
-  # the prompt path's NVFP4 experts (MMQ products, the SwiGLU with the scale tails) against double and the decode path (GPU)
-  add_executable(ds41_prefill_ffn_parity src/models/deepseek41/prefill_ffn_parity.cpp)
-  target_include_directories(ds41_prefill_ffn_parity PRIVATE ${_gpu_include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  target_link_libraries(ds41_prefill_ffn_parity PRIVATE model_deepseek41 ${_gpu_runtime_target})
-  basalt_gpu_test(NAME ds41_prefill_ffn_parity COMMAND ds41_prefill_ffn_parity)
-  set_tests_properties(ds41_prefill_ffn_parity PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
-endif()
-include(src/models/deepseek41/vision/vision.cmake)
-endif()
 
 add_executable(basalt-gguf src/artifact/gguf_reader.cpp)
 target_link_libraries(basalt-gguf PRIVATE artifact models)
@@ -331,35 +278,6 @@ if(BUILD_TESTING)
   target_link_libraries(adapter_builtin_test PRIVATE models)
   basalt_embed_manifest(adapter_builtin_test)
   basalt_gpu_test(NAME adapter_builtin_test COMMAND adapter_builtin_test)
-  if(BASALT_MODEL_DEEPSEEK41)
-  # the DeepSeek expert tiers' admission and placement rules on synthetic id streams (no GPU)
-  add_executable(tier_policy_test src/models/deepseek41/tier_policy_test.cpp)
-  target_include_directories(tier_policy_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  basalt_embed_manifest(tier_policy_test)
-  basalt_cpu_test(NAME tier_policy_test COMMAND tier_policy_test)
-  # the RAM tier's file reads land every blob byte for byte (no GPU)
-  add_executable(file_reads_test src/models/deepseek41/file_reads_test.cpp src/models/deepseek41/file_reads.cpp)
-  target_include_directories(file_reads_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_compile_definitions(file_reads_test PRIVATE BASALT_TEST_TMPDIR="${CMAKE_CURRENT_BINARY_DIR}")
-  target_link_libraries(file_reads_test PRIVATE platform Threads::Threads)
-  basalt_embed_manifest(file_reads_test)
-  basalt_cpu_test(NAME file_reads_test COMMAND file_reads_test)
-  # the DeepSeek context: the refusals, the warning and the cache sizes (no GPU)
-  add_executable(context_policy_test src/models/deepseek41/context_policy_test.cpp)
-  target_include_directories(context_policy_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  basalt_embed_manifest(context_policy_test)
-  basalt_cpu_test(NAME context_policy_test COMMAND context_policy_test)
-  # the Engram table rows (IQ4_NL, MXFP4) against the formats' definitions (no GPU)
-  add_executable(engram_rows_test src/models/deepseek41/engram_rows_test.cpp)
-  target_include_directories(engram_rows_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  basalt_embed_manifest(engram_rows_test)
-  basalt_cpu_test(NAME engram_rows_test COMMAND engram_rows_test)
-  # the DeepSeek prompt chunk choice and the cache give-back rule (no GPU)
-  add_executable(prefill_plan_test src/models/deepseek41/prefill_plan_test.cpp)
-  target_include_directories(prefill_plan_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  basalt_embed_manifest(prefill_plan_test)
-  basalt_cpu_test(NAME prefill_plan_test COMMAND prefill_plan_test)
-  endif()
   # the split of a layer's RAM experts between the cards (no GPU)
   add_executable(peer_take_test tests/prefill/peer_take_test.cpp)
   target_include_directories(peer_take_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -367,10 +285,8 @@ if(BUILD_TESTING)
   basalt_cpu_test(NAME peer_take_test COMMAND peer_take_test)
   # shared code must not include a model; models must not include each other
   # a check of the tree's text, in bash and python3: Linux's run covers it for every platform
-  if(NOT WIN32)
     add_test(NAME model_layering COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_model_layering.sh)
     set_property(TEST model_layering APPEND PROPERTY LABELS cpu)
-  endif()
   # the logit_bias protocol key: what parses and what is refused (host only)
   add_executable(logit_bias_test tests/core/logit_bias_test.cpp)
   target_include_directories(logit_bias_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -553,7 +469,6 @@ if(BUILD_TESTING)
   # The transfer-failure paths are reached by GNU ld's --wrap, which symbolizes the runtime calls. The Windows
   # linker has no equivalent, so that one program is not built here; the same source builds the ordinary snapshot
   # test above, which does port.
-  if(NOT WIN32)
     add_executable(conversation_transfer_test tests/core/conversation_validation_test.cpp)
     target_compile_definitions(conversation_transfer_test PRIVATE CONVERSATION_TEST_TRANSFERS)
     target_link_options(conversation_transfer_test PRIVATE
@@ -562,7 +477,6 @@ if(BUILD_TESTING)
     target_link_libraries(conversation_transfer_test PRIVATE model_qwen4exp_engine)
     basalt_cpu_test(NAME conversation_transfer_test COMMAND conversation_transfer_test)
     set_tests_properties(conversation_transfer_test PROPERTIES ENVIRONMENT "CUDA_VISIBLE_DEVICES=-1" TIMEOUT 120)
-  endif()
   add_executable(conversation_snapshot_test tests/core/conversation_snapshot_test.cpp)
   target_link_libraries(conversation_snapshot_test PRIVATE model_qwen4exp_engine)
   basalt_gpu_test(NAME conversation_snapshot_test COMMAND conversation_snapshot_test)
@@ -675,10 +589,6 @@ if(BUILD_TESTING)
   # built from the tokenizer sources with the standard library range checks on, so an out-of-range index aborts the test
   add_executable(tokenizer_test tests/program/tokenizer_test.cpp src/program/tokenizer/bpe.cpp
                  src/program/tokenizer/pretok_qwen35.cpp src/program/tokenizer/unicode_flags.cpp)
-  if(BASALT_MODEL_DEEPSEEK41)
-    target_sources(tokenizer_test PRIVATE src/models/deepseek41/tokenizer/pretok_joyai.cpp)
-    target_compile_definitions(tokenizer_test PRIVATE BASALT_MODEL_DEEPSEEK41)
-  endif()
   target_include_directories(tokenizer_test PRIVATE include src src/program/tokenizer)
   target_compile_definitions(tokenizer_test PRIVATE _GLIBCXX_ASSERTIONS)
   target_link_libraries(tokenizer_test PRIVATE warnings)
@@ -1285,12 +1195,10 @@ target_link_libraries(mapped_file_test PRIVATE platform)
 basalt_embed_manifest(mapped_file_test)
 basalt_cpu_test(NAME mapped_file_test COMMAND mapped_file_test)
 set_tests_properties(mapped_file_test PROPERTIES TIMEOUT 60)
-if(NOT WIN32)
   add_executable(mapped_file_large_test tests/platform/mapped_file_large_test.cpp)
   target_link_libraries(mapped_file_large_test PRIVATE platform)
   basalt_cpu_test(NAME mapped_file_large_test COMMAND mapped_file_large_test)
   set_tests_properties(mapped_file_large_test PROPERTIES TIMEOUT 60)
-endif()
 
 # the platform seams below the engine: thread placement and topology, the compiler helpers, large host regions, the
 # piped child, the system questions, the dynamic loader and the file writes and directory calls (CPU only, both platforms).
@@ -1559,11 +1467,7 @@ target_sources(kernels_cpu PRIVATE src/kernels/cpu/native_expert.cpp src/kernels
                                          $<TARGET_OBJECTS:ggml_dots_avx2> $<TARGET_OBJECTS:ggml_dots_avx512>)
 # the i-quant rows also use BMI2 (pdep/pext for the sign masks; cpu_avx512_ok requires it). MSVC compiles the
 # intrinsics without a switch.
-if(MSVC)
-  set_source_files_properties(src/kernels/cpu/iq_avx512.cpp PROPERTIES COMPILE_OPTIONS "${_isa_avx512_flags}")
-else()
   set_source_files_properties(src/kernels/cpu/iq_avx512.cpp PROPERTIES COMPILE_OPTIONS "${_isa_avx512_flags};-mbmi2")
-endif()
 set_source_files_properties(src/kernels/cpu/nvfp4_avx512.cpp PROPERTIES COMPILE_OPTIONS
                             "${_isa_avx512_flags}")
 set_source_files_properties(src/kernels/cpu/iq_avx2.cpp PROPERTIES COMPILE_OPTIONS "${_isa_avx2_flags}")
@@ -1581,10 +1485,6 @@ set_source_files_properties(src/kernels/cpu/kq_avx1.cpp PROPERTIES COMPILE_OPTIO
 # and it must be compiled without __F16C__ for its definitions to survive; the callers carry prototypes and
 # #pragma function so the calls reach it. The file is empty for every other compiler, and it is not added to the
 # library at all there.
-if(MSVC)
-  target_sources(kernels_cpu PRIVATE src/kernels/cpu/ggml/f16c_scalar_msvc.c)
-  set_source_files_properties(src/kernels/cpu/ggml/f16c_scalar_msvc.c PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
-endif()
 target_link_libraries(kernels_cpu PUBLIC ggml_quants)
 if(BUILD_TESTING)
   # the router lookahead's dot on each rung this CPU has (AVX2, the older CPUs' AVX1) against a double reference
@@ -1605,9 +1505,6 @@ endforeach()
 target_include_directories(mmq PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(mmq PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda -use_fast_math>)
 # MSVC's COFF object holds 65536 sections; the instantiated MMQ formats exceed that in one TU without /bigobj.
-if(MSVC)
-  target_compile_options(mmq PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/bigobj>)
-endif()
 target_link_libraries(mmq PUBLIC ggml_quants ${_gpu_runtime_target})
 # multi-GPU: a second card's share of a prompt chunk's routed experts, on the MMQ products
 add_library(peer_share STATIC src/prefill/peer_share.cpp)
@@ -1765,12 +1662,6 @@ if(BUILD_TESTING)
   target_include_directories(iq1s_parity PRIVATE ${_gpu_include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_compile_definitions(iq1s_parity PRIVATE BASALT_IQ1S_GPU)
   target_link_libraries(iq1s_parity PRIVATE kernels kernels_cpu ${_gpu_runtime_target})
-  if(BASALT_MODEL_QWEN4EXP)
-  add_executable(ds41_peer_parity tests/kernels/ds41_peer_parity.cpp)
-  target_include_directories(ds41_peer_parity PRIVATE ${_gpu_include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  target_link_libraries(ds41_peer_parity PRIVATE model_qwen4exp_engine kernels kernels_cpu core ${_gpu_runtime_target})
-  basalt_gpu_test(NAME ds41_peer_parity COMMAND ds41_peer_parity)
-  endif()
   basalt_gpu_test(NAME iq1s_parity COMMAND iq1s_parity)
   set_tests_properties(iq1s_parity PROPERTIES TIMEOUT 300)
   basalt_cpu_test(NAME iq1s_parity_cpu COMMAND iq1s_parity --cpu)
@@ -1826,7 +1717,6 @@ endif()
 if(BUILD_TESTING)
   # Both programs test a Linux-only surface: the cgroup quota files and the Linux affinity backend's headers.
   # Neither exists on Windows, so neither is built or run there.
-  if(NOT WIN32)
     add_executable(cpu_quota_test tests/kernels/cpu/cpu_quota_test.cpp)
     target_link_libraries(cpu_quota_test PRIVATE kernels_cpu)
     basalt_cpu_test(NAME cpu_quota_test COMMAND cpu_quota_test)
@@ -1834,7 +1724,6 @@ if(BUILD_TESTING)
     target_include_directories(pool_affinity_test PRIVATE src/platform)
     target_link_libraries(pool_affinity_test PRIVATE kernels_cpu)
     basalt_cpu_test(NAME pool_affinity_test COMMAND pool_affinity_test)
-  endif()
   # one expert applied to several tokens, bitwise vs the single-token kernel (synthetic, CPU only).
   # the device dequantizers vs the artifact's CPU dequantizers on the real shards (not a ctest: needs
   # the full model; run it by hand)
