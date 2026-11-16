@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>  // std::getenv
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -55,6 +56,14 @@ std::string module_path() {
 }
 
 std::string temp_dir() {
+    // $TMPDIR as POSIX names it, so a host whose /tmp is a small tmpfs can point scratch files at disk
+    const char* env = std::getenv("TMPDIR");
+    if (env != nullptr && env[0] == '/') {
+        std::string dir(env);
+        while (dir.size() > 1 && dir.back() == '/') dir.pop_back();
+        struct stat st{};
+        if (::stat(dir.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) return dir;
+    }
     return "/tmp";
 }
 

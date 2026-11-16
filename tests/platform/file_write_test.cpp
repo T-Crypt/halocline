@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -37,6 +38,19 @@ const basalt::platform::DirFile* find(const std::vector<basalt::platform::DirFil
 
 int main() {
     using namespace basalt::platform;
+    {   // temp_dir follows an absolute, existing $TMPDIR and falls back to /tmp otherwise
+        const char* was = std::getenv("TMPDIR");
+        const std::string saved = was ? was : "";
+        ::setenv("TMPDIR", "/usr/", 1);
+        check(temp_dir() == "/usr", "temp_dir takes $TMPDIR, no trailing slash");
+        ::setenv("TMPDIR", "relative/dir", 1);
+        check(temp_dir() == "/tmp", "temp_dir refuses a relative $TMPDIR");
+        ::setenv("TMPDIR", "/nonexistent-basalt-tmpdir", 1);
+        check(temp_dir() == "/tmp", "temp_dir refuses a missing $TMPDIR");
+        ::unsetenv("TMPDIR");
+        check(temp_dir() == "/tmp", "temp_dir is /tmp without $TMPDIR");
+        if (was) ::setenv("TMPDIR", saved.c_str(), 1);
+    }
     const std::string dir = temp_dir() + "/basalt-file-write-" + std::to_string((long long) process_id()) +
                             "/\xc3\xa9-\xe6\x97\xa5";   // é-日 under a fresh parent
     ::umask(022);

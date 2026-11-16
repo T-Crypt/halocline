@@ -53,8 +53,8 @@ std::string module_path();
 /// the OS does not name the executable.
 std::string install_root();
 
-/// The directory for scratch files, with no trailing separator: the system's temp directory on Windows, /tmp on
-/// Linux. Never empty; where the OS cannot name one it says ".".
+/// The directory for scratch files, with no trailing separator: $TMPDIR when it names an existing directory by an
+/// absolute path, /tmp otherwise. Never empty.
 std::string temp_dir();
 
 /// Reads up to `n` bytes at the absolute offset `off` into `dst`, without moving any file position. Returns the
