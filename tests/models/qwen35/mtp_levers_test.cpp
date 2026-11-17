@@ -58,7 +58,7 @@ int main() {
     check(mtp_option_error(true, "int8", 32768, Drafter::Mtp).empty(), "both levers together");
     check(has(mtp_option_error(true, "q4", 0, Drafter::Mtp), "--mtp-kv q4"), "a bad format names the flag and its values");
     check(has(mtp_option_error(true, "k8v4", 0, Drafter::Mtp), "the main cache's format"),
-          "-mtp-kv k8v4 is refused by name: the drafter keeps fp16 or int8");
+          "--mtp-kv k8v4 is refused by name: the drafter keeps fp16 or int8");
     check(has(mtp_option_error(false, "", -1, Drafter::Mtp), "--mtp-window -1"), "a negative window is refused");
     check(has(mtp_option_error(false, "", (int64_t) 1 << 41, Drafter::Mtp), "--mtp-window"),
           "a window past any context is refused");
