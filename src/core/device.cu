@@ -1,0 +1,302 @@
+// src/core/device.cu - the CUDA side of the runtime core.
+#include "basalt/core/device.hpp"
+#include "basalt/build_archs.hpp"
+#include "basalt/platform/dynlib.hpp"
+
+#include <cuda_runtime.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
+
+namespace basalt::core {
+
+namespace {
+
+void check(cudaError_t e, const char* what) {
+    if (e != cudaSuccess) {
+        throw CudaError(std::string(what) + ": " + cudaGetErrorString(e), (int) e);
+    }
+}
+
+// A NaN pattern, not zero.  Zeros read from uninitialised memory are indistinguishable from real zeros in a
+// dequantized weight or a masked attention score, which is exactly the kind of wrong-but-plausible value the
+// Phase 1 harnesses kept catching.
+__global__ void poison_kernel(float* p, uint64_t n_floats) {
+    const uint64_t i = (uint64_t) blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n_floats) p[i] = __int_as_float(0x7fc00000);
+}
+
+
+}  // namespace
+
+int device_count() {
+    int count = 0;
+    if (cudaGetDeviceCount(&count) != cudaSuccess) {
+        cudaGetLastError();
+        return 0;
+    }
+    return count < 0 ? 0 : count;
+}
+
+bool device_summary(int ordinal, std::string& name, std::string& detail) {
+    cudaDeviceProp p{};
+    if (ordinal < 0 || ordinal >= device_count() || cudaGetDeviceProperties(&p, ordinal) != cudaSuccess) {
+        cudaGetLastError();
+        return false;
+    }
+    char buf[160];
+    std::snprintf(buf, sizeof(buf), "compute capability %d.%d, %.1f GiB", p.major, p.minor,
+                  (double) p.totalGlobalMem / (1024.0 * 1024 * 1024));
+    name = p.name;
+    detail = buf;
+    return true;
+}
+
+bool device_pci_bus_id(int ordinal, std::string& id) {
+    char buf[64] = {};
+    if (ordinal < 0 || cudaDeviceGetPCIBusId(buf, sizeof buf, ordinal) != cudaSuccess) {
+        cudaGetLastError();
+        return false;
+    }
+    id = buf;
+    return true;
+}
+
+DeviceRates device_rates(int ordinal) {
+    DeviceRates r;
+    std::string bus;
+    int sms = 0;
+    if (!device_pci_bus_id(ordinal, bus) || cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, ordinal) != cudaSuccess) {
+        cudaGetLastError();
+        return r;
+    }
+    const platform::DynLib lib = platform::DynLib::open_nvml();
+    if (!lib) return r;
+    const auto init = lib.sym<int (*)()>("nvmlInit_v2");
+    const auto shut = lib.sym<int (*)()>("nvmlShutdown");
+    const auto by_bus = lib.sym<int (*)(const char*, void**)>("nvmlDeviceGetHandleByPciBusId_v2");
+    const auto gen = lib.sym<int (*)(void*, unsigned*)>("nvmlDeviceGetMaxPcieLinkGeneration");
+    const auto width = lib.sym<int (*)(void*, unsigned*)>("nvmlDeviceGetCurrPcieLinkWidth");
+    const auto clk = lib.sym<int (*)(void*, int, unsigned*)>("nvmlDeviceGetMaxClockInfo");
+    if (!init || !by_bus || init() != 0) return r;
+    void* h = nullptr;
+    unsigned g = 0, w = 0, mhz = 0;
+    if (by_bus(bus.c_str(), &h) == 0) {
+        // per lane and direction, after line encoding: 8b/10b to generation 2, 128b/130b from generation 3 on
+        static constexpr double kLaneBytes[] = {0, 0.25e9, 0.5e9, 0.985e9, 1.969e9, 3.938e9, 7.877e9};
+        if (gen && width && gen(h, &g) == 0 && width(h, &w) == 0 && g >= 1 && g <= 6) r.link_bytes = kLaneBytes[g] * w;
+        if (clk && clk(h, 1 /* NVML_CLOCK_SM */, &mhz) == 0) r.sm_hz = (double) sms * mhz * 1e6;
+    }
+    if (shut) shut();
+    return r;
+}
+
+namespace {
+
+std::string device_fault(const char* call, cudaError_t e, int ordinal) {
+    return std::string(call) + ": " + cudaGetErrorString(e) + " (code " + std::to_string((int) e) + "), device " +
+           std::to_string(ordinal) + " of " + std::to_string(device_count());
+}
+
+}  // namespace
+
+bool device_memory(int ordinal, uint64_t& free_bytes, uint64_t& total_bytes, std::string& why) {
+    int prev = 0;
+    cudaError_t e = cudaGetDevice(&prev);
+    const int at = ordinal < 0 ? prev : ordinal;
+    const char* call = "cudaGetDevice";
+    if (e == cudaSuccess && ordinal >= 0 && ordinal != prev) {
+        call = "cudaSetDevice";
+        e = cudaSetDevice(ordinal);
+    }
+    size_t f = 0, t = 0;
+    if (e == cudaSuccess) {
+        call = "cudaMemGetInfo";
+        e = cudaMemGetInfo(&f, &t);
+        if (ordinal >= 0 && ordinal != prev) cudaSetDevice(prev);
+    }
+    if (e != cudaSuccess) {
+        why = device_fault(call, e, at);
+        cudaGetLastError();
+        return false;
+    }
+    free_bytes = f;
+    total_bytes = t;
+    return true;
+}
+
+bool devices_allocate(const std::vector<int>& ordinals, std::string& why) {
+    for (int ordinal : ordinals) {
+        uint64_t f = 0, t = 0;
+        if (!device_memory(ordinal, f, t, why)) return false;
+        int prev = 0;
+        cudaGetDevice(&prev);
+        const int d = ordinal < 0 ? prev : ordinal;
+        void* p = nullptr;
+        cudaError_t e = d == prev ? cudaSuccess : cudaSetDevice(d);
+        if (e == cudaSuccess) {
+            e = cudaMalloc(&p, 1ull << 20);
+            if (e == cudaSuccess) cudaFree(p);
+            if (d != prev) cudaSetDevice(prev);
+        }
+        if (e != cudaSuccess) {
+            why = device_fault("cudaMalloc of 1 MiB", e, d);
+            cudaGetLastError();
+            return false;
+        }
+    }
+    return true;
+}
+
+double device_h2d_gbps(int ordinal) {
+    constexpr size_t kBytes = 256ull << 20;
+    constexpr int kCopies = 6;
+    int prev = 0;
+    if (ordinal < 0 || ordinal >= device_count() || cudaGetDevice(&prev) != cudaSuccess || cudaSetDevice(ordinal) != cudaSuccess) {
+        cudaGetLastError();
+        return 0;
+    }
+    void* host = nullptr;
+    void* dev = nullptr;
+    cudaStream_t st = nullptr;
+    cudaEvent_t ev[kCopies + 1] = {};
+    bool ok = cudaHostAlloc(&host, kBytes, cudaHostAllocPortable) == cudaSuccess;
+    ok = ok && cudaMalloc(&dev, kBytes) == cudaSuccess && cudaStreamCreate(&st) == cudaSuccess;
+    for (cudaEvent_t& e : ev) ok = ok && cudaEventCreate(&e) == cudaSuccess;
+    double best = 0;
+    if (ok) {
+        cudaMemcpyAsync(dev, host, kBytes, cudaMemcpyHostToDevice, st);   // the copy engine and the link up
+        cudaStreamSynchronize(st);
+        cudaEventRecord(ev[0], st);
+        for (int i = 0; i < kCopies; ++i) {
+            cudaMemcpyAsync(dev, host, kBytes, cudaMemcpyHostToDevice, st);
+            cudaEventRecord(ev[i + 1], st);
+        }
+        if (cudaEventSynchronize(ev[kCopies]) == cudaSuccess)
+            for (int i = 0; i < kCopies; ++i) {
+                float ms = 0.f;
+                if (cudaEventElapsedTime(&ms, ev[i], ev[i + 1]) == cudaSuccess && ms > 0.01f)
+                    best = std::max(best, (double) kBytes / ((double) ms * 1e-3) / 1e9);
+            }
+    }
+    for (cudaEvent_t e : ev)
+        if (e) cudaEventDestroy(e);
+    if (st) cudaStreamDestroy(st);
+    if (dev) cudaFree(dev);
+    if (host) cudaFreeHost(host);
+    cudaGetLastError();
+    cudaSetDevice(prev);
+    return best;
+}
+
+}  // namespace basalt::core
+
+
+namespace basalt::core {
+
+std::string device_code_error() {
+    // every .cu of the engine is compiled for the same CMAKE_CUDA_ARCHITECTURES, so this kernel stands for all
+    cudaFuncAttributes a{};
+    const cudaError_t e = cudaFuncGetAttributes(&a, poison_kernel);
+    if (e == cudaSuccess) return {};
+    cudaGetLastError();
+    return cudaGetErrorString(e);
+}
+
+DeviceInfo device_info(int ordinal) {
+    int count = 0;
+    check(cudaGetDeviceCount(&count), "cudaGetDeviceCount");
+    if (count == 0) {
+        throw CudaError("no CUDA device is present; basalt needs an NVIDIA GPU of compute capability 12.0 or 8.9", -1);
+    }
+    if (ordinal < 0 || ordinal >= count) {
+        throw CudaError("device ordinal " + std::to_string(ordinal) + " is out of range (have " +
+                            std::to_string(count) + ")",
+                        -1);
+    }
+    DeviceInfo d;
+    d.ordinal = ordinal;
+    check(cudaSetDevice(ordinal), "cudaSetDevice");
+
+    cudaDeviceProp p{};
+    check(cudaGetDeviceProperties(&p, ordinal), "cudaGetDeviceProperties");
+    d.name = p.name;
+    d.cc_major = p.major;
+    d.cc_minor = p.minor;
+    d.multi_processor_count = p.multiProcessorCount;
+
+    size_t free_b = 0, total_b = 0;
+    check(cudaMemGetInfo(&free_b, &total_b), "cudaMemGetInfo");
+    d.free_bytes = free_b;
+    d.total_bytes = total_b;
+
+    check(cudaDriverGetVersion(&d.driver_version), "cudaDriverGetVersion");
+    check(cudaRuntimeGetVersion(&d.runtime_version), "cudaRuntimeGetVersion");
+
+    // The binary holds code for compute capability 12.0 and 8.9 only; a card of another compute capability is refused
+    // here rather than failing at its first kernel launch.
+    const bool cc_ok = (d.cc_major == 12 && d.cc_minor == 0) || (d.cc_major == 8 && d.cc_minor == 9);
+    if (!cc_ok) {
+        throw CudaError("device " + d.name + " reports compute capability " + std::to_string(d.cc_major) + "." +
+                            std::to_string(d.cc_minor) + "; basalt needs an NVIDIA GPU of compute capability 12.0 or 8.9",
+                        -1);
+    }
+    // and only for the architectures it was built for (build_archs.hpp): another one would run lower PTX with the
+    // code its paths need compiled out
+    if (!basalt::build_has_arch(d.cc_major, d.cc_minor)) {
+        throw CudaError("device " + d.name + " is sm_" + std::to_string(d.cc_major) + std::to_string(d.cc_minor) +
+                            " and this build has device code for " + basalt::build_archs() +
+                            " only; build with -DCMAKE_CUDA_ARCHITECTURES=\"120;89\" for Blackwell and Ada cards together",
+                        -1);
+    }
+    return d;
+}
+
+DeviceArena::DeviceArena(uint64_t bytes, int ordinal, bool poison)
+    : capacity_(bytes), ordinal_(ordinal), poison_(poison) {
+    if (bytes == 0) throw CudaError("DeviceArena of 0 bytes", -1);
+    check(cudaSetDevice(ordinal), "cudaSetDevice");
+    // One allocation for the whole region.  cudaMalloc of a large block is the thing that can fail late, so it
+    // happens once, here, before anything depends on it.
+    check(cudaMalloc(&base_, (size_t) bytes), "cudaMalloc");
+    if (poison_) {
+        const int threads = 256;
+        const uint64_t n = bytes / sizeof(float);
+        const uint64_t blocks = (n + threads - 1) / threads;
+        // gridDim.x is 32-bit, so a large region needs a loop.  12 GB of floats is 3e9 elements = 1.2e7
+        // blocks, which fits, but the loop keeps it correct for any size rather than for today's sizes.
+        const uint64_t max_blocks = 0x7FFFFFFFull;
+        for (uint64_t b = 0; b < blocks; b += max_blocks) {
+            const uint64_t chunk = (blocks - b < max_blocks) ? (blocks - b) : max_blocks;
+            poison_kernel<<<(unsigned) chunk, threads>>>((float*) base_ + b * threads, n - b * threads);
+            check(cudaGetLastError(), "poison_kernel");
+        }
+        check(cudaDeviceSynchronize(), "poison sync");
+    }
+}
+
+DeviceArena::~DeviceArena() {
+    if (base_) cudaFree(base_);          // best effort: a destructor must not throw
+}
+
+void* DeviceArena::alloc(uint64_t bytes, uint64_t align) {
+    if (bytes == 0) return nullptr;
+    if (align == 0 || (align & (align - 1)) != 0) {
+        throw CudaError("DeviceArena::alloc alignment must be a power of two", -1);
+    }
+    const uint64_t start = (used_ + align - 1) & ~(align - 1);
+    if (start + bytes > capacity_) {
+        char msg[256];
+        std::snprintf(msg, sizeof(msg),
+                      "DeviceArena out of memory: asked for %llu B at offset %llu (align %llu) in a %llu B "
+                      "region - the memory plan did not close",
+                      (unsigned long long) bytes, (unsigned long long) start, (unsigned long long) align,
+                      (unsigned long long) capacity_);
+        throw CudaError(msg, -1);
+    }
+    used_ = start + bytes;
+    return (char*) base_ + start;
+}
+
+}  // namespace basalt::core
