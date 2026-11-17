@@ -1,10 +1,9 @@
 // tests/kernels/fp4_dense_tma_test.cpp - the TMA dense W4A4 product (prefill::fp4_dense) against a double-precision
 // reference over the same quantized codes and scales: the plain product, the Add epilogue and the SwiGLU product; a
-// token's row is the same bits at 1, 1000 and 1100 tokens.  --bench: TFLOP/s at the Qwen3.8-27B MLP shapes against the
-// cp.async path of prefill::fp4::run (12.0 only; on 8.9 the product is the f16 kernel).  Exit 77 without a GPU.
+// token's row is the same bits at 1, 1000 and 1100 tokens (on 8.9 the product is the f16 kernel).  --bench: TFLOP/s at
+// the Qwen3.8-27B MLP shapes.  Exit 77 without a GPU.
 #include "basalt/kernels/nvfp4_planes.hpp"
 #include "basalt/prefill/fp4_dense.hpp"
-#include "basalt/prefill/moe_fp4.hpp"
 
 #include <cuda_runtime.h>
 
@@ -16,7 +15,6 @@
 #include <vector>
 
 namespace fd = basalt::prefill::fp4_dense;
-namespace fp4 = basalt::prefill::fp4;
 namespace np = basalt::kernels::nvfp4p;
 
 namespace {
@@ -277,61 +275,24 @@ int bench() {
     const int64_t gate_rows = 17408, down_rows = 5120, K1 = 5120, K2 = 17408;
     const auto bg = bench_planes(gate_rows, K1), bu = bench_planes(gate_rows, K1), bd = bench_planes(down_rows, K2);
     uint8_t *wg = dev_copy(bg), *wu = dev_copy(bu), *wd = dev_copy(bd);
-    uint8_t *cg, *cu, *cd;   // the same matrices as ggml blocks for the cp.async path
-    cudaMalloc(&cg, bg.size());
-    cudaMalloc(&cu, bg.size());
-    cudaMalloc(&cd, bd.size());
-    np::to_blocks(wg, gate_rows, K1, cg, nullptr);
-    np::to_blocks(wu, gate_rows, K1, cu, nullptr);
-    np::to_blocks(wd, down_rows, K2, cd, nullptr);
     const float sc[4] = {0.7f, 1.3f, 1.0f, 0.0f};
     float* dsc = dev_copy(std::vector<float>(sc, sc + 4));
     std::mt19937 rng(3);
     std::normal_distribution<float> nd;
     int rc = 0;
-    int major = 0;
-    cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, 0);
-    const bool old_path = major >= 12;   // prefill::fp4 (the experts' kernels) is sm_120a's alone: 0 ms below it
     for (const int64_t T : {2048, 4096}) {
         std::vector<float> x1((size_t) T * K1), x2((size_t) T * K2);
         for (auto& v : x1) v = nd(rng);
         for (auto& v : x2) v = nd(rng);
         float *dx1 = dev_copy(x1), *dx2 = dev_copy(x2), *gs, *out, *out2;
-        void *act1, *act2, *a4a, *a4b;
-        int32_t *bounds, *toff;
+        void *act1, *act2;
         cudaMalloc(&act1, fd::act_bytes(T, K1));
         cudaMalloc(&act2, fd::act_bytes(T, K2));
-        cudaMalloc(&a4a, fp4::a4_bytes(T, K1, 1));
-        cudaMalloc(&a4b, fp4::a4_bytes(T, K2, 1));
-        cudaMalloc(&gs, fp4::scale_count(T, 1) * 4);
+        cudaMalloc(&gs, (size_t) T * 4);
         cudaMalloc(&out, (size_t) T * gate_rows * 4);
         cudaMalloc(&out2, (size_t) T * gate_rows * 4);
-        cudaMalloc(&bounds, 8);
-        cudaMalloc(&toff, 4 * (fp4::kMaxExperts + 1));
-        const int32_t b[2] = {0, (int32_t) T};
-        cudaMemcpy(bounds, b, 8, cudaMemcpyHostToDevice);
-        if (old_path) fp4::plan(bounds, 1, toff, nullptr);
 
         const double flop_gu = 2.0 * T * (2 * gate_rows) * K1, flop_d = 2.0 * T * down_rows * K2;
-        // the expert path's plain products (gate and up as two of them)
-        auto old_product = [&](const uint8_t* w, const uint8_t* up, int64_t rows, int64_t K, void* a4, float* dst) {
-            for (const uint8_t* m : {w, up}) {
-                if (!m) continue;
-                fp4::Product p;
-                p.blob[0] = m;
-                p.w_rows = rows;
-                p.w_cols = K;
-                p.n = 1;
-                p.a4 = a4;
-                p.gs = gs;
-                p.bounds = bounds;
-                p.tile_off = toff;
-                p.dst = dst;
-                p.ld_dst = rows;
-                p.max_rows = T;
-                fp4::run(p, nullptr);
-            }
-        };
         const float q1 = time_ms([&] { fd::quantize(dx1, T, K1, K1, act1, gs, nullptr); });
         const float q2 = time_ms([&] { fd::quantize(dx2, T, K2, K2, act2, gs, nullptr); });
         fd::quantize(dx1, T, K1, K1, act1, gs, nullptr);
@@ -339,24 +300,13 @@ int bench() {
         fd::quantize(dx2, T, K2, K2, act2, gs, nullptr);
         const float n_d = time_ms([&] { fd::product(wd, dsc + 2, down_rows, K2, act2, gs, T, out2, down_rows, false, nullptr); });
         const float n_da = time_ms([&] { fd::product(wd, dsc + 2, down_rows, K2, act2, gs, T, out2, down_rows, true, nullptr); });
-        float o_gu = 0, o_d = 0, oq1 = 0, oq2 = 0;
-        if (old_path) {
-            fp4::quantize(dx1, nullptr, bounds, toff, 1, a4a, gs, K1, K1, T, nullptr);
-            o_gu = time_ms([&] { old_product(cg, cu, gate_rows, K1, a4a, out); });
-            fp4::quantize(dx2, nullptr, bounds, toff, 1, a4b, gs, K2, K2, T, nullptr);
-            o_d = time_ms([&] { old_product(cd, nullptr, down_rows, K2, a4b, out2); });
-            oq1 = time_ms([&] { fp4::quantize(dx1, nullptr, bounds, toff, 1, a4a, gs, K1, K1, T, nullptr); });
-            oq2 = time_ms([&] { fp4::quantize(dx2, nullptr, bounds, toff, 1, a4b, gs, K2, K2, T, nullptr); });
-        }
         const auto tf = [](double flop, float ms) { return flop / (ms * 1e-3) / 1e12; };
-        std::printf("T=%lld  gate+up swiglu [34816 x 5120]: tma %.3f ms (%.0f TFLOP/s)  cp.async %.3f ms (%.0f)\n", (long long) T, n_gu,
-                    tf(flop_gu, n_gu), o_gu, tf(flop_gu, o_gu));
-        std::printf("T=%lld  down [5120 x 17408]:           tma %.3f ms (%.0f TFLOP/s)  add %.3f ms (%.0f)  cp.async %.3f ms (%.0f)\n",
-                    (long long) T, n_d, tf(flop_d, n_d), n_da, tf(flop_d, n_da), o_d, tf(flop_d, o_d));
-        std::printf("T=%lld  quantize K=5120: %.3f ms (cp.async path %.3f)  K=17408: %.3f ms (cp.async path %.3f)\n", (long long) T, q1,
-                    oq1, q2, oq2);
+        std::printf("T=%lld  gate+up swiglu [34816 x 5120]: %.3f ms (%.0f TFLOP/s)\n", (long long) T, n_gu, tf(flop_gu, n_gu));
+        std::printf("T=%lld  down [5120 x 17408]:           %.3f ms (%.0f TFLOP/s)  add %.3f ms (%.0f)\n", (long long) T, n_d,
+                    tf(flop_d, n_d), n_da, tf(flop_d, n_da));
+        std::printf("T=%lld  quantize K=5120: %.3f ms  K=17408: %.3f ms\n", (long long) T, q1, q2);
         if (cudaGetLastError() != cudaSuccess) rc = 1;
-        for (void* p : {(void*) dx1, (void*) dx2, act1, act2, a4a, a4b, (void*) gs, (void*) out, (void*) out2, (void*) bounds, (void*) toff})
+        for (void* p : {(void*) dx1, (void*) dx2, act1, act2, (void*) gs, (void*) out, (void*) out2})
             cudaFree(p);
     }
     return rc;

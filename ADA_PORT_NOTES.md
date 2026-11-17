@@ -108,6 +108,10 @@ the fallback so the trap is never launched.
   A/B the worst dip (203) was with it off.
 - Measuring conv and prose: their text path moves them more than most changes do, so use several seeds. Seed 7 alone
   showed this kernel at +4.4 % on conv.
+- 2026-11-17 (Halocline 2c1): the MoE experts' FP4 prompt path (`src/prefill/moe_fp4.cu`, library `prefill_fp4`,
+  `expert_fp4.cpp`, `prefill_fp4_test`) is removed: it was `120a-real` only and never ran on 8.9. `fp4_dense_tma_test`
+  stays (it covers the dense product's 8.9 kernel), without its comparison against the removed path.
+  NVFP4 experts always take MMQ; the notes below on `fp4_tensor_cores()` describe the code before that.
 - NVFP4 prefill: `fp4_tensor_cores()` (layout.cpp) is true only for major >= 12. `fp4_pack()`, `fp4_every_layer()` and
   `fp4_l` (experts.hpp) depend on it, so NVFP4 experts take the MMQ path (src/prefill/mmq, mmq_nvfp4) and the MMQ
   buffers are sized for every chunk length. If a buffer overflow or wrong-size error shows up in prefill, look at

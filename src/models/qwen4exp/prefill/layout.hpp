@@ -58,16 +58,8 @@ struct MmqPlan {
     size_t gu_max = 0, d_max = 0;
 };
 
-// A chunk shorter than this leaves most expert tiles nearly empty and the per-expert launches dominate: MMQ is faster.
-constexpr int64_t FP4_MIN_TOKENS = 1024;
 constexpr size_t al256(size_t v) { return (v + 255) & ~(size_t) 255; }
 
-struct Fp4Ptrs {
-    uint8_t *a4x, *a4h;
-    float *gsx, *gsh;
-    int32_t *toh, *rel;
-};
-// Where the FP4 path's tables sit in Xq (the layer's token planes) and Hq (a group's H), as moe_bufs sized them.
 
 const MmqPlan& mmq_plan();
 float* grp_scales(uint8_t* grp_d);
@@ -81,16 +73,8 @@ uint64_t qsa_set_bytes(size_t T, int64_t cap, int64_t max_blocks, int64_t sel_ba
                        const basalt::kernels::QsaShapes& s);
 uint64_t moe_set_bytes(size_t T, int64_t n_expert, bool fused);
 bool fused_layout(size_t T, bool src);
-/// The FP4 block-scaled tensor cores (mma kind::mxf4nvf4, fp4/moe_fp4.cu, built for 12.0a only) exist on compute
-/// capability 12.x.  On another card (Ada, 8.9) an NVFP4 pack's prompt experts take the MMQ path (int8 tiles from the
-/// pack's NVFP4 blocks, mmq_nvfp4.cu) for every chunk size, and the buffers are sized for it.  True only when every
-/// card the engine uses is 12.x, so a mixed set (a Blackwell main card, an Ada tier card) takes MMQ on all of them.
-bool fp4_tensor_cores();
-bool fp4_pack();
-size_t fp4_x_bytes(size_t rows, int64_t ne);
-size_t fp4_h_bytes(size_t rows);
-bool fp4_every_layer();
+/// An NVFP4 pack's prompt experts take the MMQ path (int8 tiles from the pack's NVFP4 blocks, mmq_nvfp4.cu) for every
+/// chunk size: the FP4 block-scaled tensor-core path (sm_120a only) was removed with the other Blackwell-only code.
 size_t group_rows_cap(size_t T);
-Fp4Ptrs fp4_ptrs(void* xq, void* hq, int64_t T, int64_t n_expert);
 
 }  // namespace basalt::prefill::detail

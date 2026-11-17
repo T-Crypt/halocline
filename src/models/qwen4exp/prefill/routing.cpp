@@ -4,7 +4,6 @@
 #include "basalt/core/progress.hpp"
 #include "basalt/models/qwen4exp/decode/layout.hpp"
 #include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
-#include "basalt/prefill/moe_fp4.hpp"
 #include "basalt/models/qwen4exp/prefill/kernels.hpp"
 #include "basalt/log.hpp"
 #include <algorithm>

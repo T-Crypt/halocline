@@ -12,7 +12,6 @@
 #include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
 #include "basalt/models/qwen4exp/prefill/moe_fused_iq.hpp"
 #include "basalt/prefill/moe_mmq.hpp"
-#include "basalt/prefill/moe_fp4.hpp"
 #include <vector>
 #include <future>
 
@@ -88,9 +87,6 @@ struct Prefill::Run::Chunk::Experts {
     const int mmq_gt = lay.native ? lay.fmt[(size_t) l].gu_type : 42;
     const int mmq_dt = lay.native ? lay.fmt[(size_t) l].d_type : 42;
     const int mmq_ut = lay.native ? lay.fmt[(size_t) l].up_type : 42;   // the up rows' type
-    // NVFP4 experts: FP4 block-scaled tensor cores, read in place from the blobs
-    const bool fp4_l = use_mmq && lay.native && mmq_gt == GGML_TYPE_NVFP4 && mmq_dt == GGML_TYPE_NVFP4 &&
-                       lay.fmt[(size_t) l].tail != 0 && T >= FP4_MIN_TOKENS && fp4_tensor_cores();
     const bool fused_nat = use_mmq && stream_all && lay.native && fused::native_supported(mmq_gt, mmq_dt, mmq_ut);
     const bool fused_l = (use_mmq && stream_all && !lay.native && fused::enabled()) || fused_nat;
     // CPU share: this layer's CPU experts (rows [T * K - rows_cpu, T * K) of Dm) run on a thread that
@@ -111,10 +107,8 @@ struct Prefill::Run::Chunk::Experts::Group {
     void prepare_products();
     bool start_staging();
     bool stage_one(size_t j);
-    void fp4_flush();
     void flush();
     bool compute(size_t j, const uint8_t* blob_dev, int slot);
-    bool compute_fp4(size_t j, const uint8_t* blob_dev, int slot);
     bool compute_mmq(size_t j, const uint8_t* blob_dev, int slot);
     bool compute_fp16(size_t j, const uint8_t* blob_dev, int slot);
     bool walk();
@@ -174,7 +168,6 @@ struct Prefill::Run::Chunk::Experts::Group {
     decltype(Experts::mmq_gt)& mmq_gt = experts.mmq_gt;
     decltype(Experts::mmq_dt)& mmq_dt = experts.mmq_dt;
     decltype(Experts::mmq_ut)& mmq_ut = experts.mmq_ut;
-    decltype(Experts::fp4_l)& fp4_l = experts.fp4_l;
     decltype(Experts::fused_nat)& fused_nat = experts.fused_nat;
     decltype(Experts::fused_l)& fused_l = experts.fused_l;
     decltype(Experts::on_cpu)& on_cpu = experts.on_cpu;
@@ -210,10 +203,6 @@ struct Prefill::Run::Chunk::Experts::Group {
     mmq::GatherGroup gg;
     int gg_slots[MMQ_GROUP];
     int gg_nslots = 0;   // ring slots gathered by the next flush
-    // the FP4 path's open group: its experts' blobs (read in place until the down product is done)
-    const uint8_t* fp4_blob[MMQ_GROUP];
-    size_t fp4_j0 = 0;
-    int fp4_n = 0;
 };
 
 }  // namespace basalt::prefill

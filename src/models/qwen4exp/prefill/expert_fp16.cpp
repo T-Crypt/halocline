@@ -4,7 +4,6 @@
 #include "basalt/kernels/iq_kernels.hpp"
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
 #include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/prefill/moe_fp4.hpp"
 #include "basalt/models/qwen4exp/prefill/kernels.hpp"
 
 namespace basalt::prefill {

@@ -3,7 +3,6 @@
 #include "basalt/models/qwen4exp/decode/mtp.hpp"
 #include "basalt/kernels/cpu/expert_layout.hpp"
 #include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/prefill/moe_fp4.hpp"
 #include "basalt/log.hpp"
 #include <algorithm>
 #include <utility>
