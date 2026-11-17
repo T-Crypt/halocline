@@ -43,14 +43,10 @@ struct DecRecArgs {
     void* yq = nullptr;              // q8_1 of the output, token t at block t * h_v * S / 32
     int C = 0, n_embd = 0, h_k = 0, h_v = 0;
     float eps = 0.0f;
-    // Head map (gdn_head_split.hpp): with nk > 0 the launch runs only key heads [k0, k0 + nk) and their value heads,
-    // in place in the layer's full state, conv weights, gates and h (strides C, h_v).  qkv and z are then the card's
-    // packed rows (qkv stride (2 nk + nv) S, z stride nv S), and y, o and yq are written packed (stride nv S).
-    // qkv_out, when set, gets the raw qkv channels of these heads at the full layout (the commit's conv history).
-    // nk = 0: every head, the layer's own layout.
-    int k0 = 0, nk = 0;
+    // qkv_out, when set, gets the raw qkv channels at the full layout (the commit's conv history; dec_gdn_rec_seg's
+    // per-segment destination).
     float* qkv_out = nullptr;
-    // state_out (dec_gdn_rec, nk = 0): the state and conv history after all T rows, laid out as `state` (which is not
+    // state_out (dec_gdn_rec): the state and conv history after all T rows, laid out as `state` (which is not
     // written) - the commit of all T rows, bitwise, without its pass
     float* state_out = nullptr;
     unsigned long long* stamps = nullptr;   // bench: 10 per-phase timestamps per block
@@ -59,9 +55,9 @@ struct DecRecArgs {
 };
 /// The block widths dec_gdn_rec is built for.
 bool dec_gdn_rec_supported(int n_embd);
-/// The recurrence of tokens [0, n_tok) from the untouched state; one cluster of four blocks per value head (of the
-/// head map's value heads when a.nk > 0).  Below compute capability 9.0 it runs as dec_gdn_rec_split and dec_gdn_rec_norm
-/// (the same bits, state_out included), the raw output in a.o or else a.y (one of them must be set there).
+/// The recurrence of tokens [0, n_tok) from the untouched state; one cluster of four blocks per value head.  Below
+/// compute capability 9.0 it runs as dec_gdn_rec_split and dec_gdn_rec_norm (the same bits, state_out included), the
+/// raw output in a.o or else a.y (one of them must be set there).
 void dec_gdn_rec(const DecRecArgs& a, int n_tok, void* stream);
 
 /// A window of several sequences ("segments"): each segment is n consecutive rows with its own GDN state.  The table
@@ -95,7 +91,7 @@ void dec_gdn_rec_seg(const DecRecArgs& a, const SegRow* rows, size_t state_off, 
 /// those rows.  a.o: the raw output, laid out as y (it may be a.y: each value is read and then written by one thread).
 void dec_gdn_rec_seg_split(const DecRecArgs& a, const SegRow* rows, size_t state_off, int n_rows, int max_n, int n_tok,
                            void* stream, const SegDst* dst, size_t off_c, size_t off_hv, const float* gates);
-/// The gates of rows [0, n_tok) and every value head (a.nk = 0): alpha [n_tok][h_v] at `gates`, then beta, the values
+/// The gates of rows [0, n_tok) and every value head: alpha [n_tok][h_v] at `gates`, then beta, the values
 /// the recurrence kernels compute.  Reads a.x, a.w_alpha, a.w_beta, a.dt, a.ssm_a only.
 void dec_gdn_gates(const DecRecArgs& a, int n_tok, float* gates, void* stream);
 /// dec_gdn_rec in two launches: the split kernel (conv, gates, recurrence; never reads z) writes the raw output to

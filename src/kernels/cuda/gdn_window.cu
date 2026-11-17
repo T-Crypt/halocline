@@ -130,25 +130,19 @@ __device__ __forceinline__ void ab_pair(const DecRecArgs& a, const uint4 (&w_sm)
     alpha = sp * sa;
 }
 
-// The launch's value head `head` under the head map (gdn_window.hpp): gh the layer's value head, qh its key head, lq
-// the card's key head, nkl / nvl the card's key and value heads, cl the card's qkv channels.
+// The launch's value head `head`: gh the layer's value head, qh its key head (lq the same), nkl / nvl the key and value
+// heads, cl the qkv channels.
 struct HeadMap {
     int gh, qh, lq, nkl, nvl, cl;
 };
 __device__ __forceinline__ HeadMap head_map(const DecRecArgs& a, int head) {
     HeadMap m;
-    if (a.nk > 0) {
-        m.nkl = a.nk; m.nvl = a.nk * (a.h_v / a.h_k); m.lq = head % a.nk;
-        m.gh = (head / a.nk) * a.h_k + a.k0 + m.lq; m.qh = a.k0 + m.lq;
-        m.cl = (2 * m.nkl + m.nvl) * S;
-    } else {
-        m.nkl = a.h_k; m.nvl = a.h_v; m.lq = head % a.h_k; m.gh = head; m.qh = m.lq; m.cl = a.C;
-    }
+    m.nkl = a.h_k; m.nvl = a.h_v; m.lq = head % a.h_k; m.gh = head; m.qh = m.lq; m.cl = a.C;
     return m;
 }
 
 // The gated RMS norm of one lane's value (ss: the head's sum of squares) and the q8_1 of its 32-value block; head
-// and nvl are the card's (packed) value head and value-head count.
+// and nvl are the value head and the value-head count.
 __device__ __forceinline__ void norm_q8(const DecRecArgs& a, int t, int head, int nvl, int rank, int lane, float oc,
                                         float ss, float gam, float z) {
     const int value_dim = S * nvl, col = rank * 32 + lane;
@@ -201,7 +195,7 @@ __device__ __forceinline__ void rec_block(const DecRecArgs& a, int T, int head, 
     const HeadMap hm = head_map(a, head);
     const int qh = hm.qh, gh = hm.gh;
     const int qk = S * a.h_k;
-    const int value_dim = S * hm.nvl;   // the card's z / output stride
+    const int value_dim = S * hm.nvl;   // the z / output stride
     const int C = a.C, CL = hm.cl;
     // ---- constants (the state too: the window does not write it)
     float s[RPG];
@@ -519,7 +513,7 @@ __global__ void __launch_bounds__(128) rec_norm_kernel(const DecRecArgs a, int T
     if (a.early_trigger) pdl_launch_dependents();   // the out projection may stage its weights
     pdl_wait();
     const int w = blockIdx.x * 4 + threadIdx.x / 32, lane = threadIdx.x % 32;
-    const int nvl = a.nk > 0 ? a.nk * (a.h_v / a.h_k) : a.h_v;
+    const int nvl = a.h_v;
     if (w >= T * nvl) return;
     const int t = w / nvl, head = w % nvl;
     const size_t base = (size_t) t * S * nvl + head * S + lane;
@@ -537,13 +531,6 @@ __global__ void __launch_bounds__(128) rec_norm_kernel(const DecRecArgs a, int T
 }  // namespace
 
 #ifndef FZ_DEV_ONLY   // host side: another translation unit (the mid chain) takes only the device code
-// the launch's value heads under the head map; -1 when the map is out of range
-static int mapped_heads(const DecRecArgs& a) {
-    if (a.nk == 0) return a.h_v;
-    if (a.nk < 0 || a.k0 < 0 || a.k0 + a.nk > a.h_k) return -1;
-    return a.nk * (a.h_v / a.h_k);
-}
-
 bool dec_gdn_rec_supported(int n_embd) { return n_embd == 2560 || n_embd == 5120; }
 
 // the kernel for a block width: NJ = n_embd / 256
@@ -564,7 +551,7 @@ template<int MAXT, int NJ> struct SplitSegK { static constexpr auto f = rec_spli
 
 void dec_gdn_rec(const DecRecArgs& a, int n_tok, void* stream) {
     if (n_tok < 1 || n_tok > kDecMaxT || !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 || a.h_v % a.h_k != 0 ||
-        mapped_heads(a) < 1) {
+        a.h_v < 1) {
         basalt::log::error("basalt", "dec_gdn_rec: invalid arguments");
         std::exit(1);
     }
@@ -581,7 +568,7 @@ void dec_gdn_rec(const DecRecArgs& a, int n_tok, void* stream) {
         dec_gdn_rec_norm(b, n_tok, stream);
         return;
     }
-    const dim3 grid((unsigned) (mapped_heads(a) * 4)), block(S);
+    const dim3 grid((unsigned) (a.h_v * 4)), block(S);
     const cudaStream_t s = (cudaStream_t) stream;
     by_width<RecK>(a.n_embd, n_tok, [&](auto k) { launch_pdl(k, grid, block, 0, s, a, n_tok); });
     const cudaError_t e = cudaGetLastError();
@@ -591,7 +578,7 @@ void dec_gdn_rec(const DecRecArgs& a, int n_tok, void* stream) {
 void dec_gdn_rec_seg(const DecRecArgs& a, const SegRow* rows, size_t state_off, int n_rows, int max_n, void* stream,
                      const SegDst* dst, size_t off_c, size_t off_hv) {
     if (n_rows < 1 || max_n < 1 || max_n > kDecMaxT || !rows || !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 ||
-        a.h_v % a.h_k != 0 || a.nk != 0) {
+        a.h_v % a.h_k != 0) {
         basalt::log::error("basalt", "dec_gdn_rec_seg: invalid arguments");
         std::exit(1);
     }
@@ -623,7 +610,7 @@ void dec_gdn_gates(const DecRecArgs& a, int n_tok, float* gates, void* stream) {
 void dec_gdn_rec_seg_split(const DecRecArgs& a, const SegRow* rows, size_t state_off, int n_rows, int max_n, int n_tok,
                            void* stream, const SegDst* dst, size_t off_c, size_t off_hv, const float* gates) {
     if (n_rows < 1 || max_n < 1 || max_n > kDecMaxT || n_tok < 1 || n_tok > 2 * kDecMaxT || !rows || !a.o || !gates ||
-        !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 || a.h_v % a.h_k != 0 || a.nk != 0) {
+        !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 || a.h_v % a.h_k != 0) {
         basalt::log::error("basalt", "dec_gdn_rec_seg_split: invalid arguments");
         std::exit(1);
     }
@@ -638,11 +625,11 @@ void dec_gdn_rec_seg_split(const DecRecArgs& a, const SegRow* rows, size_t state
 
 void dec_gdn_rec_split(const DecRecArgs& a, int n_tok, void* stream) {
     if (n_tok < 1 || n_tok > kDecMaxT || !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 || a.h_v % a.h_k != 0 || !a.o ||
-        mapped_heads(a) < 1) {
+        a.h_v < 1) {
         basalt::log::error("basalt", "dec_gdn_rec_split: invalid arguments");
         std::exit(1);
     }
-    const dim3 grid((unsigned) (mapped_heads(a) * 4)), block(S);
+    const dim3 grid((unsigned) (a.h_v * 4)), block(S);
     const cudaStream_t s = (cudaStream_t) stream;
     by_width<SplitK>(a.n_embd, n_tok, [&](auto k) { launch_pdl(k, grid, block, 0, s, a, n_tok); });
     const cudaError_t e = cudaGetLastError();
@@ -667,7 +654,7 @@ int dec_gdnf_mode() {
 }
 
 void dec_gdn_rec_norm(const DecRecArgs& a, int n_tok, void* stream) {
-    const unsigned blocks = (unsigned) ((n_tok * mapped_heads(a) + 3) / 4);
+    const unsigned blocks = (unsigned) ((n_tok * a.h_v + 3) / 4);
     launch_pdl(rec_norm_kernel, dim3(blocks), dim3(128), 0, (cudaStream_t) stream, a, n_tok);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) { basalt::log::error("basalt", "dec_gdn_rec_norm: %s", cudaGetErrorString(e)); std::exit(1); }

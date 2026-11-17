@@ -401,7 +401,7 @@ bool mid_ada_supported(const MidChainArgs& a) {
            al(r.z, 4) && al(r.h, 4) && al(r.gate, 4) && al(r.beta, 4) && al(r.y, 4) && al(r.yq, 4) && al(r.state, 4) &&
            al(r.conv_w, 4) && al(r.w_alpha, 16) && al(r.w_beta, 16) && al(r.dt, 4) && al(r.ssm_a, 4) && al(r.gamma, 4) &&
            r.n_embd == 32 * 8 * kAbNJ && r.h_k > 0 && r.h_v % r.h_k == 0 && r.C == (2 * r.h_k + r.h_v) * gdn_unfused::S &&
-           r.nk == 0 && apart(a.xq, (size_t) a.T * (r.n_embd / 32) * kQ81, r.yq,
+           apart(a.xq, (size_t) a.T * (r.n_embd / 32) * kQ81, r.yq,
                               (size_t) a.T * (r.h_v * gdn_unfused::S / 32) * kQ81);
 }
 

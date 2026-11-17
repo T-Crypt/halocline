@@ -620,7 +620,7 @@ bool mid_chain_supported(const MidChainArgs& a) {
            a.xq != nullptr && a.bo != nullptr && a.rec.yq != nullptr && a.rec.qkv != nullptr && a.rec.z != nullptr &&
            ((uintptr_t) a.wq & 15) == 0 && ((uintptr_t) a.wz & 15) == 0 && ((uintptr_t) a.wo & 15) == 0 &&
            ((uintptr_t) a.rec.state & 15) == 0 && ((uintptr_t) a.xq & 3) == 0 && a.rec.n_embd == 2560 && a.rec.h_v == R_HV &&
-           a.rec.h_k == R_HK && a.rec.C == R_C && a.rec.nk == 0;
+           a.rec.h_k == R_HK && a.rec.C == R_C;
 }
 
 void mid_chain(const MidChainArgs& a, void* stream) {
