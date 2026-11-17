@@ -1,0 +1,34 @@
+ninja: Entering directory `build-89'
+[1/35] Refreshing the commit stamp
+[2/33] Building CXX object CMakeFiles/model_qwen4exp_engine.dir/src/models/qwen4exp/conversation/conversation_state.cpp.o
+[3/33] Linking CXX static library libmodel_qwen4exp_engine.a
+[4/33] Linking CXX executable file_expert_source_test
+[5/33] Linking CXX executable expert_profile_save_test
+[6/33] Linking CXX executable layout_check_test
+[7/33] Linking CXX executable expert_layout_test
+[8/33] Linking CXX executable basalt-gguf
+[9/33] Linking CXX executable conversation_store_test
+[10/33] Linking CXX executable adapter_builtin_test
+[11/33] Building CXX object CMakeFiles/conversation_validation_test.dir/tests/core/conversation_validation_test.cpp.o
+[12/33] Linking CXX executable ~/wt/halocline-import/bin/basalt
+[13/33] Building CXX object CMakeFiles/conversation_transfer_test.dir/tests/core/conversation_validation_test.cpp.o
+[14/33] Linking CXX executable expert_cache_per_layer_test
+[15/33] Linking CXX executable model_file_test
+[16/33] Building CXX object CMakeFiles/conversation_snapshot_test.dir/tests/core/conversation_snapshot_test.cpp.o
+[17/33] Linking CXX executable expert_cache_segmented_test
+[18/33] Linking CXX executable file_expert_homes_test
+[19/33] Linking CXX executable kv_arena_test
+[20/33] Linking CXX executable conversation_validation_test
+[21/33] Linking CXX executable conversation_transfer_test
+[22/33] Linking CXX executable gdn_chunk_parity
+[23/33] Linking CXX executable file_expert_repin_test
+[24/33] Linking CXX executable prefill_route_count_test
+[25/33] Linking CXX executable conversation_snapshot_test
+[26/33] Linking CXX executable hc8_parity
+[27/33] Linking CXX executable prefill_hc_up_mix_test
+[28/33] Linking CXX executable native_dense_ple_key_test
+[29/33] Building CXX object CMakeFiles/conversation_cache_test.dir/tests/core/conversation_cache_test.cpp.o
+[30/33] Linking CXX executable prefill_layout_test
+[31/33] Linking CXX executable prefill_mmq_iq1s_test
+[32/33] Linking CXX executable prefill_mmq_kq_test
+[33/33] Linking CXX executable conversation_cache_test

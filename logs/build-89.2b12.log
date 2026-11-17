@@ -1,0 +1,70 @@
+ninja: Entering directory `build-89'
+[0/1] Re-running CMake...
+-- basalt: CUDA arch 89
+-- basalt: models qwen4exp;qwen35
+-- Configuring done (0.2s)
+-- Generating done (0.1s)
+-- Build files have been written to: ~/wt/halocline-import/build-89
+[1/60] Building CXX object CMakeFiles/engine_session.dir/src/program/prompt_chunks.cpp.o
+[2/60] Linking CXX static library libengine_session.a
+[3/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/engine_local.cpp.o
+[4/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/layer_plan.cpp.o
+[5/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/helpers.cpp.o
+[6/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/vision.cpp.o
+[7/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/weights.cpp.o
+[8/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/sources.cpp.o
+[9/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/sessions.cpp.o
+[10/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/model.cpp.o
+[11/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/cache_size.cpp.o
+[12/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/cache_fill.cpp.o
+[13/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/token_path.cpp.o
+[14/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/resident_plan.cpp.o
+[15/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/dispatch.cpp.o
+[16/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/resident_load.cpp.o
+[17/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/prefill.cpp.o
+[18/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/decode.cpp.o
+[19/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_finish.cpp.o
+[20/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_prompt.cpp.o
+[21/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_image.cpp.o
+[22/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/batch.cpp.o
+[23/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_restore.cpp.o
+[24/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_commands.cpp.o
+[25/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/loans.cpp.o
+[26/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/conversation.cpp.o
+[27/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/kv.cpp.o
+[28/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/memory.cpp.o
+[29/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/prompt_windows.cpp.o
+[30/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/prompt_read.cpp.o
+[31/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/prompt.cpp.o
+~/wt/halocline-import/src/models/qwen4exp/serve/prompt.cpp: In member function ‘bool basalt::models::qwen4exp::serve::QfnRequest::refill(std::string&)’:
+~/wt/halocline-import/src/models/qwen4exp/serve/prompt.cpp:69:13: warning: variable ‘n_lent’ set but not used [-Wunused-but-set-variable=]
+   69 |     int64_t n_lent = 0, n_parts = 0;
+      |             ^~~~~~
+[32/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/cli/report.cpp.o
+[33/60] Refreshing the commit stamp
+[34/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_decode.cpp.o
+[35/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/slots.cpp.o
+[36/60] Linking CXX executable community_row_test
+[37/60] Linking CXX executable load_summary_test
+[38/60] Linking CXX executable engine_session_test
+[39/60] Linking CXX executable probe_report_test
+[40/60] Linking CXX executable gpu_select_test
+[41/60] Linking CXX executable ppl_gate_test
+[42/60] Linking CXX executable probe_derive_test
+[43/60] Building CXX object CMakeFiles/prompt_chunks_test.dir/tests/program/prompt_chunks_test.cpp.o
+[44/60] Linking CXX executable auto_plan_test
+[45/60] Linking CXX executable image_loan_test
+[46/60] Linking CXX executable prompt_chunks_test
+[47/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/verify.cpp.o
+[48/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/tier_profile.cpp.o
+[49/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/vision.cpp.o
+[50/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/tiers.cpp.o
+[51/60] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/qfn_run.cpp.o
+[52/60] Linking CXX static library libmodel_qwen4exp.a
+[53/60] Linking CXX executable native_dense_ple_key_test
+[54/60] Linking CXX executable basalt-gguf
+[55/60] Linking CXX executable adapter_builtin_test
+[56/60] Linking CXX executable ~/wt/halocline-import/bin/basalt
+[57/60] Linking CXX executable ~/wt/halocline-import/bin/basalt-probe
+[58/60] Building CXX object CMakeFiles/basalt-bench.dir/src/program/bench_main.cpp.o
+[59/60] Linking CXX executable ~/wt/halocline-import/bin/basalt-bench

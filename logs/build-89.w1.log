@@ -1,0 +1,6 @@
+ninja: Entering directory `build-89'
+[1/7] Refreshing the commit stamp
+[2/5] Building CXX object CMakeFiles/adapter_registry_test.dir/tests/model/adapter_registry_test.cpp.o
+[3/5] Linking CXX executable adapter_registry_test
+[4/5] Building CXX object CMakeFiles/gguf_split_test.dir/tests/core/gguf_split_test.cpp.o
+[5/5] Linking CXX executable gguf_split_test

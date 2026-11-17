@@ -1,0 +1,1349 @@
+Test project ~/wt/halocline-import/build-89
+        Start   1: qwen35_checkpoint_round_trip
+  1/144 Test   #1: qwen35_checkpoint_round_trip .......***Skipped   0.11 sec
+        Start   2: qwen35_prompt_line_test
+  2/144 Test   #2: qwen35_prompt_line_test ............***Skipped   0.04 sec
+        Start   3: qwen35_split_test
+  3/144 Test   #3: qwen35_split_test ..................***Skipped   0.04 sec
+        Start   6: ds41_router_parity
+  4/144 Test   #6: ds41_router_parity .................***Failed    0.17 sec
+random T=11: logits max abs 7.04e-07 rel rms 1.17e-07; weights max rel 1.74e-07; id differences 0 (near-ties 0)
+window/position independence: bitwise identical
+tie: top ids 77 201
+frozen: ids and weights 3634b0999cf64e2a (want f4ec7c76f483174c)
+FAIL: ids and weights equal the frozen kernel
+bench router T=1                             6.97 us/call   1131.0 GB/s (7.88 MB moved)
+bench router T=4                             9.74 us/call    815.8 GB/s (7.95 MB moved)
+bench router cold gate T=1                  12.72 us/call    619.9 GB/s (7.88 MB moved)
+bench router cold gate T=4                  14.73 us/call    539.5 GB/s (7.95 MB moved)
+router_parity: FAILED
+
+        Start   7: ds41_norm_parity
+  5/144 Test   #7: ds41_norm_parity ...................   Passed    0.13 sec
+        Start   8: ds41_hc_parity
+  6/144 Test   #8: ds41_hc_parity .....................   Passed    0.16 sec
+        Start   9: ds41_engram_parity
+  7/144 Test   #9: ds41_engram_parity .................   Passed    0.12 sec
+        Start  10: ds41_attn_index_parity
+  8/144 Test  #10: ds41_attn_index_parity .............***Failed    1.86 sec
+[fp8] kv_window comp=0: rms_rel 2.25e-06 max_abs 1.33e-04; ring rows differing from the CPU packing 0, FP8 roundings on the other side of the double reference's 0.0000 (rms_rel 0.00e+00)
+[fp8] kv_window comp=1: rms_rel 1.45e-06 max_abs 9.11e-05; ring rows differing from the CPU packing 0, FP8 roundings on the other side of the double reference's 0.0000 (rms_rel 0.00e+00)
+compress ratio 1: 12 rows, latent rms_rel 0.00e+00 (FP4 roundings on the other side 0.0000), index key rms_rel 0.00e+00 (0.0000)
+compress ratio 2: 6 rows, latent rms_rel 0.00e+00 (FP4 roundings on the other side 0.0000), index key rms_rel 0.00e+00 (0.0000)
+[fp8] indexer mode Full:
+  top-k token 0 (301 visible)  n=301 (ref 301) overlap 1.0000 far-misses 0
+  top-k token 1 (4501 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 2 (5999 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 3 (6000 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+[fp8] indexer mode Level1:
+  top-k token 0 (301 visible)  n=301 (ref 301) overlap 1.0000 far-misses 0
+  cand blocks token 0          n=38 (ref 38) overlap 1.0000 far-misses 0
+  top-k token 1 (4501 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  cand blocks token 1          n=300 (ref 300) overlap 1.0000 far-misses 0
+  top-k token 2 (5999 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  cand blocks token 2          n=300 (ref 300) overlap 1.0000 far-misses 0
+  top-k token 3 (6000 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  cand blocks token 3          n=300 (ref 300) overlap 1.0000 far-misses 0
+[fp8] indexer mode Level2:
+  top-k token 0 (301 visible)  n=301 (ref 301) overlap 1.0000 far-misses 0
+  top-k token 1 (4501 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 2 (5999 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 3 (6000 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+[fp16] kv_window comp=0: rms_rel 2.25e-06 max_abs 1.33e-04; ring rows differing from the CPU packing 0, FP8 roundings on the other side of the double reference's 0.9978 (rms_rel 2.12e-04)
+[fp16] kv_window comp=1: rms_rel 1.45e-06 max_abs 9.11e-05; ring rows differing from the CPU packing 0, FP8 roundings on the other side of the double reference's 0.9976 (rms_rel 2.13e-04)
+compress ratio 1: 12 rows, latent rms_rel 2.02e-04 (FP4 roundings on the other side 0.9972), index key rms_rel 1.94e-04 (0.9967)
+compress ratio 2: 6 rows, latent rms_rel 2.17e-04 (FP4 roundings on the other side 0.9961), index key rms_rel 2.06e-04 (0.9974)
+[fp16] indexer mode Full:
+  top-k token 0 (301 visible)  n=301 (ref 301) overlap 1.0000 far-misses 0
+  top-k token 1 (4501 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 2 (5999 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 3 (6000 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+[fp16] indexer mode Level1:
+  top-k token 0 (301 visible)  n=301 (ref 301) overlap 1.0000 far-misses 0
+  cand blocks token 0          n=38 (ref 38) overlap 1.0000 far-misses 0
+  top-k token 1 (4501 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  cand blocks token 1          n=300 (ref 300) overlap 1.0000 far-misses 0
+  top-k token 2 (5999 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  cand blocks token 2          n=300 (ref 300) overlap 1.0000 far-misses 0
+  top-k token 3 (6000 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  cand blocks token 3          n=300 (ref 300) overlap 1.0000 far-misses 0
+[fp16] indexer mode Level2:
+  top-k token 0 (301 visible)  n=301 (ref 301) overlap 1.0000 far-misses 0
+  top-k token 1 (4501 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 2 (5999 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+  top-k token 3 (6000 visible) n=512 (ref 512) overlap 1.0000 far-misses 0
+frozen: gemv_bf16 bcf5bf9e8c0478cc (want 258e734e874cae57), compressor rows and keys f66492ac94ff28d9 (want d2ec8ec03dfea810)
+FAIL: gemv_bf16 bits equal the frozen kernel
+FAIL: compressor rows and index keys equal the frozen kernels
+top_rows: 320 cases, ids bit for bit against the one-block kernel
+bench indexer Level1 T=1 n=16384            58.38 us/call    202.1 GB/s (11.80 MB moved)
+bench indexer Full T=1 n=16384              42.01 us/call    280.8 GB/s (11.80 MB moved)
+bench indexer Level1 T=4 n=16384            76.02 us/call    206.9 GB/s (15.73 MB moved)
+bench indexer Full T=4 n=16384              59.59 us/call    263.9 GB/s (15.73 MB moved)
+bench indexer Full T=1 n=16384, buffers for 524288    49.46 us/call    238.5 GB/s (11.80 MB moved)
+bench compress ratio 2 T=1                  20.13 us/call    520.9 GB/s (10.49 MB moved)
+bench compress ratio 2 T=4                  25.25 us/call    415.2 GB/s (10.49 MB moved)
+bench kv_window T=4                          2.23 us/call     11.0 GB/s (0.02 MB moved)
+bench top_rows one block n=64 K=512          6.49 us/call      0.0 GB/s (0.00 MB moved)
+bench top_rows many blocks n=64 K=512       12.83 us/call      0.1 GB/s (0.00 MB moved)
+bench top_rows one block n=512 K=512         9.61 us/call      0.2 GB/s (0.00 MB moved)
+bench top_rows many blocks n=512 K=512      12.98 us/call      0.8 GB/s (0.01 MB moved)
+bench top_rows one block n=2048 K=512       21.03 us/call      0.4 GB/s (0.01 MB moved)
+bench top_rows many blocks n=2048 K=512     17.49 us/call      2.3 GB/s (0.04 MB moved)
+bench top_rows one block n=4096 K=512       27.36 us/call      0.6 GB/s (0.02 MB moved)
+bench top_rows many blocks n=4096 K=512     18.69 us/call      4.4 GB/s (0.08 MB moved)
+bench top_rows one block n=8192 K=512       32.30 us/call      1.0 GB/s (0.03 MB moved)
+bench top_rows many blocks n=8192 K=512     21.15 us/call      7.7 GB/s (0.16 MB moved)
+bench top_rows one block n=12288 K=512      46.26 us/call      1.1 GB/s (0.05 MB moved)
+bench top_rows many blocks n=12288 K=512    23.35 us/call     10.5 GB/s (0.25 MB moved)
+bench top_rows one block n=16384 K=512      49.19 us/call      1.3 GB/s (0.07 MB moved)
+bench top_rows many blocks n=16384 K=512    20.29 us/call     16.1 GB/s (0.33 MB moved)
+bench top_rows one block n=32768 K=512     122.31 us/call      1.1 GB/s (0.13 MB moved)
+bench top_rows many blocks n=32768 K=512    21.05 us/call     31.1 GB/s (0.66 MB moved)
+bench top_rows one block n=65536 K=512     192.43 us/call      1.4 GB/s (0.26 MB moved)
+bench top_rows many blocks n=65536 K=512    22.04 us/call     59.5 GB/s (1.31 MB moved)
+bench top_rows one block n=131072 K=512    367.35 us/call      1.4 GB/s (0.52 MB moved)
+bench top_rows many blocks n=131072 K=512    23.88 us/call    109.8 GB/s (2.62 MB moved)
+bench top_rows one block n=524288 K=512   1211.29 us/call      1.7 GB/s (2.10 MB moved)
+bench top_rows many blocks n=524288 K=512    39.73 us/call    263.9 GB/s (10.49 MB moved)
+bench top_rows one block n=1048576 K=512  3378.67 us/call      1.2 GB/s (4.19 MB moved)
+bench top_rows many blocks n=1048576 K=512    60.02 us/call    349.4 GB/s (20.97 MB moved)
+bench top_rows one block n=131072 cap=1048577   297.98 us/call      1.8 GB/s (0.52 MB moved)
+bench top_rows many blocks n=131072 cap=1048577    23.90 us/call    109.7 GB/s (2.62 MB moved)
+FAILED (2)
+
+        Start  11: ds41_prefill_index_parity
+  9/144 Test  #11: ds41_prefill_index_parity ..........   Passed    0.94 sec
+        Start  12: ds41_cache_rows_parity
+ 10/144 Test  #12: ds41_cache_rows_parity .............   Passed    0.30 sec
+        Start  13: ds41_attn_mqa_parity
+ 11/144 Test  #13: ds41_attn_mqa_parity ...............   Passed    0.73 sec
+        Start  14: ds41_attn_out_parity
+ 12/144 Test  #14: ds41_attn_out_parity ...............   Passed    1.10 sec
+        Start  15: ds41_q_path_parity
+ 13/144 Test  #15: ds41_q_path_parity .................   Passed    0.14 sec
+        Start  16: ds41_prefill_attn_parity
+ 14/144 Test  #16: ds41_prefill_attn_parity ...........   Passed    0.58 sec
+        Start  17: ds41_dspark_parity
+ 15/144 Test  #17: ds41_dspark_parity .................***Failed    1.64 sec
+moe gate_up            rms_rel 1.10e-07 max_abs 2.29e-05  ok
+moe gate_up vs fp32 x  rms_rel 8.11e-03 max_abs 1.43e+00  ok
+moe down               rms_rel 6.74e-08 max_abs 3.05e-05  ok
+moe down vs fp32 h     rms_rel 6.99e-03 max_abs 3.07e+00  ok
+moe frozen             3be9ade2c87c72d7 (want 9c13389dbf259e5f)  FAIL
+moe live rows          bitwise
+moe combine            rms_rel 8.58e-08 max_abs 1.22e-04  ok
+kv rope                rms_rel 2.08e-06 max_abs 8.23e-05  ok
+stream mean            rms_rel 4.58e-08 max_abs 1.19e-07  ok
+stream mean width      ok
+markov gather          rms_rel 0.00e+00 max_abs 0.00e+00  ok
+markov bias            rms_rel 5.97e-08 max_abs 9.54e-07  ok
+confidence             rms_rel 1.46e-07 max_abs 1.19e-07  ok
+kept experts           ok
+kept against whole     experts bit for bit, router bit for bit
+bench: 5 rows x top-3 expert layer 265.8 us (1061 GB/s of pair-reads)
+staged latents         bitwise
+FAILED
+
+        Start  18: ds41_ops_parity
+ 16/144 Test  #18: ds41_ops_parity ....................   Passed    0.16 sec
+        Start  19: ds41_prefill_ffn_parity
+ 17/144 Test  #19: ds41_prefill_ffn_parity ............   Passed    7.91 sec
+        Start  23: adapter_builtin_test
+ 18/144 Test  #23: adapter_builtin_test ...............   Passed    0.04 sec
+        Start  32: qsa_prompt_attn_parity
+ 19/144 Test  #32: qsa_prompt_attn_parity .............   Passed    6.07 sec
+        Start  33: qsa_topk_active_parity
+ 20/144 Test  #33: qsa_topk_active_parity .............   Passed    0.57 sec
+        Start  35: host_registration_test
+ 21/144 Test  #35: host_registration_test .............   Passed    0.13 sec
+        Start  36: direct_upload_test
+ 22/144 Test  #36: direct_upload_test .................   Passed    0.67 sec
+        Start  42: checkpoint_transfer_test
+ 23/144 Test  #42: checkpoint_transfer_test ...........   Passed    0.32 sec
+        Start  46: conversation_snapshot_test
+ 24/144 Test  #46: conversation_snapshot_test .........   Passed    0.21 sec
+        Start  47: prompt_split_state_test
+ 25/144 Test  #47: prompt_split_state_test ............   Passed    8.67 sec
+        Start  49: native_dense_ple_key_test
+ 26/144 Test  #49: native_dense_ple_key_test ..........   Passed    0.20 sec
+        Start  50: expert_cache_per_layer_test
+ 27/144 Test  #50: expert_cache_per_layer_test ........   Passed    0.12 sec
+        Start  51: expert_cache_segmented_test
+ 28/144 Test  #51: expert_cache_segmented_test ........   Passed    0.31 sec
+        Start  52: file_expert_homes_test
+ 29/144 Test  #52: file_expert_homes_test .............   Passed    3.20 sec
+        Start  53: file_expert_repin_test
+ 30/144 Test  #53: file_expert_repin_test .............   Passed    2.82 sec
+        Start  54: kv_arena_test
+ 31/144 Test  #54: kv_arena_test ......................   Passed    0.26 sec
+        Start  62: dense_ops_parity
+ 32/144 Test  #62: dense_ops_parity ...................   Passed    0.78 sec
+        Start  63: nvfp4_planes_test
+ 33/144 Test  #63: nvfp4_planes_test ..................   Passed    0.12 sec
+        Start  64: gdn_seg_split_parity
+ 34/144 Test  #64: gdn_seg_split_parity ...............   Passed    0.46 sec
+        Start  65: window_gemm_parity
+ 35/144 Test  #65: window_gemm_parity .................   Passed    8.21 sec
+        Start  66: window_gemm_two_gpu
+ 36/144 Test  #66: window_gemm_two_gpu ................***Skipped   0.02 sec
+        Start  67: narrow_bf16_parity
+ 37/144 Test  #67: narrow_bf16_parity .................   Passed    0.13 sec
+        Start  68: gqa_attn_parity
+ 38/144 Test  #68: gqa_attn_parity ....................   Passed    4.96 sec
+        Start  69: gqa_far_parity
+ 39/144 Test  #69: gqa_far_parity .....................   Passed    1.11 sec
+        Start  71: generate_prompt_test
+ 40/144 Test  #71: generate_prompt_test ...............***Skipped   0.03 sec
+        Start  74: iq_parity_fixtures
+ 41/144 Test  #74: iq_parity_fixtures .................   Passed    0.09 sec
+        Start  75: iq_parity
+ 42/144 Test  #75: iq_parity ..........................   Passed    0.13 sec
+        Start  78: mmvq_multi_parity
+ 43/144 Test  #78: mmvq_multi_parity ..................   Passed    1.29 sec
+        Start  79: dec_gdn_parity
+ 44/144 Test  #79: dec_gdn_parity .....................   Passed    2.77 sec
+        Start  80: gdn_head_split_parity
+ 45/144 Test  #80: gdn_head_split_parity ..............   Passed    2.33 sec
+        Start  81: dm_table_put_parity
+ 46/144 Test  #81: dm_table_put_parity ................   Passed    0.15 sec
+        Start  82: route_tail_skip_parity
+ 47/144 Test  #82: route_tail_skip_parity .............   Passed    0.28 sec
+        Start  83: route_prior_parity
+ 48/144 Test  #83: route_prior_parity .................   Passed    0.65 sec
+        Start  84: pair_snapshot_parity
+ 49/144 Test  #84: pair_snapshot_parity ...............   Passed    0.87 sec
+        Start  85: dense_tc_parity
+ 50/144 Test  #85: dense_tc_parity ....................   Passed    0.92 sec
+        Start  86: dec_commit_parity
+ 51/144 Test  #86: dec_commit_parity ..................   Passed    0.60 sec
+        Start  87: dec_commit_finisher
+ 52/144 Test  #87: dec_commit_finisher ................   Passed   22.81 sec
+        Start  88: dec_commit_lazy
+ 53/144 Test  #88: dec_commit_lazy ....................   Passed    2.40 sec
+        Start  89: iq_multi_parity
+ 54/144 Test  #89: iq_multi_parity ....................   Passed    1.94 sec
+        Start  90: gdn_chunk_parity
+ 55/144 Test  #90: gdn_chunk_parity ...................   Passed   13.01 sec
+        Start  91: hc8_parity
+ 56/144 Test  #91: hc8_parity .........................   Passed    0.45 sec
+        Start  92: native_grouped_parity
+ 57/144 Test  #92: native_grouped_parity ..............   Passed    4.98 sec
+        Start  93: native_grouped_parity_glue
+ 58/144 Test  #93: native_grouped_parity_glue .........   Passed   33.96 sec
+        Start  94: mixed_gu_parity
+ 59/144 Test  #94: mixed_gu_parity ....................   Passed    0.80 sec
+        Start  95: shared_expert_parity
+ 60/144 Test  #95: shared_expert_parity ...............   Passed    0.12 sec
+        Start  96: hc_fused_parity
+ 61/144 Test  #96: hc_fused_parity ....................***Skipped   0.02 sec
+        Start  97: dm_route_ada_parity
+ 62/144 Test  #97: dm_route_ada_parity ................   Passed    1.38 sec
+        Start  98: hc_fused_ada_parity
+ 63/144 Test  #98: hc_fused_ada_parity ................   Passed    0.33 sec
+        Start  99: hc_read_ada_parity
+ 64/144 Test  #99: hc_read_ada_parity .................   Passed    3.59 sec
+        Start 100: mid_chain_parity
+ 65/144 Test #100: mid_chain_parity ...................   Passed    7.54 sec
+        Start 101: mid_chain_hold
+ 66/144 Test #101: mid_chain_hold .....................***Skipped   0.02 sec
+        Start 102: mid_chain_hold_abort
+ 67/144 Test #102: mid_chain_hold_abort ...............***Skipped   0.02 sec
+        Start 103: qsa_mid_parity
+ 68/144 Test #103: qsa_mid_parity .....................***Skipped   0.02 sec
+        Start 104: gr_parity
+ 69/144 Test #104: gr_parity ..........................   Passed    0.23 sec
+        Start 105: gdn_parity
+ 70/144 Test #105: gdn_parity .........................   Passed    0.14 sec
+        Start 106: s2_gemv_q8_parity
+ 71/144 Test #106: s2_gemv_q8_parity ..................   Passed    0.13 sec
+        Start 107: sampler_parity
+ 72/144 Test #107: sampler_parity .....................   Passed    9.65 sec
+        Start 108: sampler_split_parity
+ 73/144 Test #108: sampler_split_parity ...............   Passed    1.24 sec
+        Start 109: sampler_drawn_parity
+ 74/144 Test #109: sampler_drawn_parity ...............   Passed    6.39 sec
+        Start 110: logprobs_parity
+ 75/144 Test #110: logprobs_parity ....................   Passed    0.24 sec
+        Start 111: decode_cluster_parity
+ 76/144 Test #111: decode_cluster_parity ..............   Passed    0.15 sec
+        Start 112: rope_parity
+ 77/144 Test #112: rope_parity ........................   Passed    0.13 sec
+        Start 113: quantize_act_parity
+ 78/144 Test #113: quantize_act_parity ................   Passed    0.15 sec
+        Start 114: route_window_parity
+ 79/144 Test #114: route_window_parity ................   Passed    0.14 sec
+        Start 115: router_top10_parity
+ 80/144 Test #115: router_top10_parity ................   Passed    0.12 sec
+        Start 116: s_gemv_parity
+ 81/144 Test #116: s_gemv_parity ......................   Passed    0.13 sec
+        Start 117: elementwise_parity
+ 82/144 Test #117: elementwise_parity .................   Passed    0.16 sec
+        Start 118: bf16_gemv_parity
+ 83/144 Test #118: bf16_gemv_parity ...................   Passed    0.20 sec
+        Start 119: s_gemv_q8k_parity
+ 84/144 Test #119: s_gemv_q8k_parity ..................   Passed    0.13 sec
+        Start 120: qsa_parity
+ 85/144 Test #120: qsa_parity .........................   Passed    0.35 sec
+        Start 121: qsa_scores_parity
+ 86/144 Test #121: qsa_scores_parity ..................   Passed    0.62 sec
+        Start 122: qsa_topk_parity
+ 87/144 Test #122: qsa_topk_parity ....................   Passed    0.59 sec
+        Start 123: kv_q8_parity
+ 88/144 Test #123: kv_q8_parity .......................   Passed    0.15 sec
+        Start 124: qsa_dec_attn_parity
+ 89/144 Test #124: qsa_dec_attn_parity ................   Passed    2.72 sec
+        Start 125: qsa_dec_fused_parity
+ 90/144 Test #125: qsa_dec_fused_parity ...............   Passed    0.41 sec
+        Start 126: qsa_seg_parity
+ 91/144 Test #126: qsa_seg_parity .....................   Passed    3.94 sec
+        Start 127: ple_win_parity
+ 92/144 Test #127: ple_win_parity .....................   Passed    0.48 sec
+        Start 128: ple_key_rows_parity
+ 93/144 Test #128: ple_key_rows_parity ................   Passed    1.00 sec
+        Start 129: q5k_head_parity
+ 94/144 Test #129: q5k_head_parity ....................   Passed    0.35 sec
+        Start 130: q80_proxy_parity
+ 95/144 Test #130: q80_proxy_parity ...................   Passed    0.74 sec
+        Start 131: q80_vhead_parity
+ 96/144 Test #131: q80_vhead_parity ...................   Passed    0.81 sec
+        Start 132: q6k_head_parity
+ 97/144 Test #132: q6k_head_parity ....................   Passed    0.42 sec
+        Start 133: q6k_vhead_parity
+ 98/144 Test #133: q6k_vhead_parity ...................   Passed    1.57 sec
+        Start 134: kv_stream_parity
+ 99/144 Test #134: kv_stream_parity ...................   Passed    5.63 sec
+        Start 135: kv_hybrid_parity
+100/144 Test #135: kv_hybrid_parity ...................   Passed    0.22 sec
+        Start 136: kv_q4_parity
+101/144 Test #136: kv_q4_parity .......................   Passed    0.13 sec
+        Start 137: cvec_parity
+102/144 Test #137: cvec_parity ........................   Passed    0.18 sec
+        Start 138: s2_expert_grouped_parity
+103/144 Test #138: s2_expert_grouped_parity ...........   Passed    0.22 sec
+        Start 172: device_memory_test
+104/144 Test #172: device_memory_test .................   Passed    0.12 sec
+        Start 174: ple_reader_selftest
+105/144 Test #174: ple_reader_selftest ................   Passed   63.66 sec
+        Start 175: cuda_device_selftest
+106/144 Test #175: cuda_device_selftest ...............   Passed    0.12 sec
+        Start 184: router_dot_parity
+107/144 Test #184: router_dot_parity ..................   Passed    0.03 sec
+        Start 185: fp8_gemm_test
+108/144 Test #185: fp8_gemm_test ......................   Passed    0.51 sec
+        Start 186: e4m3_producers_test
+109/144 Test #186: e4m3_producers_test ................   Passed    0.20 sec
+        Start 187: bf16_chunk_test
+110/144 Test #187: bf16_chunk_test ....................   Passed    0.31 sec
+        Start 188: prefill_fused_moe_test
+111/144 Test #188: prefill_fused_moe_test .............   Passed    1.76 sec
+        Start 189: prefill_fused_iq_test
+112/144 Test #189: prefill_fused_iq_test ..............   Passed   45.54 sec
+        Start 190: prefill_cpu_share_test
+113/144 Test #190: prefill_cpu_share_test .............   Passed    3.29 sec
+        Start 191: peer_share_parity
+114/144 Test #191: peer_share_parity ..................   Passed   35.93 sec
+        Start 192: prefill_route_count_test
+115/144 Test #192: prefill_route_count_test ...........   Passed    0.17 sec
+        Start 193: prefill_layout_nvfp4
+116/144 Test #193: prefill_layout_nvfp4 ...............   Passed    0.18 sec
+        Start 194: prefill_layout_mixed
+117/144 Test #194: prefill_layout_mixed ...............   Passed    0.16 sec
+        Start 195: prefill_layout_kquant
+118/144 Test #195: prefill_layout_kquant ..............   Passed    0.16 sec
+        Start 196: prefill_layout_q2
+119/144 Test #196: prefill_layout_q2 ..................   Passed    0.16 sec
+        Start 197: prefill_mmq_iq1s_test
+120/144 Test #197: prefill_mmq_iq1s_test ..............   Passed   14.21 sec
+        Start 198: prefill_mmq_kq_test
+121/144 Test #198: prefill_mmq_kq_test ................   Passed   17.75 sec
+        Start 199: prefill_mmq_nvfp4_test
+122/144 Test #199: prefill_mmq_nvfp4_test .............   Passed    9.42 sec
+        Start 201: prefill_hc_up_mix_test
+123/144 Test #201: prefill_hc_up_mix_test .............   Passed    4.34 sec
+        Start 202: fp4_dense_tma_test
+124/144 Test #202: fp4_dense_tma_test .................   Passed    0.88 sec
+        Start 203: silu_parity
+125/144 Test #203: silu_parity ........................   Passed    0.13 sec
+        Start 204: prefill_fp4_test
+126/144 Test #204: prefill_fp4_test ...................***Skipped   0.02 sec
+        Start 205: ds41_peer_parity
+127/144 Test #205: ds41_peer_parity ...................   Passed    0.02 sec
+        Start 206: iq1s_parity
+128/144 Test #206: iq1s_parity ........................   Passed   30.85 sec
+        Start 208: dec_moe_parity_nvfp4
+129/144 Test #208: dec_moe_parity_nvfp4 ...............   Passed    0.95 sec
+        Start 209: dec_moe_parity_kq
+130/144 Test #209: dec_moe_parity_kq ..................***Failed   10.10 sec
+dec_moe_parity: 1 device(s)
+layer 0: gate/up type 12, down type 7, 3.07 MB per expert, formats covered
+  peer math (device 0)               layer  0: bitwise equal (0 of 99840 differ)
+  route T=1 (1 cpu, 1 peer)          layer  0: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  0: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  0: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  0: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  0: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  0: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  0: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  0: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  0: bitwise equal (0 of 2560 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=1 (1 of 2 misses)   layer  0: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  0: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer  0: bitwise equal (0 of 2560 differ)
+  route, peers T=1 (1+2+2)           layer  0: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  0: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  0: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (8 groups)          layer  0: bitwise equal (0 of 20480 differ)
+  VRAM kind 2 T=1 (8 groups)         layer  0: bitwise equal (0 of 20480 differ)
+  VRAM kind 3 T=1 (8 groups)         layer  0: bitwise equal (0 of 20480 differ)
+  route T=3 (1 cpu, 2 peer)          layer  0: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  0: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  0: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  0: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  0: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  0: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  0: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  0: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  0: bitwise equal (0 of 7680 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=3 (1 of 3 misses)   layer  0: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  0: bitwise equal (0 of 2560 differ)
+  staged tail T=3                    layer  0: bitwise equal (0 of 7680 differ)
+  route, peers T=3 (2+5+4)           layer  0: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  0: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  0: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (20 groups)         layer  0: bitwise equal (0 of 69120 differ)
+  VRAM kind 2 T=3 (20 groups)        layer  0: bitwise equal (0 of 69120 differ)
+  VRAM kind 3 T=3 (20 groups)        layer  0: bitwise equal (0 of 69120 differ)
+  route T=8 (12 cpu, 10 peer)        layer  0: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  0: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  0: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  0: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  0: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  0: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  0: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  0: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  0: bitwise equal (0 of 20480 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=8 (5 of 13 misses)  layer  0: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  0: bitwise equal (0 of 17920 differ)
+  staged tail T=8                    layer  0: bitwise equal (0 of 20480 differ)
+  route, peers T=8 (10+14+9)         layer  0: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  0: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  0: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (35 groups)         layer  0: bitwise equal (0 of 148480 differ)
+  VRAM kind 2 T=8 (35 groups)        layer  0: bitwise equal (0 of 148480 differ)
+  VRAM kind 3 T=8 (35 groups)        layer  0: bitwise equal (0 of 148480 differ)
+layer 1: gate/up type 12, down type 8, 3.58 MB per expert, formats covered
+  peer math (device 0)               layer  1: bitwise equal (0 of 99840 differ)
+  route T=1 (2 cpu, 1 peer)          layer  1: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  1: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  1: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  1: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  1: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  1: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  1: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  1: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  1: bitwise equal (0 of 2560 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=1 (1 of 3 misses)   layer  1: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  1: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer  1: bitwise equal (0 of 2560 differ)
+  route, peers T=1 (1+2+3)           layer  1: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  1: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  1: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (7 groups)          layer  1: bitwise equal (0 of 17920 differ)
+  VRAM kind 2 T=1 (7 groups)         layer  1: bitwise equal (0 of 17920 differ)
+  VRAM kind 3 T=1 (7 groups)         layer  1: bitwise equal (0 of 17920 differ)
+  route T=3 (7 cpu, 3 peer)          layer  1: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  1: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  1: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  1: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  1: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  1: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  1: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  1: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  1: bitwise equal (0 of 7680 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=3 (3 of 7 misses)   layer  1: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  1: bitwise equal (0 of 7680 differ)
+  staged tail T=3                    layer  1: bitwise equal (0 of 7680 differ)
+  route, peers T=3 (3+1+5)           layer  1: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  1: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  1: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (17 groups)         layer  1: bitwise equal (0 of 51200 differ)
+  VRAM kind 2 T=3 (17 groups)        layer  1: bitwise equal (0 of 51200 differ)
+  VRAM kind 3 T=3 (17 groups)        layer  1: bitwise equal (0 of 51200 differ)
+  route T=8 (20 cpu, 5 peer)         layer  1: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  1: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  1: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  1: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  1: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  1: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  1: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  1: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  1: bitwise equal (0 of 20480 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=8 (6 of 14 misses)  layer  1: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  1: bitwise equal (0 of 20480 differ)
+  staged tail T=8                    layer  1: bitwise equal (0 of 20480 differ)
+  route, peers T=8 (5+15+23)         layer  1: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  1: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  1: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (32 groups)         layer  1: bitwise equal (0 of 140800 differ)
+  VRAM kind 2 T=8 (32 groups)        layer  1: bitwise equal (0 of 140800 differ)
+  VRAM kind 3 T=8 (32 groups)        layer  1: bitwise equal (0 of 140800 differ)
+layer 2: gate/up type 13, down type 8, 3.99 MB per expert, formats covered
+  peer math (device 0)               layer  2: bitwise equal (0 of 99840 differ)
+  route T=1 (2 cpu, 1 peer)          layer  2: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  2: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  2: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  2: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  2: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  2: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  2: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  2: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  2: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer  2: bitwise equal (0 of 10 differ)
+  glue rows T=1 (7 groups)           layer  2: bitwise equal (0 of 17920 differ)
+  glue ring T=1                      layer  2: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer  2: bitwise equal (0 of 17920 differ)
+  glue ring, counted T=1             layer  2: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer  2: bitwise equal (0 of 17920 differ)
+  glue rows, landed T=1              layer  2: bitwise equal (0 of 17920 differ)
+  glue rows, landed late T=1         layer  2: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted T=1     layer  2: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted late T=1 layer  2: bitwise equal (0 of 17920 differ)
+  staged split T=1 (1 of 3 misses)   layer  2: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  2: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer  2: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer  2: bitwise equal (0 of 10 differ)
+  route, peers T=1 (1+4+3)           layer  2: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  2: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer  2: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  2: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (7 groups)          layer  2: bitwise equal (0 of 17920 differ)
+  VRAM kind 2 T=1 (7 groups)         layer  2: bitwise equal (0 of 17920 differ)
+  VRAM kind 3 T=1 (7 groups)         layer  2: bitwise equal (0 of 17920 differ)
+  route T=3 (3 cpu, 2 peer)          layer  2: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  2: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  2: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  2: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  2: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  2: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  2: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  2: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  2: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer  2: bitwise equal (0 of 30 differ)
+  glue rows T=3 (20 groups)          layer  2: bitwise equal (0 of 64000 differ)
+  glue ring T=3                      layer  2: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer  2: bitwise equal (0 of 64000 differ)
+  glue ring, counted T=3             layer  2: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer  2: bitwise equal (0 of 64000 differ)
+  glue rows, landed T=3              layer  2: bitwise equal (0 of 64000 differ)
+  glue rows, landed late T=3         layer  2: bitwise equal (0 of 64000 differ)
+  glue rows, landed, counted T=3     layer  2: bitwise equal (0 of 64000 differ)
+  glue rows, landed, counted late T=3 layer  2: bitwise equal (0 of 64000 differ)
+  staged split T=3 (2 of 4 misses)   layer  2: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  2: bitwise equal (0 of 5120 differ)
+  staged tail T=3                    layer  2: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer  2: bitwise equal (0 of 30 differ)
+  route, peers T=3 (2+6+8)           layer  2: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  2: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer  2: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  2: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (20 groups)         layer  2: bitwise equal (0 of 64000 differ)
+  VRAM kind 2 T=3 (20 groups)        layer  2: bitwise equal (0 of 64000 differ)
+  VRAM kind 3 T=3 (20 groups)        layer  2: bitwise equal (0 of 64000 differ)
+  route T=8 (4 cpu, 6 peer)          layer  2: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  2: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  2: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  2: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  2: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  2: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  2: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  2: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  2: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer  2: bitwise equal (0 of 80 differ)
+  glue rows T=8 (43 groups)          layer  2: bitwise equal (0 of 179200 differ)
+  glue ring T=8                      layer  2: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer  2: bitwise equal (0 of 179200 differ)
+  glue ring, counted T=8             layer  2: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer  2: bitwise equal (0 of 179200 differ)
+  glue rows, landed T=8              layer  2: bitwise equal (0 of 179200 differ)
+  glue rows, landed late T=8         layer  2: bitwise equal (0 of 179200 differ)
+  glue rows, landed, counted T=8     layer  2: bitwise equal (0 of 179200 differ)
+  glue rows, landed, counted late T=8 layer  2: bitwise equal (0 of 179200 differ)
+  staged split T=8 (3 of 8 misses)   layer  2: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  2: bitwise equal (0 of 7680 differ)
+  staged tail T=8                    layer  2: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer  2: bitwise equal (0 of 80 differ)
+  route, peers T=8 (6+22+13)         layer  2: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  2: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer  2: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  2: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (43 groups)         layer  2: bitwise equal (0 of 179200 differ)
+  VRAM kind 2 T=8 (43 groups)        layer  2: bitwise equal (0 of 179200 differ)
+  VRAM kind 3 T=8 (43 groups)        layer  2: bitwise equal (0 of 179200 differ)
+layer 3: gate/up type 8, down type 8, 5.22 MB per expert, formats covered
+  peer math (device 0)               layer  3: bitwise equal (0 of 99840 differ)
+  route T=1 (0 cpu, 3 peer)          layer  3: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  3: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  3: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  3: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  3: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  3: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  3: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  3: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  3: bitwise equal (0 of 2560 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=1 (1 of 3 misses)   layer  3: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  3: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer  3: bitwise equal (0 of 2560 differ)
+  route, peers T=1 (3+2+1)           layer  3: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  3: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  3: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (7 groups)          layer  3: bitwise equal (0 of 17920 differ)
+  VRAM kind 2 T=1 (7 groups)         layer  3: bitwise equal (0 of 17920 differ)
+  VRAM kind 3 T=1 (7 groups)         layer  3: bitwise equal (0 of 17920 differ)
+  route T=3 (1 cpu, 6 peer)          layer  3: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  3: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  3: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  3: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  3: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  3: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  3: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  3: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  3: bitwise equal (0 of 7680 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=3 (2 of 6 misses)   layer  3: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  3: bitwise equal (0 of 5120 differ)
+  staged tail T=3                    layer  3: bitwise equal (0 of 7680 differ)
+  route, peers T=3 (6+4+4)           layer  3: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  3: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  3: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (21 groups)         layer  3: bitwise equal (0 of 58880 differ)
+  VRAM kind 2 T=3 (21 groups)        layer  3: bitwise equal (0 of 58880 differ)
+  VRAM kind 3 T=3 (21 groups)        layer  3: bitwise equal (0 of 58880 differ)
+  route T=8 (7 cpu, 12 peer)         layer  3: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  3: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  3: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  3: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  3: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  3: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  3: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  3: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  3: bitwise equal (0 of 20480 differ)
+  glue: skipped (DEC_GU2=2 not set or formats)
+  staged split T=8 (4 of 11 misses)  layer  3: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  3: bitwise equal (0 of 20480 differ)
+  staged tail T=8                    layer  3: bitwise equal (0 of 20480 differ)
+  route, peers T=8 (12+15+10)        layer  3: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  3: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  3: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (38 groups)         layer  3: bitwise equal (0 of 156160 differ)
+  VRAM kind 2 T=8 (38 groups)        layer  3: bitwise equal (0 of 156160 differ)
+  VRAM kind 3 T=8 (38 groups)        layer  3: bitwise equal (0 of 156160 differ)
+layer 4: gate/up type 14, down type 8, 4.43 MB per expert, formats covered
+  peer math (device 0)               layer  4: bitwise equal (0 of 99840 differ)
+  route T=1 (0 cpu, 1 peer)          layer  4: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  4: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  4: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  4: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  4: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  4: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  4: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  4: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  4: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer  4: bitwise equal (0 of 10 differ)
+  glue rows T=1 (9 groups)           layer  4: bitwise equal (0 of 23040 differ)
+  glue ring T=1                      layer  4: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer  4: bitwise equal (0 of 23040 differ)
+  glue ring, counted T=1             layer  4: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer  4: bitwise equal (0 of 23040 differ)
+  glue rows, landed T=1              layer  4: bitwise equal (0 of 23040 differ)
+  glue rows, landed late T=1         layer  4: bitwise equal (0 of 23040 differ)
+  glue rows, landed, counted T=1     layer  4: bitwise equal (0 of 23040 differ)
+  glue rows, landed, counted late T=1 layer  4: bitwise equal (0 of 23040 differ)
+  staged split T=1 (0 of 1 misses)   layer  4: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  4: bitwise equal (0 of 0 differ)
+  staged tail T=1                    layer  4: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer  4: bitwise equal (0 of 10 differ)
+  route, peers T=1 (1+0+2)           layer  4: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  4: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer  4: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  4: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (9 groups)          layer  4: bitwise equal (0 of 23040 differ)
+  VRAM kind 2 T=1 (9 groups)         layer  4: bitwise equal (0 of 23040 differ)
+  VRAM kind 3 T=1 (9 groups)         layer  4: bitwise equal (0 of 23040 differ)
+  route T=3 (5 cpu, 1 peer)          layer  4: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  4: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  4: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  4: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  4: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  4: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  4: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  4: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  4: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer  4: bitwise equal (0 of 30 differ)
+  glue rows T=3 (21 groups)          layer  4: bitwise equal (0 of 61440 differ)
+  glue ring T=3                      layer  4: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer  4: bitwise equal (0 of 61440 differ)
+  glue ring, counted T=3             layer  4: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer  4: bitwise equal (0 of 61440 differ)
+  glue rows, landed T=3              layer  4: bitwise equal (0 of 61440 differ)
+  glue rows, landed late T=3         layer  4: bitwise equal (0 of 61440 differ)
+  glue rows, landed, counted T=3     layer  4: bitwise equal (0 of 61440 differ)
+  glue rows, landed, counted late T=3 layer  4: bitwise equal (0 of 61440 differ)
+  staged split T=3 (2 of 5 misses)   layer  4: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  4: bitwise equal (0 of 5120 differ)
+  staged tail T=3                    layer  4: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer  4: bitwise equal (0 of 30 differ)
+  route, peers T=3 (1+4+6)           layer  4: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  4: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer  4: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  4: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (21 groups)         layer  4: bitwise equal (0 of 61440 differ)
+  VRAM kind 2 T=3 (21 groups)        layer  4: bitwise equal (0 of 61440 differ)
+  VRAM kind 3 T=3 (21 groups)        layer  4: bitwise equal (0 of 61440 differ)
+  route T=8 (6 cpu, 7 peer)          layer  4: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  4: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  4: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  4: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  4: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  4: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  4: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  4: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  4: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer  4: bitwise equal (0 of 80 differ)
+  glue rows T=8 (40 groups)          layer  4: bitwise equal (0 of 171520 differ)
+  glue ring T=8                      layer  4: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer  4: bitwise equal (0 of 171520 differ)
+  glue ring, counted T=8             layer  4: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer  4: bitwise equal (0 of 171520 differ)
+  glue rows, landed T=8              layer  4: bitwise equal (0 of 171520 differ)
+  glue rows, landed late T=8         layer  4: bitwise equal (0 of 171520 differ)
+  glue rows, landed, counted T=8     layer  4: bitwise equal (0 of 171520 differ)
+  glue rows, landed, counted late T=8 layer  4: bitwise equal (0 of 171520 differ)
+  staged split T=8 (3 of 8 misses)   layer  4: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  4: bitwise equal (0 of 12800 differ)
+  staged tail T=8                    layer  4: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer  4: bitwise equal (0 of 80 differ)
+  route, peers T=8 (7+11+11)         layer  4: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  4: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer  4: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  4: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (40 groups)         layer  4: bitwise equal (0 of 171520 differ)
+  VRAM kind 2 T=8 (40 groups)        layer  4: bitwise equal (0 of 171520 differ)
+  VRAM kind 3 T=8 (40 groups)        layer  4: bitwise equal (0 of 171520 differ)
+layer 5: gate/up type 16, down type 6, 1.97 MB per expert, formats covered
+  peer math (device 0)               layer  5: bitwise equal (0 of 99840 differ)
+  route T=1 (0 cpu, 4 peer)          layer  5: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  5: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  5: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  5: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  5: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  5: DIFFERS (32 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  5: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  5: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  5: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer  5: bitwise equal (0 of 10 differ)
+  glue rows T=1 (6 groups)           layer  5: bitwise equal (0 of 15360 differ)
+  glue ring T=1                      layer  5: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer  5: bitwise equal (0 of 15360 differ)
+  glue ring, counted T=1             layer  5: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer  5: bitwise equal (0 of 15360 differ)
+  glue rows, landed T=1              layer  5: bitwise equal (0 of 15360 differ)
+  glue rows, landed late T=1         layer  5: bitwise equal (0 of 15360 differ)
+  glue rows, landed, counted T=1     layer  5: bitwise equal (0 of 15360 differ)
+  glue rows, landed, counted late T=1 layer  5: bitwise equal (0 of 15360 differ)
+  staged split T=1 (2 of 4 misses)   layer  5: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  5: bitwise equal (0 of 5120 differ)
+  staged tail T=1                    layer  5: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer  5: bitwise equal (0 of 10 differ)
+  route, peers T=1 (4+0+2)           layer  5: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  5: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer  5: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  5: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (6 groups)          layer  5: bitwise equal (0 of 15360 differ)
+  VRAM kind 2 T=1 (6 groups)         layer  5: bitwise equal (0 of 15360 differ)
+  VRAM kind 3 T=1 (6 groups)         layer  5: bitwise equal (0 of 15360 differ)
+  route T=3 (5 cpu, 5 peer)          layer  5: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  5: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  5: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  5: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  5: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  5: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  5: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  5: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  5: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer  5: bitwise equal (0 of 30 differ)
+  glue rows T=3 (19 groups)          layer  5: bitwise equal (0 of 51200 differ)
+  glue ring T=3                      layer  5: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer  5: bitwise equal (0 of 51200 differ)
+  glue ring, counted T=3             layer  5: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer  5: bitwise equal (0 of 51200 differ)
+  glue rows, landed T=3              layer  5: bitwise equal (0 of 51200 differ)
+  glue rows, landed late T=3         layer  5: bitwise equal (0 of 51200 differ)
+  glue rows, landed, counted T=3     layer  5: bitwise equal (0 of 51200 differ)
+  glue rows, landed, counted late T=3 layer  5: bitwise equal (0 of 51200 differ)
+  staged split T=3 (4 of 10 misses)  layer  5: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  5: bitwise equal (0 of 10240 differ)
+  staged tail T=3                    layer  5: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer  5: bitwise equal (0 of 30 differ)
+  route, peers T=3 (5+5+7)           layer  5: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  5: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer  5: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  5: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (19 groups)         layer  5: bitwise equal (0 of 51200 differ)
+  VRAM kind 2 T=3 (19 groups)        layer  5: bitwise equal (0 of 51200 differ)
+  VRAM kind 3 T=3 (19 groups)        layer  5: bitwise equal (0 of 51200 differ)
+  route T=8 (4 cpu, 13 peer)         layer  5: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  5: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  5: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  5: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  5: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  5: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  5: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  5: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  5: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer  5: bitwise equal (0 of 80 differ)
+  glue rows T=8 (32 groups)          layer  5: bitwise equal (0 of 161280 differ)
+  glue ring T=8                      layer  5: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer  5: bitwise equal (0 of 161280 differ)
+  glue ring, counted T=8             layer  5: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer  5: bitwise equal (0 of 161280 differ)
+  glue rows, landed T=8              layer  5: bitwise equal (0 of 161280 differ)
+  glue rows, landed late T=8         layer  5: bitwise equal (0 of 161280 differ)
+  glue rows, landed, counted T=8     layer  5: bitwise equal (0 of 161280 differ)
+  glue rows, landed, counted late T=8 layer  5: bitwise equal (0 of 161280 differ)
+  staged split T=8 (5 of 13 misses)  layer  5: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  5: bitwise equal (0 of 12800 differ)
+  staged tail T=8                    layer  5: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer  5: bitwise equal (0 of 80 differ)
+  route, peers T=8 (13+7+17)         layer  5: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  5: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer  5: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  5: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (32 groups)         layer  5: bitwise equal (0 of 161280 differ)
+  VRAM kind 2 T=8 (32 groups)        layer  5: bitwise equal (0 of 161280 differ)
+  VRAM kind 3 T=8 (32 groups)        layer  5: bitwise equal (0 of 161280 differ)
+layer 6: gate/up type 22, down type 6, 2.18 MB per expert, formats covered
+  peer math (device 0)               layer  6: bitwise equal (0 of 99840 differ)
+  route T=1 (2 cpu, 3 peer)          layer  6: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  6: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  6: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  6: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  6: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  6: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  6: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  6: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  6: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer  6: bitwise equal (0 of 10 differ)
+  glue rows T=1 (5 groups)           layer  6: bitwise equal (0 of 12800 differ)
+  glue ring T=1                      layer  6: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer  6: bitwise equal (0 of 12800 differ)
+  glue ring, counted T=1             layer  6: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer  6: bitwise equal (0 of 12800 differ)
+  glue rows, landed T=1              layer  6: bitwise equal (0 of 12800 differ)
+  glue rows, landed late T=1         layer  6: bitwise equal (0 of 12800 differ)
+  glue rows, landed, counted T=1     layer  6: bitwise equal (0 of 12800 differ)
+  glue rows, landed, counted late T=1 layer  6: bitwise equal (0 of 12800 differ)
+  staged split T=1 (2 of 5 misses)   layer  6: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  6: bitwise equal (0 of 5120 differ)
+  staged tail T=1                    layer  6: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer  6: bitwise equal (0 of 10 differ)
+  route, peers T=1 (3+1+2)           layer  6: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  6: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer  6: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  6: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (5 groups)          layer  6: bitwise equal (0 of 12800 differ)
+  VRAM kind 2 T=1 (5 groups)         layer  6: bitwise equal (0 of 12800 differ)
+  VRAM kind 3 T=1 (5 groups)         layer  6: bitwise equal (0 of 12800 differ)
+  route T=3 (3 cpu, 5 peer)          layer  6: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  6: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  6: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  6: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  6: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  6: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  6: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  6: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  6: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer  6: bitwise equal (0 of 30 differ)
+  glue rows T=3 (17 groups)          layer  6: bitwise equal (0 of 56320 differ)
+  glue ring T=3                      layer  6: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer  6: bitwise equal (0 of 56320 differ)
+  glue ring, counted T=3             layer  6: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer  6: bitwise equal (0 of 56320 differ)
+  glue rows, landed T=3              layer  6: bitwise equal (0 of 56320 differ)
+  glue rows, landed late T=3         layer  6: bitwise equal (0 of 56320 differ)
+  glue rows, landed, counted T=3     layer  6: bitwise equal (0 of 56320 differ)
+  glue rows, landed, counted late T=3 layer  6: bitwise equal (0 of 56320 differ)
+  staged split T=3 (2 of 6 misses)   layer  6: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  6: bitwise equal (0 of 5120 differ)
+  staged tail T=3                    layer  6: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer  6: bitwise equal (0 of 30 differ)
+  route, peers T=3 (5+4+5)           layer  6: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  6: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer  6: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  6: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (17 groups)         layer  6: bitwise equal (0 of 56320 differ)
+  VRAM kind 2 T=3 (17 groups)        layer  6: bitwise equal (0 of 56320 differ)
+  VRAM kind 3 T=3 (17 groups)        layer  6: bitwise equal (0 of 56320 differ)
+  route T=8 (7 cpu, 16 peer)         layer  6: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  6: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  6: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  6: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  6: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  6: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  6: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  6: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  6: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer  6: bitwise equal (0 of 80 differ)
+  glue rows T=8 (35 groups)          layer  6: bitwise equal (0 of 145920 differ)
+  glue ring T=8                      layer  6: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer  6: bitwise equal (0 of 145920 differ)
+  glue ring, counted T=8             layer  6: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer  6: bitwise equal (0 of 145920 differ)
+  glue rows, landed T=8              layer  6: bitwise equal (0 of 145920 differ)
+  glue rows, landed late T=8         layer  6: bitwise equal (0 of 145920 differ)
+  glue rows, landed, counted T=8     layer  6: bitwise equal (0 of 145920 differ)
+  glue rows, landed, counted late T=8 layer  6: bitwise equal (0 of 145920 differ)
+  staged split T=8 (5 of 12 misses)  layer  6: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  6: bitwise equal (0 of 20480 differ)
+  staged tail T=8                    layer  6: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer  6: bitwise equal (0 of 80 differ)
+  route, peers T=8 (16+17+8)         layer  6: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  6: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer  6: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  6: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (35 groups)         layer  6: bitwise equal (0 of 145920 differ)
+  VRAM kind 2 T=8 (35 groups)        layer  6: bitwise equal (0 of 145920 differ)
+  VRAM kind 3 T=8 (35 groups)        layer  6: bitwise equal (0 of 145920 differ)
+layer 7: gate/up type 18, down type 6, 2.38 MB per expert, formats covered
+  peer math (device 0)               layer  7: bitwise equal (0 of 99840 differ)
+  route T=1 (0 cpu, 3 peer)          layer  7: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  7: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  7: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  7: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  7: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  7: DIFFERS (32 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  7: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  7: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  7: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer  7: bitwise equal (0 of 10 differ)
+  glue rows T=1 (7 groups)           layer  7: bitwise equal (0 of 17920 differ)
+  glue ring T=1                      layer  7: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer  7: bitwise equal (0 of 17920 differ)
+  glue ring, counted T=1             layer  7: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer  7: bitwise equal (0 of 17920 differ)
+  glue rows, landed T=1              layer  7: bitwise equal (0 of 17920 differ)
+  glue rows, landed late T=1         layer  7: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted T=1     layer  7: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted late T=1 layer  7: bitwise equal (0 of 17920 differ)
+  staged split T=1 (1 of 3 misses)   layer  7: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  7: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer  7: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer  7: bitwise equal (0 of 10 differ)
+  route, peers T=1 (3+0+2)           layer  7: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  7: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer  7: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  7: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (7 groups)          layer  7: bitwise equal (0 of 17920 differ)
+  VRAM kind 2 T=1 (7 groups)         layer  7: bitwise equal (0 of 17920 differ)
+  VRAM kind 3 T=1 (7 groups)         layer  7: bitwise equal (0 of 17920 differ)
+  route T=3 (5 cpu, 4 peer)          layer  7: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  7: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  7: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  7: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  7: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  7: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  7: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  7: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  7: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer  7: bitwise equal (0 of 30 differ)
+  glue rows T=3 (19 groups)          layer  7: bitwise equal (0 of 53760 differ)
+  glue ring T=3                      layer  7: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer  7: bitwise equal (0 of 53760 differ)
+  glue ring, counted T=3             layer  7: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer  7: bitwise equal (0 of 53760 differ)
+  glue rows, landed T=3              layer  7: bitwise equal (0 of 53760 differ)
+  glue rows, landed late T=3         layer  7: bitwise equal (0 of 53760 differ)
+  glue rows, landed, counted T=3     layer  7: bitwise equal (0 of 53760 differ)
+  glue rows, landed, counted late T=3 layer  7: bitwise equal (0 of 53760 differ)
+  staged split T=3 (3 of 7 misses)   layer  7: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  7: bitwise equal (0 of 10240 differ)
+  staged tail T=3                    layer  7: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer  7: bitwise equal (0 of 30 differ)
+  route, peers T=3 (4+6+4)           layer  7: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  7: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer  7: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  7: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (19 groups)         layer  7: bitwise equal (0 of 53760 differ)
+  VRAM kind 2 T=3 (19 groups)        layer  7: bitwise equal (0 of 53760 differ)
+  VRAM kind 3 T=3 (19 groups)        layer  7: bitwise equal (0 of 53760 differ)
+  route T=8 (7 cpu, 19 peer)         layer  7: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  7: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  7: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  7: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  7: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  7: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  7: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  7: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  7: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer  7: bitwise equal (0 of 80 differ)
+  glue rows T=8 (34 groups)          layer  7: bitwise equal (0 of 138240 differ)
+  glue ring T=8                      layer  7: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer  7: bitwise equal (0 of 138240 differ)
+  glue ring, counted T=8             layer  7: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer  7: bitwise equal (0 of 138240 differ)
+  glue rows, landed T=8              layer  7: bitwise equal (0 of 138240 differ)
+  glue rows, landed late T=8         layer  7: bitwise equal (0 of 138240 differ)
+  glue rows, landed, counted T=8     layer  7: bitwise equal (0 of 138240 differ)
+  glue rows, landed, counted late T=8 layer  7: bitwise equal (0 of 138240 differ)
+  staged split T=8 (5 of 13 misses)  layer  7: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  7: bitwise equal (0 of 23040 differ)
+  staged tail T=8                    layer  7: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer  7: bitwise equal (0 of 80 differ)
+  route, peers T=8 (19+11+14)        layer  7: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  7: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer  7: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  7: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (34 groups)         layer  7: bitwise equal (0 of 138240 differ)
+  VRAM kind 2 T=8 (34 groups)        layer  7: bitwise equal (0 of 138240 differ)
+  VRAM kind 3 T=8 (34 groups)        layer  7: bitwise equal (0 of 138240 differ)
+layer 8: gate/up type 23, down type 6, 2.87 MB per expert, formats covered
+  peer math (device 0)               layer  8: bitwise equal (0 of 99840 differ)
+  route T=1 (1 cpu, 1 peer)          layer  8: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  8: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  8: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  8: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  8: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  8: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  8: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  8: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  8: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer  8: bitwise equal (0 of 10 differ)
+  glue rows T=1 (8 groups)           layer  8: bitwise equal (0 of 20480 differ)
+  glue ring T=1                      layer  8: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer  8: bitwise equal (0 of 20480 differ)
+  glue ring, counted T=1             layer  8: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer  8: bitwise equal (0 of 20480 differ)
+  glue rows, landed T=1              layer  8: bitwise equal (0 of 20480 differ)
+  glue rows, landed late T=1         layer  8: bitwise equal (0 of 20480 differ)
+  glue rows, landed, counted T=1     layer  8: bitwise equal (0 of 20480 differ)
+  glue rows, landed, counted late T=1 layer  8: bitwise equal (0 of 20480 differ)
+  staged split T=1 (1 of 2 misses)   layer  8: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  8: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer  8: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer  8: bitwise equal (0 of 10 differ)
+  route, peers T=1 (1+1+1)           layer  8: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  8: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer  8: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  8: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (8 groups)          layer  8: bitwise equal (0 of 20480 differ)
+  VRAM kind 2 T=1 (8 groups)         layer  8: bitwise equal (0 of 20480 differ)
+  VRAM kind 3 T=1 (8 groups)         layer  8: bitwise equal (0 of 20480 differ)
+  route T=3 (1 cpu, 3 peer)          layer  8: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  8: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  8: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  8: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  8: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  8: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  8: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  8: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  8: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer  8: bitwise equal (0 of 30 differ)
+  glue rows T=3 (23 groups)          layer  8: bitwise equal (0 of 66560 differ)
+  glue ring T=3                      layer  8: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer  8: bitwise equal (0 of 66560 differ)
+  glue ring, counted T=3             layer  8: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer  8: bitwise equal (0 of 66560 differ)
+  glue rows, landed T=3              layer  8: bitwise equal (0 of 66560 differ)
+  glue rows, landed late T=3         layer  8: bitwise equal (0 of 66560 differ)
+  glue rows, landed, counted T=3     layer  8: bitwise equal (0 of 66560 differ)
+  glue rows, landed, counted late T=3 layer  8: bitwise equal (0 of 66560 differ)
+  staged split T=3 (2 of 4 misses)   layer  8: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  8: bitwise equal (0 of 5120 differ)
+  staged tail T=3                    layer  8: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer  8: bitwise equal (0 of 30 differ)
+  route, peers T=3 (3+6+5)           layer  8: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  8: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer  8: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  8: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (23 groups)         layer  8: bitwise equal (0 of 66560 differ)
+  VRAM kind 2 T=3 (23 groups)        layer  8: bitwise equal (0 of 66560 differ)
+  VRAM kind 3 T=3 (23 groups)        layer  8: bitwise equal (0 of 66560 differ)
+  route T=8 (6 cpu, 18 peer)         layer  8: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  8: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  8: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  8: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  8: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  8: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  8: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  8: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  8: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer  8: bitwise equal (0 of 80 differ)
+  glue rows T=8 (33 groups)          layer  8: bitwise equal (0 of 143360 differ)
+  glue ring T=8                      layer  8: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer  8: bitwise equal (0 of 143360 differ)
+  glue ring, counted T=8             layer  8: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer  8: bitwise equal (0 of 143360 differ)
+  glue rows, landed T=8              layer  8: bitwise equal (0 of 143360 differ)
+  glue rows, landed late T=8         layer  8: bitwise equal (0 of 143360 differ)
+  glue rows, landed, counted T=8     layer  8: bitwise equal (0 of 143360 differ)
+  glue rows, landed, counted late T=8 layer  8: bitwise equal (0 of 143360 differ)
+  staged split T=8 (5 of 12 misses)  layer  8: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  8: bitwise equal (0 of 20480 differ)
+  staged tail T=8                    layer  8: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer  8: bitwise equal (0 of 80 differ)
+  route, peers T=8 (18+4+13)         layer  8: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  8: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer  8: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  8: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (33 groups)         layer  8: bitwise equal (0 of 143360 differ)
+  VRAM kind 2 T=8 (33 groups)        layer  8: bitwise equal (0 of 143360 differ)
+  VRAM kind 3 T=8 (33 groups)        layer  8: bitwise equal (0 of 143360 differ)
+layer 9: gate/up type 21, down type 8, 3.15 MB per expert, formats covered
+  peer math (device 0)               layer  9: bitwise equal (0 of 99840 differ)
+  route T=1 (2 cpu, 1 peer)          layer  9: bitwise equal (0 of 10 differ)
+  split route T=1                    layer  9: bitwise equal (0 of 6 differ)
+  tail T=1                           layer  9: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer  9: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer  9: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer  9: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer  9: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer  9: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer  9: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer  9: bitwise equal (0 of 10 differ)
+  glue rows T=1 (7 groups)           layer  9: bitwise equal (0 of 17920 differ)
+  glue ring T=1                      layer  9: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer  9: bitwise equal (0 of 17920 differ)
+  glue ring, counted T=1             layer  9: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer  9: bitwise equal (0 of 17920 differ)
+  glue rows, landed T=1              layer  9: bitwise equal (0 of 17920 differ)
+  glue rows, landed late T=1         layer  9: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted T=1     layer  9: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted late T=1 layer  9: bitwise equal (0 of 17920 differ)
+  staged split T=1 (1 of 3 misses)   layer  9: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer  9: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer  9: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer  9: bitwise equal (0 of 10 differ)
+  route, peers T=1 (1+1+0)           layer  9: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer  9: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer  9: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer  9: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (7 groups)          layer  9: bitwise equal (0 of 17920 differ)
+  VRAM kind 2 T=1 (7 groups)         layer  9: bitwise equal (0 of 17920 differ)
+  VRAM kind 3 T=1 (7 groups)         layer  9: bitwise equal (0 of 17920 differ)
+  route T=3 (1 cpu, 5 peer)          layer  9: bitwise equal (0 of 30 differ)
+  split route T=3                    layer  9: bitwise equal (0 of 6 differ)
+  tail T=3                           layer  9: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer  9: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer  9: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer  9: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer  9: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer  9: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer  9: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer  9: bitwise equal (0 of 30 differ)
+  glue rows T=3 (20 groups)          layer  9: bitwise equal (0 of 61440 differ)
+  glue ring T=3                      layer  9: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer  9: bitwise equal (0 of 61440 differ)
+  glue ring, counted T=3             layer  9: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer  9: bitwise equal (0 of 61440 differ)
+  glue rows, landed T=3              layer  9: bitwise equal (0 of 61440 differ)
+  glue rows, landed late T=3         layer  9: bitwise equal (0 of 61440 differ)
+  glue rows, landed, counted T=3     layer  9: bitwise equal (0 of 61440 differ)
+  glue rows, landed, counted late T=3 layer  9: bitwise equal (0 of 61440 differ)
+  staged split T=3 (2 of 6 misses)   layer  9: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer  9: bitwise equal (0 of 5120 differ)
+  staged tail T=3                    layer  9: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer  9: bitwise equal (0 of 30 differ)
+  route, peers T=3 (5+4+6)           layer  9: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer  9: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer  9: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer  9: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (20 groups)         layer  9: bitwise equal (0 of 61440 differ)
+  VRAM kind 2 T=3 (20 groups)        layer  9: bitwise equal (0 of 61440 differ)
+  VRAM kind 3 T=3 (20 groups)        layer  9: bitwise equal (0 of 61440 differ)
+  route T=8 (11 cpu, 8 peer)         layer  9: bitwise equal (0 of 80 differ)
+  split route T=8                    layer  9: bitwise equal (0 of 6 differ)
+  tail T=8                           layer  9: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer  9: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer  9: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer  9: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer  9: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer  9: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer  9: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer  9: bitwise equal (0 of 80 differ)
+  glue rows T=8 (35 groups)          layer  9: bitwise equal (0 of 156160 differ)
+  glue ring T=8                      layer  9: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer  9: bitwise equal (0 of 156160 differ)
+  glue ring, counted T=8             layer  9: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer  9: bitwise equal (0 of 156160 differ)
+  glue rows, landed T=8              layer  9: bitwise equal (0 of 156160 differ)
+  glue rows, landed late T=8         layer  9: bitwise equal (0 of 156160 differ)
+  glue rows, landed, counted T=8     layer  9: bitwise equal (0 of 156160 differ)
+  glue rows, landed, counted late T=8 layer  9: bitwise equal (0 of 156160 differ)
+  staged split T=8 (4 of 10 misses)  layer  9: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer  9: bitwise equal (0 of 17920 differ)
+  staged tail T=8                    layer  9: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer  9: bitwise equal (0 of 80 differ)
+  route, peers T=8 (8+11+15)         layer  9: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer  9: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer  9: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer  9: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (35 groups)         layer  9: bitwise equal (0 of 156160 differ)
+  VRAM kind 2 T=8 (35 groups)        layer  9: bitwise equal (0 of 156160 differ)
+  VRAM kind 3 T=8 (35 groups)        layer  9: bitwise equal (0 of 156160 differ)
+layer 10: gate/up type 23, down type 8, 3.48 MB per expert, formats covered
+  peer math (device 0)               layer 10: bitwise equal (0 of 99840 differ)
+  route T=1 (3 cpu, 0 peer)          layer 10: bitwise equal (0 of 10 differ)
+  split route T=1                    layer 10: bitwise equal (0 of 6 differ)
+  tail T=1                           layer 10: bitwise equal (0 of 2560 differ)
+  combine, no wait T=1               layer 10: bitwise equal (0 of 2560 differ)
+  combine, own wait T=1              layer 10: bitwise equal (0 of 2560 differ)
+  combine, own wait (landing late) T=1 layer 10: bitwise equal (0 of 2560 differ)
+  combine, gate inside (no wait) T=1 layer 10: bitwise equal (0 of 2560 differ)
+  combine, gate inside (own wait) T=1 layer 10: bitwise equal (0 of 2560 differ)
+  combine, gate inside (block waits) T=1 layer 10: bitwise equal (0 of 2560 differ)
+  glue plan T=1                      layer 10: bitwise equal (0 of 10 differ)
+  glue rows T=1 (7 groups)           layer 10: bitwise equal (0 of 17920 differ)
+  glue ring T=1                      layer 10: bitwise equal (0 of 10 differ)
+  glue ring rows T=1                 layer 10: bitwise equal (0 of 17920 differ)
+  glue ring, counted T=1             layer 10: bitwise equal (0 of 10 differ)
+  glue ring rows, counted T=1        layer 10: bitwise equal (0 of 17920 differ)
+  glue rows, landed T=1              layer 10: bitwise equal (0 of 17920 differ)
+  glue rows, landed late T=1         layer 10: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted T=1     layer 10: bitwise equal (0 of 17920 differ)
+  glue rows, landed, counted late T=1 layer 10: bitwise equal (0 of 17920 differ)
+  staged split T=1 (1 of 3 misses)   layer 10: bitwise equal (0 of 10 differ)
+  staged rows T=1                    layer 10: bitwise equal (0 of 2560 differ)
+  staged tail T=1                    layer 10: bitwise equal (0 of 2560 differ)
+  staged glue kinds T=1              layer 10: bitwise equal (0 of 10 differ)
+  route, peers T=1 (0+1+1)           layer 10: bitwise equal (0 of 10 differ)
+  split route, peers T=1             layer 10: bitwise equal (0 of 10 differ)
+  glue ring, peers T=1               layer 10: bitwise equal (0 of 10 differ)
+  combine, peers T=1                 layer 10: bitwise equal (0 of 5120 differ)
+  fused VRAM T=1 (7 groups)          layer 10: bitwise equal (0 of 17920 differ)
+  VRAM kind 2 T=1 (7 groups)         layer 10: bitwise equal (0 of 17920 differ)
+  VRAM kind 3 T=1 (7 groups)         layer 10: bitwise equal (0 of 17920 differ)
+  route T=3 (6 cpu, 0 peer)          layer 10: bitwise equal (0 of 30 differ)
+  split route T=3                    layer 10: bitwise equal (0 of 6 differ)
+  tail T=3                           layer 10: bitwise equal (0 of 7680 differ)
+  combine, no wait T=3               layer 10: bitwise equal (0 of 7680 differ)
+  combine, own wait T=3              layer 10: bitwise equal (0 of 7680 differ)
+  combine, own wait (landing late) T=3 layer 10: bitwise equal (0 of 7680 differ)
+  combine, gate inside (no wait) T=3 layer 10: bitwise equal (0 of 7680 differ)
+  combine, gate inside (own wait) T=3 layer 10: bitwise equal (0 of 7680 differ)
+  combine, gate inside (block waits) T=3 layer 10: bitwise equal (0 of 7680 differ)
+  glue plan T=3                      layer 10: bitwise equal (0 of 30 differ)
+  glue rows T=3 (20 groups)          layer 10: bitwise equal (0 of 61440 differ)
+  glue ring T=3                      layer 10: bitwise equal (0 of 30 differ)
+  glue ring rows T=3                 layer 10: bitwise equal (0 of 61440 differ)
+  glue ring, counted T=3             layer 10: bitwise equal (0 of 30 differ)
+  glue ring rows, counted T=3        layer 10: bitwise equal (0 of 61440 differ)
+  glue rows, landed T=3              layer 10: bitwise equal (0 of 61440 differ)
+  glue rows, landed late T=3         layer 10: bitwise equal (0 of 61440 differ)
+  glue rows, landed, counted T=3     layer 10: bitwise equal (0 of 61440 differ)
+  glue rows, landed, counted late T=3 layer 10: bitwise equal (0 of 61440 differ)
+  staged split T=3 (2 of 5 misses)   layer 10: bitwise equal (0 of 30 differ)
+  staged rows T=3                    layer 10: bitwise equal (0 of 5120 differ)
+  staged tail T=3                    layer 10: bitwise equal (0 of 7680 differ)
+  staged glue kinds T=3              layer 10: bitwise equal (0 of 30 differ)
+  route, peers T=3 (0+8+6)           layer 10: bitwise equal (0 of 30 differ)
+  split route, peers T=3             layer 10: bitwise equal (0 of 30 differ)
+  glue ring, peers T=3               layer 10: bitwise equal (0 of 30 differ)
+  combine, peers T=3                 layer 10: bitwise equal (0 of 15360 differ)
+  fused VRAM T=3 (20 groups)         layer 10: bitwise equal (0 of 61440 differ)
+  VRAM kind 2 T=3 (20 groups)        layer 10: bitwise equal (0 of 61440 differ)
+  VRAM kind 3 T=3 (20 groups)        layer 10: bitwise equal (0 of 61440 differ)
+  route T=8 (15 cpu, 7 peer)         layer 10: bitwise equal (0 of 80 differ)
+  split route T=8                    layer 10: bitwise equal (0 of 6 differ)
+  tail T=8                           layer 10: bitwise equal (0 of 20480 differ)
+  combine, no wait T=8               layer 10: bitwise equal (0 of 20480 differ)
+  combine, own wait T=8              layer 10: bitwise equal (0 of 20480 differ)
+  combine, own wait (landing late) T=8 layer 10: bitwise equal (0 of 20480 differ)
+  combine, gate inside (no wait) T=8 layer 10: bitwise equal (0 of 20480 differ)
+  combine, gate inside (own wait) T=8 layer 10: bitwise equal (0 of 20480 differ)
+  combine, gate inside (block waits) T=8 layer 10: bitwise equal (0 of 20480 differ)
+  glue plan T=8                      layer 10: bitwise equal (0 of 80 differ)
+  glue rows T=8 (34 groups)          layer 10: bitwise equal (0 of 148480 differ)
+  glue ring T=8                      layer 10: bitwise equal (0 of 80 differ)
+  glue ring rows T=8                 layer 10: bitwise equal (0 of 148480 differ)
+  glue ring, counted T=8             layer 10: bitwise equal (0 of 80 differ)
+  glue ring rows, counted T=8        layer 10: bitwise equal (0 of 148480 differ)
+  glue rows, landed T=8              layer 10: bitwise equal (0 of 148480 differ)
+  glue rows, landed late T=8         layer 10: bitwise equal (0 of 148480 differ)
+  glue rows, landed, counted T=8     layer 10: bitwise equal (0 of 148480 differ)
+  glue rows, landed, counted late T=8 layer 10: bitwise equal (0 of 148480 differ)
+  staged split T=8 (6 of 15 misses)  layer 10: bitwise equal (0 of 80 differ)
+  staged rows T=8                    layer 10: bitwise equal (0 of 25600 differ)
+  staged tail T=8                    layer 10: bitwise equal (0 of 20480 differ)
+  staged glue kinds T=8              layer 10: bitwise equal (0 of 80 differ)
+  route, peers T=8 (7+19+17)         layer 10: bitwise equal (0 of 80 differ)
+  split route, peers T=8             layer 10: bitwise equal (0 of 80 differ)
+  glue ring, peers T=8               layer 10: bitwise equal (0 of 80 differ)
+  combine, peers T=8                 layer 10: bitwise equal (0 of 40960 differ)
+  fused VRAM T=8 (34 groups)         layer 10: bitwise equal (0 of 148480 differ)
+  VRAM kind 2 T=8 (34 groups)        layer 10: bitwise equal (0 of 148480 differ)
+  VRAM kind 3 T=8 (34 groups)        layer 10: bitwise equal (0 of 148480 differ)
+dec_moe_parity: FAILED
+
+        Start 210: native_expert_parity_q4_K_q5_1
+131/144 Test #210: native_expert_parity_q4_K_q5_1 .....   Passed    0.34 sec
+        Start 211: native_expert_parity_q4_K_q8_0
+132/144 Test #211: native_expert_parity_q4_K_q8_0 .....   Passed    0.33 sec
+        Start 212: native_expert_parity_q5_K_q8_0
+133/144 Test #212: native_expert_parity_q5_K_q8_0 .....   Passed    0.30 sec
+        Start 213: native_expert_parity_q6_K_q8_0
+134/144 Test #213: native_expert_parity_q6_K_q8_0 .....   Passed    0.27 sec
+        Start 214: native_expert_parity_q8_0_q8_0
+135/144 Test #214: native_expert_parity_q8_0_q8_0 .....   Passed    0.23 sec
+        Start 215: native_expert_parity_q4_K_q5_0
+136/144 Test #215: native_expert_parity_q4_K_q5_0 .....   Passed    0.32 sec
+        Start 216: native_expert_parity_q5_0_q8_0
+137/144 Test #216: native_expert_parity_q5_0_q8_0 .....   Passed    0.22 sec
+        Start 217: native_expert_parity_q2_K_q8_0
+138/144 Test #217: native_expert_parity_q2_K_q8_0 .....   Passed    0.30 sec
+        Start 218: native_expert_parity_q3_K_q8_0
+139/144 Test #218: native_expert_parity_q3_K_q8_0 .....   Passed    0.24 sec
+        Start 222: native_expert_parity_q5_1_min
+140/144 Test #222: native_expert_parity_q5_1_min ......   Passed    0.13 sec
+        Start 224: native_expert_parity_bf16_embd
+141/144 Test #224: native_expert_parity_bf16_embd .....   Passed    0.12 sec
+        Start 225: native_expert_parity_q6k_embd
+142/144 Test #225: native_expert_parity_q6k_embd ......   Passed    0.12 sec
+        Start 226: native_expert_parity_q8_embd_hot
+143/144 Test #226: native_expert_parity_q8_embd_hot ...   Passed    0.60 sec
+        Start 227: native_expert_parity_nvfp4
+144/144 Test #227: native_expert_parity_nvfp4 .........   Passed    0.96 sec
+
+97% tests passed, 4 tests failed out of 144
+
+Label Time Summary:
+cpu    =   0.09 sec*proc (1 test)
+gpu    = 444.22 sec*proc (143 tests)
+
+Total Test time (real) = 444.35 sec
+
+The following tests did not run:
+	  1 - qwen35_checkpoint_round_trip (Skipped)
+	  2 - qwen35_prompt_line_test (Skipped)
+	  3 - qwen35_split_test (Skipped)
+	 66 - window_gemm_two_gpu (Skipped)
+	 71 - generate_prompt_test (Skipped)
+	 96 - hc_fused_parity (Skipped)
+	101 - mid_chain_hold (Skipped)
+	102 - mid_chain_hold_abort (Skipped)
+	103 - qsa_mid_parity (Skipped)
+	204 - prefill_fp4_test (Skipped)
+
+The following tests FAILED:
+	  6 - ds41_router_parity (Failed)                       gpu
+	 10 - ds41_attn_index_parity (Failed)                   gpu
+	 17 - ds41_dspark_parity (Failed)                       gpu
+	209 - dec_moe_parity_kq (Failed)                        gpu
+Errors while running CTest
+GPU_SUITE_EXIT 8

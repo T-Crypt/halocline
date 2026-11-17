@@ -1,8 +1,8 @@
 build*/
 /bin/
 pack/
-logs/
 *.log
+!logs/*.log
 *.nsys-rep
 *.ncu-rep
 __pycache__/

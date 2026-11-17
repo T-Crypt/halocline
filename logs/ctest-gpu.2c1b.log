@@ -1,0 +1,19 @@
+berth: granted halocline-gpu-tests-144
+Test project ~/wt/halocline-import/build-89
+    Start 161: bf16_chunk_test
+1/2 Test #161: bf16_chunk_test ..................   Passed    0.33 sec
+    Start 175: fp4_dense_tma_test
+2/2 Test #175: fp4_dense_tma_test ...............   Passed    0.87 sec
+
+100% tests passed out of 2
+
+Label Time Summary:
+gpu    =   1.20 sec*proc (2 tests)
+
+Total Test time (real) =   1.20 sec
+T=2048  gate+up swiglu [34816 x 5120]: 4.423 ms (165 TFLOP/s)
+T=2048  down [5120 x 17408]:           2.526 ms (145 TFLOP/s)  add 2.602 ms (140)
+T=2048  quantize K=5120: 0.028 ms  K=17408: 0.333 ms
+T=4096  gate+up swiglu [34816 x 5120]: 8.790 ms (166 TFLOP/s)
+T=4096  down [5120 x 17408]:           4.218 ms (173 TFLOP/s)  add 4.415 ms (165)
+T=4096  quantize K=5120: 0.168 ms  K=17408: 0.665 ms

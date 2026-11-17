@@ -1,0 +1,196 @@
+Test project ~/wt/halocline-import/build-89
+      Start  76: convert_tests
+      Start 232: pool_stress
+      Start 233: pool_native_test
+      Start 223: native_expert_parity_q8k_quant
+      Start 207: iq1s_parity_cpu
+      Start 139: platform_memory_test
+ 1/93 Test #139: platform_memory_test .................   Passed    3.98 sec
+      Start  44: conversation_store_test
+ 2/93 Test #207: iq1s_parity_cpu ......................   Passed    4.47 sec
+      Start  72: community_row_fix_test
+ 3/93 Test  #76: convert_tests ........................   Passed    4.54 sec
+      Start 234: iq_avx2_test
+ 4/93 Test #234: iq_avx2_test .........................   Passed    0.79 sec
+      Start 228: ple_bf16_parity
+ 5/93 Test  #72: community_row_fix_test ...............   Passed    1.72 sec
+      Start 183: bf16_bits_test
+ 6/93 Test  #44: conversation_store_test ..............   Passed    2.25 sec
+      Start  34: file_expert_source_test
+ 7/93 Test #228: ple_bf16_parity ......................   Passed    0.92 sec
+      Start  30: model_layering
+ 8/93 Test  #30: model_layering .......................   Passed    0.24 sec
+      Start  77: migration_tests
+ 9/93 Test  #34: file_expert_source_test ..............   Passed    0.29 sec
+      Start  25: file_reads_test
+10/93 Test  #77: migration_tests ......................   Passed    0.18 sec
+      Start 170: pinned_shared_test
+11/93 Test  #25: file_reads_test ......................   Passed    0.15 sec
+      Start 220: native_expert_parity_cpu_q2_K_q8_0
+12/93 Test #220: native_expert_parity_cpu_q2_K_q8_0 ...   Passed    0.19 sec
+      Start 171: ram_load_test
+13/93 Test #170: pinned_shared_test ...................   Passed    0.19 sec
+      Start 219: native_expert_parity_cpu_q6_K_q8_0
+14/93 Test #219: native_expert_parity_cpu_q6_K_q8_0 ...   Passed    0.18 sec
+      Start  74: iq_parity_fixtures
+15/93 Test #183: bf16_bits_test .......................   Passed    0.85 sec
+      Start 231: nvfp4_cpu_rows_test
+16/93 Test #171: ram_load_test ........................   Passed    0.23 sec
+      Start  59: video_test
+17/93 Test  #59: video_test ...........................   Passed    0.03 sec
+      Start 221: native_expert_parity_cpu_q3_K_q8_0
+18/93 Test  #74: iq_parity_fixtures ...................   Passed    0.16 sec
+      Start 146: platform_process_pipe_test
+19/93 Test #231: nvfp4_cpu_rows_test ..................   Passed    0.18 sec
+      Start 153: gpu_select_test
+20/93 Test #221: native_expert_parity_cpu_q3_K_q8_0 ...   Passed    0.11 sec
+      Start  45: conversation_transfer_test
+21/93 Test #153: gpu_select_test ......................   Passed    0.04 sec
+      Start 155: multi_gpu_plan_test
+22/93 Test  #45: conversation_transfer_test ...........   Passed    0.05 sec
+      Start 176: suffix_drafter_test
+23/93 Test #146: platform_process_pipe_test ...........   Passed    0.09 sec
+      Start 150: engine_session_test
+24/93 Test #176: suffix_drafter_test ..................   Passed    0.04 sec
+      Start  58: ffmpeg_load_test
+25/93 Test #155: multi_gpu_plan_test ..................   Passed    0.07 sec
+      Start  40: conversation_cache_test
+26/93 Test #150: engine_session_test ..................   Passed    0.04 sec
+      Start  43: conversation_validation_test
+27/93 Test  #58: ffmpeg_load_test .....................   Passed    0.02 sec
+      Start  73: protocol_test
+28/93 Test  #43: conversation_validation_test .........   Passed    0.02 sec
+      Start 236: direct_file_async_test
+29/93 Test  #73: protocol_test ........................   Passed    0.03 sec
+      Start 230: pool_affinity_test
+30/93 Test  #40: conversation_cache_test ..............   Passed    0.05 sec
+      Start 159: reply_rows_test
+31/93 Test #236: direct_file_async_test ...............   Passed    0.03 sec
+      Start  48: model_file_test
+32/93 Test #230: pool_affinity_test ...................   Passed    0.01 sec
+      Start 200: nvfp4_format_test
+33/93 Test #159: reply_rows_test ......................   Passed    0.01 sec
+      Start  31: logit_bias_test
+34/93 Test  #48: model_file_test ......................   Passed    0.01 sec
+      Start 165: grammar_schema_test
+35/93 Test #200: nvfp4_format_test ....................   Passed    0.01 sec
+      Start 158: loan_moves_test
+36/93 Test  #31: logit_bias_test ......................   Passed    0.01 sec
+      Start 168: grammar_llama_accept_test
+37/93 Test #158: loan_moves_test ......................   Passed    0.01 sec
+      Start 169: grammar_llama_schema_test
+38/93 Test #165: grammar_schema_test ..................   Passed    0.01 sec
+      Start 148: platform_file_write_test
+39/93 Test #169: grammar_llama_schema_test ............   Passed    0.00 sec
+      Start  21: gguf_split_test
+40/93 Test #168: grammar_llama_accept_test ............   Passed    0.01 sec
+      Start  55: tokenizer_test
+41/93 Test  #21: gguf_split_test ......................   Passed    0.00 sec
+      Start 140: path_utf8_test
+42/93 Test #148: platform_file_write_test .............   Passed    0.01 sec
+      Start 163: grammar_test
+43/93 Test  #55: tokenizer_test .......................   Passed    0.00 sec
+      Start 143: platform_cpu_test
+44/93 Test #140: path_utf8_test .......................   Passed    0.00 sec
+      Start 229: cpu_quota_test
+45/93 Test #163: grammar_test .........................   Passed    0.00 sec
+      Start  24: tier_policy_test
+46/93 Test #143: platform_cpu_test ....................   Passed    0.00 sec
+      Start 144: platform_compiler_test
+47/93 Test #229: cpu_quota_test .......................   Passed    0.00 sec
+      Start 180: prefix_anchor_test
+48/93 Test  #24: tier_policy_test .....................   Passed    0.00 sec
+      Start  38: layout_check_test
+49/93 Test #180: prefix_anchor_test ...................   Passed    0.00 sec
+50/93 Test #144: platform_compiler_test ...............   Passed    0.00 sec
+      Start 145: platform_region_test
+      Start 141: mapped_file_test
+51/93 Test  #38: layout_check_test ....................   Passed    0.00 sec
+      Start  39: expert_layout_test
+52/93 Test #145: platform_region_test .................   Passed    0.00 sec
+      Start 147: platform_system_test
+53/93 Test #141: mapped_file_test .....................   Passed    0.00 sec
+      Start 164: grammar_guard_test
+54/93 Test  #39: expert_layout_test ...................   Passed    0.00 sec
+      Start  27: engram_rows_test
+55/93 Test #147: platform_system_test .................   Passed    0.00 sec
+      Start  20: gguf_reader_test
+56/93 Test #164: grammar_guard_test ...................   Passed    0.00 sec
+      Start 156: probe_derive_test
+57/93 Test  #27: engram_rows_test .....................   Passed    0.00 sec
+      Start 177: controller_test
+58/93 Test  #20: gguf_reader_test .....................   Passed    0.00 sec
+      Start   4: qwen35_linear_types_test
+59/93 Test #156: probe_derive_test ....................   Passed    0.00 sec
+      Start 182: batch_plan_test
+60/93 Test   #4: qwen35_linear_types_test .............   Passed    0.00 sec
+      Start   5: qwen35_split_plan_test
+61/93 Test #177: controller_test ......................   Passed    0.00 sec
+62/93 Test #182: batch_plan_test ......................   Passed    0.00 sec
+      Start  37: expert_profile_save_test
+      Start  29: peer_take_test
+63/93 Test   #5: qwen35_split_plan_test ...............   Passed    0.00 sec
+      Start 173: shipped_profiles_test
+64/93 Test  #29: peer_take_test .......................   Passed    0.00 sec
+      Start 166: grammar_llama_parser_test
+65/93 Test  #37: expert_profile_save_test .............   Passed    0.00 sec
+      Start 154: ppl_gate_test
+66/93 Test #173: shipped_profiles_test ................   Passed    0.00 sec
+      Start  60: mrope_positions_test
+67/93 Test #166: grammar_llama_parser_test ............   Passed    0.00 sec
+      Start 167: grammar_llama_state_test
+68/93 Test #154: ppl_gate_test ........................   Passed    0.00 sec
+      Start 235: iq_avx512_test
+69/93 Test  #60: mrope_positions_test .................   Passed    0.00 sec
+      Start  28: prefill_plan_test
+70/93 Test #167: grammar_llama_state_test .............   Passed    0.00 sec
+      Start  70: community_row_test
+71/93 Test #235: iq_avx512_test .......................   Passed    0.00 sec
+      Start 162: auto_plan_test
+72/93 Test  #28: prefill_plan_test ....................   Passed    0.00 sec
+      Start 152: probe_report_test
+73/93 Test #162: auto_plan_test .......................   Passed    0.00 sec
+      Start  22: adapter_registry_test
+74/93 Test  #70: community_row_test ...................   Passed    0.00 sec
+      Start 181: prompt_parts_test
+75/93 Test #152: probe_report_test ....................   Passed    0.00 sec
+      Start 142: mapped_file_large_test
+76/93 Test  #22: adapter_registry_test ................   Passed    0.00 sec
+      Start 178: draft_policy_test
+77/93 Test #181: prompt_parts_test ....................   Passed    0.00 sec
+      Start 157: image_loan_test
+78/93 Test #142: mapped_file_large_test ...............   Passed    0.00 sec
+      Start 160: logprobs_test
+79/93 Test #178: draft_policy_test ....................   Passed    0.00 sec
+      Start 161: protocol_lines_test
+80/93 Test #157: image_loan_test ......................   Passed    0.00 sec
+81/93 Test #160: logprobs_test ........................   Passed    0.00 sec
+      Start  41: conversation_memory_test
+      Start  56: vision_preprocess_test
+82/93 Test #161: protocol_lines_test ..................   Passed    0.00 sec
+      Start 179: conv_cache_test
+83/93 Test  #41: conversation_memory_test .............   Passed    0.00 sec
+84/93 Test  #56: vision_preprocess_test ...............   Passed    0.00 sec
+      Start  61: ffmpeg_abi_test
+      Start 151: log_test
+85/93 Test #179: conv_cache_test ......................   Passed    0.00 sec
+      Start  57: vision_resize_test
+86/93 Test  #61: ffmpeg_abi_test ......................   Passed    0.00 sec
+      Start 149: load_summary_test
+87/93 Test #151: log_test .............................   Passed    0.00 sec
+      Start  26: context_policy_test
+88/93 Test  #57: vision_resize_test ...................   Passed    0.00 sec
+89/93 Test #149: load_summary_test ....................   Passed    0.00 sec
+90/93 Test  #26: context_policy_test ..................   Passed    0.00 sec
+91/93 Test #223: native_expert_parity_q8k_quant .......   Passed    7.76 sec
+92/93 Test #232: pool_stress ..........................   Passed   20.25 sec
+93/93 Test #233: pool_native_test .....................   Passed   20.41 sec
+
+100% tests passed out of 93
+
+Label Time Summary:
+avx2      =   0.18 sec*proc (1 test)
+avx512    =   0.00 sec*proc (1 test)
+cpu       =  70.71 sec*proc (93 tests)
+
+Total Test time (real) =  20.42 sec

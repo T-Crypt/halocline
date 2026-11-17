@@ -1,0 +1,5 @@
+-- basalt: CUDA arch 89
+-- basalt: models qwen4exp;qwen35
+-- Configuring done (0.2s)
+-- Generating done (0.1s)
+-- Build files have been written to: ~/wt/halocline-import/build-89

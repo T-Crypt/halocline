@@ -1,0 +1,8 @@
+ninja: Entering directory `build-89'
+[1/9] Refreshing the commit stamp
+[2/7] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/cache_fill.cpp.o
+[3/7] Linking CXX static library libmodel_qwen4exp.a
+[4/7] Linking CXX executable native_dense_ple_key_test
+[5/7] Linking CXX executable basalt-gguf
+[6/7] Linking CXX executable ~/wt/halocline-import/bin/basalt
+[7/7] Linking CXX executable adapter_builtin_test

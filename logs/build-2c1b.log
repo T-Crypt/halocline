@@ -1,0 +1,4 @@
+ninja: Entering directory `build-89'
+[1/5] Refreshing the commit stamp
+[2/3] Building CXX object CMakeFiles/fp4_dense_tma_test.dir/tests/kernels/fp4_dense_tma_test.cpp.o
+[3/3] Linking CXX executable fp4_dense_tma_test

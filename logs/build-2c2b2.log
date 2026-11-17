@@ -1,0 +1,4 @@
+ninja: Entering directory `build-89'
+[1/5] Refreshing the commit stamp
+[2/3] Building CUDA object CMakeFiles/narrow_bf16_parity.dir/tests/kernels/narrow_bf16_parity.cu.o
+[3/3] Linking CUDA executable narrow_bf16_parity

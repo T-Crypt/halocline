@@ -1,0 +1,82 @@
+ninja: Entering directory `build-89'
+[1/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/pipeline.cpp.o
+[2/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/projection.cpp.o
+[3/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/statistics.cpp.o
+[4/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/draft_kv.cpp.o
+[5/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/run.cpp.o
+[6/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/inputs.cpp.o
+[7/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/lifecycle.cpp.o
+[8/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/layout.cpp.o
+[9/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/gdn.cpp.o
+[10/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/ahead.cpp.o
+[11/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/stream.cpp.o
+[12/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/layer.cpp.o
+[13/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/qsa.cpp.o
+[14/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/ple.cpp.o
+[15/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/shared_expert.cpp.o
+[16/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/routing.cpp.o
+[17/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/experts.cpp.o
+[18/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/expert_mmq.cpp.o
+[19/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/expert_fused.cpp.o
+[20/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/expert_fp4.cpp.o
+[21/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/expert_fp16.cpp.o
+[22/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/cpu_experts.cpp.o
+[23/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/combine.cpp.o
+[24/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/expert_stream.cpp.o
+[25/79] Building CXX object CMakeFiles/model_qwen4exp_prefill.dir/src/models/qwen4exp/prefill/handoff.cpp.o
+[26/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/engine_local.cpp.o
+[27/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/helpers.cpp.o
+[28/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/layer_plan.cpp.o
+[29/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/weights.cpp.o
+[30/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/vision.cpp.o
+[31/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/sources.cpp.o
+[32/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/sessions.cpp.o
+[33/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/model.cpp.o
+[34/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/cache_size.cpp.o
+[35/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/cache_fill.cpp.o
+[36/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/token_path.cpp.o
+[37/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/resident_plan.cpp.o
+[38/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/dispatch.cpp.o
+[39/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/resident_load.cpp.o
+[40/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/prefill.cpp.o
+[41/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/decode.cpp.o
+[42/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_finish.cpp.o
+[43/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_prompt.cpp.o
+[44/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/batch.cpp.o
+[45/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_restore.cpp.o
+[46/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_commands.cpp.o
+[47/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_image.cpp.o
+[48/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/loans.cpp.o
+[49/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/kv.cpp.o
+[50/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/conversation.cpp.o
+[51/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/memory.cpp.o
+[52/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/prompt_windows.cpp.o
+[53/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/prompt_read.cpp.o
+[54/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/prompt.cpp.o
+~/wt/halocline-import/src/models/qwen4exp/serve/prompt.cpp: In member function ‘bool basalt::models::qwen4exp::serve::QfnRequest::refill(std::string&)’:
+~/wt/halocline-import/src/models/qwen4exp/serve/prompt.cpp:69:13: warning: variable ‘n_lent’ set but not used [-Wunused-but-set-variable=]
+   69 |     int64_t n_lent = 0, n_parts = 0;
+      |             ^~~~~~
+[55/79] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/qfn_decode.cpp.o
+[56/79] Linking CXX static library libmodel_qwen4exp_prefill.a
+[57/79] Refreshing the commit stamp
+[58/77] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/cli/report.cpp.o
+[59/77] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/slots.cpp.o
+[60/77] Linking CXX executable gdn_chunk_parity
+[61/77] Linking CXX executable prefill_route_count_test
+[62/77] Linking CXX executable hc8_parity
+[63/77] Linking CXX executable prefill_mmq_iq1s_test
+[64/77] Linking CXX executable prefill_mmq_kq_test
+[65/77] Linking CXX executable prefill_hc_up_mix_test
+[66/77] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/verify.cpp.o
+[67/77] Building CXX object CMakeFiles/prefill_layout_test.dir/tests/models/qwen4exp/prefill/prefill_layout_test.cpp.o
+[68/77] Linking CXX executable prefill_layout_test
+[69/77] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/tier_profile.cpp.o
+[70/77] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/vision.cpp.o
+[71/77] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/serve/tiers.cpp.o
+[72/77] Building CXX object CMakeFiles/model_qwen4exp.dir/src/models/qwen4exp/load/qfn_run.cpp.o
+[73/77] Linking CXX static library libmodel_qwen4exp.a
+[74/77] Linking CXX executable adapter_builtin_test
+[75/77] Linking CXX executable basalt-gguf
+[76/77] Linking CXX executable ~/wt/halocline-import/bin/basalt
+[77/77] Linking CXX executable native_dense_ple_key_test
