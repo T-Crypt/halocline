@@ -42,7 +42,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
         blockbytes = bd.layers.size() * 2 * (size_t) (bd.window + 256) * bd.n_kv * bd.head_dim * 2 +
                       (size_t) kWindow * (g.n_embd * 4 + 16) + 64 * 256;
     }
-    const uint64_t dev_bytes = session_bytes(g, m.o.max_context, mtp, m.o.kv_int8, m.o.kv_resident);
+    const uint64_t dev_bytes = session_bytes(g, m.o.max_context, mtp, m.o.kv_int8, m.o.kv_resident, m.o.mtp_format, m.o.mtp_window);
     if (!st.arena.reserve(dev_bytes + blockbytes)) {
         err = m.o.arch + ": out of device memory for a session of " + std::to_string((long long) m.o.max_context) +
               " cells (" + std::to_string((unsigned long long) (dev_bytes >> 20)) + " MiB); lower --max-context or --parallel";
@@ -112,15 +112,24 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
         st.kq.push_back(q8);
     }
     if (mtp) {
-        st.mtp_kc = st.arena.take<uint16_t>(cells);
-        st.mtp_vc = st.arena.take<uint16_t>(cells);
+        st.mtp_cap = mtp_ring_cap(m.o.max_context, m.o.mtp_window);
+        const size_t n_mtp = (size_t) (st.mtp_cap > 0 ? st.mtp_cap : m.o.max_context) * g.n_kv * g.head_dim;
+        if (m.o.mtp_format == 2) {
+            st.mtp_kq.k = st.arena.take<int8_t>(n_mtp);
+            st.mtp_kq.v = st.arena.take<int8_t>(n_mtp);
+            st.mtp_kq.ks = st.arena.take<uint16_t>(n_mtp / 64);
+            st.mtp_kq.vs = st.arena.take<uint16_t>(n_mtp / 64);
+        } else {
+            st.mtp_kc = st.arena.take<uint16_t>(n_mtp);
+            st.mtp_vc = st.arena.take<uint16_t>(n_mtp);
+        }
         st.hid = st.arena.take<float>((size_t) kWindow * g.n_embd);
         st.tail = st.arena.take<float>(g.n_embd);
         st.chain = st.arena.take<float>(2 * (size_t) g.n_embd);
         st.dlogits = st.arena.take<float>(g.n_vocab);
         st.lp = st.arena.take<float>((size_t) kWindow * kernels::kLogprobStride);
         st.win_tok = st.arena.take<int32_t>(kWindow);
-        if (!st.win_tok) {
+        if (!st.win_tok || (m.o.mtp_format == 2 ? !st.mtp_kq.vs : !st.mtp_vc)) {
             err = m.o.arch + ": the drafter's buffers do not fit the session's arena";
             return false;
         }
@@ -523,18 +532,27 @@ public:
     }
 
     // a layer's cells: fp16 K and V (format 1), or int8 codes with fp16 scales per 64 values (format 2); the MTP
-    // drafter's own layer is fp16 and comes last
+    // drafter's own layer comes last, in the format its flags picked
     size_t row_bytes(bool int8) const { return (size_t) g_.n_kv * g_.head_dim * (int8 ? 1 : 2); }
     // the conversation's attention layers
     size_t kv_layers() const { return st_.kc.size(); }
+    // The positional state a parked conversation takes: its cells as stored, the drafter's own at their ring's size when
+    // a window keeps it in one.
     size_t cells_bytes(int64_t positions) const override {
         const size_t main = m_.o.kv_int8 ? 2 * (row_bytes(true) + row_bytes(true) / 32) : 2 * row_bytes(false);
-        return (size_t) positions * (kv_layers() * main + (drafter_ ? 2 * row_bytes(false) : 0));
+        const size_t mtp = m_.o.mtp_format == 2 ? 2 * (row_bytes(true) + row_bytes(true) / 32) : 2 * row_bytes(false);
+        return (size_t) positions * kv_layers() * main + (drafter_ ? (size_t) (st_.mtp_cap > 0 ? st_.mtp_cap : positions) * mtp : 0);
     }
+    // A ring's cells live at their positions modulo its size, so no linear image a store can cut at a position describes
+    // them: a windowed drafter's conversation is read again rather than parked.
+    bool parks_cells() const override { return st_.mtp_cap == 0; }
 
     Result save_cells(std::vector<core::ConversationKv>& kv, int64_t positions) override {
         cudaStreamSynchronize(st_.stream);
         kv.clear();
+        if (drafter_ && st_.mtp_cap > 0)
+            return fail(m_.o.arch + ": a windowed drafter's cache is a ring of " + std::to_string((long long) st_.mtp_cap) +
+                        " cells and has no linear conversation image");
         // a layer's array: its first `split` bytes on the card (`dev`), the rest streamed (`far`, host memory)
         const auto down = [&](const void* dev, const void* far_buf, size_t split, core::ConversationBuffer& to, size_t bytes) {
             to.resize_for_overwrite(bytes);
@@ -548,7 +566,7 @@ public:
             const bool mtp = i == kv_layers();
             const size_t j = i;
             const SessionState& ls = st_;
-            const bool int8 = !mtp && m_.o.kv_int8;
+            const bool int8 = mtp ? m_.o.mtp_format == 2 : m_.o.kv_int8;
             core::ConversationKv k;
             k.format = int8 ? 2 : 1;
             k.cells = positions;
@@ -560,7 +578,7 @@ public:
             const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(int8);
             bool ok;
             if (int8) {
-                const kernels::KvInt8& q = ls.kq[j];
+                const kernels::KvInt8 q = mtp ? ls.mtp_kq : ls.kq[j];
                 ok = down(q.k, f.q8.k, split, k.k, rows) && down(q.v, f.q8.v, split, k.v, rows) &&
                      down(q.ks, f.q8.ks, split / 32, k.k_scale, rows / 32) && down(q.vs, f.q8.vs, split / 32, k.v_scale, rows / 32);
             } else {
@@ -587,16 +605,21 @@ public:
             const bool mtp = i == kv_layers();
             const size_t j = i;
             const SessionState& ls = st_;
-            const bool int8 = !mtp && m_.o.kv_int8;
+            const bool int8 = mtp ? m_.o.mtp_format == 2 : m_.o.kv_int8;
             const core::ConversationKv& k = kv[i];
-            if (k.format != (int8 ? 2 : 1) || k.heads != g_.n_kv || k.head_dim != g_.head_dim)
-                return fail(m_.o.arch + ": a parked conversation has other caches");
+            const bool shape = k.heads == g_.n_kv && k.head_dim == g_.head_dim;
+            const bool stored = mtp ? mtp_image_matches(m_.o, k.format, k.cells, positions) : k.format == (int8 ? 2 : 1);
+            if (!shape || !stored)
+                return fail(m_.o.arch + ": a parked conversation has other caches" +
+                            (mtp ? (st_.mtp_cap > 0 ? " (its drafter's ring has no image; read again)"
+                                                     : " (its drafter's K/V is another format or extent)")
+                                 : std::string()));
             const size_t rows = (size_t) positions * row_bytes(int8);
             const kernels::KvFar f = mtp ? kernels::KvFar{} : ls.far_kv[j];
             const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(int8);
             bool ok;
             if (int8) {
-                const kernels::KvInt8& q = ls.kq[j];
+                const kernels::KvInt8 q = mtp ? ls.mtp_kq : ls.kq[j];
                 ok = up(q.k, f.q8.k, split, k.k, rows) && up(q.v, f.q8.v, split, k.v, rows) &&
                      up(q.ks, f.q8.ks, split / 32, k.k_scale, rows / 32) && up(q.vs, f.q8.vs, split / 32, k.v_scale, rows / 32);
             } else {
@@ -661,9 +684,13 @@ public:
         // host_weight_bytes: model weights held in host RAM, none for the dense stack (the community check refuses a row if
         // any). gpu_weight_bytes is what the load log calls "GiB on the GPU". The token embedding and the --vision dynamic encoder wait in host RAM by design and are told apart.
         const uint64_t host_vision = m_.encoder ? m_.encoder->weights_bytes() : 0;
+        const std::string mtp = !drafter_ ? std::string()
+                                : std::string(" mtp_kv=") + (m_.o.mtp_format == 2 ? "int8" : "fp16") +
+                                      (m_.o.mtp_window > 0 ? " mtp_window=" + std::to_string((long long) m_.o.mtp_window) : "") +
+                                      (st_.mtp_cap > 0 ? " mtp_ring=" + std::to_string((long long) st_.mtp_cap) : "");
         return kv + " gpu_weight_bytes=" + std::to_string(m_.o.gpu_weight_bytes) + " host_weight_bytes=0 host_embedding_bytes=" + std::to_string(m_.o.host_embedding_bytes) +
                " host_vision_bytes=" + std::to_string(host_vision) +
-               " " + program::spill_words({}) + (block_ ? " drafter=block" : drafter_ ? " drafter=mtp" : "");
+               " " + program::spill_words({}) + (block_ ? " drafter=block" : drafter_ ? " drafter=mtp" : "") + mtp;
     }
     int64_t disk_min_tokens() const override { return 4096; }
 

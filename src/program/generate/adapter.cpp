@@ -367,6 +367,8 @@ int run_session_model(halo::program::CommonOptions& o, const halo::model::ModelA
         lreq.kv = o.kv;
         lreq.rope = o.rope;
         lreq.kv_resident = o.kv_resident;
+        lreq.mtp_kv = o.mtp_kv;
+        lreq.mtp_window = o.mtp_window;
         const halo::model::Result r = adapter->load(lreq, loaded);
         if (!r.ok() || !loaded) return fatal_start_error(r.message);
         std::vector<int64_t> stop;

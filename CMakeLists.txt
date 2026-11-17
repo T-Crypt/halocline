@@ -194,6 +194,18 @@ if(BUILD_TESTING)
   target_include_directories(qwen35_linear_types_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(qwen35_linear_types_test PRIVATE warnings)
   halo_cpu_test(NAME qwen35_linear_types_test COMMAND qwen35_linear_types_test)
+  # the drafter's cache levers: their flag values, the ring's cells against the span a 16-row pass writes over, the
+  # planner's bytes per format, and the image check (host only: the header's arithmetic, no runtime)
+  add_executable(qwen35_mtp_levers_test tests/models/qwen35/mtp_levers_test.cpp)
+  target_include_directories(qwen35_mtp_levers_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(qwen35_mtp_levers_test PRIVATE warnings)
+  halo_cpu_test(NAME qwen35_mtp_levers_test COMMAND qwen35_mtp_levers_test)
+  # the same levers end to end on a 27B pack: greedy tokens and row-0 logits are the default run's with --mtp-kv int8
+  # and with --mtp-window 32768 over a prompt longer than the window; each arm prints its drafts' acceptance
+  add_executable(qwen35_mtp_cache_test tests/models/qwen35/mtp_cache_test.cpp)
+  target_link_libraries(qwen35_mtp_cache_test PRIVATE model_qwen35 ${_gpu_runtime_target})
+  halo_gpu_test(NAME qwen35_mtp_cache_test COMMAND qwen35_mtp_cache_test)
+  set_tests_properties(qwen35_mtp_cache_test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 2400)
 endif()
 endif()
 

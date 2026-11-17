@@ -296,17 +296,17 @@ kernels::DecRecArgs gdn_args(Model& m, const Layer& L) {
 }
 
 void win_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64_t pos, cudaStream_t s,
-              kernels::KvInt8 q8 = {}, kernels::KvFar far_kv = {}) {
+              kernels::KvInt8 q8 = {}, kernels::KvFar far_kv = {}, int64_t cap = 0, int64_t window = 0) {
     const Geometry& g = m.g;
     WindowScratch& b = m.ws;
     const int H = g.n_embd;
     const void* xq = wnorm(m, b.x, L.attn_norm, b.xn, L.q.type, H, T, g.eps, s);
     prod_group(m, b.xn, xq, L.q.type, {{&L.q, b.qfull}, {&L.k, b.k}, {&L.v, b.v}}, T, s);
     kernels::attn_qk_prepare(b.qfull, b.k, b.v, L.q_norm, L.k_norm, g.eps, g.rope, b.pos, T, g.n_head, g.n_kv, b.qo, kc, vc,
-                             pos, s, 256, true, 0, b.pos0, q8, far_kv);
+                             pos, s, 256, true, cap, b.pos0, q8, far_kv);
     const bool gated = on_wg(L.o.type);   // the merge gates and readies the rows for o
     kernels::gqa_decode_attn(b.qo, kc, vc, g.n_head, g.n_kv, pos, T, b.attn, m.o.max_context, gated ? nullptr : b.ao, s, b.pos0, q8,
-                             gated ? b.qfull : nullptr, gated ? (uint16_t*) b.xq : nullptr, far_kv);
+                             gated ? b.qfull : nullptr, gated ? (uint16_t*) b.xq : nullptr, far_kv, window, cap);
     win_attn_out(m, L, T, s);
 }
 
@@ -425,8 +425,10 @@ kernels::KvFar stage_far(Model& m, const kernels::KvFar& far_kv, int64_t pos, in
 // `cells_only`: nothing reads the layer's rows (a chunk's last layer), so only its K and V cells are made: the same k
 // and v products and the same cache write, without the queries, the attention and the output projection.  `far`: a
 // streamed cache's far cells (the chunk's rows are written there and read from the stage; stage_prefetch has run).
+// `cap`: the cache is a ring of that many cells (0: a cell at its own position). Only a cells-only call takes one: the
+// prompt attention has no windowed form, and a windowed drafter's prompt rows are read by nothing (mtp_chunk).
 void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64_t pos, cudaStream_t s,
-                kernels::KvInt8 q8 = {}, bool cells_only = false, kernels::KvFar far_kv = {}) {
+                kernels::KvInt8 q8 = {}, bool cells_only = false, kernels::KvFar far_kv = {}, int64_t cap = 0) {
     const Geometry& g = m.g;
     ChunkScratch& b = m.cs;
     const int H = g.n_embd, AQ = g.n_head * g.head_dim;
@@ -448,7 +450,7 @@ void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int
                 product(L.v, b.v);
             }
             kernels::attn_qk_prepare_bf16(nullptr, bf(b.k), bf(b.v), nullptr, L.k_norm, g.eps, g.rope, b.pos, T, 0, g.n_kv, nullptr,
-                                          pos, s, q8, kc, vc, far_kv);
+                                          pos, s, q8, kc, vc, far_kv, cap);
             return;
         }
         if (f8) {
@@ -485,7 +487,7 @@ void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int
         gemm(m, L.k, b.k, T, s);
         gemm(m, L.v, b.v, T, s);
         kernels::attn_qk_prepare(nullptr, b.k, b.v, nullptr, L.k_norm, g.eps, g.rope, b.pos, T, 0, g.n_kv, nullptr, kc, vc, pos, s,
-                                 256, true, 0, nullptr, q8, far_kv);
+                                 256, true, cap, nullptr, q8, far_kv);
         return;
     }
     chunk_act(m, b.xn, L.q.type, H, T, s);
@@ -897,7 +899,7 @@ void chunk_start(Model& m, SessionState& st, const int32_t* tokens, const float*
     }
     kernels::to_bf16(b.tmp, residual(b), (int64_t) T * H, s);
     // the drafter's history needs the chunk's inputs: its next-token embeddings are the chunk's own rows 1..T-1
-    if (st.mtp_kc != nullptr) cudaMemcpyAsync(b.cat, b.tmp, (size_t) T * H * sizeof(float), cudaMemcpyDeviceToDevice, s);
+    if (mtp_cache(st)) cudaMemcpyAsync(b.cat, b.tmp, (size_t) T * H * sizeof(float), cudaMemcpyDeviceToDevice, s);
 }
 
 void chunk_layers(Model& m, SessionState& st, int T, int64_t pos, int l0, int l1, const BlockDrafter* taps, bool read_last) {
@@ -908,7 +910,7 @@ void chunk_layers(Model& m, SessionState& st, int T, int64_t pos, int l0, int l1
     // a drafter: the MTP history takes every row's final hidden state, a block drafter the rows of its target layers.
     // When neither reads them, the last layer leaves only what the session keeps: an attention layer its cells; its FFN
     // is not run.
-    const bool last_read = read_last || st.mtp_kc != nullptr ||
+    const bool last_read = read_last || mtp_cache(st) ||
                            (taps && std::find(taps->target_layers.begin(), taps->target_layers.end(), g.n_layers - 1) !=
                                         taps->target_layers.end());
     // K/V streaming: the next attention layer that attends gets its earlier far cells staged meanwhile
@@ -980,7 +982,7 @@ bool chunk_finish(Model& m, SessionState& st, int T, int64_t pos, std::string& e
     const int H = g.n_embd;
     if (m.o.drafter == Drafter::Block) block_ctx_chunk(m, st, b.dacc, T, pos);   // the chunk's rows become its context
     if (!cuda_ok("dense chunk", err)) return false;
-    if (st.mtp_kc == nullptr) return true;
+    if (!mtp_cache(st)) return true;
     // the drafter's pairs (main's normed row at cell c, the input row at c + 1): the waiting tail first
     kernels::rms_norm_rows(residual(b), w.out_norm, b.hn + H, T, H, g.eps, s);
     const bool tail = st.tail_cell == pos - 1 && pos > 0;
@@ -1159,7 +1161,9 @@ bool mtp_chunk(Model& m, SessionState& st, const float* hid, const int32_t* tok,
     chunk_act(m, cat, d.fc.type, 2 * H, n, s);
     gemm(m, d.fc, b.tmp, n, s);
     kernels::to_bf16(b.tmp, residual(b), (int64_t) n * H, s);   // the chunk path's residual is BF16
-    chunk_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s);
+    // Only the cache's cells outlive this call, so a ring writes those alone: the rows a windowed drafter's prompt chunk
+    // would attend over are read by nothing, and a ring has no cells at their own positions to read.
+    chunk_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, st.mtp_kq, st.mtp_cap > 0, {}, st.mtp_cap);
     return cuda_ok("drafter history", err);
 }
 
@@ -1180,7 +1184,7 @@ bool mtp_window(Model& m, SessionState& st, const float* hid, const int32_t* tok
     mtp_input(m, b.tmp, hid, b.cat, n, s);
     prod(m, d.fc, wact(m, b.cat, d.fc.type, 2 * H, n, s), b.tmp, n, s);
     kernels::to_bf16(b.tmp, b.x, (int64_t) n * H, s);
-    win_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s);
+    win_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, st.mtp_kq, {}, st.mtp_cap, m.o.mtp_window);
     if (out) {
         win_ffn(m, d.layer, n, s);
         // the head's rows (scaled), of which the last is read

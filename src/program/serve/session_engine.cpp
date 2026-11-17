@@ -63,6 +63,9 @@ public:
             const auto t0 = Clock::now();
             std::string text = "halo conversation state " + model_.desc().arch + " vision_in_engine " + (o.vision_in_engine ? "1" : "0");
             if (const std::string rope = halo::model::rope_flag_words(o.rope); !rope.empty()) text += " " + rope;
+            // a drafter's own cache: an image of another format is not this run's, and a window's ring has none
+            if (!o.mtp_kv.empty()) text += " mtp_kv " + o.mtp_kv;
+            if (o.mtp_window > 0) text += " mtp_window " + std::to_string((long long) o.mtp_window);
             const uint64_t identity = halo::core::conversation_store_hash_file(
                 o.model, halo::core::conversation_store_hash(text.data(), text.size(), 1));
             std::string de;
@@ -183,6 +186,7 @@ public:
     int64_t disk_min_tokens() const override { return sessions_[0]->disk_min_tokens(); }
     size_t spill_to_disk(bool at_exit, size_t limit) override {
         ckd_finish();   // a turn checkpoint's state may still be on its way to the host
+        if (!sessions_[0]->parks_cells()) return 0;   // a drafter's ring has no image to store
         size_t written = 0;
         if (at_exit)
             while (conversations->size() > 0) {
@@ -243,6 +247,9 @@ public:
     // session goes on holding it (`kept`) and only the disk lacks it.
     bool park_current(size_t held, int64_t kept) override {
         ckd_finish();   // a turn checkpoint's state may still be on its way to the host
+        // a cache whose cell for a position lives at that position modulo a ring's size has no linear image: the
+        // conversation is read again rather than kept (a parked one would fail to restore)
+        if (!sessions_[0]->parks_cells()) return true;
         if ((!conversations->enabled() && !disk.enabled()) || !live_ok || live.empty()) return true;
         if (o.conversation_cache_min_tokens > 0 && (int64_t) live.size() < o.conversation_cache_min_tokens) return true;
         int64_t deepest = 0;

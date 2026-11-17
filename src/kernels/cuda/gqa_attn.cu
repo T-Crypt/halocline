@@ -16,7 +16,7 @@ namespace halo::kernels {
 namespace {
 
 constexpr int GMAX = 8;               // query heads per KV head
-constexpr int CHUNK = 32;             // cells per decode chunk
+constexpr int CHUNK = kGqaCellChunk;  // cells per decode chunk
 constexpr int kDecSplits = 64;        // a decode row's blocks per KV head (its chunks dealt round robin)
 constexpr int HD = 256;              // the prompt kernel's head width
 constexpr float kScaleLog2 = 0.0625f * 1.4426950408889634f;   // 1/sqrt(256) * log2(e)
@@ -962,16 +962,19 @@ size_t gqa_decode_scratch_floats(int64_t max_cells, int T, int n_head, int head_
 
 void gqa_decode_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_cache, int n_head, int n_kv,
                      int64_t pos0, int T, float* scratch, int64_t max_cells, float* out, void* stream,
-                     const int32_t* pos_dev, KvInt8 q8, const float* gate_q, uint16_t* gated16, KvFar far_kv) {
-    if (T < 1 || T > kGqaMaxWindow || n_kv < 1 || n_head % n_kv || n_head / n_kv > GMAX || pos0 + T > max_cells) {
+                     const int32_t* pos_dev, KvInt8 q8, const float* gate_q, uint16_t* gated16, KvFar far_kv,
+                     int64_t window, int64_t cap) {
+    if (T < 1 || T > kGqaMaxWindow || n_kv < 1 || n_head % n_kv || n_head / n_kv > GMAX || pos0 + T > max_cells ||
+        window < 0 || cap < 0 || (cap > 0 && (window <= 0 || window + T - 1 > cap))) {
         halo::log::error("halo", "gqa_decode_attn: invalid arguments");
         std::exit(1);
     }
     Range r;
     r.pos0 = pos0;
-    r.cap = max_cells;
+    r.cap = cap > 0 ? cap : max_cells;
+    r.window = window;
     r.pos_dev = pos_dev;
-    const int n_chunks = (int) ((max_cells + CHUNK - 1) / CHUNK);
+    const int n_chunks = (int) ((r.cap + CHUNK - 1) / CHUNK);
     launch_window<256>(q, k_cache, v_cache, n_head, n_kv, r, T, scratch, n_chunks, out, (cudaStream_t) stream, q8, gate_q, gated16,
                        far_kv);
 }
