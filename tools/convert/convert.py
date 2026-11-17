@@ -535,14 +535,6 @@ def convert(a) -> None:
     print(f"done: {len(job.rows)} sections, {total / (1 << 30):.3f} GiB, {time.time() - job.t0:.1f} s -> {out}")
 
 
-def warn_unofficial():
-    msg = ("WARNING: packs converted yourself are significantly slower than the official .basalt files. "
-           "Download them from https://huggingface.co/jesdga/Qwen3.8-Flash-Next-Basalt")
-    if sys.stderr.isatty():
-        msg = f"\033[1;31m{msg}\033[0m"
-    print(msg, file=sys.stderr, flush=True)
-
-
 def from_checkpoint(a) -> None:
     """The language model straight from an NVFP4 safetensors checkpoint (routed experts moved into Halocline's layout,
     every other tensor converted once from BF16, the n-gram table from FP8, metadata and tokenizer from the
@@ -847,7 +839,6 @@ def main():
         a.name = a.name or arch.default_name(a.gguf[0], {}, bool(a.sections_from))
         if not a.no_vision and not a.mmproj and not a.sections_from:
             ap.error("--mmproj is required unless --no-vision")
-        warn_unofficial()
     else:
         from gguf_reader import GGUFFile
         a.name = a.name or arch.default_name(a.gguf[0], GGUFFile(Path(a.gguf[0])).metadata)
