@@ -21,6 +21,9 @@
 namespace halo::kernels {
 
 constexpr int kGqaMaxWindow = 16;
+/// Cells one sweep chunk of the decode kernel holds: a ring's capacity is at least this, so a chunk's cells wrap at most
+/// once (the kernel advances a cell past the ring's end with one subtraction).
+constexpr int kGqaCellChunk = 32;
 
 /// An int8 K/V cache in place of the fp16 one: codes [cell][n_kv][256], fp16 scales [cell][n_kv][4] (one per 64 values,
 /// amax / 127, codes rounded to nearest).  `k` null: the fp16 cache.
@@ -47,10 +50,13 @@ struct KvFar {
 /// spans plus the window's rows).
 size_t gqa_decode_scratch_floats(int64_t max_cells, int T, int n_head, int head_dim = 256);
 /// `pos_dev` (optional): pos0 read from the device instead, the grid sized for `max_cells` (a captured window).
+/// `window` (optional, 0: every cell): a sliding window, row t seeing cells [pos0 + t - window + 1, pos0 + t].
+/// `cap` (optional, 0: a cell at its own position): the cache is a ring of `cap` cells, cell p at p % cap, so pos0 may
+/// pass it; a ring needs a window (its oldest cell a row reads must not be one the window's own pass overwrote).
 void gqa_decode_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_cache, int n_head, int n_kv,
                      int64_t pos0, int T, float* scratch, int64_t max_cells, float* out, void* stream,
                      const int32_t* pos_dev = nullptr, KvInt8 q8 = {}, const float* gate_q = nullptr,
-                     uint16_t* gated16 = nullptr, KvFar far_kv = {});
+                     uint16_t* gated16 = nullptr, KvFar far_kv = {}, int64_t window = 0, int64_t cap = 0);
 /// (gate_q, gated16: also each head's output times sigmoid of its gate, q_full [T][n_head][512]'s second half, as bf16
 /// rows [T][n_head * 256] into gated16 (bitwise attn_gate, then rounded); `out` may then be null.)
 /// One window of each of several sequences (a batch window's segments) in one launch: segment k's rows follow segment

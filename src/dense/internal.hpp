@@ -184,6 +184,8 @@ struct SessionState {
     // the drafter (null without one): its KV, the last window's normed hidden rows, and the row waiting for the
     // token after it (cell tail_cell, -1 none)
     uint16_t *mtp_kc = nullptr, *mtp_vc = nullptr;
+    kernels::KvInt8 mtp_kq;                      // its int8 cache instead (Options::mtp_format 2), kc/vc null then
+    int64_t mtp_cap = 0;                         // cells its cache holds when the window keeps it in a ring (0: the context's)
     float *hid = nullptr, *tail = nullptr, *chain = nullptr;   // chain: [2][n_embd]
     float *dlogits = nullptr, *lp = nullptr;     // the drafter's head row and its picks [kWindow][kLogprobStride]
     int32_t* win_tok = nullptr;                  // the last window's tokens (device)
@@ -206,6 +208,9 @@ struct SessionState {
 /// state), on the current device; free_state releases it there.
 bool init_state(Model& m, SessionState& st, std::string& err);
 void free_state(SessionState& st);
+
+/// Whether the session runs the MTP drafter (its cache is fp16 or int8: either pointer set).
+inline bool mtp_cache(const SessionState& st) { return st.mtp_kc != nullptr || st.mtp_kq.k != nullptr; }
 
 /// Runs a decode window of T rows at cells pos..pos+T-1 (`pos3` [T][3] their rope positions); leaves the logits in
 /// st.logits and the GDN rows for the commit.

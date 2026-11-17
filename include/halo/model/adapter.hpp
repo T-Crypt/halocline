@@ -97,6 +97,8 @@ struct LoadRequest {
     std::string kv;                   ///< --kv: the KV storage as the model names it, checked by its flags (empty: default)
     RopeFlags rope;                   ///< the rope scaling flags, for a model that takes them (rope_flags.hpp)
     int64_t kv_resident = 0;          ///< --kv-resident: K/V cells per attention layer kept in VRAM (0: all)
+    std::string mtp_kv;               ///< --mtp-kv: the dense drafter's own K/V ("fp16" or "int8"; empty: the model's default)
+    int64_t mtp_window = 0;           ///< --mtp-window: cells of context the dense drafter reads (0: every cell)
 };
 
 struct DecodeRequest {
@@ -202,6 +204,9 @@ public:
     /// `page_size` is the positions behind one of its rows, `cells` its rows times that.  What a conversation parked
     /// out of VRAM takes along; a store cuts it at any position, so restore takes what a cut left.
     virtual size_t cells_bytes(int64_t positions) const { (void) positions; return 0; }
+    /// Whether save_cells can write this session's cells at all: a cache whose cell for a position lives at that position
+    /// modulo a ring's size has no linear image a store can cut, so its conversation is read again instead of parked.
+    virtual bool parks_cells() const { return true; }
     virtual Result save_cells(std::vector<core::ConversationKv>& kv, int64_t positions) { (void) kv; (void) positions; return {Status::NotImplemented, "this model keeps no cells"}; }
     virtual Result restore_cells(const std::vector<core::ConversationKv>& kv, int64_t positions) { (void) kv; (void) positions; return {Status::NotImplemented, "this model keeps no cells"}; }
     /// The tokens the session holds from now on, position by position (a restored conversation's).

@@ -647,7 +647,7 @@ void attn_qk_prepare(const float* q_full, const float* k, const float* v, const 
 
 void attn_qk_prepare_bf16(const uint16_t* q_full, const uint16_t* k, const uint16_t* v, const float* q_norm, const float* k_norm,
                           float eps, const RopeSpec& rope, const int32_t* pos, int64_t T, int n_head, int n_kv, uint16_t* q_out,
-                          int64_t cell0, void* stream, KvInt8 q8, uint16_t* k_cache, uint16_t* v_cache, KvFar far_kv) {
+                          int64_t cell0, void* stream, KvInt8 q8, uint16_t* k_cache, uint16_t* v_cache, KvFar far_kv, int64_t cap) {
     if (T <= 0) return;
     if (rope.rot <= 0 || rope.rot > 256 || rope.rot % 2) {
         halo::log::error("halo", "attn_qk_prepare_bf16: a rotary width of %d", rope.rot);
@@ -659,7 +659,7 @@ void attn_qk_prepare_bf16(const uint16_t* q_full, const uint16_t* k, const uint1
     const __nv_bfloat16* kk = reinterpret_cast<const __nv_bfloat16*>(k);
     const __nv_bfloat16* vv = reinterpret_cast<const __nv_bfloat16*>(v);
     launch_pdl(attn_qk_prepare_kernel<256, __nv_bfloat16, __nv_bfloat16>, grid, dim3(256), 0, (cudaStream_t) stream, qf, kk, vv,
-               q_norm, k_norm, eps, r, pos, n_head, n_kv, reinterpret_cast<__nv_bfloat16*>(q_out), (__half*) k_cache, (__half*) v_cache, cell0, 512, (int64_t) 0,
+               q_norm, k_norm, eps, r, pos, n_head, n_kv, reinterpret_cast<__nv_bfloat16*>(q_out), (__half*) k_cache, (__half*) v_cache, cell0, 512, cap,
                (const int32_t*) nullptr, q8, far_kv);
     check("attn_qk_prepare_bf16");
 }

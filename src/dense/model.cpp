@@ -290,9 +290,7 @@ bool decode_drafter(Model& m, std::string& err) {
 
 namespace {
 // a cell of one attention layer, K and V: fp16, or int8 codes with their fp16 scales
-uint64_t cell_bytes(const Geometry& g, bool kv_int8) {
-    return kv_int8 ? (uint64_t) g.n_kv * (g.head_dim + g.head_dim / 64 * 2) * 2 : (uint64_t) g.n_kv * g.head_dim * 2 * 2;
-}
+uint64_t cell_bytes(const Geometry& g, bool kv_int8) { return kv_cell_bytes(g, kv_int8 ? 2 : 1); }
 }  // namespace
 
 int64_t resident_cells(int64_t max_context, int64_t kv_resident) {
@@ -316,11 +314,16 @@ uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, boo
     return (uint64_t) resident_cells(max_context, kv_resident) * cell_bytes(g, kv_int8) + 4 * 256;
 }
 
-uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, bool kv_int8, int64_t kv_resident) {
+uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, bool kv_int8, int64_t kv_resident, int mtp_format,
+                       int64_t mtp_window) {
     uint64_t b = 64 * 256;
     for (int il = 0; il < g.n_layers; ++il) b += session_layer_bytes(g, il, max_context, kv_int8, kv_resident);
-    const uint64_t drafter = mtp ? (uint64_t) max_context * cell_bytes(g, false) + ((uint64_t) (kWindow + 3) * g.n_embd + g.n_vocab + (uint64_t) kWindow * 64) * 4
-                                 : 0;
+    // the drafter's cells: its own layer's format, and with a window only the ring's
+    const int64_t cap = mtp ? mtp_ring_cap(max_context, mtp_window) : 0;
+    const uint64_t drafter =
+        mtp ? (uint64_t) (cap > 0 ? cap : max_context) * kv_cell_bytes(g, mtp_format) +
+                  ((uint64_t) (kWindow + 3) * g.n_embd + g.n_vocab + (uint64_t) kWindow * 64) * 4
+            : 0;
     return b + drafter + (uint64_t) kWindow * g.n_vocab * 4;
 }
 

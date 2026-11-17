@@ -46,6 +46,10 @@ struct CommonOptions {
     /// --kv-resident N: K/V streaming, N cells of each attention layer in VRAM and the rest in page-locked RAM (0: all in
     /// VRAM), for the models that take it
     int64_t kv_resident = 0;
+    /// --mtp-kv fp16|int8: the dense drafter's own K/V in half the bytes (empty: the model's default)
+    std::string mtp_kv;
+    /// --mtp-window N: cells of context the dense drafter reads, its cache a ring of N + 15 (0: every cell, the default)
+    int64_t mtp_window = 0;
     /// The engine's expert profile for the model (--expert-profile, else data/profiles/<key>.prof, cli::profile_key),
     /// or the --expert-profile-save file a start places from; empty means none.  A profile decides residency by routing
     /// frequency instead of by first use.

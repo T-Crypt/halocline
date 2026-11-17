@@ -75,7 +75,7 @@ bool on_card(const std::string& name, const dense::Options& o, int lo, int hi) {
 
 // The dense stack's options for a run of these flags (the drafter the pack carries, when drafting).
 dense::Options run_options(const GgufFile& gg, int64_t max_context, int sessions, int spec, bool draft, bool vision, const std::string& kv,
-                           int64_t kv_resident) {
+                           int64_t kv_resident, const std::string& mtp_kv, int64_t mtp_window) {
     const auto has = [&](const char* name) {
         for (const TensorInfo& t : gg.tensors())
             if (t.name == name) return true;
@@ -91,6 +91,8 @@ dense::Options run_options(const GgufFile& gg, int64_t max_context, int sessions
     o.vision = vision;
     o.kv_int8 = kv == "int8";
     o.kv_resident = kv_resident;
+    o.mtp_format = dense::mtp_kv_format(mtp_kv) == 2 ? 2 : 1;
+    o.mtp_window = mtp ? mtp_window : 0;
     o.arch = "qwen35";
     return o;
 }
@@ -140,7 +142,8 @@ public:
             return false;
         }
         for (const TensorInfo& t : gg.tensors()) tensors_[t.name] = t;
-        dense::Options o = run_options(gg, req.max_context, req.sessions, req.spec, req.draft, req.vision, req.kv, req.kv_resident);
+        dense::Options o = run_options(gg, req.max_context, req.sessions, req.spec, req.draft, req.vision, req.kv, req.kv_resident,
+                                       req.mtp_kv, req.mtp_window);
         const bool want_block = o.drafter == dense::Drafter::Block, want_mtp = o.drafter == dense::Drafter::Mtp;
         dense::BlockDrafter bd_meta;
         if (want_block && !block_meta(gg, bd_meta, g.n_embd, err)) return false;
@@ -234,7 +237,7 @@ public:
         }
         const uint64_t need_b = dense::shared_bytes(g, o.max_context, o.kv_int8, o.kv_resident) +
                                 (uint64_t) o.sessions * dense::session_bytes(g, o.max_context, o.drafter == dense::Drafter::Mtp, o.kv_int8,
-                                                                             o.kv_resident);
+                                                                             o.kv_resident, o.mtp_format, o.mtp_window);
         if (const uint64_t host_b = dense::session_host_bytes(g, o.max_context, o.kv_int8, o.kv_resident))
             halo::log::info("halo qwen35", "K/V streaming: %lld of %lld cells per attention layer in VRAM, %.2f GiB in page-locked "
                               "RAM per slot", (long long) dense::resident_cells(o.max_context, o.kv_resident), (long long) o.max_context,
@@ -567,6 +570,8 @@ public:
         else if (a == "--spec") { o.spec = std::atoi(args.next("--spec")); o.spec_given = true; }
         else if (a == "--kv") o.kv = args.next("--kv");
         else if (a == "--kv-resident") o.kv_resident = std::atoll(args.next("--kv-resident"));
+        else if (a == "--mtp-kv") o.mtp_kv = args.next("--mtp-kv");
+        else if (a == "--mtp-window") o.mtp_window = std::atoll(args.next("--mtp-window"));
         else if (a == "--suffix-draft") o.suffix_draft = std::max(0, std::atoi(args.next("--suffix-draft")));
         else if (a == "--draft-log") halo::core::diagnostics().draft_log = args.next("--draft-log");
         else return false;
@@ -595,6 +600,12 @@ public:
             return 2;
         }
         if (!o.spec_given) o.spec = has_drafter(o.model) ? kDefaultSpec : 0;
+        // the drafter's own cache flags, against the drafter this run will load
+        const dense::Drafter kind = o.spec >= 2 ? drafter_kind(o.model) : dense::Drafter::None;
+        if (const std::string why = dense::mtp_option_error(!o.mtp_kv.empty(), o.mtp_kv, o.mtp_window, kind); !why.empty()) {
+            halo::log::error("halo qwen35", "%s", why.c_str());
+            return 2;
+        }
         if (o.spec >= 2 && !has_drafter(o.model)) {
             halo::log::warn("halo qwen35", "--spec %d off: the pack has no drafter layer", o.spec);
             o.spec = 0;
@@ -604,12 +615,16 @@ public:
 
 private:
     static constexpr int kDefaultSpec = 16;
-    static bool has_drafter(const std::string& path) {
+    static bool has_drafter(const std::string& path) { return drafter_kind(path) != dense::Drafter::None; }
+    static dense::Drafter drafter_kind(const std::string& path) {
         core::ModelFile file;
         std::string err;
-        if (path.empty() || !file.open(path, err) || !file.load_meta(err)) return false;
+        if (path.empty() || !file.open(path, err) || !file.load_meta(err)) return dense::Drafter::None;
         const core::Json* t = file.meta().get("tensors");
-        return t != nullptr && (t->get("mtp.fc.weight") != nullptr || t->get("dflash.fc.0.weight") != nullptr);
+        if (t == nullptr) return dense::Drafter::None;
+        // the one run_options picks when a pack carries both
+        if (t->get("dflash.fc.0.weight") != nullptr) return dense::Drafter::Block;
+        return t->get("mtp.fc.weight") != nullptr ? dense::Drafter::Mtp : dense::Drafter::None;
     }
     const char* model_name() const override { return "Qwen3.8-27B"; }
 };

@@ -101,6 +101,10 @@ The work, in order:
    values tolerating per-token groups.
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
+   **2026-11-17:** both levers landed as opt-in flags, the default unchanged: `--mtp-kv fp16|int8` (the drafter's cache
+   at 528 MiB at 262K in int8) and `--mtp-window N` (it reads the last N cells; its cache is a ring of N + 15, 128.05
+   MiB at N = 32,768). A windowed session is not parked (a ring has no linear image). The acceptance A/B that would pick
+   a default has not run.
 3. **The quant is UD-Q4_K_XL** (maintainer decision, 2026-11-17: 2.8 times lower KLD than UD-IQ4_XS outweighs context).
    Its context by KV format, with ~4.6 GiB left for KV once the MTP KV is a ring: int8 ~142K, K8V4 ~184K, rotated 4-bit
    K and V ~261K (262K after a small workspace trim). **The deciding measurement:** UD-Q4_K_XL with K8V4 at 184K against
