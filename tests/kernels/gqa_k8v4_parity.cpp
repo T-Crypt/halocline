@@ -1,6 +1,6 @@
-// tests/kernels/gqa_k8v4_parity.cpp - the dense path's K8V4 cache (halo/kernels/gqa_attn.hpp: K in the int8 form, V in
-// rotated q4_0 blocks) against a double-precision CPU reference, at the Qwen3.5-27B attention geometry (24 query heads,
-// 4 KV heads, 256 wide, 64 rotated dims, M-RoPE sections 11/11/10).
+// tests/kernels/gqa_k8v4_parity.cpp - the dense path's 4-bit caches (halo/kernels/gqa_attn.hpp: K8V4, K in the int8 form
+// and V in rotated q4_0 blocks; Q4, both in rotated q4_0 blocks) against a double-precision CPU reference, at the
+// Qwen3.5-27B attention geometry (24 query heads, 4 KV heads, 256 wide, 64 rotated dims, M-RoPE sections 11/11/10).
 //
 // Checks:
 //   1. attn_qk_prepare's K8V4 write: K's codes and per-64 scales bitwise the host rule (the int8 cache's own), V's blocks
@@ -10,7 +10,9 @@
 //      bits equal whatever the window width;
 //   4. gqa_prompt_attn (4-warp, and split over two key ranges) + the inverse rotation, at rows on and around the tile
 //      and query-block edges, against the same reference;
-//   5. the same cache read as BF16 queries and output rows is one rounding of the fp32 launch's rows.
+//   5. the same cache read as BF16 queries and output rows is one rounding of the fp32 launch's rows;
+//   6. the Q4 cache: the write (V bitwise, K through the kernel's own norm), decode and prompt against the fp64
+//      reference with both the query and the key rotated, and a row's bits equal whatever the window width.
 // Exit 77 without a GPU.  GPU test: build it, do not run it while a production engine holds the card.
 #include "halo/kernels/bf16_bits.hpp"
 #include "halo/kernels/dense_ops.hpp"
@@ -305,6 +307,165 @@ int main() {
         std::printf("  K8V4 prompt BF16 rows vs FP32 rows: max abs %.3g (one BF16 query rounding, one BF16 output rounding)\n", worst);
         report(worst < 2e-2, "the BF16 form of the K8V4 prompt kernel is the FP32 launch rounded");
         cudaFree(d_qp); cudaFree(d_qb); cudaFree(d_ob); cudaFree(d_tmp); cudaFree(d_of); cudaFree(d_split);
+    }
+
+    // ---- [6] the rotated 4-bit cache (Q4): K and V both in q4_0 blocks, K rotated after its rope as V is at the write,
+    // the query rotated before attention and each head's output rotated back after it (the engine's order)
+    {
+        const int64_t rows = L * NKV;
+        const float eps = 1e-6f;
+        // host reference rows: K as the kernel norms it (x / sqrt(mean(x^2) + eps), in double here) then rotated, V as it
+        // is then rotated; each 32-dim block through the shared q4_0 quantizer
+        std::vector<float> kref(K), vref(V);
+        for (int64_t row = 0; row < rows; ++row) {
+            double ss = 0;
+            for (int i = 0; i < HD; ++i) ss += (double) K[(size_t) row * HD + i] * K[(size_t) row * HD + i];
+            const float inv = (float) (1.0 / std::sqrt(ss / HD + eps));
+            for (int i = 0; i < HD; ++i) kref[(size_t) row * HD + i] = K[(size_t) row * HD + i] * inv;
+        }
+        for (int64_t row = 0; row < rows; ++row) {
+            fwht_host(&kref[(size_t) row * HD]);
+            fwht_host(&vref[(size_t) row * HD]);
+        }
+        constexpr int NB = HD / k::kKvQ4Block;
+        std::vector<k::KvQ4Block> rk4((size_t) rows * NB), rv4q((size_t) rows * NB);
+        for (int64_t row = 0; row < rows; ++row)
+            for (int b = 0; b < NB; ++b) {
+                rk4[(size_t) row * NB + b] = k::kv_q4_quantize_host(&kref[(size_t) row * HD + b * k::kKvQ4Block]);
+                rv4q[(size_t) row * NB + b] = k::kv_q4_quantize_host(&vref[(size_t) row * HD + b * k::kKvQ4Block]);
+            }
+        uint8_t* d_k4 = dev<uint8_t>((size_t) max_cells * NKV * k::kv_q4_head_bytes(HD));
+        uint8_t* d_v4 = dev<uint8_t>((size_t) max_cells * NKV * k::kv_q4_head_bytes(HD));
+        const k::KvQ4 cache4{d_k4, d_v4};
+        {
+            // the write: attn_qk_prepare's Q4 form; position 0 makes the rope an exact identity, so the cell's K row is
+            // the normed, rotated input
+            std::vector<float> qf((size_t) L * NH * 2 * HD), qn(HD, 1.0f), kn(HD, 1.0f);
+            for (auto& x : qf) x = nd(rng);
+            std::vector<int32_t> pos((size_t) L * 3, 0);
+            float* d_qf = dev<float>(qf.size());
+            float *d_qn = dev<float>(HD), *d_kn = dev<float>(HD);
+            int32_t* d_pos = dev<int32_t>(pos.size());
+            ck(cudaMemcpy(d_qf, qf.data(), qf.size() * 4, cudaMemcpyHostToDevice), "q");
+            ck(cudaMemcpy(d_qn, qn.data(), HD * 4, cudaMemcpyHostToDevice), "qn");
+            ck(cudaMemcpy(d_kn, kn.data(), HD * 4, cudaMemcpyHostToDevice), "kn");
+            ck(cudaMemcpy(d_pos, pos.data(), pos.size() * 4, cudaMemcpyHostToDevice), "pos");
+            k::RopeSpec rope;
+            rope.rot = ROT;
+            rope.theta = 1e7f;
+            for (int i = 0; i < ROT / 2; ++i) rope.axis[i] = (int8_t) (i % 3 == 1 && i < 33 ? 1 : i % 3 == 2 && i < 30 ? 2 : 0);
+            k::attn_qk_prepare(d_qf, d_kf, d_vf, d_qn, d_kn, eps, rope, d_pos, L, NH, NKV, d_qo, nullptr, nullptr, cell0, nullptr, 256,
+                               true, 0, nullptr, k::KvInt8{}, k::KvFar{}, k::KvK8V4{}, cache4);
+            ck(cudaDeviceSynchronize(), "prepare q4");
+            cudaFree(d_qf); cudaFree(d_qn); cudaFree(d_kn); cudaFree(d_pos);
+        }
+        const size_t kb = (size_t) L * NKV * k::kv_q4_head_bytes(HD);
+        std::vector<uint8_t> hv(kb), hk(kb);
+        ck(cudaMemcpy(hv.data(), d_v4 + (size_t) cell0 * NKV * k::kv_q4_head_bytes(HD), kb, cudaMemcpyDeviceToHost), "v4");
+        ck(cudaMemcpy(hk.data(), d_k4 + (size_t) cell0 * NKV * k::kv_q4_head_bytes(HD), kb, cudaMemcpyDeviceToHost), "k4");
+        int badv = 0;
+        for (size_t i = 0; i < kb; ++i) badv += hv[i] != reinterpret_cast<const uint8_t*>(rv4q.data())[i];
+        std::printf("  Q4 write: V %s (%d bytes differ of %zu)\n", badv ? "differs" : "bitwise", badv, kb);
+        report(badv == 0, "attn_qk_prepare's Q4 write of V matches the host rule bitwise (rotation and q4_0 blocks)");
+        // K goes through the kernel's own norm: the host's inverse norm differs in its last bits, so the K half is
+        // compared on the dequantized row, un-rotated, against the kernel's input row
+        double kabs = 0, kstep = 0;
+        {
+            std::vector<float> got((size_t) rows * HD), want((size_t) rows * HD);
+            for (int64_t row = 0; row < rows; ++row) {
+                for (int d = 0; d < HD; ++d) {
+                    int c[8];
+                    k::kv_q4_codes8(reinterpret_cast<const k::KvQ4Block*>(hk.data())[(size_t) row * NB + d / 32].qs, (d & 31) & ~7, c);
+                    got[(size_t) row * HD + d] = k::kv_q4_dequant(
+                        c[d & 7], h2f(reinterpret_cast<const k::KvQ4Block*>(hk.data())[(size_t) row * NB + d / 32].d));
+                }
+                fwht_host(&got[(size_t) row * HD]);
+                for (int b = 0; b < NB; ++b) kstep = std::max(kstep, (double) std::fabs(h2f(rk4[(size_t) row * NB + b].d)));
+                double ss = 0;
+                for (int i = 0; i < HD; ++i) ss += (double) K[(size_t) row * HD + i] * K[(size_t) row * HD + i];
+                const double inv = 1.0 / std::sqrt(ss / HD + eps);
+                for (int i = 0; i < HD; ++i) want[(size_t) row * HD + i] = (float) (K[(size_t) row * HD + i] * inv);
+                for (int i = 0; i < HD; ++i) kabs = std::max(kabs, (double) std::fabs(got[(size_t) row * HD + i] - want[(size_t) row * HD + i]));
+            }
+            std::printf("  Q4 write: K's un-rotated rows within %.3g of the normed input (16 x the block step %.3g is the "
+                        "orthonormality bound)\n", kabs, 16.0 * kstep);
+            report(kabs <= 16.0 * kstep, "attn_qk_prepare's Q4 write of K is the host rule's bytes over the normed row");
+        }
+        // the dequantized cells for the reference: the stored rows, un-rotated back (H is its own inverse)
+        std::vector<float> kdq4((size_t) rows * HD), vdq4((size_t) rows * HD);
+        for (int64_t row = 0; row < rows; ++row)
+            for (int d = 0; d < HD; ++d) {
+                const k::KvQ4Block& kbk = rk4[(size_t) row * NB + d / 32];
+                const k::KvQ4Block& vbk = rv4q[(size_t) row * NB + d / 32];
+                int c[8];
+                k::kv_q4_codes8(kbk.qs, (d & 31) & ~7, c);
+                kdq4[(size_t) row * HD + d] = k::kv_q4_dequant(c[d & 7], h2f(kbk.d));
+                k::kv_q4_codes8(vbk.qs, (d & 31) & ~7, c);
+                vdq4[(size_t) row * HD + d] = k::kv_q4_dequant(c[d & 7], h2f(vbk.d));
+            }
+        for (int64_t row = 0; row < rows; ++row) {
+            fwht_host(&kdq4[(size_t) row * HD]);
+            fwht_host(&vdq4[(size_t) row * HD]);
+        }
+        // ---- decode over the Q4 cache: the queries rotated as the engine rotates them, the output un-rotated
+        std::vector<float> qr(q);
+        for (int i = 0; i < k::kGqaMaxWindow * NH; ++i) fwht_host(&qr[(size_t) i * HD]);
+        float* d_qr = dev<float>(qr.size());
+        ck(cudaMemcpy(d_qr, qr.data(), qr.size() * 4, cudaMemcpyHostToDevice), "qr");
+        const int64_t pq = cell0 + L - (int64_t) k::kGqaMaxWindow;
+        Err eq4;
+        bool bitwise4 = true, have4 = false;
+        std::vector<float> first4((size_t) NH * HD);
+        for (int T = 1; T <= k::kGqaMaxWindow; ++T) {
+            k::gqa_decode_attn(d_qr, nullptr, nullptr, NH, NKV, pq, T, d_scr, max_cells, d_out, nullptr, nullptr, k::KvInt8{},
+                               nullptr, nullptr, k::KvFar{}, k::KvK8V4{}, cache4);
+            k::fwht256_inplace_cuda(d_out, (int64_t) T * NH, nullptr);
+            ck(cudaDeviceSynchronize(), "decode q4");
+            std::vector<float> got((size_t) T * NH * HD);
+            ck(cudaMemcpy(got.data(), d_out, got.size() * 4, cudaMemcpyDeviceToHost), "decode out");
+            const float* last = &got[(size_t) (T - 1) * NH * HD];
+            if (!have4) { std::memcpy(first4.data(), last, first4.size() * 4); have4 = true; }
+            else if (std::memcmp(first4.data(), last, first4.size() * 4) != 0) bitwise4 = false;
+            ref_attn(&q[(size_t) (T - 1) * NH * HD], kdq4, vdq4, pq + T, want.data());
+            for (int j = 0; j < NH * HD; ++j) eq4.add(last[j], want[(size_t) j]);
+        }
+        std::printf("  Q4 decode: max abs %.3g rel %.3g vs double; the last row bitwise equal across widths: %s\n", eq4.abs, eq4.rel,
+                    bitwise4 ? "yes" : "NO");
+        // the reference's scores are the unrotated q . k: the kernel's are the rotated pair, so a mismatch here is the
+        // format's 4-bit K and V, not a rotation the reader got wrong
+        report(eq4.abs < 5e-3 && bitwise4, "gqa_decode_attn over a Q4 cache matches the fp64 reference with Q and K rotated");
+        // ---- prompt chunks over the Q4 cache, plain and split, the same 300 rows and rows around every tile edge
+        {
+            const int T = 300;
+            const int64_t pp = cell0 + L - T;
+            std::vector<float> qp((size_t) T * NH * HD), qpr((size_t) T * NH * HD);
+            for (auto& x : qp) x = 2.0f * nd(rng);
+            qpr = qp;
+            for (int i = 0; i < T * NH; ++i) fwht_host(&qpr[(size_t) i * HD]);
+            float *d_qp = dev<float>(qp.size()), *d_op = dev<float>(qp.size());
+            const size_t sf = k::gqa_prompt_split_floats(T, NH, 3);
+            float* d_split = dev<float>(sf);
+            ck(cudaMemcpy(d_qp, qpr.data(), qpr.size() * 4, cudaMemcpyHostToDevice), "qpr");
+            for (int cfg = 0; cfg < 2; ++cfg) {
+                k::gqa_prompt_attn(d_qp, nullptr, nullptr, NH, NKV, pp, T, d_op, nullptr, k::KvInt8{}, cfg ? d_split : nullptr,
+                                   cfg ? sf : 0, k::KvFar{}, k::KvK8V4{}, cache4);
+                k::fwht256_inplace_cuda(d_op, (int64_t) T * NH, nullptr);
+                ck(cudaDeviceSynchronize(), "prompt q4");
+                std::vector<float> got((size_t) T * NH * HD);
+                ck(cudaMemcpy(got.data(), d_op, got.size() * 4, cudaMemcpyDeviceToHost), "prompt out");
+                Err ep;
+                for (const int r : {0, 1, 55, 63, 64, 65, 127, 128, 255, T - 2, T - 1}) {
+                    if (r >= T) continue;
+                    ref_attn(&qp[(size_t) r * NH * HD], kdq4, vdq4, pp + r + 1, want.data());
+                    for (int j = 0; j < NH * HD; ++j) ep.add(got[(size_t) r * NH * HD + j], want[(size_t) j]);
+                }
+                std::printf("  Q4 prompt %s: max abs %.3g rel %.3g vs double on the dequantized cells\n",
+                            cfg ? "split over 3 key ranges" : "300 rows", ep.abs, ep.rel);
+                report(ep.abs < 6e-2, "gqa_prompt_attn over a Q4 cache is within its rounding of the fp64 reference");
+            }
+            cudaFree(d_qp); cudaFree(d_op); cudaFree(d_split);
+        }
+        cudaFree(d_k4); cudaFree(d_v4); cudaFree(d_qr);
     }
 
     cudaFree(d_k); cudaFree(d_ks); cudaFree(d_vq); cudaFree(d_kf); cudaFree(d_vf); cudaFree(d_qo);
