@@ -1,0 +1,24 @@
+{"id": "code-py", "prompt": "Write a Python function that returns the n-th Fibonacci number iteratively."}
+{"id": "code-sql", "prompt": "Write a SQL query that lists the five customers with the highest total order value."}
+{"id": "code-bash", "prompt": "Write a bash one-liner that counts the lines in every .py file under the current directory."}
+{"id": "code-rust", "prompt": "Explain the difference between Box<T> and Rc<T> in Rust in two sentences."}
+{"id": "code-review", "prompt": "What is wrong with this C code: char *s = malloc(5); strcpy(s, \"hello\");"}
+{"id": "math-arith", "prompt": "What is 17 multiplied by 23? Show the steps."}
+{"id": "math-word", "prompt": "A train leaves at 9:40 and arrives at 13:05. How long is the trip?"}
+{"id": "math-proof", "prompt": "Give a short proof that the square root of 2 is irrational."}
+{"id": "math-prob", "prompt": "If you roll two fair dice, what is the probability that the sum is 8?"}
+{"id": "fact-geo", "prompt": "Name the three longest rivers in Africa."}
+{"id": "fact-sci", "prompt": "Why is the sky blue? Answer in three sentences."}
+{"id": "fact-hist", "prompt": "In one paragraph, what caused the fall of the Western Roman Empire?"}
+{"id": "fact-bio", "prompt": "What does the mitochondrion do in a cell?"}
+{"id": "story-open", "prompt": "Write the opening sentence of a mystery novel set on a lighthouse."}
+{"id": "story-poem", "prompt": "Write a four-line poem about rain on a tin roof."}
+{"id": "story-dialog", "prompt": "Write a short dialogue between a baker and a robot who wants to learn to bake bread."}
+{"id": "story-continue", "prompt": "Continue this story: The last train out of the city was already moving when Mara reached the platform."}
+{"id": "chat-advice", "prompt": "I have a job interview tomorrow and I am nervous. Any tips?"}
+{"id": "chat-recipe", "prompt": "Give me a simple recipe for a vegetable soup."}
+{"id": "chat-plan", "prompt": "Suggest a three-day itinerary for a first visit to Kyoto."}
+{"id": "chat-compare", "prompt": "Should I learn Go or Rust first for backend work? Give a balanced answer."}
+{"id": "list-names", "prompt": "List ten names for a gray cat."}
+{"id": "list-words", "prompt": "Give five words that rhyme with 'light'."}
+{"id": "translate", "prompt": "Translate into French: The library opens at nine and closes at six."}
