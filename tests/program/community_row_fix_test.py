@@ -83,9 +83,17 @@ with tempfile.TemporaryDirectory() as d:
     ok = bad.returncode == 1 and fixed.returncode == 0 and b"\r" not in read(crlf)
     print("community_row_fix crlf checker: " + ("ok" if ok else "FAILED"))
     failed |= not ok
+# A table with six distinct setups, in the canonical form: the per-field and duplicate checks below need rows, and the
+# repository's own table starts empty (every row in it must come from a run).
+sample = os.path.join(tempfile.gettempdir(), "cb_sample.json")
+write(sample, json.dumps({"preset": "halo-bench --community",
+                          "runs": [dict(row(False), submitter=f"tester{i}") for i in range(6)]}, indent=2, ensure_ascii=False))
+fixed_sample = subprocess.run([sys.executable, checker, "--fix", sample], capture_output=True, text=True)
+assert fixed_sample.returncode == 0, fixed_sample.stdout + fixed_sample.stderr
+
 # the model and the KV format are required and checked against the names the engine uses
 for key, bad in (("model", "Qwen"), ("kv", "int4"), ("model", None), ("kv", None)):
-    data = load(real)
+    data = load(sample)
     if bad is None:
         del data["runs"][0][key]
     else:
@@ -101,7 +109,7 @@ for key, bad in (("model", "Qwen"), ("kv", "int4"), ("model", None), ("kv", None
 
 # the per-test fields are optional and type-checked; rows without them (every old row) are valid
 def check_with(key, value):
-    data = load(real)
+    data = load(sample)
     if value is None:
         data["runs"][0].pop(key, None)
     else:
@@ -152,10 +160,10 @@ def variants():
         ("numbers and notes", edit(decode_tps=1.5, prefill_16k_tps=2.5, date="2026-11-01", commit="def5678", notes="n"), True),
         ("link figures", gpu(0, pcie="4.0 x8", h2d_gbps=1.5), True), ("ram_gbps", edit(ram_gbps=1.5), True),
         ("cpu missing", drop("cpu", "ram_gbps"), True),
-        ("submitter", edit(submitter="other"), False), ("model", edit(model="DeepSeek-V4.1-Flash"), False), ("quant", edit(quant="IQ4_XS"), False),
+        ("submitter", edit(submitter="other"), False), ("model", edit(model="Qwen3.8-27B"), False), ("quant", edit(quant="IQ4_XS"), False),
         ("gpu power", gpu(0, power_w=401), False), ("gpu vram", gpu(1, vram_gib=17), False), ("gpu name", gpu(1, name="RTX 5070"), False),
         ("gpu order", swap, False), ("one gpu fewer", one, False), ("cpu", edit(cpu="Other CPU"), False), ("ram_gib", edit(ram_gib=65), False),
-        ("os", edit(os="WSL2"), False),
+        ("cuda cores and driver", lambda r: (r["gpus"][0].update(cuda_cores=16384, compute_cap="8.9"), r.update(driver="580.105.08")), True),
     ]
 
 
@@ -195,12 +203,17 @@ with tempfile.TemporaryDirectory() as d:
     ok = "runs[1] (tester): same submitter, model, quant and hardware as runs[0]: update your run instead" in dup_pairs(p)[1]
     print("community_row_fix dup message: " + ("ok" if ok else "FAILED"))
     failed |= not ok
-    # the real file has no duplicate; adding the same setup again to it is one
-    data = load(real)
-    ok = dup_pairs(real)[0] == [] and cpp_pairs(real) == []
+    # the sample has no duplicate; adding one of its setups again is one
+    data = load(sample)
+    ok = dup_pairs(sample)[0] == [] and cpp_pairs(sample) == []
     data["runs"].append(json.loads(json.dumps(data["runs"][4])))
     write(p, json.dumps(data, indent=2, ensure_ascii=False))
     ok = ok and dup_pairs(p)[0] == [(len(data["runs"]) - 1, 4)] and cpp_pairs(p) == [(len(data["runs"]) - 1, 4)]
-    print("community_row_fix dup real file: " + ("ok" if ok else "FAILED"))
+    print("community_row_fix dup sample file: " + ("ok" if ok else "FAILED"))
     failed |= not ok
+    # the repository's own table is empty and stays valid
+    ok = dup_pairs(real)[0] == [] and subprocess.run([sys.executable, checker, real], capture_output=True).returncode == 0
+    print("community_row_fix real table: " + ("ok" if ok else "FAILED"))
+    failed |= not ok
+os.remove(sample)
 sys.exit(failed)
