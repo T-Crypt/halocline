@@ -10,6 +10,8 @@ namespace halo::program {
 struct CommunityGpu {
     std::string name;
     double vram_gib = 0, power_w = 0;
+    int cuda_cores = 0;        ///< CUDA cores as NVML counts them (a 4090 is 16,384); omitted when 0
+    std::string compute_cap;   ///< CUDA capability, e.g. "8.9"; omitted when empty
     std::string pcie;          ///< maximum generation and current width, e.g. "5.0 x16"; omitted when empty
     double h2d_gbps = 0;       ///< pinned host-to-device copy speed; omitted when 0
 };
@@ -23,6 +25,7 @@ struct CommunityTest {
 
 struct CommunityRow {
     std::string submitter, date, commit, preset, model, os, quant, kv, notes;   // notes is omitted when empty
+    std::string driver;        ///< the NVIDIA driver's version, e.g. "580.105.08"; omitted when empty
     // model: the adapter's model_name; kv: the KV cache format the engine reported ("int8", "fp16")
     std::vector<CommunityGpu> gpus;
     std::string cpu;           ///< "AMD Ryzen 9 9950X, 16 cores"; omitted when empty

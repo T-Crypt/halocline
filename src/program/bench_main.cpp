@@ -131,6 +131,8 @@ public:
         double power_enforced_w = -1;   // the limit the driver applies now (the management limit when it cannot say)
         double vram_gib = -1;
         int sm_mhz = -1, mem_mhz = -1;
+        int cc_major = -1, cc_minor = -1;      // the compute capability, 8.9 on Ada
+        int cuda_cores = 0;                    // as NVML counts them (CUDA cores)
         int pcie_gen = -1, pcie_width = -1;   // the link's maximum generation and its current width: the generation drops at idle, the width does not, and the
                                           // maximum width is the card's, not the slot's
     };
@@ -153,6 +155,8 @@ public:
         bus_ = lib_.sym<int (*)(const char*, void**)>("nvmlDeviceGetHandleByPciBusId_v2");
         maxgen_ = lib_.sym<int (*)(void*, unsigned*)>("nvmlDeviceGetMaxPcieLinkGeneration");
         maxwid_ = lib_.sym<int (*)(void*, unsigned*)>("nvmlDeviceGetCurrPcieLinkWidth");
+        cc_ = lib_.sym<int (*)(void*, int*, int*)>("nvmlDeviceGetCudaComputeCapability");
+        cores_ = lib_.sym<int (*)(void*, unsigned*)>("nvmlDeviceGetNumGpuCores");
         if (!init_ || !count_ || !handle_ || init_() != 0) return false;
         unsigned n = 0;
         if (count_(&n) != 0) return false;
@@ -208,6 +212,9 @@ private:
         if (clk_ && clk_(h, 2, &c) == 0) s.mem_mhz = (int) c;   // NVML_CLOCK_MEM
         if (maxgen_ && maxgen_(h, &c) == 0) s.pcie_gen = (int) c;
         if (maxwid_ && maxwid_(h, &c) == 0) s.pcie_width = (int) c;
+        int major = -1, minor = -1;
+        if (cc_ && cc_(h, &major, &minor) == 0) { s.cc_major = major; s.cc_minor = minor; }
+        if (cores_ && cores_(h, &c) == 0) s.cuda_cores = (int) c;
         return s;
     }
     halo::platform::DynLib lib_;
@@ -218,6 +225,8 @@ private:
     int (*bus_)(const char*, void**) = nullptr;
     int (*maxgen_)(void*, unsigned*) = nullptr;
     int (*maxwid_)(void*, unsigned*) = nullptr;
+    int (*cc_)(void*, int*, int*) = nullptr;
+    int (*cores_)(void*, unsigned*) = nullptr;
     int (*init_)() = nullptr;
     int (*shut_)() = nullptr;
     int (*drv_)(char*, unsigned) = nullptr;
@@ -673,10 +682,63 @@ std::string hardware_text(const Hardware& h, const std::vector<std::pair<std::st
     for (const auto& c : cards) {
         const double g = h2d_of(h, c.first);
         const std::string link = pcie_text(c.second);
-        t += "  GPU   " + short_card(c.second.name) + "  PCIe " + (link.empty() ? std::string("unknown") : link) +
+        t += "  GPU   " + short_card(c.second.name);
+        if (c.second.vram_gib > 0) t += fmt("  %.0f GiB", c.second.vram_gib);
+        if (c.second.cc_major >= 0) t += fmt("  sm_%d%d", c.second.cc_major, c.second.cc_minor);
+        if (c.second.cuda_cores > 0) t += "  " + std::to_string(c.second.cuda_cores) + " CUDA cores";
+        if (c.second.power_enforced_w > 0) t += fmt("  power %.0f W", c.second.power_enforced_w);
+        t += "  PCIe " + (link.empty() ? std::string("unknown") : link) +
              (g > 0 ? fmt("  host-to-device %.1f GB/s", g) : std::string("  host-to-device not measured")) + "\n";
     }
     return t;
+}
+
+// ---------------------------------------------------------------------------------------------- the Ada gate
+
+// The cards a run may use: the indices of CUDA_VISIBLE_DEVICES (the CUDA runtime's own rule), or every NVML device when
+// it is unset. Only indices are understood; an ordering by UUID is not the one the row records. Empty, or why not.
+std::string visible_cards(const char* cvd, size_t total, std::vector<size_t>& out) {
+    out.clear();
+    const std::string v = cvd ? cvd : "";
+    if (v.find_first_not_of(" \t") == std::string::npos) {
+        for (size_t i = 0; i < total; ++i) out.push_back(i);
+        return {};
+    }
+    for (size_t a = 0; a <= v.size();) {
+        const size_t b = v.find(',', a);
+        const std::string t = v.substr(a, (b == std::string::npos ? v.size() : b) - a);
+        if (!t.empty()) {
+            if (t.find_first_not_of("0123456789") != std::string::npos)
+                return "CUDA_VISIBLE_DEVICES=" + v + ": name the cards by index (0, 1, ...); a community run takes one.";
+            const size_t i = (size_t) std::strtoul(t.c_str(), nullptr, 10);
+            if (i >= total) return "CUDA_VISIBLE_DEVICES=" + v + " names a card NVML does not have (" + std::to_string(total) + " found).";
+            out.push_back(i);
+        }
+        if (b == std::string::npos) break;
+        a = b + 1;
+    }
+    return {};
+}
+
+// One sm_89 card and nothing else: every Halocline binary builds sm_89 SASS only, and multi-GPU was removed. Empty when
+// the visible setup is one Ada card; else the sentence that says what to do.
+std::string community_card_error(const Nvml& nvml) {
+    std::vector<size_t> cards;
+    if (const std::string e = visible_cards(std::getenv("CUDA_VISIBLE_DEVICES"), nvml.count(), cards); !e.empty()) return e;
+    if (cards.empty()) return "no NVIDIA card is visible.";
+    if (cards.size() > 1) {
+        std::string names;
+        for (size_t i : cards) names += (names.empty() ? "" : ", ") + short_card(nvml.snap(i).name);
+        return "a community run uses one card; " + std::to_string(cards.size()) + " are visible (" + names +
+               "). Set CUDA_VISIBLE_DEVICES to the index of the card to measure, run again, and the row names it.";
+    }
+    const Nvml::Snap s = nvml.snap(cards.front());
+    if (s.cc_major < 0) return {};   // NVML could not say: the engine's load reports the missing kernel image itself
+    if (s.cc_major != 8 || s.cc_minor != 9)
+        return short_card(s.name) + " is sm_" + std::to_string(s.cc_major) + std::to_string(s.cc_minor) +
+               ", and Halocline builds sm_89 (Ada) kernels only: this binary has no code for that card. Supported: "
+               "RTX 4090, RTX 4000/4500/5000/6000 Ada, RTX 4080/4070 (24 GiB of VRAM or less means experts in host RAM), L4, L40, L40S.";
+    return {};
 }
 
 // ---------------------------------------------------------------------------------------------- main
@@ -885,6 +947,12 @@ int main(int argc, char** argv) {
         halo::log::error("halo-bench", "--community needs NVML (the NVIDIA driver's management library) to read the GPU names, "
                              "VRAM and enforced power limits for the row; it could not be loaded");
         return 1;
+    }
+    if (o.community) {
+        if (const std::string card = community_card_error(nvml); !card.empty()) {
+            halo::log::error("halo-bench", "%s No row was written.", card.c_str());
+            return 1;
+        }
     }
     if (o.community && std::string(HALO_BENCH_GIT).find_first_not_of("0123456789abcdef") != std::string::npos) {
         halo::log::error("halo-bench", "--community needs a build from a git checkout: the row records the commit");
@@ -1259,7 +1327,15 @@ int main(int argc, char** argv) {
                 break;
             }
             g.name = short_card(g.name);
-            crow.gpus.push_back({g.name, g.vram_gib, g.power_enforced_w, pcie_text(g), h2d_of(hw, id)});
+            CommunityGpu gpu;
+            gpu.name = g.name;
+            gpu.vram_gib = g.vram_gib;
+            gpu.power_w = g.power_enforced_w;
+            gpu.cuda_cores = g.cuda_cores;
+            gpu.compute_cap = g.cc_major >= 0 ? fmt("%d.%d", g.cc_major, g.cc_minor) : std::string();
+            gpu.pcie = pcie_text(g);
+            gpu.h2d_gbps = h2d_of(hw, id);
+            crow.gpus.push_back(std::move(gpu));
             cards.emplace_back(id, g);
         }
         const uint64_t ram_b = halo::platform::total_physical_memory();
@@ -1288,6 +1364,7 @@ int main(int argc, char** argv) {
         crow.cpu = hw.cpu;
         crow.ram_gbps = hw.ram_gbps;
         crow.os = halo::platform::host_os_name();
+        crow.driver = nvml.driver();
         crow.quant = info.count("quant") ? info["quant"] : "unknown";
         crow.prefill_16k_tps = pre_tps[0];
         crow.prefill_64k_tps = pre_tps[1];

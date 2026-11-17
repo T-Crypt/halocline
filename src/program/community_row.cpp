@@ -92,6 +92,8 @@ std::string community_row_text(const CommunityRow& r) {
         t += "          \"name\": " + json_quote(g.name) + ",\n";
         t += "          \"vram_gib\": " + num(g.vram_gib, 0) + ",\n";
         t += "          \"power_w\": " + num(g.power_w, 0);
+        if (g.cuda_cores > 0) t += ",\n          \"cuda_cores\": " + std::to_string(g.cuda_cores);
+        if (!g.compute_cap.empty()) t += ",\n          \"compute_cap\": " + json_quote(g.compute_cap);
         if (!g.pcie.empty()) t += ",\n          \"pcie\": " + json_quote(g.pcie);
         if (g.h2d_gbps > 0) t += ",\n          \"h2d_gbps\": " + num(g.h2d_gbps, 1);
         t += "\n";
@@ -102,6 +104,7 @@ std::string community_row_text(const CommunityRow& r) {
     if (!r.cpu.empty()) t += "      \"cpu\": " + json_quote(r.cpu) + ",\n";
     if (r.ram_gbps > 0) t += "      \"ram_gbps\": " + num(r.ram_gbps, 1) + ",\n";
     t += "      \"os\": " + json_quote(r.os) + ",\n";
+    if (!r.driver.empty()) t += "      \"driver\": " + json_quote(r.driver) + ",\n";
     t += "      \"quant\": " + json_quote(r.quant) + ",\n";
     t += "      \"kv\": " + json_quote(r.kv) + ",\n";
     t += "      \"prefill_16k_tps\": " + num(r.prefill_16k_tps, 1) + ",\n";
@@ -262,6 +265,8 @@ bool parse_rows(const std::string& file, std::vector<ParsedRow>& rows, std::stri
             if (key == "name") g.name = text;
             else if (key == "vram_gib") g.vram_gib = number;
             else if (key == "power_w") g.power_w = number;
+            else if (key == "cuda_cores") g.cuda_cores = (int) number;
+            else if (key == "compute_cap") g.compute_cap = text;
         } else if (ind == 6) {
             CommunityRow& r = cur.row;
             if (key == "submitter") r.submitter = text;

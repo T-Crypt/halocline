@@ -1,33 +1,119 @@
 # Community runs
 
-> [!WARNING]
-> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
+Every row in `docs/community/benchmarks.json` was produced by the same command on someone's own card:
 
-[halo.jgulfo.com/community](https://basalt.jgulfo.com/community/) lists benchmark runs submitted by users, all taken with the same preset so the rows compare. The data is `docs/community/benchmarks.json`; the page reads it from `main`, so a merged row shows up within minutes.
+```sh
+halo-bench --community --model PACK.basalt --submitter YOUR_NAME
+```
 
-## Add your run
+The preset is fixed: three decode fixtures (`conv`, `struct`, `prose`), a 16K and a 64K prompt, each measured cold in
+its own engine process. Nothing on the command line can change it, because a row with different flags would not compare
+with the others. `halo-bench --help` prints the fixture contents and how to regenerate them.
 
-1. Stop any running Halocline server (the GPUs must be free), then run `halo-bench --community --model PACK` (a Flash-Next, a 27B or a DeepSeek pack). It starts its own engine (three times, once per measurement), shows the load progress on stderr while each one starts, adds its row to `docs/community/benchmarks.json` and prints it. It uses every visible Blackwell GPU: a second card is the peer, and `CUDA_VISIBLE_DEVICES=0` gives a single-card row.
-2. `--submitter NAME` is required: the name you want shown (one name with no spaces, up to 40 characters; it is not verified). `notes` (up to 200 characters) is optional and added by hand.
-3. Review the row in `docs/community/benchmarks.json`, commit it and open a pull request. If the file already has a row of your setup (see below), the bench replaces that row in place, keeps its `notes` and says so; check the notes still apply. If the bench could not write the file, it prints the row and says where to paste it.
+## What the preset needs
 
-The row records `model` (`Qwen3.8-Flash-Next`, `Qwen3.8-27B` or `DeepSeek-V4.1-Flash`, the name the model's adapter reports for the pack's architecture, not its file name) and `kv`, the KV cache format the run used: the preset passes `--kv int8` to Flash-Next and the 27B and `--kv fp8` to DeepSeek, and a model that takes neither runs its own format. Rows of different models are not comparable.
+One Ada card. Halocline builds sm_89 code only: RTX 4090, 4080, 4070 Ti, 4070, the RTX 4000/4500/5000/6000 Ada
+workstation cards, and the L4, L40 and L40S servers. Ampere, Turing, Hopper and Blackwell cards have no code in the
+binary, and the bench refuses them before it starts. A MIG slice is not one card and is not supported.
 
-You need enough free RAM that no expert is read from the SSD; the bench checks this and refuses to print a row otherwise. The 27B has no experts: the bench instead refuses a row if any of its weights sit in host RAM; its token embedding, which the engine keeps in page-locked RAM by design, and the `--vision dynamic` encoder, which waits in RAM and loads per request, do not count.
+Linux x86-64 and a driver new enough for CUDA 12. Nothing else: the bench checks the card's compute capability, its
+VRAM, the power limit the driver enforces and the PCIe link, and the row records them.
 
-Optional fields, recorded by `--community` before the engine starts (`halo-bench --hardware` prints them alone):
+The only supported weights today are Unsloth's Qwen3.8-Flash-Next **UD-IQ4_XS v3.1**, converted by this repository:
 
-- `cpu`: the processor and its physical core count, e.g. "AMD Ryzen 9 9950X, 16 cores".
-- `ram_gbps`: host RAM read speed in GB/s, one thread per physical core streaming a 2 GiB buffer, best of several passes.
-- per GPU, `pcie`: the link as the driver reports it, e.g. "5.0 x16": the maximum generation (the current one drops at idle) and the current width (the maximum width is the card's, not the slot's, so a slot shared between two cards reads x8).
-- per GPU, `h2d_gbps`: pinned host-to-device copy speed in GB/s, best of several 256 MiB copies.
+| What | Size | Where |
+|---|---|---|
+| Unsloth's GGUF, 4 shards | 93,672,359,738 bytes | [unsloth/Qwen3.8-Flash-Next-GGUF](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF) |
+| the pack it converts to | 90.1 GiB | built by `tools/convert/convert.py`; the commands are in the [README](../README.md#build-and-run) |
 
-Optional fields, recorded by `--community` from the same three decode requests (rows from before they existed lack them; `decode_tps` keeps its meaning, so old and new rows compare):
+Budget about 190 GiB of disk for the GGUF and the pack, 64 GiB of RAM, and the time the conversion and the first load
+take (235 s and 88 s on the reference machine, in the README's eval tree; the second load reads the pack).
 
-- `decode_conv_tps`, `decode_struct_tps`, `decode_prose_tps`: that fixture's generated tokens over its decode time. `decode_tps` stays the sum of the three fixtures' tokens over the sum of their decode times (token-weighted, not the mean of these three).
-- `accept_conv_pct`, `accept_struct_pct`, `accept_prose_pct`: draft tokens the model accepted over draft tokens it offered, in percent, and `draft_len_conv`, `draft_len_struct`, `draft_len_prose`: the mean number of draft tokens offered per decode window. Both are left out for a fixture the model did not draft in.
-- `engine_args`: the arguments the preset passed the engine, without the model path (at most 300 characters).
+Qwen3.8-27B from Unsloth's UD-Q4_K_XL is the second supported weight. Its GGUF converter path is not written yet, so
+no 27B row can exist until it is.
 
-The bench writes the file in the house format. After a hand edit, run `python3 tools/check_benchmarks.py --fix docs/community/benchmarks.json`; it rewrites the file in the house format and validates it. CI runs the same checker without `--fix` and fails on any other format. A benchmark-only pull request skips the full build.
+## The cards
 
-One row per setup: the checker refuses a row whose submitter (ASCII letters compared without case), model, quant, every GPU (name, VRAM, power limit, in that order), CPU, RAM size and system all match an earlier row. A field one of the two rows lacks counts as matching, so rows from before a field existed still match. The KV format is not compared. To change a run, update the earlier row (`--community` does this itself); do not add another.
+Vendor figures, not measured here. The measured column is what the reference run in this repository reports.
+
+| Card | VRAM | SMs | Bandwidth GB/s | Power W | Experts |
+|---|---|---|---|---|---|
+| RTX 4090 | 24 | 128 | 1008 | 450 | 18.2 GiB in VRAM, 41.3 GiB in pinned RAM (measured) |
+| RTX 6000 Ada | 48 | 142 | 960 | 300 | more of the pool stays in VRAM |
+| L40S | 48 | 142 | 864 | 350 | more of the pool stays in VRAM |
+| L40 | 48 | 142 | 864 | 300 | more of the pool stays in VRAM |
+| RTX 5000 Ada | 32 | 100 | 576 | 250 | more of the pool stays in VRAM |
+| RTX 4500 Ada | 24 | 60 | 432 | 210 | about the 4090's split |
+| L4 | 24 | 58 | 300 | 72 | about the 4090's split |
+| RTX 4000 Ada | 20 | 48 | 360 | 130 | part of the pool moves to pinned RAM |
+| RTX 4080 SUPER | 16 | 80 | 736 | 320 | part of the pool moves to pinned RAM |
+| RTX 4070 Ti SUPER | 16 | 66 | 672 | 285 | part of the pool moves to pinned RAM |
+| RTX 4070 SUPER | 12 | 56 | 504 | 220 | part of the pool moves to pinned RAM |
+| RTX 4070 | 12 | 46 | 504 | 200 | part of the pool moves to pinned RAM |
+
+A card below 24 GiB still runs: the engine places as many experts as fit in VRAM and keeps the rest in page-locked host
+RAM, so decode reads them over PCIe and the row is slower for a reason the notes should state. The bench refuses a run
+only when experts would have to be read from the SSD, because those numbers depend on the disk.
+
+## Running it
+
+```sh
+git clone https://github.com/T-Crypt/halocline && cd halocline
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
+ninja -C build
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python tools/convert/mtp_fetch.py fetch --out mtp-qfn
+.venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf \
+    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.basalt
+
+./bin/halo-bench --community --model QFN-UD-IQ4_XS.basalt --submitter YOUR_NAME
+```
+
+The bench starts its own engine three times, once for the decode fixtures and once per prompt depth, so every number is
+a cold measurement. It prints the row, adds it to `docs/community/benchmarks.json`, then prints the hardware it measured
+before the engine started. On the reference 4090 the whole preset takes about ten minutes.
+
+`halo-bench --hardware` prints the host figures alone, with no model and no engine start. Use it to check a new machine
+before a run.
+
+## What a row records
+
+| Field | Meaning |
+|---|---|
+| `model`, `quant`, `kv` | what ran: the adapter's model name, the pack's quant label, the KV cache format the engine used |
+| `commit`, `date`, `submitter` | the engine commit the binary was built from, the day, the name you gave |
+| `gpus[].name`, `vram_gib`, `power_w` | the card, its VRAM, and the power limit the driver enforces (not the card's maximum) |
+| `gpus[].cuda_cores`, `compute_cap` | as NVML counts them: 16,384 and "8.9" for a 4090 |
+| `gpus[].pcie`, `h2d_gbps` | the link's maximum generation and current width, and a measured pinned host-to-device copy |
+| `ram_gib`, `ram_gbps`, `cpu` | host RAM and its measured read speed, and the processor |
+| `os`, `driver` | the system and the NVIDIA driver version |
+| `prefill_16k_tps`, `prefill_64k_tps` | prompt tokens per second at each depth, one cold run each |
+| `decode_tps` | generated tokens over decode time, summed over the three fixtures (not the mean of them) |
+| `decode_{conv,struct,prose}_tps` | the same per fixture |
+| `accept_*_pct`, `draft_len_*` | draft tokens accepted, and offered per window, when the pack has a drafter |
+| `engine_args` | the flags the preset passed, without the model path |
+
+## Comparing rows
+
+Two rows compare when `model`, `quant` and `kv` match. The preset fixes the rest. Rows of different cards are the point
+of the table: the same weights, the same protocol, different silicon.
+
+The 12 GiB and 16 GiB cards keep part of the expert pool in host RAM. Their decode rate is lower than the bytes they
+would read on a card that holds everything, and their rows are not a statement about the engine's kernel speed.
+
+`docs/community/benchmarks-basalt.json` is Basalt's own table, frozen. Those runs are Blackwell cards with NVFP4 and
+IQ3_S packs on an engine that is not this one; they are kept for the record and are not comparable with any row in this
+file.
+
+## Submitting
+
+1. Run the command above. Check the row it printed: the card name, VRAM and power limit are read from the driver, so
+   they are what they are; add `notes` (200 characters) if something about the run needs saying, such as experts in host
+   RAM or a shared machine.
+2. `python3 tools/check_benchmarks.py docs/community/benchmarks.json` must pass. It enforces the file's format, the
+   field types and one row per setup.
+3. Commit the file and open a pull request with the row. There is no CI on this repository: the maintainer runs the same
+   checker before merging.
+
+If the bench cannot write the file it prints the row and says where to paste it. A rerun on the same setup replaces that
+setup's row in place and keeps its notes; change a run rather than adding a second row for it.

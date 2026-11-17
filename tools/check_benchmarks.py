@@ -13,13 +13,13 @@ TESTS = ("conv", "struct", "prose")   # the decode fixtures of the preset
 TEST_TPS = tuple(f"decode_{t}_tps" for t in TESTS)
 TEST_ACCEPT = tuple(f"accept_{t}_pct" for t in TESTS)
 TEST_DRAFT = tuple(f"draft_len_{t}" for t in TESTS)
-OPTIONAL = {"notes", "cpu", "ram_gbps", "engine_args", *TEST_TPS, *TEST_ACCEPT, *TEST_DRAFT}
-GPU_KEYS = {"name", "vram_gib", "power_w", "pcie", "h2d_gbps"}
+OPTIONAL = {"notes", "cpu", "ram_gbps", "engine_args", "driver", *TEST_TPS, *TEST_ACCEPT, *TEST_DRAFT}
+GPU_KEYS = {"name", "vram_gib", "power_w", "cuda_cores", "compute_cap", "pcie", "h2d_gbps"}
 PCIE = re.compile(r"[1-9](\.0)? x(1|2|4|8|16|32)")
 PLACEHOLDER = "YOUR_NAME"
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
-SYSTEMS = ("Linux", "Windows", "WSL2")
-MODELS = ("Qwen3.8-Flash-Next", "Qwen3.8-27B", "DeepSeek-V4.1-Flash")   # the engine's model names (model_name of each adapter)
+SYSTEMS = ("Linux",)   # Halocline builds for Linux and sm_89 only; the Windows and WSL2 paths were removed
+MODELS = ("Qwen3.8-Flash-Next", "Qwen3.8-27B")   # the engine's model names (model_name of each adapter)
 KV_FORMATS = ("fp16", "int8", "q4_0", "k8v4", "fp8+fp4")  # the cache formats the engine reports (DeepSeek --kv fp8 is fp8+fp4)
 
 
@@ -50,6 +50,12 @@ def check_gpu(g, k, err):
         err(f"gpus[{k}].pcie must look like '5.0 x16'")
     if "h2d_gbps" in g and not is_pos(g["h2d_gbps"]):
         err(f"gpus[{k}].h2d_gbps must be a number > 0")
+    if "cuda_cores" in g and not (isinstance(g["cuda_cores"], int) and not isinstance(g["cuda_cores"], bool) and g["cuda_cores"] > 0):
+        err(f"gpus[{k}].cuda_cores must be a whole number > 0")
+    if "compute_cap" in g and not (isinstance(g["compute_cap"], str) and re.fullmatch(r"\d+\.\d", g["compute_cap"])):
+        err(f"gpus[{k}].compute_cap must look like '8.9'")
+    if "compute_cap" in g and g["compute_cap"] not in ("8.9",):
+        err(f"gpus[{k}].compute_cap is {g['compute_cap']}: Halocline builds sm_89 (Ada) kernels only")
 
 
 def check_row(r, err):
@@ -117,12 +123,14 @@ def check_row(r, err):
         err("kv must be one of " + ", ".join(KV_FORMATS))
     if "notes" in r and not (isinstance(r["notes"], str) and len(r["notes"]) <= 200):
         err("notes must be a string of at most 200 characters")
+    if "driver" in r and not (is_text(r["driver"]) and len(r["driver"]) <= 40 and not CONTROL.search(r["driver"])):
+        err("driver must be a non-empty string of at most 40 characters, without control characters")
 
 
-ROW_ORDER = ("submitter", "date", "commit", "preset", "model", "gpus", "ram_gib", "cpu", "ram_gbps", "os",
+ROW_ORDER = ("submitter", "date", "commit", "preset", "model", "gpus", "ram_gib", "cpu", "ram_gbps", "os", "driver",
              "quant", "kv", "prefill_16k_tps", "prefill_64k_tps", "decode_tps", *TEST_TPS, *TEST_ACCEPT, *TEST_DRAFT,
              "engine_args", "notes")
-GPU_ORDER = ("name", "vram_gib", "power_w", "pcie", "h2d_gbps")
+GPU_ORDER = ("name", "vram_gib", "power_w", "cuda_cores", "compute_cap", "pcie", "h2d_gbps")
 TOP_ORDER = ("preset", "runs")
 FIX_HINT = "python3 tools/check_benchmarks.py --fix docs/community/benchmarks.json"
 
