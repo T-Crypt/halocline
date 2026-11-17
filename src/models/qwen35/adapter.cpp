@@ -573,7 +573,8 @@ public:
         return true;
     }
 
-    // the pack's drafter runs in windows of up to 16 unless --spec says otherwise (0 or 1: plain decode)
+    // the pack's drafter runs in windows of up to 16 unless --spec says otherwise (0 or 1: plain decode); the default
+    // is 8, the window every dense measurement and both llama-swap entries run, and the sparse path's default
     int planned_spec(const program::CommonOptions& o) const override {
         if (o.spec_given) return o.spec >= 2 ? o.spec : 0;
         return has_drafter(o.model) ? kDefaultSpec : 0;
@@ -603,7 +604,7 @@ public:
     }
 
 private:
-    static constexpr int kDefaultSpec = 16;
+    static constexpr int kDefaultSpec = 8;   // the sweep that picked 8: evals/2026-11-17/halocline-kv-kld
     static bool has_drafter(const std::string& path) {
         core::ModelFile file;
         std::string err;
