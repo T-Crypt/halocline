@@ -1,8 +1,9 @@
 // tests/kernels/dense_kv_planner_test.cpp - the dense planner's numbers for the Qwen3.8-27B geometry: a KV format's exact
 // bytes per cell, the 262,144-cell totals the engine printed at int8 and fp16 (evals/2026-11-17/halocline-dense-quality/
-// fit/), and the D8 checks that K8V4's 184,320 cells fit the UD-Q4_K_XL card once the MTP drafter's KV is a ring, with
-// the roadmap's ~4.6 GiB left for KV (docs/roadmap.md, D8). No device is touched: these are the planner's own host
-// functions (`ctest -L cpu`).
+// fit/), the D8 checks that K8V4's 184,320 cells fit the UD-Q4_K_XL card once the MTP drafter's KV is a ring, with the
+// roadmap's ~4.6 GiB left for KV (docs/roadmap.md, D8), and the maximum for each of the drafter's own cache setups (its
+// format and ring: --mtp-kv, --mtp-window). No device is touched: these are the planner's own host functions
+// (`ctest -L cpu`).
 #include "halo/dense/model.hpp"
 
 #include <cstdio>
@@ -70,6 +71,19 @@ int64_t max_cells(const d::Geometry& g, d::KvFormat kv, bool ring) {
     return lo;
 }
 
+// the same search with the drafter's own cache in `mtp` and (window 0: full context) its ring, as session_bytes plans it
+int64_t max_cells_drafter(const d::Geometry& g, d::KvFormat kv, d::KvFormat mtp, int64_t window) {
+    int64_t lo = 1024, hi = 400000;
+    while (lo < hi) {
+        const int64_t mid = (lo + hi + 1) / 2;
+        const uint64_t need = (d::shared_bytes(g, mid, kv) +
+                               d::session_bytes(g, mid, /*mtp=*/true, kv, /*kv_resident=*/0, mtp, window)) / kMib;
+        if (need + 512 <= kFreeMib) lo = mid;
+        else hi = mid - 1;
+    }
+    return lo;
+}
+
 }  // namespace
 
 int main() {
@@ -123,6 +137,37 @@ int main() {
     expect(k8v4_ring_max >= k8v4_cells, "the roadmap's 184,320 K8V4 cells are inside the ring plan's maximum");
     expect(k8v4_ring_max < 186000, "and the maximum is the roadmap's ~184K, not a larger range quoted by mistake");
     expect(k8v4_full_max < k8v4_cells, "without the ring, 184,320 K8V4 cells do not fit: D8 item 2 is part of the 184K");
+
+    // ---- the merged planner: the drafter's cache by its own format and ring (--mtp-kv, --mtp-window), searched over
+    // both levers' four setups; the ring is mtp_ring_cells(32768) = 32783 cells, the ring --mtp-window 32768 carves
+    struct DrafterSetup {
+        const char* name;
+        d::KvFormat fmt;
+        int64_t window;
+    };
+    const DrafterSetup setups[4] = {{"fp16 full", d::KvFormat::Fp16, 0},
+                                    {"int8 full", d::KvFormat::Int8, 0},
+                                    {"fp16 ring 32768", d::KvFormat::Fp16, 32768},
+                                    {"int8 ring 32768", d::KvFormat::Int8, 32768}};
+    std::printf("  max cells on UD-Q4_K_XL by the drafter's cache (the main cache's format across)\n");
+    std::printf("    %-16s %12s %12s\n", "drafter", "K8V4", "int8");
+    int64_t k8v4_by_setup[4], int8_by_setup[4];
+    for (int i = 0; i < 4; ++i) {
+        k8v4_by_setup[i] = max_cells_drafter(g, d::KvFormat::K8V4, setups[i].fmt, setups[i].window);
+        int8_by_setup[i] = max_cells_drafter(g, d::KvFormat::Int8, setups[i].fmt, setups[i].window);
+        std::printf("    %-16s %12lld %12lld\n", setups[i].name, (long long) k8v4_by_setup[i], (long long) int8_by_setup[i]);
+    }
+    for (int i = 0; i < 4; ++i) {
+        expect(k8v4_by_setup[i] >= int8_by_setup[i], "K8V4's cells are int8's or more");
+        expect(i < 2 || k8v4_by_setup[i] >= k8v4_by_setup[i - 2], "a ring does not shrink K8V4's maximum");
+        expect(i < 2 || int8_by_setup[i] >= int8_by_setup[i - 2], "a ring does not shrink int8's maximum");
+    }
+    // the ring's cells move the drafter's bytes by 15 x a cell (61,440 B), about two context cells: the two searches
+    // (32,783 cells against the 32,768-cell model) agree to within a few cells
+    expect(k8v4_by_setup[2] <= k8v4_ring_max && k8v4_ring_max - k8v4_by_setup[2] <= 4,
+           "the 32,783-cell ring plans the 32,768-cell model's maximum, within its extra cells");
+    expect(k8v4_by_setup[0] == k8v4_full_max, "the fp16 drafter at full context is the existing no-ring maximum");
+    expect(int8_by_setup[0] == int8_full, "the int8 cache with the fp16 drafter is the existing no-ring int8 maximum");
 
     std::printf("dense_kv_planner: %s\n", g_fail ? "FAIL" : "PASS");
     return g_fail ? 1 : 0;
