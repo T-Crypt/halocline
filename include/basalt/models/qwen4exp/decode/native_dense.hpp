@@ -40,9 +40,6 @@ public:
     /// stage always holds it).
     static bool plan_bytes_by_layer(const std::vector<std::string>& shards, bool include_ple_key, int64_t n_layers,
                                     std::vector<uint64_t>& per_layer, uint64_t& shared, std::string& err);
-    /// Layer split: load only blocks [lb, le) (every other `blk.N.` projection belongs to another GPU's stage; the
-    /// PLE tensors are loaded everywhere).  Process-wide, read by the next `load`; (-1, -1) = all layers.
-    static void set_layer_range(int lb, int le);
     /// A model whose dense index holds `blk.1.ple_key.weight` unquantized serves the PLE from that row, so the key is
     /// taken out of `skip` and `load` does not upload the source tensor over it.  A quantized row leaves `skip`
     /// unchanged.

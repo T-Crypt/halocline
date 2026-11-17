@@ -111,14 +111,14 @@ int main() {
         int s0 = 0, s1 = 0;
         auto one_layer = [] { ConversationKv layer; layer.k.resize(64); std::vector<ConversationKv> v; v.push_back(std::move(layer)); return v; };
         ConversationCache cache(1 << 20, 4);
-        cache.retain(one_layer(), 16, {}, &s0);
+        cache.retain(one_layer(), 16, &s0);
         check(cache.take_reuse(&s1).kv.empty(), "buffers restored into one session are not handed to another's capture");
-        cache.retain(one_layer(), 16, {}, &s0);
+        cache.retain(one_layer(), 16, &s0);
         check(cache.take_reuse(&s0).unchanged_tokens == 16, "the owning session still gets its buffers");
-        cache.retain(one_layer(), 16, {}, &s1);
+        cache.retain(one_layer(), 16, &s1);
         cache.limit_reuse(0);
         check(cache.take_reuse(&s1).kv.empty(), "a session overwritten from a slot keeps no retained buffers");
-        cache.retain(one_layer(), 16, {}, &s0);
+        cache.retain(one_layer(), 16, &s0);
         cache.drop_reuse_unless(&s1);
         check(cache.retained_bytes() == 0, "a request on another session drops the retained buffers");
     }
@@ -291,95 +291,25 @@ int main() {
         check(cache.superseded() == 1 && cache.slot_size() == 2, "a later turn of the same conversation supersedes its copy");
     }
     {
-        // layer-split parking: checkpoints moved apart into stage parts and put back, no running state copied
-        auto running = [](std::initializer_list<int32_t> ids, uint8_t salt, size_t parts) {
-            ConversationCheckpoint c;
-            c.ids = ids;
-            c.state_a.assign(256, salt);
-            c.state_c.assign(32, uint8_t(salt + 1));
-            c.used = salt;
-            for (size_t k = 0; k < parts; ++k) {
-                ConversationCheckpoint p;
-                p.state_a.assign(128, uint8_t(salt + 10 + k));
-                c.stage_parts.push_back(std::move(p));
-            }
-            return c;
-        };
-        std::vector<ConversationCheckpoint> checks;
-        checks.push_back(running({1, 2}, 3, 2));
-        checks.push_back(running({1, 2, 3}, 5, 1));       // an incomplete set: kept aside, put back in place
-        checks.push_back(running({1, 2, 3, 4}, 7, 2));
-        const auto original = checks;
-        const uint8_t* gdn0 = checks[0].state_a.data();
-        const uint8_t* part1 = checks[2].stage_parts[1].state_a.data();
-        auto split = conversation_checkpoints_split(std::move(checks), 2);
-        check(checks.empty() && split.stage0.size() == 2 && split.rest.size() == 1 && split.parts.size() == 2 &&
-              split.parts[0].size() == 2 && split.parts[1].size() == 2, "split: complete checkpoints apart, the other aside");
-        check(split.stage0[0].stage_parts.empty() && split.parts[1][1].ids == original[2].ids &&
-              split.parts[1][1].used == original[2].used && split.parts[0][0].state_a == original[0].stage_parts[0].state_a,
-              "split: every stage part carries its checkpoint's ids and LRU stamp");
-        check(split.stage0[0].state_a.data() == gdn0 && split.parts[1][1].state_a.data() == part1,
-              "split moves the running state (same buffers, no copy)");
-        std::vector<ConversationCheckpoint> back;
-        check(conversation_checkpoints_merge(std::move(split), back) && back.size() == 3, "merge puts them back");
-        bool same = true;
-        for (size_t j = 0; j < back.size(); ++j) {
-            same = same && back[j].ids == original[j].ids && back[j].state_a == original[j].state_a &&
-                   back[j].state_c == original[j].state_c && back[j].used == original[j].used &&
-                   back[j].stage_parts.size() == original[j].stage_parts.size();
-            for (size_t k = 0; same && k < back[j].stage_parts.size(); ++k)
-                same = back[j].stage_parts[k].state_a == original[j].stage_parts[k].state_a;
-        }
-        check(same, "merge(split(x)) == x, in the original order");
-        check(back[0].state_a.data() == gdn0 && back[2].stage_parts[1].state_a.data() == part1, "merge moves them back too");
-
-        auto torn = conversation_checkpoints_split(std::vector<ConversationCheckpoint>(original), 2);
-        torn.parts[1].pop_back();
-        check(!conversation_checkpoints_merge(std::move(torn), back) && back.empty(), "a stage short of a part is refused");
-        auto mixed = conversation_checkpoints_split(std::vector<ConversationCheckpoint>(original), 2);
-        mixed.parts[0][0].ids = {9, 9};
-        check(!conversation_checkpoints_merge(std::move(mixed), back) && back.empty(), "a part of another checkpoint is refused");
-        // a restored image: stage 0's checkpoints and each stage's, with no record of an incomplete one
-        ConversationCheckpointSplit restored;
-        restored.stage0.push_back(running({4, 5}, 11, 0));
-        restored.parts.resize(2);
-        for (auto& p : restored.parts) { auto c = running({4, 5}, 12, 0); p.push_back(std::move(c)); }
-        check(conversation_checkpoints_merge(std::move(restored), back) && back.size() == 1 &&
-              back[0].stage_parts.size() == 2, "a restored image's parts are all whole");
-        auto none = conversation_checkpoints_split({}, 3);
-        check(conversation_checkpoints_merge(std::move(none), back) && back.empty(), "no checkpoints: nothing to do");
-    }
-    {
-        // the later stages' retained K/V, kept with the first stage's and limited together
+        // the retained K/V: limited to the first rewrite, dropped over the budget or by a rewrite from the start
         auto kv = [](size_t n) {
             std::vector<ConversationKv> v(2);
             for (auto& l : v) l.k.resize(n, 1);
             return v;
         };
         ConversationCache cache(1 << 20, 4);
-        std::vector<std::vector<ConversationKv>> stage_kv;
-        stage_kv.push_back(kv(1000));
-        stage_kv.push_back(kv(2000));
-        cache.retain(kv(500), 40, std::move(stage_kv));
-        check(cache.retained_bytes() >= 2 * (500 + 1000 + 2000), "retained bytes count every stage");
+        cache.retain(kv(500), 40);
+        check(cache.retained_bytes() >= 2 * 500, "retained bytes count the K/V");
         cache.limit_reuse(30);
         auto r = cache.take_reuse();
-        check(r.kv.size() == 2 && r.stages.size() == 2 && r.unchanged_tokens == 30 &&
-              r.stages[0].unchanged_tokens == 30 && r.stages[1].unchanged_tokens == 30 &&
-              r.stages[1].captured_tokens == 40, "every stage's reuse is limited to the first rewrite");
+        check(r.kv.size() == 2 && r.unchanged_tokens == 30 && r.captured_tokens == 40,
+              "the reuse is limited to the first rewrite");
         check(cache.retained_bytes() == 0, "taken once");
-        std::vector<std::vector<ConversationKv>> big;
-        big.push_back(kv(1 << 20));
-        cache.retain(kv(500), 40, std::move(big));
-        check(cache.retained_bytes() == 0, "a stage's K/V over the budget drops the whole reuse");
-        std::vector<std::vector<ConversationKv>> one;
-        one.push_back(kv(100));
-        cache.retain(kv(500), 40, std::move(one));
-        cache.limit_reuse(0);
-        check(cache.retained_bytes() == 0, "a rewrite from the start drops every stage's reuse");
+        cache.retain(kv(1 << 20), 40);
+        check(cache.retained_bytes() == 0, "K/V over the budget is not retained");
         cache.retain(kv(500), 40);
-        r = cache.take_reuse();
-        check(r.kv.size() == 2 && r.stages.empty(), "no layer split: no stage reuse, as before");
+        cache.limit_reuse(0);
+        check(cache.retained_bytes() == 0, "a rewrite from the start drops the reuse");
     }
     {
         // a large checkpoint buffer returns to the pool and comes back at the same size, with its contents intact

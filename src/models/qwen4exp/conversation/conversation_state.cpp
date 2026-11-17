@@ -29,15 +29,6 @@ bool sync(std::string& error) {
     return false;
 }
 
-bool copy(void* dst, const void* src, size_t bytes, std::string& error) {
-    if (!bytes) return true;
-    if (!dst || !src) return fail(error, "missing running-state buffer");
-    const auto status = cudaMemcpy(dst, src, bytes, cudaMemcpyDefault);
-    if (status == cudaSuccess) return true;
-    error = std::string("conversation snapshot running-state copy: ") + cudaGetErrorString(status);
-    return false;
-}
-
 // The session's carve: `qsa_states` keeps global ordinals and holds the owned ones
 // [qsa_ord0, qsa_ord0 + qsa_alloc); `gdn_state` holds `gdn_alloc` rows. A whole-model session owns every layer.
 size_t owned_qsa(const SessionState& ss) { return (size_t) std::max<int64_t>(ss.qsa_alloc, 0); }
@@ -78,7 +69,7 @@ bool view_validate(const ConversationView& view, const SessionState& ss,
         std::any_of(view.ids.begin(), view.ids.end(), [](int32_t id) { return id < 0; }))
         return fail(error, "invalid live token/image metadata");
     for (const auto& c : view.checkpoints) {
-        if (!c.stage_parts.empty() || c.ids.empty() || c.ids.size() > view.ids.size() ||
+        if (c.ids.empty() || c.ids.size() > view.ids.size() ||
             !std::equal(c.ids.begin(), c.ids.end(), view.ids.begin()))
             return fail(error, "checkpoint is not a live token prefix");
         if (!conversation_checkpoint_validate(c, ss, g, error)) return false;
@@ -201,34 +192,6 @@ bool conversation_checkpoint_save_deferred(CheckpointDeferral& deferral, Convers
     return deferral.save(state_segments<uint8_t>(c, ss, z), nullptr, c.state_a.data(), error);
 }
 
-bool conversation_checkpoint_save_layers(ConversationCheckpoint& c, const SessionState& part, const ModelGeometry& g,
-                                         int64_t layer_lo, int64_t layer_hi, std::string& error) {
-    ConversationStateSizes z;
-    if (!conversation_state_sizes(g, z, error)) return false;
-    const int64_t I = std::max<int64_t>(g.qsa_interval, 1);
-    const int64_t g0 = layer_lo - layer_lo / I, g1 = layer_hi - layer_hi / I;   // the range's GDN ordinals
-    const int64_t q0 = layer_lo / I, q1 = layer_hi / I;                         // and its QSA ones
-    const size_t n_qsa = (size_t) g.n_qsa_layers();
-    if (layer_lo < 0 || layer_hi > g.n_layers || layer_lo >= layer_hi || c.state_a.size() != z.gdn ||
-        c.state_c.size() != n_qsa * z.tail || c.state_d.size() != n_qsa * z.dead || c.state_e.size() != n_qsa * z.block_pos ||
-        g0 < part.gdn_ord0 || g1 > part.gdn_ord0 + part.gdn_alloc || q0 < part.qsa_ord0 ||
-        q1 > part.qsa_ord0 + part.qsa_alloc || (q1 > q0 && !part.qsa_states))
-        return fail(error, "a layer range's running state outside the checkpoint or the session");
-    const size_t row = g.n_gdn_layers() > 0 ? z.gdn / (size_t) g.n_gdn_layers() : 0;
-    if (g1 > g0 && !copy(c.state_a.data() + (size_t) g0 * row,
-                         reinterpret_cast<const uint8_t*>(part.gdn_state) + (size_t) (g0 - part.gdn_ord0) * row,
-                         (size_t) (g1 - g0) * row, error))
-        return false;
-    for (int64_t q = q0; q < q1; ++q) {
-        const QsaState& st = part.qsa_states[q];
-        if (!copy(c.state_c.data() + (size_t) q * z.tail, st.idx_tail, z.tail, error) ||
-            !copy(c.state_d.data() + (size_t) q * z.dead, st.idx_dead, z.dead, error) ||
-            !copy(c.state_e.data() + (size_t) q * z.block_pos, st.idx_block_pos, z.block_pos, error))
-            return false;
-    }
-    return true;
-}
-
 bool conversation_checkpoint_restore(const ConversationCheckpoint& c, SessionState& ss,
                                      const ModelGeometry& g, std::string& error) {
     if (!conversation_checkpoint_validate(c, ss, g, error)) return false;
@@ -336,8 +299,6 @@ bool conversation_snapshot_save(SavedConversation& image, const ConversationView
 
 bool conversation_snapshot_validate(const SavedConversation& image, const SessionState& ss,
                                     const ModelGeometry& g, const QsaState* draft, std::string& error) {
-    if (!image.live.stage_parts.empty())
-        return fail(error, "a running checkpoint's stage parts belong in the stage images, not in live.stage_parts");
     if (image.geometry != geometry_key(g)) return fail(error, "incompatible runtime geometry");
     // an image holds exactly one carve's running state and K/V: same layer range or nothing
     if (image.layer_lo != ss.layer_lo || image.layer_hi != ss.layer_hi)
@@ -383,7 +344,6 @@ bool conversation_snapshot_save(SavedConversation& image, const ConversationView
 bool conversation_snapshot_validate(const SavedConversation& image, const SessionState& ss, const ModelGeometry& g,
                                     const QsaState& draft, std::string& error) {
     // the whole-session form: a layer split's image (stage images) is restored stage by stage, never through here
-    if (!image.stage_images.empty()) return fail(error, "a layer split's image restored as a single session");
     return conversation_snapshot_validate(image, ss, g, &draft, error);
 }
 ConversationRestore conversation_snapshot_restore(const SavedConversation& image, SessionState& ss,

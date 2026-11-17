@@ -19,12 +19,6 @@
 
 namespace basalt::core {
 namespace {
-int g_layer_lb = -1, g_layer_le = -1;   // set_layer_range; -1: every layer
-bool in_range(const std::string& name) {
-    if (g_layer_lb < 0 || name.rfind("blk.", 0) != 0) return true;
-    const int l = std::atoi(name.c_str() + 4);
-    return l >= g_layer_lb && l < g_layer_le;
-}
 bool eligible(const basalt::TensorInfo& tensor, bool include_ple_key) {
     const auto& name = tensor.name;
     if (name.rfind("blk.", 0) != 0) return false;
@@ -79,7 +73,6 @@ bool NativeDense::plan_bytes(const std::vector<std::string>& shards, bool includ
             basalt::GgufFile gguf(path);
             for (const auto& tensor : gguf.tensors()) {
                 if (!eligible(tensor, include_ple_key) || outside(tensor.name)) continue;
-                if (!in_range(tensor.name) && tensor.name.find("ple") == std::string::npos) continue;
                 if (!basalt::kernels::native_mmvq_supported(tensor.type) || tensor.shape.size() != 2 ||
                     tensor.shape[0] == 0 || tensor.shape[0] > INT_MAX || tensor.shape[1] == 0 || tensor.shape[1] > INT_MAX)
                     continue;
@@ -120,7 +113,6 @@ bool NativeDense::plan_bytes_by_layer(const std::vector<std::string>& shards, bo
     }
 }
 
-void NativeDense::set_layer_range(int lb, int le) { g_layer_lb = lb; g_layer_le = le; }
 bool NativeDense::keep_unquantized_ple_key(const PackFiles& pack, std::set<std::string>& skip, std::string& err) {
     const std::string key = "blk.1.ple_key.weight";
     if (!skip.count(key)) return true;
@@ -240,7 +232,6 @@ bool NativeDense::load(const std::vector<std::string>& shards, WeightTable& tabl
             }
             for (const auto& tensor : gguf.tensors()) {
                 if (!eligible(tensor, include_ple_key) || outside(tensor.name)) continue;
-                if (!in_range(tensor.name) && tensor.name.find("ple") == std::string::npos) continue;
                 if (!seen.insert(tensor.name).second) {
                     err = "native dense: duplicate tensor " + tensor.name; return false;
                 }

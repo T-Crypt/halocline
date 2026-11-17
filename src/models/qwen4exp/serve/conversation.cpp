@@ -87,7 +87,6 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
     const basalt::core::QsaState* draft0 = mtp_kv;
     const basalt::core::ConversationView view{live, live_imgs, checks, cvec_cached};
     auto reuse = conversations->take_reuse(rsp);
-    reuse.stages.clear();
     size_t estimate = 0;
     if (!basalt::core::conversation_snapshot_bytes(view, *rsp, g, draft0, estimate, err)) {
         basalt::log::warn("basalt serve", "conversation cache: skip parking (%s)", err.c_str());

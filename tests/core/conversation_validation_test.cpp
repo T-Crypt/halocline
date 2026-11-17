@@ -129,8 +129,6 @@ void fixture(int format, int experts, bool zero_qsa, bool ple) {
     };
     reject([](auto& s){s.kv.back().k.pop_back();}, "late draft corruption rejected before first layer write");
     reject([](auto& s){s.geometry[16] = 128;}, "different expert geometry rejected");
-    reject([](auto& s){s.live.stage_parts.emplace_back();}, "layer-split live state rejected before writes");
-    reject([](auto& s){s.checkpoints[0].stage_parts.emplace_back();}, "layer-split checkpoint rejected before writes");
     reject([](auto& s){s.kv.pop_back();}, "missing KV layer rejected");
     reject([](auto& s){s.live.state_a.pop_back();}, "bad live recurrence rejected");
     reject([](auto& s){s.checkpoints.back().state_a.pop_back();}, "bad retained checkpoint rejected");
@@ -212,7 +210,7 @@ void fixture(int format, int experts, bool zero_qsa, bool ple) {
     SavedConversation full,incremental;
     check(conversation_snapshot_save(full,view,ss,g,draft.st,error), "full capture through host transfer backend");
     const size_t full_copies = copied_bytes;
-    ConversationKvReuse reuse{full.kv,9,9,{}};
+    ConversationKvReuse reuse{full.kv,9,9};
     size_t peak = 0, reused = 0;
     check(conversation_snapshot_capture_bytes(reuse,view,ss,g,draft.st,peak,error), "incremental capture admission without transfers");
     copied_bytes = 0;
@@ -225,12 +223,12 @@ void fixture(int format, int experts, bool zero_qsa, bool ple) {
         check(incremental.kv[i].k==full.kv[i].k && incremental.kv[i].v==full.kv[i].v &&
               incremental.kv[i].k_scale==full.kv[i].k_scale && incremental.kv[i].v_scale==full.kv[i].v_scale &&
               incremental.kv[i].pooled==full.kv[i].pooled, "incremental and full capture agree across every payload");
-    reuse = {full.kv,9,9,{}};
+    reuse = {full.kv,9,9};
     reuse.kv.back().k.pop_back();
     copy_calls = sync_calls = 0;
     check(!conversation_snapshot_capture_bytes(reuse,view,ss,g,draft.st,peak,error), "malformed retained draft rejected before admission");
     check(!copy_calls && !sync_calls, "invalid retained storage performs no CUDA calls");
-    reuse = {full.kv,9,9,{}};
+    reuse = {full.kv,9,9};
     fail_copy = copy_calls + 1;
     SavedConversation unpublished;
     check(!conversation_snapshot_save(unpublished,view,ss,g,draft.st,error,std::move(reuse)), "incremental capture copy failure is reported");

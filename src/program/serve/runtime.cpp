@@ -1,7 +1,6 @@
 // src/program/serve/runtime.cpp - lifecycle of the persistent engine.
 #include "state.hpp"
 
-#include "basalt/core/on_device.hpp"
 
 namespace basalt::program::serve {
 
@@ -47,12 +46,7 @@ void Runtime::ckd_finish() {
     const void* dst = ckd.pending();
     if (dst == nullptr) return;
     std::string ce;
-    bool ok = ckd.finish(ce);
-    if (ckd_peer.pending()) {
-        const basalt::core::OnDevice on(ckd_peer_dev);
-        ok = ckd_peer.finish(ce) && ok;
-    }
-    if (ok) return;
+    if (ckd.finish(ce)) return;
     basalt::log::error("basalt serve", "%s", ce.c_str());
     checks.erase(std::remove_if(checks.begin(), checks.end(),
                                 [&](const ConvCheckpoint& k) { return k.state_a.data() == dst; }), checks.end());

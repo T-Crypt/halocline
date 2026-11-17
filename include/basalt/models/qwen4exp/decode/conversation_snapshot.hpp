@@ -50,10 +50,6 @@ bool conversation_checkpoint_validate(const ConversationCheckpoint& checkpoint, 
                                       const ModelGeometry& g, std::string& error);
 bool conversation_checkpoint_save(ConversationCheckpoint& checkpoint, const SessionState& session,
                                   const ModelGeometry& g, std::string& error);
-/// Overwrites the running state of layers [layer_lo, layer_hi) in a whole-model checkpoint with `part`'s, a session
-/// that holds those layers (another card's share of a prompt read).  The caller has synchronized `part`'s device.
-bool conversation_checkpoint_save_layers(ConversationCheckpoint& checkpoint, const SessionState& part,
-                                         const ModelGeometry& g, int64_t layer_lo, int64_t layer_hi, std::string& error);
 /// The bytes of one checkpoint of this session's carve: what its host parts add up to, and the size of the device buffer
 /// a deferred save snapshots into.
 size_t conversation_checkpoint_bytes(const SessionState& session, const ModelGeometry& g);

@@ -177,7 +177,7 @@ void QfnRequest::adopt_checkpoints() {
 }
 
 void QfnRequest::retain_image() {
-        runtime_.conversations->retain(std::move(incoming->kv), int64_t(runtime_.live.size()), {}, runtime_.rsp);
+        runtime_.conversations->retain(std::move(incoming->kv), int64_t(runtime_.live.size()), runtime_.rsp);
 }
 
 bool QfnRequest::session_reset() {

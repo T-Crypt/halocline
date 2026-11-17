@@ -498,7 +498,6 @@ public:
                 s.regions.push_back({st_.dv[l], block_ring_bytes()});
             }
         s.stream = st_.stream;
-        s.peer_regions.clear();
         return {};
     }
 

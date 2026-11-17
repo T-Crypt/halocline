@@ -1063,11 +1063,11 @@ void keep_stored_checkpoints(std::vector<ConversationCheckpoint>& v) {
 }  // namespace
 
 bool ConversationStore::put(SavedConversation&& image, uint64_t queue_cap) {
-    if (!open_ || image.live.ids.empty() || !image.stage_images.empty()) return false;
+    if (!open_ || image.live.ids.empty()) return false;
     keep_stored_checkpoints(image.checkpoints);
     for (const auto& c : image.checkpoints)
         if (c.ids.size() > image.live.ids.size() || !std::equal(c.ids.begin(), c.ids.end(), image.live.ids.begin()) ||
-            c.imgs != imgs_below(image.live.imgs, (int64_t) c.ids.size()) || !c.stage_parts.empty())
+            c.imgs != imgs_below(image.live.imgs, (int64_t) c.ids.size()))
             return false;
     // The live end a reply past the last checkpoint: stored as of that checkpoint (the next turn goes on from there; a
     // reply sent back as it was is read again), whose state file then stands in for the live state.
