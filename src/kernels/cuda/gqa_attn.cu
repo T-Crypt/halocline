@@ -974,9 +974,13 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_k8v4_kernel(const IO* __rest
             int codes[16];
             kv_q4_codes8(blk->qs, (c & 1) * 16, codes);
             kv_q4_codes8(blk->qs, (c & 1) * 16 + 8, codes + 8);
+            // a q4_0 scale is signed (d = the largest-magnitude value over -8), but the P V below folds the scale into the
+            // probabilities and re-quantizes them to u8, which needs a scale >= 0: a block with d < 0 keeps |d| in vs_s
+            // and its codes negated here, (code - 8) * d = (8 - code) * |d|, exact and within s8 (-7 .. 8)
+            const bool neg = (blk->d & 0x8000u) != 0;
             union { int32_t word[4]; int8_t byte[16]; } pack;
 #pragma unroll
-            for (int e = 0; e < 16; ++e) pack.byte[e] = (int8_t) (codes[e] - 8);
+            for (int e = 0; e < 16; ++e) pack.byte[e] = (int8_t) (neg ? 8 - codes[e] : codes[e] - 8);
 #pragma unroll
             for (int e = 0; e < 4; ++e) *reinterpret_cast<int*>(v_s + dst + 4 * e) = ok ? pack.word[e] : 0;
         }
@@ -991,7 +995,7 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_k8v4_kernel(const IO* __rest
             const bool ok = key < valid;
             const int64_t cell = (int64_t) kb * I8BC + (ok ? key : 0);
             const KvQ4Block* blk = reinterpret_cast<const KvQ4Block*>(k8v4.vq + (cell * n_kv + kvh) * (int64_t) kv_q4_head_bytes(HD)) + b;
-            vs_s[i] = ok ? blk->d : (uint16_t) 0;
+            vs_s[i] = ok ? (uint16_t) (blk->d & 0x7FFFu) : (uint16_t) 0;   // |d|: the codes carry the sign (issue_tile)
         }
         asm volatile("cp.async.commit_group;\n" ::: "memory");
     };
