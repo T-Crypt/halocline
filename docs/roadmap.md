@@ -106,6 +106,17 @@ The work, in order:
    vision on UD-Q4_K_XL, and 184,694 once the drafter's KV is the 32K ring of item 2 below - the ~184K this item quotes.
    A pass over the format's bytes measured nothing yet: the KLD table, the long-context windows and decode and prefill
    are open. Rotated 4-bit K and V is not started (the task's second phase).*
+
+   *Status 2026-11-17 (W7, branch `d8-q4`): rotated 4-bit K and V is in the dense path (`--kv q4_0`, `KvQ4`, 1,152 B a
+   cell, conversation cache format 4). K is rotated after its rope at the cache write and quantized with the shared q4_0
+   block, V as K8V4 has it; Q is rotated before the attention call in `win_attn`, `batch_attn` and `chunk_attn` by the
+   same transform (`H . H = 1`, so Q K^T is the unrotated dot product), and each head's output is rotated back once. The
+   write rotates K and V in block (one thread a dim). The prompt kernel is the K8V4 one with K's tile expanded from
+   q4_0 blocks and one int32 accumulator a 32-dim block, 86,016 B of shared memory at 4 warps. The planner gives 220,035
+   cells with the drafter at full context, 241,285 with `--mtp-kv int8`, 261,647 with the 32K ring (262,144 then short
+   by 9 MiB, the trim item 3 names) and 265,176 with the ring and int8 (262,144 fits with 53 MiB to spare). No KLD, no
+   decode or prefill number and no GPU parity run: the card was held by a production engine. `--mtp-kv q4_0` is refused,
+   and both 4-bit formats refuse `--kv-resident`.*
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
    **2026-11-17:** both levers landed as opt-in flags, the default unchanged: `--mtp-kv fp16|int8` (the drafter's cache
@@ -121,6 +132,12 @@ The work, in order:
    difference says it costs nothing that matters. **Whichever KV
    format wins at depth becomes the dense default, and this item stays open until that profile ships.** Until then the
    served profile is UD-Q4_K_XL, int8 KV, 122,880 tokens (the largest that fits with MTP and vision today).
+
+   **2026-11-17 (W7):** the rotated 4-bit plan at 262,144 cells is 7,094 MiB with the drafter's KV as the 32K ring of
+   item 2 (9 MiB short of the card's 7,597 MiB and the 512 MiB reserve) and 7,032 MiB with `--mtp-kv int8` too (53 MiB
+   to spare): 262,144 fits once both drafter levers are on, without the workspace trim this item's "261K" line assumed.
+   With the drafter at full context the same plan is 7,990 MiB (905 MiB over) or 7,494 (409 MiB over) at `--mtp-kv int8`.
+   The numbers are the planner's own, `tests/kernels/dense_kv_planner_test.cpp`; nothing was measured on the card.
 
 Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
 
