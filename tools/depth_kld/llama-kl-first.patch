@@ -1,0 +1,124 @@
+diff --git a/tools/perplexity/perplexity.cpp b/tools/perplexity/perplexity.cpp
+index 601361a..3828e38 100644
+--- a/tools/perplexity/perplexity.cpp
++++ b/tools/perplexity/perplexity.cpp
+@@ -106,6 +106,22 @@ static double log_softmax(int n_vocab, const float * logits, uint16_t * log_prob
+     return max_logit + log_sum_exp - logits[tok];
+ }
+ 
++// LLAMA_KL_FIRST=N (Halocline): score positions N .. n_ctx-2 of each chunk instead of n_ctx/2 .. n_ctx-2, so the scored
++// window can sit after a long prefix. A base written that way starts with "_logitsF" and stores N after n_chunk; a
++// base without it is the stock "_logits_" file, unchanged.
++static int kl_first_env(int n_ctx) {
++    const char * v = getenv("LLAMA_KL_FIRST");
++    if (v == nullptr || *v == 0) {
++        return n_ctx/2;
++    }
++    const int first = atoi(v);
++    if (first < 1 || first > n_ctx - 2) {
++        LOG_ERR("LLAMA_KL_FIRST=%s is outside 1 .. n_ctx-2 (n_ctx %d)\n", v, n_ctx);
++        exit(1);
++    }
++    return first;
++}
++
+ static void process_logits(
+     int n_vocab, const float * logits, const int * tokens, int n_token, std::vector<std::thread> & workers,
+     double & nll, double & nll2, float * logit_history, float * prob_history
+@@ -463,7 +479,7 @@ static results_perplexity perplexity(llama_context * ctx, const common_params &
+             return {};
+         }
+         LOG_INF("%s: saving all logits to %s\n", __func__, params.logits_file.c_str());
+-        logits_stream.write("_logits_", 8);
++        logits_stream.write(getenv("LLAMA_KL_FIRST") && *getenv("LLAMA_KL_FIRST") ? "_logitsF" : "_logits_", 8);
+         logits_stream.write(reinterpret_cast<const char *>(&n_ctx), sizeof(n_ctx));
+     }
+ 
+@@ -509,7 +525,7 @@ static results_perplexity perplexity(llama_context * ctx, const common_params &
+ 
+     std::vector<float> logits;
+     if (num_batches > 1) {
+-        logits.reserve(size_t(n_ctx) * n_vocab);
++        logits.reserve(size_t(n_ctx - kl_first_env(n_ctx)) * n_vocab);   // only positions >= first return logits
+     }
+ 
+     LOG_INF("%s: calculating perplexity over %d chunks, n_ctx=%d, batch_size=%d, n_seq=%d\n", __func__, n_chunk, n_ctx, n_batch, n_seq);
+@@ -520,9 +536,13 @@ static results_perplexity perplexity(llama_context * ctx, const common_params &
+     if (!params.logits_file.empty()) {
+         logits_stream.write((const char *)&n_vocab, sizeof(n_vocab));
+         logits_stream.write((const char *)&n_chunk, sizeof(n_chunk));
++        if (getenv("LLAMA_KL_FIRST") && *getenv("LLAMA_KL_FIRST")) {
++            const int32_t kl_first = kl_first_env(n_ctx);
++            logits_stream.write((const char *)&kl_first, sizeof(kl_first));
++        }
+         logits_stream.write((const char *)tokens.data(), n_chunk*n_ctx*sizeof(tokens[0]));
+         const int nv = 2*((n_vocab + 1)/2) + 4;
+-        log_probs.resize(size_t(n_ctx) * nv);
++        log_probs.resize(size_t(n_ctx - 1 - kl_first_env(n_ctx)) * nv);   // the scored rows, not the whole context
+     }
+ 
+     // We get the logits for all the tokens in the context window (params.n_ctx)
+@@ -537,7 +557,7 @@ static results_perplexity perplexity(llama_context * ctx, const common_params &
+     // Example, we have a context window of 512, we will compute perplexity for each of the
+     // last 256 tokens.  Then, we split the input up into context window size chunks to
+     // process the entire prompt.
+-    const int first = n_ctx/2;
++    const int first = kl_first_env(n_ctx);
+ 
+     for (int i = 0; i < n_chunk; i += n_seq) {
+         const int start =     i * n_ctx;
+@@ -1685,10 +1705,12 @@ static void kl_divergence(llama_context * ctx, const common_params & params) {
+         LOG_ERR("%s: failed to open %s\n", __func__, params.logits_file.c_str());
+         return;
+     }
++    bool has_first = false;
+     {
+         char check[9]; check[8] = 0;
+         in.read(check, 8);
+-        if (in.fail() || strncmp("_logits_", check, 8) != 0) {
++        has_first = strncmp("_logitsF", check, 8) == 0;
++        if (in.fail() || (strncmp("_logits_", check, 8) != 0 && strncmp("_logitsF", check, 8) != 0)) {
+             LOG_ERR("%s: %s does not look like a file containing log-probabilities\n", __func__, params.logits_file.c_str());
+             return;
+         }
+@@ -1705,8 +1727,12 @@ static void kl_divergence(llama_context * ctx, const common_params & params) {
+     int n_chunk;
+     in.read((char *)&n_vocab, sizeof(n_vocab));
+     in.read((char *)&n_chunk, sizeof(n_chunk));
+-    if (in.fail()) {
+-        LOG_ERR("%s: failed reading n_vocab, n_chunk from %s\n", __func__, params.logits_file.c_str());
++    int32_t kl_first = int32_t(n_ctx/2);
++    if (has_first) {
++        in.read((char *)&kl_first, sizeof(kl_first));
++    }
++    if (in.fail() || kl_first < 1 || kl_first > int32_t(n_ctx) - 2) {
++        LOG_ERR("%s: failed reading n_vocab, n_chunk (and first) from %s\n", __func__, params.logits_file.c_str());
+         return;
+     }
+     if (n_vocab != llama_vocab_n_tokens(vocab)) {
+@@ -1735,12 +1761,12 @@ static void kl_divergence(llama_context * ctx, const common_params & params) {
+ 
+     common_batch batch(ctx);
+ 
+-    std::vector<uint16_t> log_probs_uint16(size_t(n_ctx - 1 - n_ctx/2) * nv);
+-    std::vector<float>    kld_values(size_t(n_ctx - 1 - n_ctx/2)*n_chunk);
+-    std::vector<float> p_diff_values(size_t(n_ctx - 1 - n_ctx/2)*n_chunk);
++    std::vector<uint16_t> log_probs_uint16(size_t(n_ctx - 1 - kl_first) * nv);
++    std::vector<float>    kld_values(size_t(n_ctx - 1 - kl_first)*n_chunk);
++    std::vector<float> p_diff_values(size_t(n_ctx - 1 - kl_first)*n_chunk);
+     std::vector<float> logits;
+     if (num_batches > 1) {
+-        logits.reserve(size_t(n_ctx) * n_vocab);
++        logits.reserve(size_t(n_ctx - kl_first) * n_vocab);
+     }
+ 
+     LOG_INF("%s: computing over %d chunks, n_ctx=%u, batch_size=%d, n_seq=%d\n", __func__, n_chunk, n_ctx, n_batch, n_seq);
+@@ -1769,7 +1795,7 @@ static void kl_divergence(llama_context * ctx, const common_params & params) {
+     auto    kld_ptr =    kld_values.data();
+     auto p_diff_ptr = p_diff_values.data();
+ 
+-    const int first = n_ctx/2;
++    const int first = kl_first;
+ 
+     for (int i = 0; i < n_chunk; i += n_seq) {
+         const int start =     i * n_ctx;

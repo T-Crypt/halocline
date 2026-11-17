@@ -774,6 +774,9 @@ if(NOT _iq_python STREQUAL "")
   halo_cpu_test(NAME convert_tests COMMAND ${_iq_python} -m unittest discover -s tools/convert -p "test_*.py"
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   set_tests_properties(convert_tests PROPERTIES TIMEOUT 300)
+  # the long-context KL-divergence bases (tools/depth_kld): headers, sizes and the per-depth plan, host only
+  halo_cpu_test(NAME depth_kld_tests COMMAND ${_iq_python} -m unittest discover -s tools/depth_kld -p "test_*.py"
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   # the v1 -> v2 file migration on a tiny file
   halo_cpu_test(NAME migration_tests COMMAND ${_iq_python} -m unittest discover -s tools/migrations -p "test_*.py"
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

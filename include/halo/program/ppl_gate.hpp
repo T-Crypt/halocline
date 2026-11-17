@@ -1,9 +1,11 @@
 #pragma once
 // Teacher-forced quality gate against a llama.cpp KL-divergence base (`llama-perplexity --kl-divergence-base`).
 // The base file holds "_logits_", n_ctx (u32), n_vocab, n_chunk (i32), the n_chunk * n_ctx evaluation tokens, then
-// per chunk the n_ctx - 1 - n_ctx/2 scored rows (positions n_ctx/2 .. n_ctx-2), each row two floats (scale, min
-// log-prob) and n_vocab log-probs quantized to uint16 over [min, max], padded to an even count.
-// A serve request with `ppl=K` reads chunk K's first half as its prompt and then teacher-forces the rest through
+// per chunk the n_ctx - 1 - first scored rows (positions first .. n_ctx-2, first = n_ctx/2), each row two floats (scale,
+// min log-prob) and n_vocab log-probs quantized to uint16 over [min, max], padded to an even count.
+// A depth base (llama-perplexity with LLAMA_KL_FIRST, tools/depth_kld) starts with "_logitsF" and stores `first` (i32)
+// after n_chunk, so its scored window can sit after a long prefix; the rest of the layout is the same.
+// A serve request with `ppl=K` reads chunk K's first `first` + 1 tokens as its prompt and then teacher-forces the rest through
 // the verify windows; every scored row is compared with the base row here and written as one line to
 // --ppl-out: chunk pos target nll nll_base kld same_top top top_base dlogp_top_base.
 #include "halo/platform/file.hpp"
@@ -33,18 +35,18 @@ public:
         return g;
     }
     bool available() const { return fd_ >= 0 && out_ != nullptr; }
-    int64_t first() const { return n_ctx_ / 2; }
+    int64_t first() const { return first_; }
     int64_t end() const { return n_ctx_ - 1; }   // one past the last scored position
     int32_t token(int64_t pos) const { return tok_[(size_t) pos]; }
 
-    // chunk K's tokens; the request's prompt must be the chunk's first n_ctx/2 + 1 tokens
+    // chunk K's tokens; the request's prompt must be the chunk's first first() + 1 tokens
     bool begin(int chunk, const int64_t* ids, int64_t n, int64_t n_vocab, std::string& err) {
         if (!available()) { err = "ppl: --ppl-base / --ppl-out not set or not readable"; return false; }
         if (n_vocab != n_vocab_) { err = "ppl: the base has another vocabulary size"; return false; }
         if (chunk < 0 || chunk >= n_chunk_) { err = "ppl: chunk out of range"; return false; }
-        if (n != first() + 1) { err = "ppl: the prompt must be the chunk's first n_ctx/2 + 1 tokens"; return false; }
+        if (n != first() + 1) { err = "ppl: the prompt must be the chunk's first " + std::to_string((long long) first() + 1) + " tokens"; return false; }
         tok_.resize((size_t) n_ctx_);
-        if (!read_at(tok_.data(), tok_.size() * 4, 20 + (uint64_t) chunk * n_ctx_ * 4)) {
+        if (!read_at(tok_.data(), tok_.size() * 4, hdr_ + (uint64_t) chunk * n_ctx_ * 4)) {
             err = "ppl: reading the chunk tokens failed";
             return false;
         }
@@ -86,13 +88,23 @@ private:
         char magic[8];
         uint32_t n_ctx = 0;
         int32_t nv[2] = {0, 0};
-        if (fd_ < 0 || !read_at(magic, 8, 0) || std::memcmp(magic, "_logits_", 8) != 0 || !read_at(&n_ctx, 4, 8) ||
-            !read_at(nv, 8, 12) || n_ctx < 4 || nv[0] <= 0 || nv[1] <= 0) {
+        const bool depth = fd_ >= 0 && read_at(magic, 8, 0) && std::memcmp(magic, "_logitsF", 8) == 0;
+        int32_t first = 0;
+        if (fd_ < 0 || !read_at(magic, 8, 0) || (!depth && std::memcmp(magic, "_logits_", 8) != 0) || !read_at(&n_ctx, 4, 8) ||
+            !read_at(nv, 8, 12) || n_ctx < 4 || nv[0] <= 0 || nv[1] <= 0 || (depth && !read_at(&first, 4, 20))) {
             halo::log::error("halo ppl", "%s is not a llama.cpp KL-divergence base", base);
             close_fd();
             return;
         }
+        if (!depth) first = (int32_t) (n_ctx / 2);
+        if (first < 1 || (int64_t) first > (int64_t) n_ctx - 2) {
+            halo::log::error("halo ppl", "%s: scored window start %d is outside 1 .. n_ctx-2 (n_ctx %u)", base, first, n_ctx);
+            close_fd();
+            return;
+        }
         n_ctx_ = n_ctx;
+        first_ = first;
+        hdr_ = depth ? 24 : 20;
         n_vocab_ = nv[0];
         n_chunk_ = nv[1];
         row_u16_ = 2 * ((n_vocab_ + 1) / 2) + 4;
@@ -125,7 +137,7 @@ private:
     // the same arithmetic as llama-perplexity's KL-divergence pass
     bool row(int64_t pos, const std::vector<float>& lg) {
         const int64_t r = pos - first(), rows = n_ctx_ - 1 - first();
-        const uint64_t off = 20 + (uint64_t) n_chunk_ * n_ctx_ * 4 +
+        const uint64_t off = hdr_ + (uint64_t) n_chunk_ * n_ctx_ * 4 +
                              ((uint64_t) chunk_ * rows + (uint64_t) r) * (uint64_t) row_u16_ * 2;
         base_.resize((size_t) row_u16_);
         if (!read_at(base_.data(), base_.size() * 2, off)) return false;
@@ -160,7 +172,8 @@ private:
 
     int fd_ = -1;
     std::FILE* out_ = nullptr;
-    int64_t n_ctx_ = 0, n_vocab_ = 0, n_chunk_ = 0, row_u16_ = 0;
+    int64_t n_ctx_ = 0, n_vocab_ = 0, n_chunk_ = 0, row_u16_ = 0, first_ = 0;
+    uint64_t hdr_ = 20;   // bytes before the tokens: 24 in a depth base
     int chunk_ = -1;
     std::vector<int32_t> tok_;
     std::vector<uint16_t> base_;

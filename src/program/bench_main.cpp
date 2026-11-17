@@ -621,13 +621,24 @@ void summarize_rows(const std::string& path, Quality& q) {
     q.ran = true;
 }
 
-bool read_kld_base(const std::string& path, uint32_t& n_ctx, int32_t& n_vocab, int32_t& n_chunk,
+// `first`: the scored window's start, n_ctx/2 in a llama.cpp base, stored after n_chunk in a depth base ("_logitsF")
+bool read_kld_base(const std::string& path, uint32_t& n_ctx, int32_t& n_vocab, int32_t& n_chunk, int32_t& first,
                    std::vector<std::vector<int64_t>>& chunks, long long want, std::string& err) {
     std::ifstream f(path, std::ios::binary);
     char magic[8];
-    if (!f.read(magic, 8) || std::memcmp(magic, "_logits_", 8) != 0) { err = path + ": not a KL-divergence base"; return false; }
-    if (!f.read((char*) &n_ctx, 4) || !f.read((char*) &n_vocab, 4) || !f.read((char*) &n_chunk, 4) || n_ctx < 4 || n_chunk < 1) {
+    if (!f.read(magic, 8) || (std::memcmp(magic, "_logits_", 8) != 0 && std::memcmp(magic, "_logitsF", 8) != 0)) {
+        err = path + ": not a KL-divergence base";
+        return false;
+    }
+    const bool depth = std::memcmp(magic, "_logitsF", 8) == 0;
+    if (!f.read((char*) &n_ctx, 4) || !f.read((char*) &n_vocab, 4) || !f.read((char*) &n_chunk, 4) || n_ctx < 4 || n_chunk < 1 ||
+        (depth && !f.read((char*) &first, 4))) {
         err = path + ": truncated header";
+        return false;
+    }
+    if (!depth) first = (int32_t) (n_ctx / 2);
+    if (first < 1 || (int64_t) first > (int64_t) n_ctx - 2) {
+        err = path + ": scored window start outside 1 .. n_ctx-2";
         return false;
     }
     const long long take = std::min<long long>(want, n_chunk);
@@ -1137,11 +1148,11 @@ int main(int argc, char** argv) {
     // ---- quality session
     if (do_quality) {
         uint32_t n_ctx = 0;
-        int32_t n_vocab = 0, n_chunk = 0;
+        int32_t n_vocab = 0, n_chunk = 0, first_row = 0;
         std::vector<std::vector<int64_t>> chunks;
         quality.t = o.quality_t;
         quality.n_chunks_asked = o.quality_chunks;
-        if (!read_kld_base(o.kld_base, n_ctx, n_vocab, n_chunk, chunks, o.quality_chunks, quality.err)) {
+        if (!read_kld_base(o.kld_base, n_ctx, n_vocab, n_chunk, first_row, chunks, o.quality_chunks, quality.err)) {
             halo::log::error("halo-bench", "%s", quality.err.c_str());
         } else {
             std::vector<std::string> qa = args;
@@ -1168,7 +1179,7 @@ int main(int argc, char** argv) {
                 if (eng.info.count("lossy")) lossy = eng.info["lossy"];
                 quality.load_s = secs(t0, Clock::now());
                 const auto t1 = Clock::now();
-                const int64_t first = (int64_t) (n_ctx / 2);
+                const int64_t first = first_row;
                 double pp_ms = 0, dec_ms = 0;
                 bool ok = true;
                 for (size_t k = 0; k < chunks.size(); ++k) {

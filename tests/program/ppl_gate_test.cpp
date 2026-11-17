@@ -1,8 +1,11 @@
 // tests/program/ppl_gate_test.cpp - the quality gate over a small base file: its shape checks, and the row of a chunk it reads.
+// Run plain it reads a llama.cpp base ("_logits_", scored from n_ctx/2); with the argument `depth` it reads a depth base
+// ("_logitsF", scored from kDepthFirst). PplGate is one per process, so the plain run starts the depth run as a child.
 #include "halo/platform/system.hpp"
 #include "halo/program/ppl_gate.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -15,8 +18,8 @@ static int g_fail = 0;
 #define CHECK(c) do { if (!(c)) { std::printf("FAIL line %d: %s\n", __LINE__, #c); ++g_fail; } } while (0)
 
 // Odd vocabulary, so a row carries its padding. Each row's log-probs are a normalized ramp that depends on the chunk and the row.
-constexpr int kCtx = 8, kVocab = 7, kChunks = 2;
-constexpr int kRows = kCtx - 1 - kCtx / 2;
+constexpr int kCtx = 8, kVocab = 7, kChunks = 2, kDepthFirst = 3;   // != kCtx / 2, so a reader that assumes the middle fails
+static int g_first = kCtx / 2;   // the scored window's start of the base this run writes
 
 static float base_lp(int chunk, int row, int i) {
     double sum = 0.0;
@@ -24,14 +27,16 @@ static float base_lp(int chunk, int row, int i) {
     return (float) (-0.5 * ((i + chunk + row) % kVocab) - std::log(sum));
 }
 
-static void write_base(const std::string& path) {
+static void write_base(const std::string& path, bool depth) {
     std::ofstream f(path, std::ios::binary);
-    f.write("_logits_", 8);
+    f.write(depth ? "_logitsF" : "_logits_", 8);
     const uint32_t ctx = kCtx;
-    const int32_t v = kVocab, c = kChunks;
+    const int32_t v = kVocab, c = kChunks, first = g_first;
     f.write((const char*) &ctx, 4);
     f.write((const char*) &v, 4);
     f.write((const char*) &c, 4);
+    if (depth) f.write((const char*) &first, 4);
+    const int kRows = kCtx - 1 - g_first;
     for (int k = 0; k < kChunks; ++k)
         for (int i = 0; i < kCtx; ++i) {
             const int32_t t = (k * 3 + i) % kVocab;
@@ -49,19 +54,22 @@ static void write_base(const std::string& path) {
         }
 }
 
-int main() {
-    const auto dir = std::filesystem::temp_directory_path() / ("halo-ppl-gate-" + std::to_string((long long) halo::platform::process_id()));
+int main(int argc, char** argv) {
+    const bool depth = argc > 1 && std::string(argv[1]) == "depth";
+    if (depth) g_first = kDepthFirst;
+    const auto dir = std::filesystem::temp_directory_path() /
+                     ("halo-ppl-gate-" + std::string(depth ? "depth-" : "") + std::to_string((long long) halo::platform::process_id()));
     std::filesystem::create_directories(dir);
     const std::string base = (dir / "base.kld").string(), out = (dir / "rows.tsv").string();
-    write_base(base);
+    write_base(base, depth);
     PplGate::configure(base, out);
     PplGate& g = PplGate::get();
     CHECK(g.available());
-    CHECK(g.first() == kCtx / 2);
+    CHECK(g.first() == g_first);
     CHECK(g.end() == kCtx - 1);
 
     std::vector<int64_t> prompt;
-    for (int i = 0; i <= kCtx / 2; ++i) prompt.push_back((3 + i) % kVocab);   // chunk 1's first half
+    for (int i = 0; i <= g_first; ++i) prompt.push_back((3 + i) % kVocab);   // chunk 1's tokens before the scored window
     std::string err;
     CHECK(!g.begin(1, prompt.data(), (int64_t) prompt.size(), kVocab + 1, err));          // another vocabulary
     CHECK(!g.begin(kChunks, prompt.data(), (int64_t) prompt.size(), kVocab, err));        // no such chunk
@@ -92,7 +100,7 @@ int main() {
     CHECK(got.size() == 2);
     if (got.size() == 2) {
         CHECK(got[0][0] == "1");
-        CHECK(got[0][1] == std::to_string(kCtx / 2 + 2));
+        CHECK(got[0][1] == std::to_string(g_first + 2));
         CHECK(std::atof(got[0][4].c_str()) > 0.0);
         const double same = std::atof(got[0][5].c_str()), moved = std::atof(got[1][5].c_str());
         CHECK(std::fabs(same) < 2e-2);
@@ -101,6 +109,10 @@ int main() {
     }
     std::error_code ec;
     std::filesystem::remove_all(dir, ec);
-    if (g_fail == 0) std::printf("ppl_gate_test OK\n");
+    if (!depth) {   // the same checks over a depth base, in a process of its own
+        const int rc = std::system(("\"" + std::string(argv[0]) + "\" depth").c_str());
+        CHECK(rc == 0);
+    }
+    if (g_fail == 0) std::printf("ppl_gate_test%s OK\n", depth ? " (depth base)" : "");
     return g_fail == 0 ? 0 : 1;
 }
