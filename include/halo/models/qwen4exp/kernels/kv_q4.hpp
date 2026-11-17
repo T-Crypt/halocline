@@ -7,38 +7,31 @@
 // <Hq, Hk> = <q, k> and the scores are unchanged, and the attention output (a mix of rotated values) is rotated
 // back with H (self-inverse). What is lossy is the 4-bit rounding itself, so check quality before using it.
 //
+// The block, its quantizer and the rotation live in halo/kernels/kv_q4_layout.hpp, shared with the dense path's 4-bit
+// KV formats (`--kv k8v4`, and rotated 4-bit K and V): one quantizer serves both, so a block written here and a block
+// written there are the same bytes.
+//
 // With KV streaming (--kv-resident) the codes live in the host copy and the resident slots like INT8's (KvHostPools
 // k_q4/v_q4, the same block granule), so both options combine.
 #pragma once
 
+#include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/models/qwen4exp/kernels/qsa.hpp"
 
 #include <cstdint>
 
 namespace halo::kernels {
 
-inline constexpr int QK4_0 = 32;
-
-#pragma pack(push, 1)
-struct block_q4_0 {
-    uint16_t d;             // scale (fp16 bits)
-    uint8_t qs[QK4_0 / 2];  // 32 4-bit codes: element j in the low nibble of qs[j], j + 16 in the high one
-};
-#pragma pack(pop)
-
-static_assert(sizeof(block_q4_0) == 18, "block_q4_0 must be 18 bytes");
+inline constexpr int QK4_0 = kKvQ4Block;
+using block_q4_0 = KvQ4Block;
 
 /// Bytes per cell and KV head: 8 blocks of 32 for head_dim 256 -> 144.
-inline uint64_t kv_q4_bytes_per_head(int head_dim) { return (uint64_t) (head_dim / QK4_0) * sizeof(block_q4_0); }
+inline uint64_t kv_q4_bytes_per_head(int head_dim) { return kv_q4_head_bytes(head_dim); }
 
 /// Bytes per cell (one token, one layer): K and V of every KV head.
 inline uint64_t kv_q4_bytes_per_cell(const QsaShapes& s) {
     return (uint64_t) s.n_head_kv * kv_q4_bytes_per_head((int) s.head_dim) * 2;
 }
-
-/// Orthonormal Fast Walsh-Hadamard Transform of rows of 256 floats (scale 1/16): its own inverse.
-void fwht256_cuda(const float* src, float* dst, int64_t n_rows, void* stream);
-inline void fwht256_inplace_cuda(float* data, int64_t n_rows, void* stream) { fwht256_cuda(data, data, n_rows, stream); }
 
 /// Append the (already rotated) cell at step[kStepPos]. With a host copy (KV streaming) it is written there too,
 /// and to VRAM only if its block is resident.

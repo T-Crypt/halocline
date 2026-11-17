@@ -1,5 +1,6 @@
 // src/models/qwen4exp/kernels/kv_q4.cu - see include/halo/models/qwen4exp/kernels/kv_q4.hpp. Q4_0 KV with Walsh-Hadamard rotation
-// (with KV-streaming integration and a deterministic group maximum).
+// (with KV-streaming integration and a deterministic group maximum). The block, its quantizer and the rotation are in
+// halo/kernels/kv_q4_layout.hpp, shared with the dense path's 4-bit KV formats.
 #include "halo/models/qwen4exp/kernels/kv_q4.hpp"
 #include "halo/kernels/f16_bits.hpp"
 #include "halo/models/qwen4exp/kernels/kv_stream.hpp"
@@ -21,76 +22,6 @@ void check(const char* what) {
     }
 }
 
-// Fast Walsh-Hadamard Transform for N = 256: one warp per row, 8 values per lane in registers.
-// Orthonormal (scale 1/sqrt(256) = 1/16), so it is its own inverse.
-__global__ void fwht256_kernel(const float* __restrict__ src, float* __restrict__ dst, int64_t n_rows, float scale) {
-    constexpr int warp_size = 32;
-    constexpr int N = 256;
-    constexpr int el_w = N / warp_size;   // 8
-
-    const int64_t r = (int64_t) blockIdx.x * blockDim.y + threadIdx.y;
-    if (r >= n_rows) return;
-
-    const float* row_src = src + r * N;
-    float* row_dst = dst + r * N;
-
-    float reg[el_w];
-    const int lane = threadIdx.x;
-
-#pragma unroll
-    for (int i = 0; i < el_w; ++i) reg[i] = row_src[i * warp_size + lane] * scale;
-
-    // the low 5 index bits live across lanes
-#pragma unroll
-    for (int h = 1; h < warp_size; h *= 2) {
-#pragma unroll
-        for (int j = 0; j < el_w; ++j) {
-            const float val = reg[j];
-            const float val2 = __shfl_xor_sync(0xffffffffu, val, h, warp_size);
-            reg[j] = (lane & h) == 0 ? val + val2 : val2 - val;
-        }
-    }
-    // the high 3 bits across each lane's registers
-#pragma unroll
-    for (int h = warp_size; h < N; h *= 2) {
-        const int step = h / warp_size;
-#pragma unroll
-        for (int j = 0; j < el_w; j += 2 * step) {
-#pragma unroll
-            for (int k = 0; k < step; ++k) {
-                const float x = reg[j + k];
-                const float y = reg[j + k + step];
-                reg[j + k] = x + y;
-                reg[j + k + step] = x - y;
-            }
-        }
-    }
-#pragma unroll
-    for (int i = 0; i < el_w; ++i) row_dst[i * warp_size + lane] = reg[i];
-}
-
-// One 32-value group in one warp (lane = element), ggml's q4_0: d = (the value of largest |x|) / -8,
-// q = clamp(trunc(x / d + 8.5), 0, 15). Returns the scale bits; `byte` is lane t's packed byte for t < 16
-// (element t in the low nibble, t + 16 in the high one). Ties in |x| resolve to the larger value in EVERY lane,
-// so all lanes agree on d (a plain `a > amax` could leave lanes with opposite signs and one block two scales).
-__device__ __forceinline__ uint16_t q4_group(float x, int lane, uint8_t& byte) {
-    float amax = fabsf(x), mval = x;
-#pragma unroll
-    for (int o = 16; o > 0; o >>= 1) {
-        const float a = __shfl_xor_sync(0xffffffffu, amax, o);
-        const float v = __shfl_xor_sync(0xffffffffu, mval, o);
-        if (a > amax || (a == amax && v > mval)) { amax = a; mval = v; }
-    }
-    const float d = mval / -8.0f;
-    const float id = d != 0.0f ? 1.0f / d : 0.0f;
-    int q = __float2int_rz(x * id + 8.5f);
-    const uint8_t qc = (uint8_t) (q < 0 ? 0 : (q > 15 ? 15 : q));
-    const uint8_t qhi = __shfl_down_sync(0xffffffffu, qc, 16);
-    byte = (uint8_t) (qc | (qhi << 4));
-    (void) lane;
-    return f16_from_f32(d);
-}
-
 __device__ __forceinline__ void q4_store(uint8_t* pool, long long row, int b, int lane, uint16_t d, uint8_t byte) {
     block_q4_0* blk = reinterpret_cast<block_q4_0*>(pool + row * (long long) sizeof(block_q4_0) * 8) + b;
     if (lane == 0) blk->d = d;
@@ -108,7 +39,7 @@ __global__ void kv_append_q4_kernel(uint8_t* __restrict__ k_q4, uint8_t* __restr
     const bool is_v = blockIdx.z == 1;
     const float x = (is_v ? vcur : kcur)[h * head_dim + b * QK4_0 + t];
     uint8_t byte;
-    const uint16_t d = q4_group(x, t, byte);
+    const uint16_t d = kv_q4_group(x, byte);
     const long long page = (long long) table[pos / page_size];
     if (page >= 0) q4_store(is_v ? v_q4 : k_q4, (page * kv_heads + h) * page_size + (pos % page_size), b, t, d, byte);
     if (host.k_q4 != nullptr)
@@ -128,7 +59,7 @@ __global__ void kv_append_q4_batch_kernel(uint8_t* __restrict__ k_q4, uint8_t* _
     const bool is_v = is_v_grid != 0;
     const float x = (is_v ? V : K)[t * (kv_heads * head_dim) + h * head_dim + b * QK4_0 + th];
     uint8_t byte;
-    const uint16_t d = q4_group(x, th, byte);
+    const uint16_t d = kv_q4_group(x, byte);
     const long long page = (long long) table[pos / page_size];
     const long long row_id = ((pos / page_size) * kv_heads + h) * page_size + (pos % page_size);
     if (page >= 0) q4_store(is_v ? v_q4 : k_q4, (page * kv_heads + h) * page_size + (pos % page_size), b, th, d, byte);
@@ -181,15 +112,6 @@ void need_256(const QsaShapes& s, const char* what) {
 }
 
 }  // namespace
-
-void fwht256_cuda(const float* src, float* dst, int64_t n_rows, void* stream) {
-    if (n_rows <= 0) return;
-    const int rows_per_block = 4;
-    const int64_t num_blocks = (n_rows + rows_per_block - 1) / rows_per_block;
-    fwht256_kernel<<<dim3((unsigned) num_blocks), dim3(32, rows_per_block), 0, (cudaStream_t) stream>>>(
-        src, dst, n_rows, 1.0f / 16.0f);
-    check("fwht256 launch");
-}
 
 void kv_append_q4_step(uint8_t* k_q4, uint8_t* v_q4, const int32_t* page_table, const int32_t* step,
                        const float* kcur, const float* vcur, const QsaShapes& s, void* stream,
