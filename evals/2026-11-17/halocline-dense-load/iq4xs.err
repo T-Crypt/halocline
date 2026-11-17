@@ -1,0 +1,8 @@
+berth: granted halocline-dense-load-157
+halo: gpu: RTX 4090 (nvidia-smi 0)
+halo load: total 13990905856
+halo load: plan cuda0 13990905856
+halo qwen35: 817 tensors, 12.87 GiB on the GPU, 0.51 GiB of embedding in page-locked RAM; 10.34 GiB free
+halo generate: batched prefill 27 tokens in 41 ms
+halo generate: prompt 67 ms, 96 tokens in 1853 ms
+halo generate: windows 34 of 2.79 tokens: 61 of 510 drafts accepted, 0 picks differ from the oracle; draft 27.59 ms, verify 26.91 ms per window

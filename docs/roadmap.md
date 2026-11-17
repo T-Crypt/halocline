@@ -1,18 +1,22 @@
 # Roadmap and open work
 
 The engine has two paths. The sparse path runs Qwen3.8-Flash-Next today. The dense path is for Qwen3.8-27B now and
-Qwen4-27B later. Its code exists; no real pack has been through it.
+Qwen4-27B later. Since 2026-11-17 it loads Unsloth's UD GGUFs losslessly and runs: at llama.cpp parity on KLD for the
+same weights, above the NInfer prefill floor. It does not reach 262K context yet (D8).
 
 The dense goal, set by the maintainer on 2026-11-17: **Qwen3.8-27B on Unsloth's v3.1 GGUF quants only, held to the same
 gates as the sparse path, with lower KLD to BF16 and better output quality than NInfer and llama.cpp on the same card.**
+Added the same day: **262,144 tokens of context is a hard requirement, with MTP and vision**, the highest-quality UD quant
+that fits with it, and no loss of speed against NInfer anywhere. A 4-bit quant only for a measured reason.
 
 Status:
 
 | Area | State |
 |---|---|
 | Sparse path (Flash-Next) | runs, gated, served through llama-swap |
-| Dense path (27B) | adapter, shared dense stack and session state written; converter reads NVFP4 checkpoints only; no GGUF pack path; no pack built or loaded; both 27B tests skip without one |
-| Dense vs NInfer / llama.cpp | not measured; no 27B run exists |
+| Dense path (27B) | D2-D4 and D6 done on UD-IQ4_XS and UD-Q4_K_XL, vision packs built; 262K does not fit with the KV formats the dense path has (D8) |
+| Dense vs llama.cpp | parity on KLD for the same GGUF; better than llama.cpp at the same 8-bit KV precision (D4) |
+| Dense vs NInfer | prefill above its floor; decode near it; KLD and the like-for-like smoke not measured (D7) |
 | Qwen4-Flash / Qwen4-27B | target only; weights are not public |
 | Task-level eval | not started |
 | Sampling, long-context KLD, Strata KLD | not measured |
@@ -36,12 +40,27 @@ away Unsloth's imatrix allocation. The NVFP4 converter stays in the tree as a to
 This closes BUILD_SPEC §11.1 in the direction the spec already chose: repack, do not requantize. The work it implies is
 the qwen35 branch of the GGUF converter, which does not exist today.
 
-### D2: build and prove both packs
+### Measured state (2026-11-17)
+
+Evidence: `evals/2026-11-17/halocline-dense-load` and `evals/2026-11-17/halocline-dense-quality`. Base PPL 6.7411.
+
+| Arm | Weights | KV | Mean KLD | Top-1 | Prefill 36K |
+|---|---|---|---|---|---|
+| Halocline | UD-Q4_K_XL | int8 | 0.00582 | 96.67% | 3,234 t/s |
+| llama.cpp `2cbe0ec` | UD-Q4_K_XL | f16 | 0.00573 ± 0.00023 | 96.54% | |
+| Halocline | UD-IQ4_XS | int8 | 0.01618 | 94.31% | 3,383 t/s |
+| llama.cpp `2cbe0ec` | UD-IQ4_XS | q8_0 / f16 | 0.01638 / 0.01614 | 94.35% / 94.34% | |
+
+UD-Q4_K_XL is 2.8 times better than UD-IQ4_XS on mean KLD. Decode with MTP (`--spec 8`, sampled fixtures): IQ4_XS conv
+113, prose 98 tok/s on native mmvq (96 / 77 on MMQ alone). mmvq costs +0.00015 mean KLD [+0.00005, +0.00025]
+(fp16 activation scales); closing that gap is item Q2 below.
+
+### D2: build and prove both packs (done 2026-11-17)
 
 Write the qwen35 GGUF path, then convert both quants. Accept: every tensor's dequantized values match the GGUF bit for
 bit (the converter's manifest hash per tensor), the load prints no warnings, and the pack fits with the chosen KV.
 
-### D3: first load
+### D3: first load (done 2026-11-17, both quants; embedding kept in its GGUF type, 0.51 / 0.67 GiB)
 
 Serve it with one prompt. Accept: all layers on the card, the token embedding in page-locked RAM (2.4 GiB), coherent
 output, no CUDA error.
@@ -59,10 +78,54 @@ Same fixtures and protocol as the sparse path, one repetition per arm, power lim
 112 tok/s short decode, 118 at 36K, 93 at 137K; prompt 3,215 at 36K. Accept: the dense profile passes the floors with
 the KV choice from D4.
 
-### D6: identity and state
+### D6: identity and state (state round trip done 2026-11-17 on the real pack; build-to-build identity open)
 
 Greedy identity across the last two builds, and `qwen35_checkpoint_round_trip` with the real pack. Accept: 900 of 900
 tokens and a state round trip that reproduces bytes.
+
+### D8: 262K context, MTP and vision on one card (open, the next engine job)
+
+Measured with the engine's own planner, vision packs, `--spec 8` (`evals/2026-11-17/halocline-dense-quality`):
+262,144 cells need 11,830 MiB at int8 KV (8,448 of it the KV, 1,024 the MTP drafter's fp16 KV, the rest state and
+workspace). Free after the weights: 10,589 MiB on UD-IQ4_XS, 7,597 on UD-Q4_K_XL. **Neither quant fits 262K today.**
+Q5 quants cannot fit it on 24 GB at any KV precision that keeps quality (UD-Q5_K_XL is 19.5 GiB).
+
+The work, in order:
+
+1. **K8V4 and 4-bit KV in the dense GQA kernels.** The dense kernels (`gqa_decode_attn`, `gqa_prompt_attn`, the
+   cache write in `attn_qk_prepare`) take fp16 and int8 only; the sparse path's K8V4 and rotated Q4_0 live in its own QSA
+   kernels (`src/models/qwen4exp/kernels/kv_q4.cu`). Port the rotation and quantizers, add the K8V4 and 4-bit variants,
+   CPU-reference parity tests, the planner's `cell_bytes`, snapshots. A Hadamard rotation of V commutes with attention
+   (the output is rotated back once per head), so V costs one transform per row. Research: QuaRot (arXiv 2404.00456)
+   for rotation before 4-bit KV; KIVI (2402.02750) and KVQuant (2401.18079) for keys needing per-channel treatment and
+   values tolerating per-token groups.
+2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
+   The drafter indexes cells by absolute position today.
+3. **Choose the 262K profile by KLD at depth** (P0 item 3): UD-IQ4_XS + K8V4 (fits with ~1.6 GiB spare) against
+   UD-Q4_K_XL + 4-bit K and V (~0.5 GiB spare). Short-context KLD favours Q4_K_XL by 2.8x; the 4-bit KV error grows with
+   depth, so only the long-context gate decides. **If K8V4 or 4-bit KV wins at depth, it becomes the dense default and
+   this item stays open until the profile ships.**
+
+Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
+
+### Dense quality levers (each A/B'd on the 100-chunk gate with a paired interval; keep what wins)
+
+- **Q1, FP32 residual stream.** The dense residual is BF16 (`src/dense/internal.hpp`), rounded about 128 times through
+  64 layers; llama.cpp keeps it in FP32. Mixed Precision Training (arXiv 1710.03740) and Revisiting BFloat16 Training
+  (2010.06192) show the loss of BF16 accumulation with nearest rounding. Parity with llama.cpp says the cost is small;
+  the A/B says how small.
+- **Q2, decode GEMV without fp16 activation scales,** or with no activation quantization (W4A16: decode is bandwidth
+  bound, so dequantizing in registers costs ALU, not bytes). LLM.int8() (2208.07339) and SmoothQuant (2211.10438) show
+  activation outliers are what int8 activations lose on at this scale.
+- **Q3, exact Q8_0 GDN gates.** `ssm_alpha`/`ssm_beta` are rounded to BF16 at load (the one step that is not lossless).
+  Run them as Q8_0 products and gate after.
+- **Q4, upstream llama.cpp.** The vendored ggml/MMQ/MMVQ base is `3cf03257f` (2026-09-20), 1,431 commits behind master on
+  2026-11-17. Port with the GPU suite and the gate after each: #31247 (Q8_1 correction sum), #29953 (MMQ out-of-bounds
+  reads), #29683 (IQ4_NL short rows), #31533 (few-row MMQ for 2-24 rows: the 6-16 row verify windows), #30517 (faster
+  MMVQ for low-bit types), #29948 (fused gate/up and GLU in MMQ), #29353 (chunked GDN). Open upstream, to watch: #31802
+  (fused q8_0/q4_0/FP8 KV dequant in MMA flash attention), #31669 (GDN replay for MTP), #31634 (ordered GDN), #32454
+  (NORM+MUL fusion), #32374 (64-bit MMQ offsets). Upstream #32102 merges qwen3.5 tensors on convert, so a future
+  Unsloth GGUF may carry merged tensors: the converter must map or refuse them.
 
 ### D7: beat NInfer and llama.cpp on quality
 
@@ -129,5 +192,6 @@ Then the order is P1 again: pack, load, KLD, speed, identity, task gate.
 
 ## Order of work
 
-D1 is decided, so D2 starts now. P0 runs in parallel because it needs the card, not a converter. D7 needs D3 to D5
+D1-D4 and the D6 round trip are done (2026-11-17). Next: D8 (262K), then D5 against NInfer like for like, D7, and
+the levers Q1-Q4. P0 runs in parallel because it needs the card, not a converter. D7 needs D3 to D5
 first; P2 starts once the dense pack loads, so the task gate measures a model that runs. P3 waits on Qwen.

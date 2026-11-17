@@ -1,0 +1,6 @@
+berth: granted halocline-dense-fit-166
+halo: gpu: RTX 4090 (nvidia-smi 0)
+halo load: total 13990905856
+halo load: plan cuda0 13990905856
+halo qwen35: 817 tensors, 12.87 GiB on the GPU, 0.51 GiB of embedding in page-locked RAM; 10.34 GiB free
+halo: error: qwen35: 1 session(s) of 262144 cells need 11830 MiB, 10589 MiB are free; lower --max-context or --parallel

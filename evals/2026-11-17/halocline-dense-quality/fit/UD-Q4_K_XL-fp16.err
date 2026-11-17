@@ -1,0 +1,7 @@
+berth: waiting: next in line: waiting for halocline-dense-fit [foreground, pinned, releasing] to free memory
+berth: granted halocline-dense-fit-169
+halo: gpu: RTX 4090 (nvidia-smi 0)
+halo load: total 17297401856
+halo load: plan cuda0 17297401856
+halo qwen35: 817 tensors, 15.79 GiB on the GPU, 0.67 GiB of embedding in page-locked RAM; 7.42 GiB free
+halo: error: qwen35: 1 session(s) of 262144 cells need 19766 MiB, 7597 MiB are free; lower --max-context or --parallel

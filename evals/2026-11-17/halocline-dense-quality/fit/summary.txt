@@ -1,0 +1,4 @@
+UD-IQ4_XS int8 rc=1
+UD-IQ4_XS fp16 rc=1
+UD-Q4_K_XL int8 rc=1
+UD-Q4_K_XL fp16 rc=1

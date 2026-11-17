@@ -10,9 +10,11 @@ What runs today, what each gate proves, and what is still missing. The method pa
 | Build | the tree compiles for sm_89 with no warnings | `cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=89 && ninja -C build` | 728 targets, clean |
 | SASS per object and per function | device code the change does not target is byte-identical | `tools/sass_gate.py`, hashes in `gates/` | 101 objects, 2,724 functions |
 | CPU suite | host logic, formats, tokenizers, planning | `ctest -L cpu -j 16` | 86 of 86 |
-| GPU suite | kernels and their parity tests against CPU or double references | `ctest -L gpu -j 1` under a GPU lease | 122 of 122, 7 skips on sm_89 |
+| GPU suite | kernels and their parity tests against CPU or double references | `ctest -L gpu -j 1` under a GPU lease | 122 of 122; with `HALO_QWEN35_PACK` set the 27B round trip runs too |
 | Python server suite | request parsing, streaming, tools, config, images | `python -m unittest discover -s serve/tests -t .` | 1,079 OK, 3 skips |
-| KLD gate | output distribution against the frozen BF16 base | `halo-bench --quality 100 --kld-base ...` | mean 0.08195, top-1 90.45% |
+| KLD gate, sparse | output distribution against the frozen BF16 base | `halo-bench --quality 100 --kld-base ...` | mean 0.08195, top-1 90.45% |
+| KLD gate, dense | the same, against `qwen38-27b-bf16-base.kld` | the same | UD-Q4_K_XL 0.00582 / 96.67%; UD-IQ4_XS 0.01618 / 94.31% (int8 KV) |
+| Dense state round trip | a saved session restores to the same bytes and tokens | `qwen35_checkpoint_round_trip` with `HALO_QWEN35_PACK` | passes on the UD-IQ4_XS pack, plain and with the drafter |
 | Greedy identity | a change that must not alter output does not | `tools/greedy_identity.py REF NEW --model PACK` | 900 of 900 tokens, pre-removal build to published build |
 | Smoke | the served model answers, streams, calls a tool, and retrieves at 36K and 137K | `lsw.py smoke --long` through llama-swap | all checks pass |
 
@@ -25,7 +27,7 @@ Each row is a gate that is missing or has been run once. "Blocks" says what cann
 
 | Gate | Why it matters | Acceptance | Blocks |
 |---|---|---|---|
-| Dense 27B load, KLD, identity, speed | the engine has a second path; the adapter and dense stack exist and nothing has run a real pack | pack converts losslessly from Unsloth's GGUF, 100-chunk KLD against `qwen38-27b-bf16-base.kld`, greedy identity, decode above the 112 tok/s dense floor | any dense claim, the sparse/dense comparison, the NInfer/llama.cpp comparison |
+| Dense 262K, identity, speed | load, KLD and state passed on 2026-11-17; 262K does not fit with fp16/int8 KV (roadmap D8), build-to-build identity and the like-for-like NInfer smoke have not run | a 262K load with MTP and vision, greedy identity across two builds, `lsw.py smoke --long` above the NInfer floors | the claim that dense replaces NInfer |
 | Varying-context KLD | the gate scores 512-token chunks with a 256-token prefill, so KV error at depth is invisible | KLD of scored windows at 64K, 137K and 200K of context, per KV format, against the same base | the claim that int8 KV holds up at 262K, beyond needle retrieval |
 | Sampling distribution | greedy identity says nothing about the sampler under temperature | seeded sampling, N runs per prompt, top-1 and top-10 frequency within the run-to-run interval of the reference build | "sampling is unchanged" |
 | Task suite (SWE-bench) | KLD does not predict task outcomes near the baseline | fixed subset, fixed scaffold, resolve rate with an interval, recorded per config | any "as good as BF16 on tasks" claim |

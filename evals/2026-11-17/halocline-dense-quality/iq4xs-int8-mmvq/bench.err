@@ -1,0 +1,24 @@
+berth: granted halocline-dense-quality-160
+halo-bench: starting ~/wt/halocline-import/bin/halo (log: ~/wt/halocline-tools/dense-engine/d4/iq4xs-int8-mmvq/engine.log)
+halo-bench: loading 13.0 GiB: cuda0 0.0 / 13.0 GiB
+halo-bench: loading cuda0 13.0 / 13.0 GiB done (2 s)
+halo-bench: engine ready in 3 s
+  run 1 conv    113.3 tok/s, 1012 tokens
+  run 1 struct  178.0 tok/s, 7230 tokens
+  run 1 prose   98.2 tok/s, 1135 tokens
+  run 1 pp16384 16676 tokens, 3574 t/s engine, 3559 t/s wall
+  run 1 pp36864 37485 tokens, 3373 t/s engine, 3366 t/s wall
+halo-bench: starting the engine for the quality gate
+halo-bench: loading 13.0 GiB: cuda0 0.0 / 13.0 GiB
+halo-bench: loading cuda0 13.0 / 13.0 GiB done (2 s)
+halo-bench: engine ready in 3 s
+  quality 10/100 chunks, 53 s
+  quality 20/100 chunks, 106 s
+  quality 30/100 chunks, 159 s
+  quality 40/100 chunks, 213 s
+  quality 50/100 chunks, 266 s
+  quality 60/100 chunks, 319 s
+  quality 70/100 chunks, 372 s
+  quality 80/100 chunks, 425 s
+  quality 90/100 chunks, 478 s
+  quality 100/100 chunks, 531 s

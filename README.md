@@ -4,8 +4,8 @@
 
 <p align="center">
   <b>Halocline: the engine that hides nothing.</b><br>
-  Sparse and dense engines for the Qwen4 family on one NVIDIA Ada GPU (sm_89), a 24 GB RTX 4090. The sparse path runs
-  today; the dense path is in progress ([roadmap](docs/roadmap.md)). Each result names the run directory that produced it.
+  <b>One engine, two paths: sparse and dense.</b> Qwen mixture-of-experts and dense models on one NVIDIA Ada GPU
+  (sm_89), a 24 GB RTX 4090. Each result names the run directory that produced it.
 </p>
 
 <p align="center">
@@ -13,6 +13,26 @@
 </p>
 
 <img src="assets/halocline-divider.svg" width="100%" alt="">
+
+## Two paths
+
+| | **Sparse** | **Dense** |
+|---|---|---|
+| Model | Qwen3.8-Flash-Next: 125B, 6B active, 512 experts | Qwen3.8-27B: 64 layers, no experts (stands in for Qwen4-27B) |
+| How it fits 24 GB | experts that miss the card live in page-locked RAM | every layer on the card; the token embedding in page-locked RAM |
+| Weights | Unsloth UD-IQ4_XS v3.1, repacked | Unsloth UD-Q4_K_XL or UD-IQ4_XS v3.1, every tensor copied as stored |
+| Mean KLD to BF16, top-1 | 0.08195, 90.45% | 0.00582, 96.67% (UD-Q4_K_XL); 0.01618, 94.31% (UD-IQ4_XS) |
+| Against llama.cpp, same GGUF | | at parity: 0.00573 (f16 KV) and 0.01638 (q8_0 KV) |
+| Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS) |
+| Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
+| Context | 262,144, int8 KV | 262,144 does not fit yet: it needs K8V4 or 4-bit KV ([D8](docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job)) |
+| Vision | | packs carry the projector; serving untested |
+| Status | **runs**, served through llama-swap | **runs**, gated; 262K and the NInfer comparison open |
+| Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/) |
+
+Both paths share the build, the pack format, the server and the gates: the same BF16 KLD method, greedy identity, the
+GPU suite. The sparse path trades quality for a model 4.6 times larger; the dense path keeps every weight on the card
+and lands within llama.cpp's error bar on the same quant.
 
 > [!IMPORTANT]
 > **Halocline is for sm_89 (Ada) only, and it is tuned for one machine: [mine](SPECS.md).** The build refuses any compute
@@ -35,11 +55,11 @@ from 4-bit weights, an int8 KV cache and a draft layer, on a single 24 GB card.
 | **Card** | One NVIDIA Ada GPU, compute capability 8.9: an RTX 4090, 24 GB, at 350 W. No other architecture is compiled, now or later. |
 | **Host** | The machine in [SPECS.md](SPECS.md): i9-14900K (AVX2, AVX-VNNI), 64 GB RAM, Arch Linux, CUDA 13.4. |
 | **Models** | The Qwen4 family only. Another architecture belongs in its own fork (`halocline-<family>`). |
-| **Paths** | Sparse (Qwen3.8-Flash-Next: 512 experts, 10 routed plus 1 shared, expert offload) and dense (Qwen3.8-27B: 64 layers, no experts, no router). The sparse path runs; the dense path is in progress. |
+| **Paths** | Sparse (Qwen3.8-Flash-Next: 512 experts, 10 routed plus 1 shared, expert offload) and dense (Qwen3.8-27B: 64 layers, no experts, no router). Both run. |
 | **Sparse** | Qwen3.8-Flash-Next (`qwen4_exp`): 512 experts, 10 active plus 1 shared, QSA sparse attention, gated residual, n-gram embedding, MTP drafter. Experts that do not fit the card live in page-locked RAM. **Runs.** |
-| **Dense** | Qwen3.8-27B, standing in for Qwen4-27B until its weights exist. **Does not run yet.** The plan: Unsloth's v3.1 GGUFs, the same gates as the sparse path, measured against NInfer and llama.cpp ([roadmap](docs/roadmap.md#p1-the-dense-path-qwen38-27b-the-priority)). |
+| **Dense** | Qwen3.8-27B (`qwen35`), standing in for Qwen4-27B until its weights exist: Gated DeltaNet and gated attention (3 to 1), SwiGLU, MTP drafter. Unsloth's v3.1 UD GGUFs repacked with every tensor as stored; the matrices run on llama.cpp's MMQ and MMVQ kernels in their stored types. **Runs.** 262K context is open ([roadmap](docs/roadmap.md#p1-the-dense-path-qwen38-27b-the-priority)). |
 | **Weights** | Unsloth GGUFs, converted to a pack that copies the quantized tensors byte for byte. One interim exception: the 195 `hc_*` tensors (Q8_0 in the GGUF) are cast to BF16. |
-| **API** | OpenAI-compatible chat completions with streaming and tool calls, one request at a time, meant to sit behind [llama-swap](https://github.com/mostlygeek/llama-swap). |
+| **API** | OpenAI chat completions and Responses, Anthropic Messages, streaming and tool calls, one request at a time, meant to sit behind [llama-swap](https://github.com/mostlygeek/llama-swap). No chat UI. |
 
 
 ## The question
@@ -131,7 +151,8 @@ one extra draft step.
 - The weight quant and the KV format are not separated: 0.0820 is the KLD of the whole 4-bit build.
 - 195 `hc_*` tensors (Q8_0 in the GGUF) are cast to BF16 at conversion. That is an interim step, and the KLD numbers
   include it.
-- The dense path (Qwen3.8-27B) does not run yet.
+- The dense path loads its Q8_0 `ssm_alpha`/`ssm_beta` as BF16 (the gating kernels read BF16): the one rounding on that
+  path, at load; the pack holds the GGUF's bytes. Its 262K context is open (roadmap D8).
 
 ## How a change gets in
 
@@ -210,9 +231,9 @@ size does to the expert pool, and what a row records.
 The ordered list, with status, accept criteria and blockers, is in [`docs/roadmap.md`](docs/roadmap.md). The testing that
 is missing is in [`docs/testing.md`](docs/testing.md). The short list:
 
-1. **Dense path (Qwen3.8-27B).** Unsloth's v3.1 GGUFs only, repacked losslessly, then the same gates as the sparse
-   path: KLD against the 27B BF16 base, greedy identity, speed against the dense floors, and a measured comparison
-   against NInfer and llama.cpp. The adapter and dense stack exist; the GGUF converter path and the first pack do not.
+1. **Dense path at 262K (Qwen3.8-27B).** K8V4 and 4-bit KV in the dense attention kernels, the MTP drafter's KV as a
+   ring of its window, then KLD at depth picks UD-IQ4_XS + K8V4 or UD-Q4_K_XL + 4-bit KV. Then the measured comparison
+   against NInfer, like for like through llama-swap.
 2. **Task-level eval.** SWE-bench Lite, one scaffold, the same flags for every arm.
 3. **Gaps in the current gates.** Strata KLD, sampling distribution, KLD at 64K to 200K of context, a broader tool-call
    set.
