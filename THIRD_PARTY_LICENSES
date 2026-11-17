@@ -176,13 +176,14 @@ By Ian Ranson and the Infernix contributors.
 ================================================================================
 
 The dense W4A4 product in src/prefill/fp4_dense.cu adapts Infernix's TMA NVFP4 GEMM (src/ops/linear/nvfp4/nvfp4_a4_tma.cuh,
-nvfp4_schedule.cuh; src/ops/common/mbarrier.cuh, mma.cuh): the mbarrier full/empty tensor-load pipeline, the producer warpgroup
-beside eight consumer warps, the 128 x 256 x 128 block-scaled MMA tile and the tiled activation-scale layout.
+nvfp4_schedule.cuh; src/ops/common/mbarrier.cuh, mma.cuh): the tiled activation-scale layout and the epilogue arithmetic,
+which its sm_89 kernel keeps. (Halocline removed the TMA kernel itself: the mbarrier pipeline, the producer warpgroup and
+the block-scaled MMA tile need compute capability 9.0.)
 
 The FP8 E4M3 prompt-chunk product in src/prefill/fp8_gemm.cu adapts Infernix's fp8_a8_tma_mma_kernel
-(src/ops/linear/fp8/fp8_a8_tma_mma.cuh, fp8_a8_mma_common.cuh, src/ops/common/mbarrier.cuh, mma.cuh): the TMA and
-mbarrier producer/consumer pipeline, the 128x256x128 tile with its warp layout and ping-ponged fragments, the
-block-scaled mma used as the full-rate e4m3 product, and the segmented outputs.
+(src/ops/linear/fp8/fp8_a8_tma_mma.cuh, fp8_a8_mma_common.cuh, src/ops/common/mbarrier.cuh, mma.cuh): the block tile
+with its warp layout, the epilogue arithmetic and the segmented outputs, which its sm_89 kernel keeps. (Halocline removed
+the TMA kernel itself: the mbarrier pipeline and the block-scaled mma need compute capability 9.0.)
 
 The int8 prompt-attention kernel adapts ideas and code from Infernix (src/ops/qsa/qsa_prompt.cu): the
 per-warp 16-cell tiles with one merge, the k-step query ordering, and the exact int8 widening to FP16.

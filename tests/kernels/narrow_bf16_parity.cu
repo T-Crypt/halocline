@@ -113,8 +113,6 @@ int main() {
                 check("e2m1x8 scaled", i, half, g[4 * i + k], a[4 * i + k], e2m1f(w >> (8 * k + 4 * half)) * sc);
     }
 
-    std::printf("%s (%s): %d failures\n", fails ? "FAIL" : "OK",
-                BASALT_CVT_BF16X2_NARROW ? "the direct cvt against the f16 route" : "the f16 route on both sides",
-                fails);
+    std::printf("%s (the 8.9 routes against the host's values): %d failures\n", fails ? "FAIL" : "OK", fails);
     return fails ? 1 : 0;
 }
