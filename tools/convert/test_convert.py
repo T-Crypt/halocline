@@ -612,5 +612,23 @@ class Q6KRequantTest(unittest.TestCase):
             self.assertLess(np.sqrt(((deq - a) ** 2).mean()), 0.03 * a.std())
 
 
+class DefaultNameTest(unittest.TestCase):
+    """A converted pack's name, and so a benchmark row's quant label, comes from the source file's name."""
+
+    def name(self, f):
+        return convert.A.for_architecture("qwen4exp").default_name(f, {"general.name": "Qwen3.8-Flash-Next"})
+
+    def test_sharded_gguf(self):
+        self.assertEqual(self.name("Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf"), "Qwen3.8-Flash-Next UD-IQ4_XS")
+        self.assertEqual(self.name("Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00002.gguf"), "Qwen3.8-Flash-Next UD-Q4_K_XL")
+
+    def test_single_file(self):
+        self.assertEqual(self.name("/tmp/x/Qwen3.8-Flash-Next-UD-IQ4_XS.gguf"), "Qwen3.8-Flash-Next UD-IQ4_XS")
+
+    def test_a_name_without_the_quant_keeps_the_metadata_name(self):
+        self.assertEqual(self.name("Qwen3.8-Flash-Next.gguf"), "Qwen3.8-Flash-Next")
+        self.assertEqual(self.name("noquant.gguf"), "Qwen3.8-Flash-Next")
+
+
 if __name__ == "__main__":
     unittest.main()

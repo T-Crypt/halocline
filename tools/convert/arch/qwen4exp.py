@@ -49,9 +49,15 @@ class Qwen4Exp(Arch):
         return lic
 
     def default_name(self, first_gguf, kv, sections_from=False):
-        if sections_from:
-            return "Qwen3.8-Flash-Next " + Path(first_gguf).name.split("Next-")[-1].split("-0000")[0]
-        return "Qwen3.8-Flash-Next IQ3_XXS"
+        """The model's name from the source file: "Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf" becomes
+        "Qwen3.8-Flash-Next UD-IQ4_XS", so a row's quant label is the file's, not a guess."""
+        name = Path(first_gguf).name
+        tail = name.split("Next-")[-1] if "Next-" in name else ""
+        for sep in ("-00001-of", ".gguf", ".basalt"):
+            tail = tail.split(sep)[0]
+        if tail:
+            return "Qwen3.8-Flash-Next " + tail
+        return kv.get("general.name") or "Qwen3.8-Flash-Next"
 
 
 register(Qwen4Exp())
