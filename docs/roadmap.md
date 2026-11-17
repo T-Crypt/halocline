@@ -103,8 +103,11 @@ The work, in order:
    The drafter indexes cells by absolute position today.
 3. **The quant is UD-Q4_K_XL** (maintainer decision, 2026-11-17: 2.8 times lower KLD than UD-IQ4_XS outweighs context).
    Its context by KV format, with ~4.6 GiB left for KV once the MTP KV is a ring: int8 ~142K, K8V4 ~184K, rotated 4-bit
-   K and V ~261K (262K after a small workspace trim). The long-context KLD gate (P0 item 3) at 64K, 137K and the format's
-   maximum picks the default: 262K on 4-bit K only if it holds KLD at depth, otherwise K8V4 at ~184K. **Whichever KV
+   K and V ~261K (262K after a small workspace trim). **The deciding measurement:** UD-Q4_K_XL with K8V4 at 184K against
+   rotated 4-bit K and V at 262K, on the long-context KLD gate (P0 item 3: windows at 64K, 137K, 184K and, for 4-bit, 261K)
+   and on decode and prefill at 36K, 137K and each format's maximum. The maintainer's preference is K8V4 at ~184K if
+   its decode is on par with the sparse path's served profile and NInfer; 4-bit K at 262K only if the measured KLD
+   difference says it costs nothing that matters. **Whichever KV
    format wins at depth becomes the dense default, and this item stays open until that profile ships.** Until then the
    served profile is UD-Q4_K_XL, int8 KV, 122,880 tokens (the largest that fits with MTP and vision today).
 
