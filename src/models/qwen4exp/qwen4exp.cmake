@@ -72,9 +72,7 @@ add_library(model_qwen4exp_engine STATIC src/models/qwen4exp/decode/layer.cpp sr
   src/models/qwen4exp/decode/verify/expert_execution.cpp
   src/models/qwen4exp/decode/verify/expert_plan.cpp
   src/models/qwen4exp/decode/verify/expert_resources.cpp
-  src/models/qwen4exp/decode/verify/gdn_split.cpp
   src/models/qwen4exp/decode/verify/hc8.cpp
-  src/models/qwen4exp/decode/verify/head_split.cpp
   src/models/qwen4exp/decode/verify/lifecycle.cpp
   src/models/qwen4exp/decode/verify/profile.cpp
   src/models/qwen4exp/decode/verify/projection.cpp

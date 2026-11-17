@@ -41,11 +41,6 @@ bool Verifier::dm_begin(std::string& err, DecodeGaps* gm) {
         pa.n_embd = (int) g_->n_embd; pa.n_ff = (int) basalt::kernels::cpu::expert_layout().fmt[0].n_ff;
         pa.steps = (int) dm_->rings; pa.scratch = dm_->pscr; pa.arrive = dm_->parr; pa.diag_m = dm_->h_w + 32;
         pa.rq = dm_->rq; pa.rs = dm_->rs;
-        if (gs_nk0_ > 0) {
-            pa.mix = gs_mix_; pa.mseq_m = dm_->h_w + 48; pa.mdone_m = dm_->h_w + 52;
-            pa.mxq_m = gs_h_xq_; pa.mxq = gs_pxq_;
-            pa.mx_m = gs_h_x_; pa.mixl = gs_mixl_; pa.part_m = gs_h_part_;
-        }
         if (!basalt::kernels::dec_moe_zero_words(dm_->parr, 16, dm_->ps) ||
             !basalt::kernels::dec_moe_peer_launch(pa, dm_->pblocks, dm_->ps, dm_->pq2)) {
             err = "verify: the peer window did not launch";

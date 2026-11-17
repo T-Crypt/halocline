@@ -50,8 +50,7 @@ int Verifier::head_keep() const {
 }
 
 void Verifier::set_head_keep(int keep) {
-    // the window records the two-stage head only where it ends the model, without the head split
-    const bool on = head_keep_d_ != nullptr && le_ >= g_->n_layers && (hs_rows_ == 0 || hs_two_);
+    const bool on = head_keep_d_ != nullptr;
     head_screened_ = on && keep > 0;
     if (!on || keep == head_keep_set_) return;
     cudaMemsetAsync(head_keep_d_, keep, 1, cs_);   // the low byte: the value is 0..64, the rest of the word is 0
@@ -74,7 +73,7 @@ bool Verifier::exact_head_rows(int T, std::string& err) {
         err = "verify head: the exact pass failed";
         return false;
     }
-    if (head_ == nullptr || !head_->loaded() || head_->type() != 14 || vhead_scratch_ == nullptr || hs_rows_ > 0 ||
+    if (head_ == nullptr || !head_->loaded() || head_->type() != 14 || vhead_scratch_ == nullptr ||
         g_ == nullptr || !q6k_vhead_supported((int) g_->n_embd, (int) n_vocab_, T))
         return true;                         // this window's head was exact
     const OnDevice on_device(device_);

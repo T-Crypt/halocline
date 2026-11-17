@@ -55,7 +55,7 @@ bool Verifier::finisher_on() const {
            fin_blocks_ > 0;
 }
 
-bool Verifier::lazy_on() const { return finisher_on() && dm_ != nullptr && gs_nk0_ == 0 && lz_s_ != nullptr; }
+bool Verifier::lazy_on() const { return finisher_on() && dm_ != nullptr && lz_s_ != nullptr; }
 
 // the stage's GDN layers after its first, the lazy ones
 basalt::kernels::GdnCommitLayers Verifier::commit_gdn_lazy_args() const {
@@ -173,11 +173,6 @@ bool Verifier::commit(int n_keep, std::string& err, int parts) {
         decode_events().record(DecodeEvents::kCommitPre, cm_);
         const cudaError_t le = cudaGraphLaunch(commit_exec_, cm_);
         decode_events().record(DecodeEvents::kCommitPost, cm_);
-        if (gs_split_ && gs_live_) {   // the peer's heads, on its stream behind its window
-            const OnDevice on(gs_dev_);
-            gs_ca_.n_keep = h_commit_;
-            basalt::kernels::gdn_commit_layers(gs_ca_, dm_->ps, kCommitBlocks);
-        }
         if (le != cudaSuccess) { err = std::string("verify: commit launch: ") + cudaGetErrorString(le); return false; }
         // set_commit_async: no wait here - the next window's first node waits for the epoch (the host names it in
         // h_pend_), and the drafter (its own stream) reads only this window's final rows and its own K/V.  h_commit_ is
@@ -212,7 +207,7 @@ bool Verifier::wait_commit(std::string& err) {
         const cudaError_t se = cudaEventSynchronize(commit_done_);
         if (se != cudaSuccess) { err = std::string("verify: commit: ") + cudaGetErrorString(se); return false; }
     }
-    return !gs_live_ || gs_move(false, err);
+    return true;
 }
 
 }  // namespace basalt::core

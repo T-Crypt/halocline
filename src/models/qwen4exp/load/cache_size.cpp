@@ -35,31 +35,6 @@ int cache_size(Context& context) {
         return o.serve && o.peer_device >= 1 && !o.no_peer_prefill
                    ? basalt::prefill::Prefill::peer_bytes(o.prefill_chunk, peer_streamed_share) : 0;
     };
-    // the GDN mixer split is priced once, before either card sizes its experts: its peer reserve displaces experts
-    // only when the cards cannot hold them all
-    if (o.peer_device >= 1) {
-        int d0 = 0, count = 0;
-        size_t f0 = 0, t0 = 0, f1 = 0, t1 = 0;
-        cudaGetDevice(&d0);
-        cudaMemGetInfo(&f0, &t0);
-        if (cudaGetDeviceCount(&count) == cudaSuccess && o.peer_device < count && cudaSetDevice(o.peer_device) == cudaSuccess) {
-            cudaMemGetInfo(&f1, &t1);
-            (void) cudaSetDevice(d0);
-        }
-        (void) cudaGetLastError();
-        const int max_t = std::max({o.spec, o.batch, 2});
-        const int64_t hs = native_head.loaded()
-            ? basalt::core::Verifier::hs_peer_bytes(native_head.row_bytes(), native_head.type(), n_vocab, g.n_embd, max_t,
-                                                    d0, o.peer_device) : 0;
-        const int64_t peer_room = (int64_t) f1 - (((int64_t) std::max(o.peer_reserve_mib, 128) << 20) +
-                                                  (int64_t) basalt::core::PeerExperts::device_overhead_bytes(g.n_embd, g.n_ff) + hs +
-                                                  (int64_t) peer_prompt_bytes());
-        // CUDA0's cache: its free memory less the reserve and what loads after the cache
-        const int64_t cache0 = std::max<int64_t>(0, (int64_t) f0 - (((int64_t) o.vram_reserve_mib + 1024) << 20));
-        const int64_t outside = std::max<int64_t>(0, (int64_t) expert_total_bytes - cache0 - std::max<int64_t>(peer_room, 0));
-        const int64_t split = basalt::core::Verifier::gs_peer_bytes(wt, g, d0, o.peer_device);
-        basalt::core::Verifier::gs_decide(wt, g, d0, o.peer_device, max_t, std::min(split, outside));
-    }
     basalt::core::ExpertCache xcache;
     // THE HEAD BEFORE THE CACHE: the native head and the logits are allocated above, before the expert arena
     // Profiled slots are padded; sizing and allocation must charge the same stride.
@@ -97,12 +72,6 @@ int cache_size(Context& context) {
         }
         const int64_t reserve_b = std::max<int64_t>((int64_t) o.vram_reserve_mib << 20,
                                                     late_room + ((int64_t) vram_floor_mib() << 20));
-        // the GDN mixer split by key head loads CUDA0's share of the GDN layers after the cache is sized
-        if (o.peer_device >= 1) {
-            int d0 = 0;
-            cudaGetDevice(&d0);
-            late_b += basalt::core::Verifier::gs_cuda0_bytes(wt, g, d0, o.peer_device);
-        }
         // the deferred checkpoint copy's spare device buffer is allocated after the cache, so it comes out of the reserve
         if (o.serve && o.prompt_cache > 0) {
             basalt::core::ConversationStateSizes zc;

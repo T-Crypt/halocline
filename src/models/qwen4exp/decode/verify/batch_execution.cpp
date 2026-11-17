@@ -152,8 +152,6 @@ bool Verifier::run_slot_segs(const int* rows, const int* lens, int S, const int3
                              PoolMultiFn pool, void* user, int32_t* out, std::string& err) {
     using namespace basalt::kernels;
     const OnDevice on_device(device_);
-    if (gs_live_ && !gs_move(false, err)) return false;
-    gs_split_ = false;
     if (!stage_batch(rows, lens, S, 0, tokens, pos, err)) return false;
     const int R = last_t_;   // the window's rows
     const bool dm = dm_ != nullptr && batch_dm_;
@@ -311,8 +309,6 @@ bool Verifier::batch_launch(int base, int S, const int32_t* tokens, const int64_
     if (b_running_) { err = "verify: batch_launch while this stage is busy"; return false; }
     int rows[8] = {};
     for (int t = 0; t < S && t < 8; ++t) rows[t] = base + t;
-    if (gs_live_ && !gs_move(false, err)) return false;
-    gs_split_ = false;
     if (!stage_batch(rows, nullptr, S, base, tokens, pos, err)) return false;
     order_after_commit();
     set_head_keep(0);   // the slots sample with their own parameters: every row exact

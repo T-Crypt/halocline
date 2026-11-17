@@ -11,9 +11,6 @@ int cache_fill(Context& context) {
     auto& model_bytes = *context.model_bytes;
     auto& expert_total_bytes = *context.expert_total_bytes;
     auto& cuda0_fixed_bytes = *context.cuda0_fixed_bytes;
-    auto& wt = *context.wt;
-    auto& n_vocab = *context.n_vocab;
-    auto& native_head = *context.native_head;
     auto& src = *context.src;
     auto& srcp = *context.srcp;
     auto& peer_prompt_bytes = context.peer_prompt_bytes;
@@ -30,17 +27,6 @@ int cache_fill(Context& context) {
     // RAM copy the room past the headroom.  With the file-backed modes the rest is read from the SSD (the default
     // arena mode was checked against the RAM above).
     // what the peer card can hold of experts: its free memory less its buffers and reserve, capped by --peer-slots
-    // what the verify window's splits (the head by vocabulary, the GDN mixer by key head) load on the peer after its
-    // expert tier is filled, when the GDN mixer split is taken; without it the head's peer rows fit in what the tier
-    // leaves free
-    auto peer_split_bytes = [&](int dev0) -> int64_t {
-        const int64_t gs = basalt::core::Verifier::gs_peer_bytes(wt, g, dev0, o.peer_device);
-        if (gs == 0) return 0;
-        const int64_t hs = native_head.loaded()
-            ? basalt::core::Verifier::hs_peer_bytes(native_head.row_bytes(), native_head.type(), n_vocab, g.n_embd,
-                                                    std::max({o.spec, o.batch, 2}), dev0, o.peer_device) : 0;
-        return hs + gs;
-    };
     auto peer_expert_room = [&]() -> uint64_t {
         uint64_t room = 0;
         if (o.peer_device < 1) return 0;
@@ -58,8 +44,7 @@ int cache_fill(Context& context) {
             if (cudaSetDevice(dev) == cudaSuccess && cudaMemGetInfo(&pfree, &ptotal) == cudaSuccess) {
                 const uint64_t reserve = ((uint64_t) std::max(o.peer_reserve_mib, 128) << 20) +
                                          (dev == o.peer_device ? peer_prompt_bytes() : 0) +
-                                         tiers * basalt::core::PeerExperts::device_overhead_bytes(g.n_embd, g.n_ff) +
-                                         (dev == o.peer_device ? (uint64_t) peer_split_bytes(cur) : 0);
+                                         tiers * basalt::core::PeerExperts::device_overhead_bytes(g.n_embd, g.n_ff);
                 room += (uint64_t) pfree > reserve ? (uint64_t) pfree - reserve : 0;
             }
         }
@@ -161,7 +146,6 @@ int cache_fill(Context& context) {
 
 
     context.cache_fill_bytes = &cache_fill_bytes;
-    context.peer_split_bytes = peer_split_bytes;
     context.peer_expert_room = peer_expert_room;
     return token_path(context);
 }

@@ -71,7 +71,6 @@ struct Context {
     basalt::core::ExpertCache* xcache = nullptr;
     const int64_t* kv_tail_slots = nullptr;
     uint64_t* cache_fill_bytes = nullptr;
-    std::function<int64_t(int)> peer_split_bytes;
     std::function<uint64_t()> peer_expert_room;
     basalt::core::PeerExperts* peer = nullptr;
     std::vector<std::unique_ptr<basalt::core::PeerExperts>>* xpeers = nullptr;

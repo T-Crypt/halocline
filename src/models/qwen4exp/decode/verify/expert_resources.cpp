@@ -181,8 +181,6 @@ bool Verifier::dm_init(std::string& err) {
         }
     }
     if (d->pdev >= 0) {
-        hs_init();
-        gs_init();
     }
     if (cpu_warm && codes_ok) {
         CpuWarm* w = new CpuWarm;
@@ -251,8 +249,6 @@ bool Verifier::dm_init(std::string& err) {
 void Verifier::dm_free() {
     DecMoe* d = dm_;
     if (d == nullptr) return;
-    hs_free();
-    gs_free();
     if (d->warm != nullptr) {
         warm_pool_->idle_stop();
         delete d->warm;

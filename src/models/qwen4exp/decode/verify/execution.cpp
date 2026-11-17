@@ -98,8 +98,6 @@ bool Verifier::run_begin(int T, const int32_t* tokens, int64_t pos0, std::string
     }
     std::atomic_thread_fence(std::memory_order_seq_cst);
     gm.mark(12);
-    gs_split_ = dm_ != nullptr && gs_mixl_ != nullptr;
-    if (gs_split_ && !gs_live_ && !gs_move(true, err)) return false;
     if (dm_ != nullptr) {   // this window's residency, then the peer window ahead of CUDA0's
         if (!dm_begin(err, &gm)) return false;
     }
@@ -119,7 +117,6 @@ bool Verifier::run_begin(int T, const int32_t* tokens, int64_t pos0, std::string
     head_from_ = 0;
     std::atomic_thread_fence(std::memory_order_seq_cst);
     set_head_keep(head_keep());
-    if (!hs_launch(T, err)) return false;
     const cudaError_t le = cudaGraphLaunch(ar_off_ ? exec_nr_[T] : exec_[T], cs_);
     dev.record(DecodeEvents::kVerifyPost, cs_);
     ms_launch += ms_since(tl);
@@ -336,10 +333,6 @@ bool Verifier::run_end(int32_t* out, std::string& err) {
     gm.mark(-1);
     const bool dm_ok = dm_end(err);
     if (!window_intact(err) || !dm_ok) return false;
-    if (hs_two_ && head_screened_ && basalt::kernels::q80p_vhead_link_failed(hs_link_)) {
-        err = "verify: the peer's share of the head did not answer; the window is discarded; restart the engine";
-        return false;
-    }
     if (se != cudaSuccess) { err = std::string("verify: ") + cudaGetErrorString(se); return false; }
     if (!ar_plan_intact(err)) return false;
     constexpr int64_t wstat_every = 200;   // windows per report

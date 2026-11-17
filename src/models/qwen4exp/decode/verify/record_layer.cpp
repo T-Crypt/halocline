@@ -132,15 +132,11 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
     const bool read_q8 = dec_hc && hc_fused_q8_rows_ok();
     const WeightRef* w_router = v.get("ffn_gate_inp.weight");
     const bool router_multi = w_router != nullptr && NE == 512 && K == 10;
-    // the GDN mixer split by key head: the layer's q8_1 rows and a doorbell for the peer's key heads; in a batch
-    // window CUDA0 runs the whole layer and the doorbell only passes
-    const bool gs_ring = dm && v_.gs_nk0_ > 0 && !is_qsa_layer(g, l);
-    const bool gs_split = gs_ring && !v_.batch_rec_;
     // a GDN layer's middle as one persistent kernel (mid_chain.hpp) between the layer's two hc reads: the qkv + z pair,
     // the recurrence and the output projection, bitwise the kernels it replaces
     bool mid_ok = false;
     MidChainArgs ma;
-    if (dec_hc && read_q8 && router_multi && !is_qsa_layer(g, l) && !v_.prof_on_ && !v_.batch_rec_ && !gs_split &&
+    if (dec_hc && read_q8 && router_multi && !is_qsa_layer(g, l) && !v_.prof_on_ && !v_.batch_rec_ &&
         n <= v_.mid_max_t_ && N == 2560 && dec_gdnf_mode() != 0 && (dense_tc_mask() & 4)) {
         const WeightRef *wqkv = v.get("attn_qkv.weight"), *wg = v.get("attn_gate.weight"),
                         *wout = v.get("ssm_out.weight"), *wa = v.get("ssm_alpha.weight"),
@@ -193,12 +189,6 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
         }
     }
     stamp(l, 1);
-    if (gs_ring) {
-        if (!read_q8) native_quantize_q8_1(v_.mixed_, v_.xq_, (int) N, n, cs);
-        const int64_t r = l - v_.lb_;
-        dec_moe_mix_publish(v_.xq_, v_.mixed_, n, (int) N, v_.gs_m_xq_ + (size_t) r * v_.dm_->xq_stride,
-                            v_.gs_m_x_ + (size_t) r * v_.dm_->x_stride, v_.dm_->m_w + 48, (uint32_t) (r + 1), gs_split, cs);
-    }
     if (lazy_layer(l)) {   // the layer's commit, forked in the previous post
         cudaStreamWaitEvent(cs, v_.lz_join_, 0);
         lz_open = false;
@@ -218,7 +208,7 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
         if (mid_ok) {
             // the middle ran in the mid chain
         } else if (!is_qsa_layer(g, l)) {
-            if (!gdn(l, v, read_q8, gs_split)) return false;
+            if (!gdn(l, v, read_q8)) return false;
         } else {
             if (!qsa(l, v, read_q8)) return false;
         }
@@ -226,10 +216,6 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
         err = "verify layer " + std::to_string(l) + ": " + e.what();
         return false;
     }
-    if (gs_split)   // the peer's key heads added after CUDA0's
-        dec_moe_mix_combine(v_.dm_->m_w + 52, (uint32_t) (l - v_.lb_ + 1), v_.gs_m_part_, v_.bo_, n * (int) N, cs);
-    else if (gs_ring)
-        dec_moe_mix_wait(v_.dm_->m_w + 52, (uint32_t) (l - v_.lb_ + 1), cs);
     if (ple_side && l == 0 && !ple_fork()) return false;   // after layer 0's middle: no mid chain before layer 1's join
     stamp(l, 16);
     bool routed = false;   // the fused read ran the router too

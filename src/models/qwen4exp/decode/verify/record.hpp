@@ -22,7 +22,7 @@ struct Verifier::WindowRecorder {
     bool inputs();
     bool ple_fork();
     bool pre(int64_t l);
-    bool gdn(int64_t l, const LayerView& v, bool read_q8, bool gs_split);
+    bool gdn(int64_t l, const LayerView& v, bool read_q8);
     bool qsa(int64_t l, const LayerView& v, bool read_q8);
     bool post(int64_t l);
     void l2_ahead(int64_t l);
