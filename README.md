@@ -171,6 +171,10 @@ bin/halo-bench --model QFN-UD-IQ4_XS.basalt --quality 100 --kld-base flashnext-b
 The pack format is Basalt's model-file format v2, unchanged (`.basalt`, magic `BASALTMF`), so converted packs keep their
 names.
 
+On any other Ada card, `bin/halo-bench --community --model PACK.basalt --submitter NAME` runs the fixed preset, checks the
+card and prints one row for [the community table](docs/community.md). That page lists the supported cards, what each VRAM
+size does to the expert pool, and what a row records.
+
 ## Repository
 
 | Path | What |
