@@ -31,7 +31,7 @@ void check(bool ok, const std::string& what) {
 struct Run {
     std::vector<int32_t> tokens;
     std::vector<int32_t> drafts;   // every draft the drafter offered, in order (bit-identical runs make the same ones)
-    std::map<int64_t, uint64_t> rows;
+    std::map<int64_t, uint64_t> rows;   // key pos * 32 + T: a row's bits depend on its window's width as well
     int64_t offered = 0, accepted = 0, windows = 0;
 };
 
@@ -124,7 +124,7 @@ Run run_arm(const model::ModelAdapter& a, const std::string& pack, const std::ve
             std::fprintf(stderr, "copy_logits: %s\n", e.message.c_str());
             std::exit(1);
         }
-        out.rows[pos] = fnv1a(logits.data(), logits.size() * sizeof(float));
+        out.rows[pos * 32 + T] = fnv1a(logits.data(), logits.size() * sizeof(float));
         for (int i = 0; i <= a && (int64_t) out.tokens.size() < n_new; ++i) out.tokens.push_back(rows[(size_t) i]);
         pos += a + 1;
         next = rows[(size_t) a];
@@ -132,14 +132,24 @@ Run run_arm(const model::ModelAdapter& a, const std::string& pack, const std::ve
     return out;
 }
 
-void compare(const Run& base, const Run& arm, const std::string& what, bool same_drafts) {
+// every_window: the arms accepted alike, so every window must be the base's; else (a window lever changes acceptance,
+// so windows start at other positions or widths) only the windows both runs have, at least one, are compared
+void compare(const Run& base, const Run& arm, const std::string& what, bool same_drafts, bool every_window) {
     check(arm.tokens == base.tokens, what + ": the same greedy tokens");
-    bool same = arm.rows.size() == base.rows.size();
-    for (const auto& [pos, h] : arm.rows) {
-        const auto it = base.rows.find(pos);
-        same = same && it != base.rows.end() && it->second == h;
+    bool same = !every_window || arm.rows.size() == base.rows.size();
+    int64_t shared = 0;
+    for (const auto& [key, h] : arm.rows) {
+        const auto it = base.rows.find(key);
+        if (it == base.rows.end()) {
+            same = same && !every_window;
+            continue;
+        }
+        ++shared;
+        same = same && it->second == h;
     }
-    check(same, what + ": the same first-row logits at every window");
+    std::printf("%s: %lld windows at the same position and width in both runs\n", what.c_str(), (long long) shared);
+    check(same && shared > 0, what + (every_window ? ": the same first-row logits at every window"
+                                                   : ": the same first-row logits at every window both runs have"));
     if (same_drafts) check(arm.drafts == base.drafts, what + ": the same drafts (the window masks nothing here)");
 }
 }  // namespace
@@ -167,7 +177,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < n_short; ++i) short_prompt[(size_t) i] = 1000 + (int32_t) ((int64_t) i * 7919 % 30000);
     const Run short_base = run_arm(*a, pack, short_prompt, 16, "", 0);
     const Run short_win = run_arm(*a, pack, short_prompt, 16, "", 32768);
-    compare(short_base, short_win, "--mtp-window 32768 under its window", true);
+    compare(short_base, short_win, "--mtp-window 32768 under its window", true, true);
     // then a prompt longer than the window: the ring wraps, and only the output must be the default run's
     const int n_prompt = 36000;
     std::vector<int32_t> prompt((size_t) n_prompt);
@@ -185,8 +195,8 @@ int main(int argc, char** argv) {
     report("default", base);
     report("--mtp-kv int8", i8);
     report("--mtp-window 32768", win);
-    compare(base, i8, "--mtp-kv int8", false);
-    compare(base, win, "--mtp-window 32768", false);
+    compare(base, i8, "--mtp-kv int8", false, true);
+    compare(base, win, "--mtp-window 32768", false, false);
     std::printf("%s\n", failures ? "FAILED" : "all ok");
     return failures ? 1 : 0;
 }
