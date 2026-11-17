@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>Halocline: the engine that hides nothing.</b><br>
-  The Qwen4 family on one NVIDIA Ada GPU (sm_89), a 24 GB RTX 4090. Each number below cites the run directory that
+  The Qwen4 family on one NVIDIA Ada GPU (sm_89), a 24 GB RTX 4090. Each result names the run directory that
   produced it.
 </p>
 
@@ -62,6 +62,10 @@ each numerics change is scored against the same bytes.
 ## Results
 
 Qwen3.8-Flash-Next UD-IQ4_XS v3.1 with the MTP drafter, `--kv int8 --spec 8`, on the [reference machine](SPECS.md).
+The quality and draft-window tables are [`evals/2026-11-17/halocline-kv-kld/`](evals/2026-11-17/halocline-kv-kld/); the speed
+table is [`halocline-llama-swap`](evals/2026-11-17/halocline-llama-swap/) against the Strata column of
+[`halocline-p0-floors`](evals/2026-11-16/halocline-p0-floors/); identity is
+[`halocline-greedy-identity`](evals/2026-11-17/halocline-greedy-identity/).
 
 ### Quality against BF16
 
