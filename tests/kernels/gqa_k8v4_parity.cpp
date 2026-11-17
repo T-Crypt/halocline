@@ -596,10 +596,27 @@ int main() {
         std::vector<uint8_t> hv(nb4), hk(nb4);
         ck(cudaMemcpy(hv.data(), d_v4, nb4, cudaMemcpyDeviceToHost), "v4");
         ck(cudaMemcpy(hk.data(), d_k4, nb4, cudaMemcpyDeviceToHost), "k4");
-        int badv = 0;
-        for (size_t i = 0; i < nb4; ++i) badv += hv[i] != reinterpret_cast<const uint8_t*>(rv4q.data())[i];
-        std::printf("  Q4 write: V %s (%d bytes differ of %zu)\n", badv ? "differs" : "bitwise", badv, nb4);
-        report(badv == 0, "attn_qk_prepare's Q4 write of V matches the host rule bitwise (rotation and q4_0 blocks)");
+        // as the K8V4 arm: the device quantizer's fast-math 1 / d can round a code on a boundary one step away from the
+        // host's, so scales must be the same bits, a code at most one step off, and such ties rare
+        {
+            size_t scale_off = 0, code_tie = 0, code_far = 0;
+            const auto* dev_blk = reinterpret_cast<const k::KvQ4Block*>(hv.data());
+            for (size_t b = 0; b < rv4q.size(); ++b) {
+                scale_off += dev_blk[b].d != rv4q[b].d;
+                for (int i = 0; i < 16; ++i)
+                    for (int sh = 0; sh <= 4; sh += 4) {
+                        const int a = (dev_blk[b].qs[i] >> sh) & 15, r = (rv4q[b].qs[i] >> sh) & 15;
+                        const int step = a > r ? a - r : r - a;
+                        code_tie += step == 1;
+                        code_far += step > 1;
+                    }
+            }
+            const size_t n_codes = rv4q.size() * 32;
+            std::printf("  Q4 write, V blocks: %zu of %zu scales differ; %zu codes one step off (ties), %zu further, of %zu\n",
+                        scale_off, rv4q.size(), code_tie, code_far, n_codes);
+            report(scale_off == 0 && code_far == 0 && code_tie * 100000 <= n_codes,
+                   "attn_qk_prepare's Q4 write of V is the host rotate + q4_0 rule (scales bitwise, codes to a rounding tie)");
+        }
         // K goes through the kernel's own norm, so a byte comparison cannot hold; its stored (rotated) row is the host's
         // rotation of the normed row to within one block step, which a wrong rotation or layout misses by the row's size
         {
@@ -661,7 +678,7 @@ int main() {
             else if (std::memcmp(first4.data(), last, first4.size() * 4) != 0) bitwise4 = false;
             if (T == k::kGqaMaxWindow)   // every row of the widest window, each at its own position
                 for (int t = 0; t < T; ++t) {
-                    ref_attn(&q[(size_t) t * NH * HD], kdq4, vdq4, p0 + t + 1, want.data());
+                    ref_attn(&qr[(size_t) t * NH * HD], kdq4, vdq4, p0 + t + 1, want.data());
                     for (int j = 0; j < NH * HD; ++j) eq4.add(got[(size_t) t * NH * HD + j], want[(size_t) j]);
                 }
         }
@@ -690,7 +707,7 @@ int main() {
                 Err ep;
                 for (const int r : {0, 1, 55, 63, 64, 65, 127, 128, 255, T - 2, T - 1}) {
                     if (r >= T) continue;
-                    ref_attn(&qp[(size_t) r * NH * HD], kdq4, vdq4, pp + r + 1, want.data());
+                    ref_attn(&qpr[(size_t) r * NH * HD], kdq4, vdq4, pp + r + 1, want.data());
                     for (int j = 0; j < NH * HD; ++j) ep.add(got[(size_t) r * NH * HD + j], want[(size_t) j]);
                 }
                 std::printf("  Q4 prompt %s: max abs %.3g rel %.3g vs double on the dequantized cells\n",
