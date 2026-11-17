@@ -56,19 +56,6 @@ void drive_pool_multi(void* user, const float* x_f, const int32_t* ids, int64_t 
     }
 }
 
-void drive_pool_split(void* user, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k, float* out,
-                      int64_t layer) {
-    SplitDrive* s = (SplitDrive*) user;
-    int st = 0;
-    while (st + 1 < s->n && layer >= s->end[st]) ++st;
-    Drive& d = *s->base;
-    d.d.plan = s->plan[st];
-    d.d.cache_base = s->cache_base[st];
-    d.d.cache_slot_off = s->cache_slot_off[st];
-    d.d.pcie_num = s->pcie_num[st];
-    drive_pool_multi(s->base, x_f, ids, n_tok, k, out, layer);
-}
-
 // A peer card as fast as the main one gets a share `f` of the hot pairs, so both cards compute routed experts every
 // layer.  Of the first `at` ranks, every pair with floor((r+1)f) > floor(rf) moves to just after that point: the
 // primary fills past them and the peer, which takes what the primary does not hold, gets them first.  Returns the

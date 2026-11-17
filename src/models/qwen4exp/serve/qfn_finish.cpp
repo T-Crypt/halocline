@@ -6,13 +6,10 @@ namespace basalt::models::qwen4exp::serve {
 
 Flow QfnRequest::complete_begin() {
     // the last commit (set_commit_async): the session is complete before anything reads or copies it
-    if (!runtime_.ver.wait_commit(runtime_.err) || (runtime_.pipe_on && !runtime_.ver_b.wait_commit(runtime_.err))) {
+    if (!runtime_.ver.wait_commit(runtime_.err)) {
         std::printf("ERR %s\n", runtime_.err.c_str());
         return Flow::error;
     }
-    if (runtime_.pipe_on)
-        basalt::log::info("basalt serve", "pipelined windows: %lld launched, %lld held", (long long) pair_runs,
-                          (long long) pair_holds);
     if (dec_timing && dec_windows > 0) {
         const DecSnap d1 = dec_snap();
         const double w = (double) dec_windows, L = (double) runtime_.g.n_layers;

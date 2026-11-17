@@ -7,7 +7,6 @@ int weights(Context& context) {
     auto& o = *context.o;
     auto& srcs = *context.srcs;
     auto& pack_files = *context.pack_files;
-    auto& multi_gpu = *context.multi_gpu;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& K = *context.K;
@@ -34,7 +33,7 @@ int weights(Context& context) {
             return 1;
         }
     }
-    if (!multi_gpu) {
+    {
         uint64_t dense_bytes = 0, mtp_bytes = 0, head_bytes = 0;
         std::set<std::string> index_names;
         for_each_index_name(pack_files.index, [&](const std::string& n) { index_names.insert(n); });

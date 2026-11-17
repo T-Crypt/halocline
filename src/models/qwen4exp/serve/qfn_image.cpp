@@ -68,16 +68,10 @@ Flow QfnRequest::prepare_image() {
             }
         }
         cudaDeviceSynchronize();
-        // CUDA0's table and, with a layer split, every later stage's (each device reads its own)
+        // the device's image-position table
         auto upload_mrope = [&]() -> bool {
             bool ok = cudaMemcpy(runtime_.d_mrope, runtime_.mrope_host.data(), runtime_.mrope_host.size() * sizeof(int32_t),
                                  cudaMemcpyHostToDevice) == cudaSuccess;
-            for (auto& st : runtime_.stages) {
-                const basalt::core::OnDevice on(st->dev);
-                cudaDeviceSynchronize();
-                ok = ok && cudaMemcpy(st->mrope, runtime_.mrope_host.data(), runtime_.mrope_host.size() * sizeof(int32_t),
-                                      cudaMemcpyHostToDevice) == cudaSuccess;
-            }
             return ok;
         };
         if (ve.empty() && !upload_mrope()) ve = "the image position upload failed";

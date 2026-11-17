@@ -5,16 +5,15 @@
 namespace basalt::models::qwen4exp::serve {
 
 bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
-    // (a layer split reads its stages as a pipeline over one run's chunks: in pieces only beside slots)
-    if (runtime_.o.batch <= 0 || runtime_.piped || (!runtime_.stages.empty() && !runtime_.batch_on()) || (b0 - a0 <= runtime_.kReadAlone && resumed_chunk <= 0)) {
+    if (runtime_.o.batch <= 0 || (b0 - a0 <= runtime_.kReadAlone && resumed_chunk <= 0)) {
         // no window runs meanwhile, so the CPU pool is free: it takes its share of the streamed experts
-        const bool lend_pool = runtime_.o.batch > 0 && !runtime_.multi_gpu && !runtime_.o.no_pool;
+        const bool lend_pool = runtime_.o.batch > 0 && !runtime_.o.no_pool;
         if (lend_pool) { runtime_.sp.set_cpu_pool(&runtime_.pool); runtime_.sp.set_cpu_share(runtime_.o.prefill_cpu_share); }
         const bool ok = runtime_.sp.run(ids.data() + a0, b0 - a0, a0, e);
         if (lend_pool) runtime_.sp.set_cpu_pool(nullptr);
         return ok;
     }
-    if (runtime_.batch_on() && runtime_.stages.empty()) {
+    if (runtime_.batch_on()) {
         // the whole range is read on a side thread, in the prompt path's own chunks, while this thread keeps
         // running the slots' windows; the work that touches the draft layer or the output runs here, between
         // two windows, when the prompt path asks for it

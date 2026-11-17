@@ -10,11 +10,6 @@ int dispatch(Context& context) {
     auto& ppl_out = *context.ppl_out;
     auto& model_file = *context.model_file;
     auto& peer_streamed_share = *context.peer_streamed_share;
-    auto& split_at = *context.split_at;
-    auto& split_devs = *context.split_devs;
-    auto& split_same = *context.split_same;
-    auto& multi_gpu = *context.multi_gpu;
-    auto& pipe_want = *context.pipe_want;
     auto& no_spec = *context.no_spec;
     auto& err = *context.err;
     auto& main_link_gbps = *context.main_link_gbps;
@@ -33,10 +28,6 @@ int dispatch(Context& context) {
     auto& main_cs = *context.main_cs;
     auto& ple_table = *context.ple_table;
     auto& vis_enc = *context.vis_enc;
-    auto& stages = *context.stages;
-    auto& last_st = *context.last_st;
-    auto& stage_of = context.stage_of;
-    auto& profile_all = *context.profile_all;
     auto& kv_floor = *context.kv_floor;
     auto& bslot_ss = *context.bslot_ss;
     auto& slot_cap = *context.slot_cap;
@@ -47,7 +38,6 @@ int dispatch(Context& context) {
     auto& n_vocab = *context.n_vocab;
     auto& grammar_vocab = *context.grammar_vocab;
     auto& native_head = *context.native_head;
-    auto& mtp_head = *context.mtp_head;
     auto& src = *context.src;
     auto& arena_src = *context.arena_src;
     auto& srcp = *context.srcp;
@@ -88,7 +78,6 @@ int dispatch(Context& context) {
             for (int64_t e = 0; e < g.n_expert; ++e) {
                 const size_t i = (size_t) (l * g.n_expert + e);
                 bool on_gpu = (i < host_res.size() && host_res[i] >= 0);
-                for (const auto& st : stages) on_gpu = on_gpu || st->cache.slot_of(l, e) >= 0;
                 bool on_peer = peer.valid() && peer.has(l, e);
                 for (const auto& xpe : xpeers) on_peer = on_peer || (xpe->valid() && xpe->has(l, e));
                 if (on_gpu) b_vram += blob;
@@ -128,11 +117,6 @@ int dispatch(Context& context) {
             .ppl_out = ppl_out,
             .model_file = model_file,
             .peer_streamed_share = peer_streamed_share,
-            .split_at = split_at,
-            .split_devs = split_devs,
-            .split_same = split_same,
-            .multi_gpu = multi_gpu,
-            .pipe_want = pipe_want,
             .no_spec = no_spec,
             .err = err,
             .main_link_gbps = main_link_gbps,
@@ -151,10 +135,6 @@ int dispatch(Context& context) {
             .main_cs = main_cs,
             .ple_table = ple_table,
             .vis_enc = vis_enc,
-            .stages = stages,
-            .last_st = last_st,
-            .stage_of = stage_of,
-            .profile_all = profile_all,
             .kv_floor = kv_floor,
             .bslot_ss = bslot_ss,
             .slot_cap = slot_cap,
@@ -165,7 +145,6 @@ int dispatch(Context& context) {
             .n_vocab = n_vocab,
             .grammar_vocab = grammar_vocab,
             .native_head = native_head,
-            .mtp_head = mtp_head,
             .src = src,
             .srcp = srcp,
             .xcache = xcache,

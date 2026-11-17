@@ -61,7 +61,7 @@ void QfnRuntime::kv_ceiling_note() {
 bool QfnRuntime::move_routed_below(int64_t first, const char* why, std::string& e,
                                 const std::vector<serve_loans::LentEntry>* lent_out) {
 
-    if (drive.d.usage.empty() || srcp != &src || !src.complement_ready() || multi_gpu || first <= 0 ||
+    if (drive.d.usage.empty() || srcp != &src || !src.complement_ready() || first <= 0 ||
         first >= xcache.slots())
         return true;
     const auto t0 = Clock::now();

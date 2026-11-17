@@ -103,13 +103,10 @@ namespace basalt::models::qwen4exp { std::shared_ptr<basalt::program::ProbePeerP
 namespace basalt::models::qwen4exp::serve {
 namespace serve_loans = basalt::models::qwen4exp::serve;
 using engine_local::Drive;
-using engine_local::GpuStage;
 using engine_local::JobRunner;
 using engine_local::PromptStage;
-using engine_local::SplitDrive;
 using engine_local::biggest_chunk;
 using engine_local::drive_pool_multi;
-using engine_local::drive_pool_split;
 using engine_local::kSatBoost;
 using engine_local::peer_hot_share_order;
 
@@ -166,7 +163,6 @@ public:
     void between_requests(const std::string& line) override;
     Flow run_request() override;
     bool slot0_solo() const override { return slot0_is_solo; }
-    bool pipelined() const override { return piped; }
     int64_t slot_context(int slot) const override { return slot_cap[(size_t) slot]; }
 
 private:
@@ -221,28 +217,12 @@ private:
     static constexpr size_t kHistSlots = (size_t) kPenaltyWindowCap* (size_t) basalt::kernels::kVerifyMaxT;
     int32_t* d_hist{};
     std::vector<int32_t> hist_stage{};
-    int hist_dev{};
     basalt::core::Verifier ver{};
     basalt::core::VerifyHits vh{};
-    // Layer split: `ver` runs layers [0, K1) and hands its residual to the next stage's verifier, and so on; the
-    // last runs the head.  The hand-offs are mapped pinned memory, portable: a stage on another GPU reads it.
-    basalt::core::Verifier ver_same{};
-    SplitDrive split_drive{};
-    SplitDrive split_drive_b{};
-    basalt::core::Verifier ver_b{};   // pipelined windows: the second chain over the same sessions (stage 0)
-    void* pair_snap{};
-    int n_stages{};
-    bool pipe_on{};
     basalt::core::PoolMultiFn win_pool_fn{};
     void* win_pool_user{};
     std::vector<basalt::core::SessionState> rviews{};
     basalt::core::SessionState* rsp{};
-    // A layer split's mid-prompt checkpoints: when the last stage reports a chunk, the earlier ones already read
-    // the next, so each stage saves its own part when it reaches a checkpoint position (the same rule as the main card's:
-    // every `prompt_cache_every` tokens from where the request resumed), and the last stage puts them together.
-    std::mutex part_mu{};
-    std::map<int64_t, std::vector<ConvCheckpoint>> part_at{};   // position -> one part per stage
-    std::vector<int64_t> part_next{};
     bool all_experts_resident{};
     // --expert-profile-save: what the adaptive tier learned, kept across restarts (opt-in; off: `heat` stays empty
     // and nothing below runs).  It needs the adaptive tier's counts and the residency table.
@@ -360,28 +340,11 @@ private:
     bool ov_active{};
     std::function<bool ()> ov_post{};   // what the overlapped read's thread does right after its last chunk
     bool ov_post_done{};
-    int n_pipe{};
-    bool piped{};
-    int GS{};
-    struct PGroup {
-        bool inflight = false;
-        int stage = 0;                  ///< the stage it runs on or waits for
-        int32_t tok[basalt::kernels::kVerifyMaxT] = {};
-        int64_t pos[basalt::kernels::kVerifyMaxT] = {};
-        int64_t since = 0;              ///< tick it started waiting (fairness)
-    };
-    std::vector<PGroup> pg{};
-    std::vector<int> stage_group{};
-    int64_t pipe_tick{};
-    int64_t rr{};
 
     int64_t part_slots(const PfPart& p, int64_t c);
     uint64_t part_bytes(const PfPart& p, int32_t first);
     int init_prompt_paths();
     bool split_region(PromptStage& st, int64_t cells, int64_t chunk, int64_t l0, int64_t l1, uint8_t*& w_at, uint8_t*& s_at, uint8_t*& b_at);
-    basalt::core::Verifier& stage_ver(int st);
-    int pcie_num_of(double f);
-    basalt::core::Verifier& stage_verb(int st);
     bool capture_admit(uint64_t need, uint64_t floor) override;
     bool park_current(size_t held, int64_t kept) override;
     bool gpu_sync_ok();
@@ -428,11 +391,6 @@ private:
     void solo_draft_back(bool keep) override;
     bool slot_digest(int b, int64_t upto, uint64_t* part);
     bool batch_step();
-    basalt::core::Verifier& stage_verifier(int k);
-    bool pipe_inflight();
-    bool group_active(int gi);
-    bool pump(bool may_start);
-    bool pipe_drain();
     size_t spill_to_disk(bool at_exit, size_t limit) override;
     int64_t disk_min_tokens() const override { return 8192; }
     bool probe_adapt(const std::string& cmd, std::string& e);

@@ -20,13 +20,6 @@ struct Context {
     bool* split_want = nullptr;
     const int* split_cap = nullptr;
     std::function<void ()> set_stream_all_min;
-    std::vector<int64_t>* split_at = nullptr;
-    std::vector<int>* split_devs = nullptr;
-    bool* split_auto = nullptr;
-    bool* split_same = nullptr;
-    bool* multi_gpu = nullptr;
-    const bool* pipe_want = nullptr;
-    const int* kPairMibLater = nullptr;
     const bool* no_spec = nullptr;
     basalt::kernels::RopeScaling* rope_cfg = nullptr;
     std::string* err = nullptr;
@@ -39,9 +32,7 @@ struct Context {
     std::vector<std::pair<int32_t, int32_t>>* profile_loaded = nullptr;
     const bool* pf_borrow = nullptr;
     const int64_t* kWindowMib = nullptr;
-    std::function<int64_t(int, bool, int64_t)> stage_room;
     const std::set<std::string>* skip_base = nullptr;
-    const bool* stage_trim = nullptr;
     std::function<void (int64_t, int64_t, std::set<std::string> &)> add_foreign;
     std::set<std::string>* hc8_names = nullptr;
     uint64_t* pool_bytes = nullptr;
@@ -61,10 +52,6 @@ struct Context {
     basalt::kernels::PleTable* ple_table = nullptr;
     basalt::vision::CudaEncoder* vis_enc = nullptr;
     float ** d_parts = nullptr;
-    std::vector<std::unique_ptr<GpuStage>>* stages = nullptr;
-    GpuStage *const* last_st = nullptr;
-    std::function<int(int64_t)> stage_of;
-    std::vector<std::pair<int32_t, int32_t>>* profile_all = nullptr;
     const int64_t* kv_floor = nullptr;
     std::vector<std::vector<SlotSession>>* bslot_ss = nullptr;
     std::vector<int64_t>* slot_cap = nullptr;
@@ -76,7 +63,6 @@ struct Context {
     const int64_t* n_vocab = nullptr;
     std::optional<basalt::program::grammar::PackVocab>* grammar_vocab = nullptr;
     basalt::core::NativeHead* native_head = nullptr;
-    basalt::core::NativeHead* mtp_head = nullptr;
     float ** d_logits = nullptr;
     basalt::core::FileExpertSource* src = nullptr;
     basalt::core::ArenaExpertSource* arena_src = nullptr;
@@ -126,7 +112,6 @@ struct Context {
     std::function<bool(bool)> open_peer;
     const bool* adapt_fast_on = nullptr;
     int64_t* lend_from = nullptr;
-    std::vector<std::pair<int32_t, int32_t>>* stage_held = nullptr;
     basalt::kernels::cpu::ExpertPool* pool = nullptr;
     std::vector<std::pair<int32_t, int32_t>>* peer_only = nullptr;
     uint64_t* peer_only_bytes = nullptr;

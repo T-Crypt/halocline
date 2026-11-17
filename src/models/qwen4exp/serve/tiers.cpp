@@ -68,14 +68,9 @@ bool resident_spare_swaps(basalt::core::FileExpertSource& src, const std::vector
     return true;
 }
 
-// a layer split's later stages keep a copy of the residency table on their devices, and swap on their own
 void QfnRuntime::res_upload() {
     if (d_res != nullptr)
         res_put(d_res);
-    for (auto& st : stages) {
-        const basalt::core::OnDevice on(st->dev);
-        res_put(st->d_res);
-    }
 }
 
 // the peer tiers take the next most-routed CPU misses: each passes over what the primary (r0) or another tier
@@ -117,12 +112,6 @@ void QfnRuntime::apply_pending(bool wait, bool exchanges) {
     if (pending.empty()) return;
     if (wait) cudaEventSynchronize(adapt_ev);
     else if (cudaEventQuery(adapt_ev) != cudaSuccess) return;
-    for (auto& st : stages)
-        if (st->adapt_live) {
-            if (wait) cudaEventSynchronize(st->adapt_ev);
-            else if (cudaEventQuery(st->adapt_ev) != cudaSuccess) return;
-        }
-    for (auto& st : stages) st->adapt_live = false;
     if (exchanges) src.commit_exchanges();   // the resident RAM mode: the evicted experts take their places in RAM
     for (const auto& [i, slot] : pending) {
         host_res[(size_t) i] = slot;
@@ -252,26 +241,14 @@ bool QfnRuntime::adapt() {
     std::vector<Swap> swaps;
     rank_swaps(swaps, false);
     if ((int) swaps.size() > o.adapt_swaps) swaps.resize((size_t) o.adapt_swaps);
-    std::vector<int> staged_on;   // the devices whose adapt streams hold copies back (-1: CUDA0)
+    bool staged = false;   // the adapt stream holds copies back
     const auto copy_back = [&](int32_t layer, int32_t slot, uint8_t* dst) -> bool {
-        const int stn = multi_gpu ? stage_of(layer) : 0;
-        GpuStage* gs = stn > 0 ? stages[(size_t) stn - 1].get() : nullptr;
-        const basalt::core::OnDevice on(gs ? gs->dev : -1);
-        staged_on.push_back(gs ? gs->dev : -1);
-        return cudaMemcpyAsync(dst, gs ? gs->cache.device_slot(slot) : xcache.device_slot(slot),
-                               (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(layer),
-                               cudaMemcpyDeviceToHost, gs ? gs->adapt_stream : adapt_stream) == cudaSuccess;
+        staged = true;
+        return cudaMemcpyAsync(dst, xcache.device_slot(slot), (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(layer),
+                               cudaMemcpyDeviceToHost, adapt_stream) == cudaSuccess;
     };
     const auto wait_copies = [&]() -> bool {
-        bool ok = true;
-        for (const auto& st : stages)
-            if (std::find(staged_on.begin(), staged_on.end(), st->dev) != staged_on.end()) {
-                const basalt::core::OnDevice on(st->dev);
-                ok = cudaStreamSynchronize(st->adapt_stream) == cudaSuccess && ok;
-            }
-        if (std::find(staged_on.begin(), staged_on.end(), -1) != staged_on.end())
-            ok = cudaStreamSynchronize(adapt_stream) == cudaSuccess && ok;
-        return ok;
+        return !staged || cudaStreamSynchronize(adapt_stream) == cudaSuccess;
     };
     if (!resident_spare_swaps(src, host_res, g.n_expert, swaps, copy_back, wait_copies, pending_spare)) return false;
     bool main_live = false;
@@ -279,19 +256,14 @@ bool QfnRuntime::adapt() {
         const size_t in = (size_t) s.layer * g.n_expert + s.in, out = (size_t) s.layer * g.n_expert + s.out;
         const int32_t slot = host_res[out];
         const uint8_t* b = srcp->blob(s.layer, s.in);
-        const int stn = multi_gpu ? stage_of(s.layer) : 0;   // the swap stays in the layer's own cache
-        GpuStage* gs = stn > 0 ? stages[(size_t) stn - 1].get() : nullptr;
-        const basalt::core::OnDevice on(gs ? gs->dev : -1);
         if (slot < 0 || b == nullptr ||
-            cudaMemcpyAsync(gs ? gs->cache.device_slot(slot) : xcache.device_slot(slot), b,
-                            (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(s.layer),
-                            cudaMemcpyHostToDevice, gs ? gs->adapt_stream : adapt_stream) != cudaSuccess) {
+            cudaMemcpyAsync(xcache.device_slot(slot), b, (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(s.layer),
+                            cudaMemcpyHostToDevice, adapt_stream) != cudaSuccess) {
             basalt::log::error("basalt serve", "adaptive swap copy failed (layer %d, slot %d): %s",
                          (int) s.layer, (int) slot, cudaGetErrorString(cudaGetLastError()));
             return false;
         }
-        if (gs) gs->adapt_live = true;
-        else main_live = true;
+        main_live = true;
         host_res[out] = basalt::core::kNotResident;   // evicted now: the CPU computes it meanwhile
         srcp->prefetch(s.layer, s.out);   // a file-backed arena released its pages: read them back ahead
         pending.emplace_back((int32_t) in, slot);      // resident once the copy has landed
@@ -299,11 +271,6 @@ bool QfnRuntime::adapt() {
     }
     if (!swaps.empty()) cudaEventRecord(adapt_ev, adapt_stream);
     (void) main_live;
-    for (auto& st : stages)
-        if (st->adapt_live) {
-            const basalt::core::OnDevice on(st->dev);
-            cudaEventRecord(st->adapt_ev, st->adapt_stream);
-        }
     // the routing counted since the start (each count adds up to 1 / (1 - --adapt-decay) over its decays: the
     // sum is proportional to the routing itself) - only with --expert-profile-save, else `heat` is empty
     for (size_t i = 0; i < heat.size(); ++i) heat[i] += (double) drive.d.usage[i];
@@ -590,7 +557,7 @@ int QfnRuntime::init_tiers() {
     // are resident and their RAM places free.  Step (2) waits for the eviction copies; at step (3) the next
     // window's gate/up launches wait for their own layer's incoming copies (the landed words below), so the loop
     // does not, and where an expert runs depends only on the window count, as with the plain rounds.
-    adapt_fast = !multi_gpu;
+    adapt_fast = true;
     // Its rounds come every --adapt-every windows, so the counts decay less per round than the plain default
     // (--adapt-decay when given, else 0.85): the routing counts stay large enough for the thresholds and the peer
     // margin.

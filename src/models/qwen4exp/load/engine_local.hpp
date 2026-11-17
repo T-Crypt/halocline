@@ -124,44 +124,12 @@ struct Drive {
     /// The routing trace: written once per layer from the calling thread, so it needs no lock.
     std::FILE* routing = nullptr;
 };
-/// Layer split: every verify stage shares one Drive (its counters, usage and failure flags); the GPU plan, the expert
-/// cache and the PCIe share the pool uses for a layer are those of the stage that runs it.
-struct SplitDrive {
-    static constexpr int kMax = 8;
-    Drive* base = nullptr;
-    int n = 0;                                    ///< stages
-    int64_t end[kMax] = {};                       ///< stage i runs the layers from end[i - 1] (0) below end[i]
-    basalt::core::GpuPlanSink* plan[kMax] = {};
-    const uint8_t* cache_base[kMax] = {};
-    const uint64_t* cache_slot_off[kMax] = {};
-    int pcie_num[kMax] = {};
-};
 struct SlotDelete {
     bool own = true;
     void operator()(basalt::core::SessionState* p) const { if (own) delete p; }
 };
 using SlotSession = std::unique_ptr<basalt::core::SessionState, SlotDelete>;
 
-struct GpuStage {
-    int dev = 0;
-    int64_t lb = 0, le = 0;
-    double pcie_frac = 0.0;
-    basalt::core::WeightTable wt;
-    basalt::core::NativeDense dense;
-    basalt::core::NativeHead head;
-    basalt::core::SessionState ss;
-    cudaStream_t stream = nullptr;
-    basalt::core::ExpertCache cache;
-    std::vector<std::pair<int32_t, int32_t>> profile;   ///< its layers' share of the profile, hottest first
-    int32_t* d_res = nullptr;                            ///< the residency table on its device
-    basalt::core::Verifier ver;
-    basalt::core::Verifier ver_b;                        ///< the second chain's verifier (pipelined windows)
-    basalt::prefill::Prefill sp;
-    cudaStream_t adapt_stream = nullptr;
-    cudaEvent_t adapt_ev = nullptr;
-    bool adapt_live = false;                             ///< swaps of this request are in flight on it
-    int32_t* mrope = nullptr;                            ///< --vision: the image-position table on its device
-};
 /// One stage of a prompt-time layer split over the expert tier cards: for a long prompt the main card reads layers
 /// [0, b1) of every chunk and hands the chunk on, each tier card's stage reads the next block of layers of it while the
 /// cards before read the next chunks, and the main card reads the last chunk's later layers itself once the stages have
@@ -194,8 +162,6 @@ struct PromptStage {
 void drive_pool(void* user, const float* x_f, const int32_t* ids, const float* weights, int64_t n_embd, int64_t k,
                 float* out);
 void drive_pool_multi(void* user, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k, float* out,
-                      int64_t layer);
-void drive_pool_split(void* user, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k, float* out,
                       int64_t layer);
 
 // Shares the hottest profile pairs between the main and peer expert tiers.

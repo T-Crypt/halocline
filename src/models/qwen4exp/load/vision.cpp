@@ -5,7 +5,6 @@ namespace basalt::models::qwen4exp::generate {
 
 int vision(Context& context) {
     auto& o = *context.o;
-    auto& multi_gpu = *context.multi_gpu;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& K = *context.K;
@@ -170,7 +169,7 @@ int vision(Context& context) {
         return 1;
     }
 
-    basalt::core::Verifier::set_commit_async(!multi_gpu);   // see Verifier::set_commit_async
+    basalt::core::Verifier::set_commit_async(true);   // see Verifier::set_commit_async
 
     context.ple_table = &ple_table;
     context.vis_enc = &vis_enc;

@@ -10,8 +10,6 @@ int resident_load(Context& context) {
     auto& profile = *context.profile;
     auto& expert_total_bytes = *context.expert_total_bytes;
     auto& ss = *context.ss;
-    auto& stages = *context.stages;
-    auto& profile_all = *context.profile_all;
     auto& src = *context.src;
     auto& srcp = *context.srcp;
     auto& auto_resident_bytes = *context.auto_resident_bytes;
@@ -26,7 +24,6 @@ int resident_load(Context& context) {
     auto& auto_ceiling = *context.auto_ceiling;
     auto& adapt_fast_on = *context.adapt_fast_on;
     auto& lend_from = *context.lend_from;
-    auto& stage_held = *context.stage_held;
     auto& peer_only = *context.peer_only;
     auto& peer_only_bytes = *context.peer_only_bytes;
 
@@ -91,11 +88,9 @@ int resident_load(Context& context) {
                                   (double) (o.resident_budget > 0 ? std::min(o.resident_budget, room) : room) / kGiB);
             }
         }
-        std::vector<std::pair<int32_t, int32_t>> gpu_only = peer_only;
-        gpu_only.insert(gpu_only.end(), stage_held.begin(), stage_held.end());
-        const auto& rank = stages.empty() ? profile : profile_all;
+        const std::vector<std::pair<int32_t, int32_t>>& gpu_only = peer_only;
         bool resident_ok = src.pin_cache_complement(xcache, err, o.resident_pin, gpu_only, lend_from, resident_headroom,
-                                                    o.resident_budget, &rank);
+                                                    o.resident_budget, &profile);
         std::string whole_err;
         if (!resident_ok && o.resident_soft) {
             // the whole complement does not fit - keep what does, the hottest by the profile, through the budget
@@ -103,7 +98,7 @@ int resident_load(Context& context) {
             // fallback reads, so the answers are unchanged.  Nothing pinned: the fallback below.
             whole_err = err;
             resident_ok = src.pin_cache_complement(xcache, err, o.resident_pin, gpu_only, -1, resident_headroom,
-                                                   basalt::core::FileExpertSource::kResidentWhatFits, &rank);
+                                                   basalt::core::FileExpertSource::kResidentWhatFits, &profile);
             if (resident_ok) {
                 basalt::log::warn("basalt generate", "the whole complement does not fit in RAM (%s); the hottest %.2f GiB "
                                      "are kept in RAM", whole_err.c_str(), (double) src.resident_bytes() / 1073741824.0);

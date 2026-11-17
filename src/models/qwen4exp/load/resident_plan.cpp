@@ -12,7 +12,6 @@ int resident_plan(Context& context) {
     auto& profile = *context.profile;
     auto& expert_total_bytes = *context.expert_total_bytes;
     auto& ss = *context.ss;
-    auto& stages = *context.stages;
     auto& srcp = *context.srcp;
     auto& pool_store = *context.pool_store;
     auto& auto_resident_bytes = *context.auto_resident_bytes;
@@ -152,16 +151,13 @@ int resident_plan(Context& context) {
     // --serve: free places in the RAM copy take the evicted experts (no exchange buffers)
     const bool adapt_fast_on = o.serve && o.adapt_every > 0 && o.adapt_swaps > 0;
     // ---- the host buffers serving takes at its peak, before the RAM copy reads the free memory: RAM held for the prompt
-    // path's two PLE row buffers and a layer split's hand-off buffers at the largest chunk a prompt may be read in, and
+    // path's two PLE row buffers at the largest chunk a prompt may be read in, and
     // the checkpoint blocks of every slot holding all the checkpoints it keeps
     {
         const int64_t chunk_max = o.prefill_auto ? auto_ceiling : o.prefill_chunk;
         bool ok = true;
         if (o.serve && chunk_max > 0) {
             for (int b = 0; ok && b < 2; ++b) ok = basalt::core::host_plan((size_t) chunk_max * (size_t) g.n_embd * sizeof(float));
-            for (size_t i = 0; ok && i < stages.size(); ++i)   // the main card and every stage but the last hand rows on
-                for (int b = 0; ok && b < 2; ++b)
-                    ok = basalt::core::host_plan((size_t) chunk_max * (size_t) (g.hc * g.n_embd) * sizeof(float));
         }
         if (ok && o.serve && o.prompt_cache > 0) {
             const size_t keep = (size_t) (o.prompt_cache + 1) * (size_t) std::max(o.batch, 1);
@@ -172,33 +168,16 @@ int resident_plan(Context& context) {
                        basalt::core::CheckpointBytes::allocator_type::reserve(z.gdn, keep, &basalt::core::kCheckpointPin);
             };
             ok = reserve(ss);
-            for (size_t i = 0; ok && i < stages.size(); ++i) ok = reserve(stages[i]->ss);
         }
         if (!ok) return fatal_start_error("out of host memory for the prompt path's and the checkpoints' buffers");
     }
     // the GPU cache's last slots are lent to the prompt path (and the elastic KV): their experts are kept in RAM too
     int64_t lend_from = -1;
-    int64_t lend_chunk = o.prefill_chunk;
     if (o.prefill_chunk > 0 && d_res != nullptr && xcache.slots() > 0) {
         int64_t chunk = o.prefill_chunk;
         const int64_t k = serve_loans::plan_lend(chunk, xcache, g, ss, o.prefill_auto, auto_ceiling,
                                                 (int) auto_lend_pct);
-        if (k > 0) { lend_from = xcache.slots() - k; lend_chunk = chunk; }
-    }
-    // a layer split: the stages' caches are GPU tiers the RAM copy leaves out, except each one's last slots, which the
-    // prompt path lends for the chunk the first card's loan was sized for
-    std::vector<std::pair<int32_t, int32_t>> stage_held;
-    uint64_t stage_lent_bytes = 0;
-    for (const auto& stp : stages) {
-        const int64_t first = lend_from >= 0
-            ? stp->cache.slots() - serve_loans::cache_slots_for(stp->cache, basalt::prefill::Prefill::bytes_needed(g, stp->ss, lend_chunk))
-            : stp->cache.slots();
-        for (const auto& pr : stp->profile) {
-            const int32_t slot = stp->cache.slot_of(pr.first, pr.second);
-            if (slot < 0) continue;
-            if (slot < first) stage_held.push_back(pr);
-            else stage_lent_bytes += basalt::kernels::cpu::expert_layout().blob_bytes(pr.first);
-        }
+        if (k > 0) lend_from = xcache.slots() - k;
     }
     // the elastic KV's tail keeps its experts in RAM too (a slot lent to the KV becomes a CPU miss read from RAM),
     // below it the prompt path's lend region as before: the RAM decides how far down that goes, as it does today
@@ -225,8 +204,7 @@ int resident_plan(Context& context) {
         in.hybrid = topo.is_hybrid;
         in.cpu_quota = cpu::cgroup_cpu_quota();
         const uint64_t lent_bytes =
-            (lend_from >= 0 ? (uint64_t) (xcache.slots() - lend_from) * basalt::kernels::cpu::expert_layout().max_blob : 0) +
-            stage_lent_bytes;
+            lend_from >= 0 ? (uint64_t) (xcache.slots() - lend_from) * basalt::kernels::cpu::expert_layout().max_blob : 0;
         file_cache.prompt_file_bytes = std::min<uint64_t>(lent_bytes, basalt::platform::kPromptFileReadBytes);
         in.file_cache = file_cache;
         in.complement_full = expert_total_bytes - std::min(expert_total_bytes, cache_fill_bytes);
@@ -314,7 +292,6 @@ int resident_plan(Context& context) {
     context.adapt_fast_on = &adapt_fast_on;
     context.file_cache = &file_cache;
     context.lend_from = &lend_from;
-    context.stage_held = &stage_held;
     context.pool = &pool;
     context.peer_only = &peer_only;
     context.peer_only_bytes = &peer_only_bytes;

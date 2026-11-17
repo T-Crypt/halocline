@@ -17,12 +17,7 @@ bool QfnRequest::slot_draft_in(int slot) {
 void QfnRequest::drop_stale_reuse() { runtime_.conversations->drop_reuse_unless(runtime_.rsp); }
 bool QfnRequest::release_room() { return runtime_.kv_release(*runtime_.rsp, n + runtime_.kKvGrowCells, runtime_.err); }
 bool QfnRequest::checkpoint_mount(const ConvCheckpoint& c) {
-    if (!checkpoint_restore(c, *runtime_.rsp, runtime_.g) || c.stage_parts.size() != runtime_.stages.size()) return false;
-    for (size_t i = 0; i < runtime_.stages.size(); ++i) {
-        const basalt::core::OnDevice on(runtime_.stages[i]->dev);
-        if (!checkpoint_restore(c.stage_parts[i], runtime_.stages[i]->ss, runtime_.g)) return false;
-    }
-    return true;
+    return checkpoint_restore(c, *runtime_.rsp, runtime_.g);
 }
 
 bool QfnRequest::restore_begin() {
@@ -62,21 +57,6 @@ Flow QfnRequest::slot_bind() {
 void QfnRequest::validate_incoming() {
     // Reject the entire image before parking/overwriting the outgoing
     // state. Invalid entries can safely fall back to its existing prefix.
-    if (incoming && incoming->stage_images.size() != runtime_.stages.size()) {
-        basalt::log::info("basalt serve", "conversation cache: discard snapshot (stage count)");
-        incoming.reset();
-    }
-    if (incoming) for (size_t i = 0; i < runtime_.stages.size(); ++i) {
-        const basalt::core::OnDevice on(runtime_.stages[i]->dev);
-        if (!basalt::core::conversation_snapshot_validate(incoming->stage_images[i], runtime_.stages[i]->ss, runtime_.g,
-                nullptr, runtime_.err)) {
-            basalt::log::warn("basalt serve", "conversation cache: discard invalid stage snapshot (%s)",
-                         runtime_.err.c_str());
-            incoming.reset();
-            runtime_.err.clear();
-            break;
-        }
-    }
     if (incoming && !basalt::core::conversation_snapshot_validate(*incoming, *runtime_.rsp, runtime_.g,
             runtime_.mtp_kv, runtime_.err)) {
         basalt::log::warn("basalt serve", "conversation cache: discard invalid snapshot (%s)", runtime_.err.c_str());
@@ -180,23 +160,9 @@ Flow QfnRequest::restore_image() {
         bool restored = basalt::core::conversation_snapshot_restore(*incoming, *runtime_.rsp,
                 runtime_.g, runtime_.mtp_kv, runtime_.err) == basalt::core::ConversationRestore::restored;
         if (restored && runtime_.mtp_on) runtime_.mtp.wrote(0, (int64_t) incoming->live.ids.size());
-        int failed_stage = -1;
-        for (size_t i = 0; restored && i < runtime_.stages.size(); ++i) {   // the later stages' parts
-            const basalt::core::OnDevice on(runtime_.stages[i]->dev);
-            if (basalt::core::conversation_snapshot_restore(incoming->stage_images[i], runtime_.stages[i]->ss, runtime_.g,
-                    nullptr, runtime_.err) !=
-                basalt::core::ConversationRestore::restored) {
-                restored = false;
-                failed_stage = runtime_.stages[i]->dev;
-                break;
-            }
-            if (cudaDeviceSynchronize() != cudaSuccess) { std::printf("ERR stage sync\n"); return Flow::error; }
-        }
         if (!restored) {
-            basalt::log::warn("basalt serve", "conversation cache: restoring a parked conversation failed%s "
-                         "(%s); reading the prompt from the start",
-                         failed_stage >= 0 ? (" on CUDA" + std::to_string(failed_stage)).c_str() : "",
-                         runtime_.err.c_str());
+            basalt::log::warn("basalt serve", "conversation cache: restoring a parked conversation failed "
+                         "(%s); reading the prompt from the start", runtime_.err.c_str());
             (void) cudaGetLastError();
             if (cudaDeviceSynchronize() != cudaSuccess) { std::printf("ERR restore sync\n"); return Flow::error; }
             runtime_.err.clear();
@@ -211,30 +177,16 @@ Flow QfnRequest::restore_image() {
 }
 
 void QfnRequest::adopt_checkpoints() {
-        if (runtime_.stages.empty()) {
-            runtime_.checks = std::move(incoming->checkpoints);
-        } else {   // give each checkpoint back its stage parts (moved, not copied); none if they do not line up
-            basalt::core::ConversationCheckpointSplit cs;
-            cs.stage0 = std::move(incoming->checkpoints);
-            for (auto& si : incoming->stage_images) cs.parts.push_back(std::move(si.checkpoints));
-            if (!basalt::core::conversation_checkpoints_merge(std::move(cs), runtime_.checks)) runtime_.checks.clear();
-        }
+        runtime_.checks = std::move(incoming->checkpoints);
 }
 
 void QfnRequest::retain_image() {
-        std::vector<std::vector<basalt::core::ConversationKv>> stage_kv;   // every stage's, for its next park
-        for (auto& si : incoming->stage_images) stage_kv.push_back(std::move(si.kv));
-        runtime_.conversations->retain(std::move(incoming->kv), int64_t(runtime_.live.size()), std::move(stage_kv), runtime_.rsp);
+        runtime_.conversations->retain(std::move(incoming->kv), int64_t(runtime_.live.size()), {}, runtime_.rsp);
 }
 
 bool QfnRequest::session_reset() {
         basalt::core::session_zero(*runtime_.rsp, runtime_.g, nullptr, runtime_.main_cs);
         cudaStreamSynchronize(runtime_.main_stream);
-        for (auto& st : runtime_.stages) {
-            const basalt::core::OnDevice on(st->dev);
-            basalt::core::session_zero(st->ss, runtime_.g, nullptr, (void*) st->stream);
-            cudaStreamSynchronize(st->stream);
-        }
     return true;
 }
 
@@ -250,11 +202,6 @@ void QfnRequest::draft_begin() {
 
 void QfnRequest::prompt_parts_reset() {
     runtime_.pp_next_check = resume + runtime_.o.prompt_cache_every;
-    {
-        std::lock_guard<std::mutex> lk(runtime_.part_mu);
-        runtime_.part_at.clear();
-        std::fill(runtime_.part_next.begin(), runtime_.part_next.end(), runtime_.pp_next_check);
-    }
 }
 
 }  // namespace basalt::models::qwen4exp::serve

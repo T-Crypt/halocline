@@ -94,9 +94,6 @@ struct Options : CommonOptions {
     /// between the tool-call tags, so tool calls are sampled exactly.
     int64_t relax_special_from = 248044;
     int64_t relax_call_open = 248058, relax_call_close = 248059;
-    /// The --batch slots in this many groups pipelined through the stages of a layer split (stage k
-    /// runs one group while stage k+1 runs another).  1 = every slot in one window, stage after stage.
-    int batch_groups = 1;
     int spec_corrupt = 0;         // --spec-corrupt N > 0 replaces every Nth draft with a wrong token
     /// Names the model's draft layer when it has one (the file); empty means no drafter.
     std::string mtp;
@@ -112,12 +109,6 @@ struct Options : CommonOptions {
     float adapt_decay = 0.7f;   ///< the usage counts are multiplied by this after each adaptation (--adapt-decay)
     bool adapt_decay_set = false;
     double prefill_cpu_share = 0.6;   ///< the share of the streamed prompt experts the CPU computes (--prefill-cpu-share)
-    /// --serve, multi-GPU layer split: "K" or "K1,K2,.." (the first layer of each later stage) or "auto" (placed
-    /// from each GPU's free VRAM); empty = one GPU
-    std::string layer_split;
-    /// the later stages' devices "D1,D2,.." (default: the next visible GPUs; "0" with one K: both stages on this
-    /// GPU, sharing everything - the bit-exact A/B of the hand-off)
-    std::string split_device;
     /// The most experts one adaptive round swaps into the main card's tier; a saturated pipeline (see `kSatBoost`) may
     /// swap `kSatBoost` times as many.
     int adapt_swaps = 96;

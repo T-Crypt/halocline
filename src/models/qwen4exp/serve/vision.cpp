@@ -22,7 +22,7 @@ void QfnRuntime::enc_command(const std::string& cmd) {
     };
     if (!o.vision_in_engine) { reply_err("this engine was started without --vision"); return; }
     const bool video = cmd.rfind("ENCV ", 0) == 0;
-    if (pf_parts.size() != 1 || pf_parts[0].first < 0 || !stages.empty()) {
+    if (pf_parts.size() != 1 || pf_parts[0].first < 0) {
         reply_err("the in-engine image encoder needs one GPU's expert cache with a prompt lend region");
         return;
     }

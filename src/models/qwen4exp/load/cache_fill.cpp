@@ -5,17 +5,13 @@ namespace basalt::models::qwen4exp::generate {
 
 int cache_fill(Context& context) {
     auto& o = *context.o;
-    auto& split_at = *context.split_at;
-    auto& multi_gpu = *context.multi_gpu;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& profile = *context.profile;
-    auto& stage_room = context.stage_room;
     auto& model_bytes = *context.model_bytes;
     auto& expert_total_bytes = *context.expert_total_bytes;
     auto& cuda0_fixed_bytes = *context.cuda0_fixed_bytes;
     auto& wt = *context.wt;
-    auto& stages = *context.stages;
     auto& n_vocab = *context.n_vocab;
     auto& native_head = *context.native_head;
     auto& src = *context.src;
@@ -163,74 +159,6 @@ int cache_fill(Context& context) {
                      fill_s > 0 ? (double) fill_bytes / 1e6 / fill_s : 0.0);
     }
 
-    for (auto& stp : stages) {
-        GpuStage& st = *stp;
-        const auto& lay = basalt::kernels::cpu::expert_layout();
-        // the drafter and the head are already allocated by now (they load above, before this), so what is left
-        // to hold back is the windows - and `free_b` has already lost the drafter.
-        const int64_t room = stage_room(st.dev, true, 0);
-        const basalt::core::OnDevice on(st.dev);
-        {
-            size_t fb = 0, tb = 0;
-            cudaMemGetInfo(&fb, &tb);
-            basalt::log::info("basalt generate", "layer split, CUDA%d: %.2f GiB free of %.2f, room for experts %.2f GiB",
-                         st.dev, (double) fb / 1073741824.0, (double) tb / 1073741824.0, (double) room / 1073741824.0);
-        }
-        std::vector<int64_t> sized;
-        int64_t used = 0;
-        for (const auto& pr : st.profile) {
-            const int64_t b = ((int64_t) lay.blob_bytes(pr.first) + 255) / 256 * 256;
-            if (used + b > room) break;
-            used += b;
-            sized.push_back((int64_t) lay.blob_bytes(pr.first));
-        }
-        if (sized.empty() ||
-            !st.cache.open_sized(sized, g.n_layers, g.n_expert, err)) {
-            basalt::log::error("basalt generate", "layer split, CUDA%d expert cache: %s", st.dev,
-                         sized.empty() ? "no room" : err.c_str());
-            return 1;
-        }
-        int64_t filled = 0;
-        uint64_t stage_fill_total = 0;
-        for (size_t i = 0; i < st.profile.size() && (int64_t) i < st.cache.slots(); ++i)
-            stage_fill_total += lay.blob_bytes(st.profile[i].first);
-        basalt::core::LoadProgress stage_progress(basalt::core::LoadProgress::cuda(st.dev), stage_fill_total);
-        std::vector<std::pair<int32_t, int32_t>> stage_pairs;
-        std::vector<int32_t> stage_slots;
-        for (const auto& pr : st.profile) {
-            if (filled >= st.cache.slots()) break;
-            const int32_t slot = st.cache.admit(pr.first, pr.second);
-            if (slot == basalt::core::kNotResident) break;
-            stage_pairs.push_back(pr);
-            stage_slots.push_back(slot);
-            ++filled;
-        }
-        if (!basalt::core::fill_cache_slots(*srcp, st.cache, st.dev, stage_pairs.data(), stage_slots.data(),
-                                            (int64_t) stage_pairs.size(),
-                                            [&](uint64_t bytes) { stage_progress.add(bytes); }, err)) {
-            basalt::log::error("basalt generate", "layer split, CUDA%d profile fill failed: %s", st.dev, err.c_str());
-            return 1;
-        }
-        stage_progress.finish();
-        if (filled == 0 || !st.cache.verify_slot(st.cache.slot_of(st.profile[0].first, st.profile[0].second),
-                                                 srcp->blob(st.profile[0].first, st.profile[0].second), err,
-                                                 (int64_t) lay.blob_bytes(st.profile[0].first))) {
-            basalt::log::error("basalt generate", "layer split, CUDA%d expert cache: %s", st.dev,
-                         filled == 0 ? "nothing filled" : err.c_str());
-            return 1;
-        }
-        basalt::log::info("basalt generate", "layer split: CUDA%d runs layers %lld-%lld, expert cache %lld slots "
-                             "(%.2f GiB), %lld of its %zu profiled pairs; slot 0 verified",
-                     st.dev, (long long) st.lb, (long long) (st.le - 1), (long long) st.cache.slots(), st.cache.gib(),
-                     (long long) filled, st.profile.size());
-    }
-    if (multi_gpu)
-        basalt::log::info("basalt generate", "layer split: CUDA0 runs layers 0-%lld", (long long) (split_at[0] - 1));
-    // the experts the stages' caches hold are on a GPU, so the RAM copy leaves them out
-    for (const auto& stp : stages)
-        for (const auto& pr : stp->profile)
-            if (stp->cache.slot_of(pr.first, pr.second) >= 0)
-                cache_fill_bytes += basalt::kernels::cpu::expert_layout().blob_bytes(pr.first);
 
     context.cache_fill_bytes = &cache_fill_bytes;
     context.peer_split_bytes = peer_split_bytes;

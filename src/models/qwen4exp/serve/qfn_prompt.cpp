@@ -23,8 +23,7 @@ Flow QfnRequest::set_sampling() {
     // a list longer than the top_k kernels keep is sampled through sorted rows: their buffers before the first window
     if (!req_sp.greedy &&
         basalt::kernels::sampler_list_len(req_sp.top_k, (int) runtime_.n_vocab) > basalt::kernels::kSamplerNarrowMax &&
-        (!runtime_.ver.reserve_wide_sampler(runtime_.err) ||
-         (runtime_.pipe_on && !runtime_.ver_b.reserve_wide_sampler(runtime_.err)))) {
+        !runtime_.ver.reserve_wide_sampler(runtime_.err)) {
         std::printf("ERR %s\n", runtime_.err.c_str());
         return Flow::next;
     }
@@ -36,22 +35,8 @@ Flow QfnRequest::set_sampling() {
         if (ids[i] == runtime_.o.relax_call_open || ids[i] == runtime_.o.relax_call_close) { in_call = ids[i] == runtime_.o.relax_call_open; break; }
     relaxed_kept = 0;
     runtime_.drive.d.pcie_num = std::max(0, std::min(256, (int) (runtime_.o.pcie_frac * 256.0 + 0.5)));
-    // a layer split: CUDA0's share; a later GPU keeps its own (its link)
-    for (int st = 0; st < runtime_.split_drive.n; ++st)
-        runtime_.split_drive.pcie_num[st] = (st == 0 || runtime_.split_same)
-                                       ? runtime_.drive.d.pcie_num : runtime_.pcie_num_of(runtime_.stages[(size_t) st - 1]->pcie_frac);
     hist_n = req_sp.penalty_last_n;
     runtime_.ver.set_history(hist_n > 0 ? runtime_.d_hist : nullptr, hist_n);
-    if (runtime_.pipe_on) {   // the second chain draws the same way
-        if (!runtime_.ver_b.set_logit_bias(req_bias, runtime_.err)) {
-            std::printf("ERR %s\n", runtime_.err.c_str());
-            return Flow::next;
-        }
-        runtime_.ver_b.set_sampling(req_sp);
-        runtime_.ver_b.set_draft_probe(relax_on);
-        runtime_.ver_b.set_history(hist_n > 0 ? runtime_.d_hist : nullptr, hist_n);
-        for (int st = 0; st < runtime_.split_drive_b.n; ++st) runtime_.split_drive_b.pcie_num[st] = runtime_.split_drive.pcie_num[st];
-    }
     return Flow::proceed;
 }
 

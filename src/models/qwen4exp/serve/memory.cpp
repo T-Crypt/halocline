@@ -229,7 +229,7 @@ int QfnRuntime::init_memory() {
                           (double) held / 1073741824.0);
     if (srcp == &src && src.complement_ready() && o.resident_budget == 0) {
         int64_t n_top = 0;
-        const uint64_t add = src.top_up(stages.empty() ? profile : profile_all, [&](int32_t l, int32_t e) {
+        const uint64_t add = src.top_up(profile, [&](int32_t l, int32_t e) {
             return host_res[(size_t) l * g.n_expert + (size_t) e] >= 0 || (peer.valid() && peer.has(l, e));
         }, o.resident_pin, n_top);
         if (add > 0) {

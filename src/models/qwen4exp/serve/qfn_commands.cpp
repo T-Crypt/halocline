@@ -9,10 +9,9 @@
 
 namespace basalt::models::qwen4exp::serve {
 
-bool QfnRuntime::windows_in_flight() { return piped && pipe_inflight(); }
-bool QfnRuntime::next_batch_window() { return piped ? pump(true) : batch_step(); }
-// a request reads its prompt through every stage: the groups in flight finish first
-bool QfnRuntime::drain_windows() { return !piped || pipe_drain(); }
+bool QfnRuntime::windows_in_flight() { return false; }
+bool QfnRuntime::next_batch_window() { return batch_step(); }
+bool QfnRuntime::drain_windows() { return true; }
 
 void QfnRuntime::script_command(const std::string& line) {
     char* e1 = nullptr;
@@ -122,22 +121,16 @@ void QfnRuntime::print_info() {
     {
         size_t free_b = 0, total_b = 0;
         cudaMemGetInfo(&free_b, &total_b);
-        // "Experts in VRAM" is every stage's cache, not one card's.  The caches hold disjoint pairs, so they add.
         const int64_t slots_primary = (int64_t) xcache.slots();
         const int64_t mib_primary = (int64_t) (xcache.bytes() >> 20);
-        int64_t slots_all = slots_primary, mib_all = mib_primary;
-        for (const auto& st : stages) {
-            slots_all += (int64_t) st->cache.slots();
-            mib_all += (int64_t) (st->cache.bytes() >> 20);
-        }
+        const int64_t slots_all = slots_primary, mib_all = mib_primary;
         // the pack's quantization label (the last word of its name, without the publisher's prefixes) and the PCI
         // bus ids of the cards this engine computes on, primary first: what a benchmark row records
         std::string quant_label, gpu_ids;
         {
             const basalt::core::Json* nm = model_file.meta().get("name");
             quant_label = basalt::program::pack_quant_label(nm != nullptr && nm->is_string() ? nm->s : std::string());
-            for (int d : basalt::program::engine_gpu_order(o.peer_device, o.peer_devices,
-                                                           multi_gpu ? split_devs : std::vector<int>())) {
+            for (int d : basalt::program::engine_gpu_order(o.peer_device, o.peer_devices, std::vector<int>())) {
                 char bus[32] = {};
                 if (cudaDeviceGetPCIBusId(bus, sizeof bus, d) == cudaSuccess)
                     gpu_ids += (gpu_ids.empty() ? "" : ",") + std::string(bus);
@@ -188,8 +181,7 @@ int QfnRuntime::init_after_input() {
 }
 
 void QfnRuntime::at_exit() {
-    for (int st = 0; st < std::max(n_stages, 1); ++st)
-        for (const std::string& r : stage_ver(st).route_report()) basalt::log::info("basalt serve", "%s", r.c_str());
+    for (const std::string& r : ver.route_report()) basalt::log::info("basalt serve", "%s", r.c_str());
     save_profile("exit");   // QUIT, or the server closed stdin
 }
 

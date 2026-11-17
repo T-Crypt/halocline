@@ -84,49 +84,10 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
     if (const size_t dropped = conversations->drop_superseded(live, live_imgs, checks, cvec_cached))
         basalt::log::info("basalt serve", "conversation cache: dropped %zu superseded cop%s of this "
                      "conversation; parked=%zu", dropped, dropped == 1 ? "y" : "ies", conversations->size());
-    // A layer split parks one image per stage: the first stage's (with the draft layer's K/V, the drafter
-    // runs on CUDA0) and one per later stage (without it).  The checkpoints are moved apart into their
-    // stage parts for the capture and put back together whichever way this ends (no running state copied).
-    const size_t n_st = stages.size();
     const basalt::core::QsaState* draft0 = mtp_kv;
-    auto draft_of = [&](size_t) -> const basalt::core::QsaState* { return nullptr; };
-    basalt::core::ConversationCheckpointSplit cs;
-    if (n_st > 0) cs = basalt::core::conversation_checkpoints_split(std::move(checks), n_st);
-    struct MergeBack {
-        basalt::core::ConversationCheckpointSplit& cs; std::vector<ConvCheckpoint>& checks; bool on;
-        ~MergeBack() { if (on && !basalt::core::conversation_checkpoints_merge(std::move(cs), checks)) checks.clear(); }
-    } merge_back{cs, checks, n_st > 0};
-    const basalt::core::ConversationView view{live, live_imgs, n_st > 0 ? cs.stage0 : checks, cvec_cached};
+    const basalt::core::ConversationView view{live, live_imgs, checks, cvec_cached};
     auto reuse = conversations->take_reuse(rsp);
-    std::vector<basalt::core::ConversationKvReuse> stage_reuse = std::move(reuse.stages);
-    stage_reuse.resize(n_st);
     reuse.stages.clear();
-    // the later stages' estimates, each with its own retained K/V when it still fits
-    size_t stage_estimate = 0, stage_retained = 0;
-    for (size_t k = 0; k < n_st; ++k) {
-        auto& st = stages[k];
-        const basalt::core::OnDevice on(st->dev);
-        const basalt::core::ConversationView view_k{live, live_imgs, cs.parts[k], cvec_cached};
-        size_t b = 0;
-        if (!basalt::core::conversation_snapshot_bytes(view_k, st->ss, g, draft_of(k), b, err)) {
-            basalt::log::warn("basalt serve", "conversation cache: skip parking (stage CUDA%d: %s)",
-                         st->dev, err.c_str());
-            err.clear();
-            return true;
-        }
-        if (!stage_reuse[k].kv.empty()) {
-            size_t r = 0;
-            if (basalt::core::conversation_snapshot_capture_bytes(stage_reuse[k], view_k, st->ss, g, draft_of(k),
-                                                                  r, err)) {
-                b = r;
-                stage_retained += stage_reuse[k].bytes();
-            } else {
-                stage_reuse[k] = {};
-                err.clear();
-            }
-        }
-        stage_estimate += b;
-    }
     size_t estimate = 0;
     if (!basalt::core::conversation_snapshot_bytes(view, *rsp, g, draft0, estimate, err)) {
         basalt::log::warn("basalt serve", "conversation cache: skip parking (%s)", err.c_str());
@@ -140,7 +101,6 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
         estimate = fresh_estimate;
         err.clear();
     }
-    estimate += stage_estimate;
     // A park carrying its own retained K/V replaces memory the cache
     // already held, so capacity is make_room's call - it runs next either
     // way, and put()'s accounting still bounds the budget. The with-reuse
@@ -158,7 +118,7 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
     try {
         const uint64_t floor = std::max<uint64_t>((uint64_t) o.conversation_cache_min_free_mib * 1024 * 1024,
                                                   disk.enabled() ? disk_floor : 0);
-        const size_t retained = reuse.bytes() + stage_retained;
+        const size_t retained = reuse.bytes();
         const size_t additional = estimate > retained ? estimate - retained : 0;
         if (!capture_admit(additional, floor)) {
             basalt::log::info("basalt serve", "conversation cache: skip parking (physical RAM admission; need %zu MiB plus %lld MiB floor, or telemetry unavailable, or RAM below the guard)",
@@ -170,17 +130,6 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
         if (draft0 != nullptr && !mtp.snapshot_main(err)) return false;   // a streamed draft ring's own window
         if (!basalt::core::conversation_snapshot_save(image, view, *rsp, g, draft0, err,
                 std::move(reuse), &reused_bytes)) return false;
-        for (size_t k = 0; k < n_st; ++k) {   // the later stages
-            auto& st = stages[k];
-            const basalt::core::OnDevice on(st->dev);
-            if (cudaDeviceSynchronize() != cudaSuccess) { err = "stage sync failed"; return false; }
-            const basalt::core::ConversationView view_k{live, live_imgs, cs.parts[k], cvec_cached};
-            basalt::core::SavedConversation part;
-            if (!basalt::core::conversation_snapshot_save(part, view_k, st->ss, g, draft_of(k), err,
-                    std::move(stage_reuse[k]), &reused_bytes))
-                return false;
-            image.stage_images.push_back(std::move(part));
-        }
         if (!basalt::core::conversation_memory_admit(basalt::core::conversation_available_memory(), 0, floor)) {
             basalt::log::info("basalt serve", "conversation cache: skip parking (physical RAM floor after capture, or telemetry unavailable)");
             return true;
@@ -213,8 +162,8 @@ bool QfnRuntime::gpu_sync_ok() {
     return false;
 }
 
-// a checkpoint of the state after `cur[0, L)`, taken for `source`; false only when the copy itself failed.  `parts`: the stages'
-// states saved at L (a split's mid-prompt checkpoint); without, they are read now (everything is at L)
+// a checkpoint of the state after `cur[0, L)`, taken for `source`; false only when the copy itself failed.  `parts`: the state
+// saved at L (the prompt split's mid-prompt checkpoint, one part); without, it is read now (everything is at L)
 bool QfnRuntime::checkpoint_at(int64_t L, std::vector<ConvCheckpoint>* parts, bool defer, ConvCheckpoint::Source source) {
     ckpt_why.clear();
     ckd_finish();
@@ -224,30 +173,22 @@ bool QfnRuntime::checkpoint_at(int64_t L, std::vector<ConvCheckpoint>* parts, bo
     c.source = source;
     c.ids.assign(cur.begin(), cur.begin() + L);
     c.imgs = imgs_below(req_imgs, L);
-    if (parts != nullptr) {
-        if (parts->size() != stages.size() + 1) return false;
+    if (parts != nullptr) {   // the prompt split's assembled state at L
+        if (parts->size() != 1) return false;
         c.state_a = std::move((*parts)[0].state_a);
         c.state_b = std::move((*parts)[0].state_b);
         c.state_c = std::move((*parts)[0].state_c);
         c.state_d = std::move((*parts)[0].state_d);
         c.state_e = std::move((*parts)[0].state_e);
-        for (size_t i = 1; i < parts->size(); ++i) c.stage_parts.push_back(std::move((*parts)[i]));
     } else {
         if (!gpu_sync_ok()) return false;
         std::string ce;
-        if (defer && stages.empty()) {
+        if (defer) {
             if (!basalt::core::conversation_checkpoint_save_deferred(ckd, c, *rsp, g, ce)) {
                 basalt::log::error("basalt serve", "checkpoint save: %s", ce.c_str());
                 return false;
             }
         } else if (!checkpoint_save(c, *rsp, g)) return false;
-        for (auto& st : stages) {   // a layer split's later stages: their sessions' part
-            const basalt::core::OnDevice on(st->dev);
-            ConvCheckpoint part;
-            part.ids = c.ids;
-            if (!gpu_sync_ok() || !checkpoint_save(part, st->ss, g)) return false;
-            c.stage_parts.push_back(std::move(part));
-        }
     }
     keep_check(std::move(c));
     return true;
@@ -489,7 +430,7 @@ int QfnRuntime::init_conversations() {
     check_clock = 0;   // the checkpoints' LRU clock; creation and every use advance it
 
     // (the checkpoints' pooled blocks were reserved, their pages written, before the RAM copy)
-    if (o.prompt_cache > 0 && !multi_gpu) {
+    if (o.prompt_cache > 0) {
         std::string ce;
         if (!ckd.reserve(basalt::core::conversation_checkpoint_bytes(ss, g), ce))
             basalt::log::warn("basalt serve", "deferred checkpoint copy off: %s", ce.c_str());
@@ -511,9 +452,8 @@ int QfnRuntime::init_conversations() {
         std::string de;
         const auto t0 = Clock::now();
         disk.set_row_cells(basalt::kernels::qsa_real_shapes().idx_block);
-        if (o.prompt_cache <= 0 || !stages.empty()) {
-            basalt::log::warn("basalt serve", "conversation cache on disk off: %s",
-                              o.prompt_cache <= 0 ? "--prompt-cache 0" : "a layer split");
+        if (o.prompt_cache <= 0) {
+            basalt::log::warn("basalt serve", "conversation cache on disk off: --prompt-cache 0");
         } else if (!disk.open(o.conversation_cache_dir, conversation_identity(o, g),
                               (uint64_t) o.conversation_cache_disk_mib << 20, de)) {
             basalt::log::warn("basalt serve", "conversation cache on disk off: %s", de.c_str());
@@ -538,8 +478,6 @@ int QfnRuntime::init_conversations() {
     pp_reached = 0;
     pp_t0 = Clock::now();
 
-    part_next = std::vector<int64_t>(stages.size() + 1, INT64_MAX);
-
     // live progress inside a chunk: PL <estimated position> <prompt tokens> <ms> <tokens/s>, at most twice a second
     sp.on_layer = [&, last_ms = 0.0](int64_t layers_done, int64_t n_layers, int64_t T, int64_t p0) mutable {
         if (pp_total <= 0 || layers_done <= 0 || n_layers <= 0) return;
@@ -553,8 +491,8 @@ int QfnRuntime::init_conversations() {
     sp.on_chunk = [&](const float* R_rows, int64_t T, int64_t p0, std::string& e) -> bool {
         std::vector<int32_t> nxt((size_t) T);
         for (int64_t t = 0; t < T; ++t) nxt[(size_t) t] = (int32_t) cur[(size_t) (p0 + t + 1)];
-        // batched through the prompt path when it can (one GPU: a layer split's drafter is on the last stage)
-        const bool batched = mtp_on && !multi_gpu && sp.draft_kv(mtp, R_rows, nxt.data(), T, p0, e);
+        // batched through the prompt path when it can
+        const bool batched = mtp_on && sp.draft_kv(mtp, R_rows, nxt.data(), T, p0, e);
         if (!e.empty() || (mtp_on && !batched && !mtp.prefill(R_rows, nxt.data(), T, p0, e))) return false;
         // progress for the server window: PP <position reached> <prompt tokens> <ms> <fresh tokens/s>
         const int64_t done = p0 + T;
@@ -566,50 +504,15 @@ int QfnRuntime::init_conversations() {
         basalt::core::progress_beat();
         std::fflush(stdout);
         if (o.prompt_cache_every > 0 && done >= pp_next_check) {
-            if (done == pp_part_ckpt && !multi_gpu) {
+            if (done == pp_part_ckpt) {
                 pp_next_check = done + o.prompt_cache_every;
                 return true;
             }
-            bool saved = false;
-            if (multi_gpu) {   // the stages' parts, saved when each of them read this chunk
-                std::vector<ConvCheckpoint> parts;
-                {
-                    std::lock_guard<std::mutex> lk(part_mu);
-                    auto it = part_at.find(done);
-                    if (it != part_at.end()) parts = std::move(it->second);
-                    part_at.erase(part_at.begin(), part_at.upper_bound(done));
-                }
-                bool complete = parts.size() == stages.size() + 1;
-                for (const ConvCheckpoint& k : parts) complete = complete && !k.state_a.empty();
-                saved = !complete || checkpoint_at(done, &parts);   // an incomplete set: no checkpoint here
-            } else {
-                saved = checkpoint_at(done);
-            }
-            if (!saved) { e = "saving a conversation checkpoint failed" + ckpt_why; return false; }
+            if (!checkpoint_at(done)) { e = "saving a conversation checkpoint failed" + ckpt_why; return false; }
             pp_next_check = done + o.prompt_cache_every;
         }
         return true;
     };
-    if (multi_gpu) {   // the batched prompt is reported by its last stage (the drafter's rows are there)
-        stages.back()->sp.on_chunk = std::move(sp.on_chunk);
-        sp.on_chunk = nullptr;
-        for (size_t i = 0; i <= stages.size(); ++i) {
-            basalt::prefill::Prefill& stage_sp = i == 0 ? sp : stages[i - 1]->sp;
-            basalt::core::SessionState& stage_ss = i == 0 ? ss : stages[i - 1]->ss;
-            stage_sp.on_stage_chunk = [&, i](int64_t done, std::string& e) -> bool {
-                if (o.prompt_cache <= 0 || o.prompt_cache_every <= 0 || done < part_next[i]) return true;
-                part_next[i] = done + o.prompt_cache_every;
-                ConvCheckpoint part;   // this stage's state at `done` (its stream is synchronized)
-                part.ids.assign(cur.begin(), cur.begin() + done);
-                if (!checkpoint_save(part, stage_ss, g)) { e = "saving a checkpoint part failed"; return false; }
-                std::lock_guard<std::mutex> lk(part_mu);
-                auto& v = part_at[done];
-                v.resize(stages.size() + 1);
-                v[i] = std::move(part);
-                return true;
-            };
-        }
-    }
     drive.d.plan = ver.plan_sink();
     drive.d.pcie_num = std::max(0, std::min(256, (int) (o.pcie_frac * 256.0 + 0.5)));
     return 0;

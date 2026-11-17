@@ -6,7 +6,6 @@ namespace basalt::models::qwen4exp::generate {
 int cache_size(Context& context) {
     auto& o = *context.o;
     auto& peer_streamed_share = *context.peer_streamed_share;
-    auto& multi_gpu = *context.multi_gpu;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& K = *context.K;
@@ -23,7 +22,6 @@ int cache_size(Context& context) {
     auto& mtp = *context.mtp;
     auto& n_vocab = *context.n_vocab;
     auto& native_head = *context.native_head;
-    auto& mtp_head = *context.mtp_head;
 
     // ---- R4's slot storage.  Allocated AFTER the weights and the session, so `cudaMemGetInfo` inside `open`
     // sees the memory this process actually has left rather than the card's idle figure - and refuses with both
@@ -78,7 +76,7 @@ int cache_size(Context& context) {
         // path lends cache slots instead (`pf_borrow`, hoisted above so both cache-size branches read the same one).
         const int64_t prefill_mib = (o.prefill_chunk > 0 && !pf_borrow) ? 160 + (o.prefill_chunk * 680) / 1024 : 0;
         // the draft layer's head and logits are allocated when it binds, after this, so they come out of the reserve
-        const basalt::core::NativeHead& draft_head = multi_gpu ? mtp_head : native_head;
+        const basalt::core::NativeHead& draft_head = native_head;
         const int64_t mtp_bind = (!o.mtp.empty() && draft_head.loaded())
                                      ? (int64_t) mtp.bind_bytes(draft_head.row_bytes(), draft_head.type(), n_vocab) : 0;
         // a server allocates its verify windows after the cache is sized: they come out of the reserve too, so the
@@ -106,7 +104,7 @@ int cache_size(Context& context) {
             late_b += basalt::core::Verifier::gs_cuda0_bytes(wt, g, d0, o.peer_device);
         }
         // the deferred checkpoint copy's spare device buffer is allocated after the cache, so it comes out of the reserve
-        if (o.serve && o.prompt_cache > 0 && !multi_gpu) {
+        if (o.serve && o.prompt_cache > 0) {
             basalt::core::ConversationStateSizes zc;
             std::string ce;
             if (basalt::core::conversation_state_sizes(g, zc, ce)) late_b += (int64_t) zc.gdn;
@@ -209,23 +207,6 @@ int cache_size(Context& context) {
                          slot_kv_cuda0 == 0 ? "" : (", or fewer --parallel slots / no --slot-full-context (the slot sessions take " +
                                                     std::to_string(slot_kv_cuda0 >> 20) + " MiB)").c_str());
         }
-    } else if (multi_gpu && o.expert_cache > 0) {
-        // an explicit cache size leaves room for the prompt path's buffers and the reserve, or the first prompt
-        // fails with "device buffers ... do not fit" (with borrowing - the default with a profile - the path lends
-        // slots instead and `prefill_mib` is 0, so only the reserve is checked)
-        size_t free_b = 0, total_b = 0;
-        cudaMemGetInfo(&free_b, &total_b);
-        const int64_t prefill_mib = (o.prefill_chunk > 0 && !pf_borrow) ? 160 + (o.prefill_chunk * 680) / 1024 : 0;
-        const int64_t reserve = ((int64_t) o.vram_reserve_mib + prefill_mib) << 20;
-        const int64_t fit = std::max<int64_t>(((int64_t) free_b - reserve) / (int64_t) cache_slot_bytes, 0);
-        if (o.expert_cache > fit) {
-            // a WARNING that names the knob: the user asked for this size, and gets fewer slots
-            basalt::log::warn("basalt generate", "layer split: --expert-cache %d leaves no room for the "
-                                 "prompt path's buffers (%lld MiB) and the %d MiB reserve on CUDA0: %lld slots instead "
-                                 "(a smaller --vram-reserve-mib leaves more of them)", o.expert_cache,
-                         (long long) prefill_mib, o.vram_reserve_mib, (long long) fit);
-            o.expert_cache = (int) fit;
-        }
     }
     // A native pack's blobs differ per layer, so with a profile its slots are sized per pair: the same VRAM holds more
     // IQ3_XXS experts than slots of the largest blob would.
@@ -250,7 +231,6 @@ int cache_size(Context& context) {
     // mode: anything else keeps the one cudaMalloc, said once.
     if (o.vram_elastic) {
         const char* why = !o.serve ? "it works between requests of --serve"
-                        : multi_gpu ? "a layer split has a cache per GPU"
                         : o.vram_segment_mib < 64 ? "--vram-segment-mib is below 64" : nullptr;
         if (why != nullptr) {
             basalt::log::warn("basalt generate", "--vram-elastic is off: %s", why);

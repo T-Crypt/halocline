@@ -173,7 +173,6 @@ bool QfnRuntime::batch_step() {
             basalt::kernels::penalty_rows(sl.ids.data(), (int64_t) sl.ids.size(), tok + r0s[sg], lens[sg], pen_h,
                                           hist_stage.data() + (size_t) r0s[sg] * (size_t) pen_h);
         }
-        const basalt::core::OnDevice on_h(hist_dev);
         if (cudaMemcpy(d_hist, hist_stage.data(), (size_t) R * (size_t) pen_h * sizeof(int32_t),
                        cudaMemcpyHostToDevice) != cudaSuccess) {
             std::printf("ERR batch: the penalty histories could not be staged\n");
@@ -439,10 +438,8 @@ bool QfnRuntime::batch_step() {
                                  "tokens/s", (double) bt_tokens / (double) bt_slotwin, (double) bt_slotwin / w,
                          bt_rows / w, (long long) bt_dr_acc, (long long) bt_dr_off, bt_draft / w,
                          bt_draft / (double) bt_slotwin, 1000.0 * (double) bt_tokens / std::max(wall, 1e-9));
-        for (size_t k = 0; k <= stages.size(); ++k) {
-            const std::string pr = (k == 0 ? ver : stages[k - 1]->ver).profile_report();
-            if (!pr.empty()) basalt::log::raw("basalt batch GPU stages, stage %zu (ms/window):%s\n", k + 1, pr.c_str());
-        }
+        if (const std::string pr = ver.profile_report(); !pr.empty())
+            basalt::log::raw("basalt batch GPU stages (ms/window):%s\n", pr.c_str());
         bt_run = bt_commit = bt_emit = bt_draft = 0;
         bt_windows = bt_rows = bt_tokens = bt_slotwin = bt_dr_off = bt_dr_acc = 0;
     }
@@ -497,16 +494,6 @@ int QfnRuntime::init_batch() {
     // a prompt read on its own thread beside the slots' windows: the tier stays as it is meanwhile
     ov_active = false;
     ov_post_done = false;
-
-    // ---- --batch-groups: the slot groups pipelined through the stages (--batch-groups G > 1 with a layer split)
-    n_pipe = (int) stages.size() + 1;
-    piped = o.batch > 0 && o.batch_groups > 1 && n_pipe > 1;
-    GS = piped ? o.batch / o.batch_groups : o.batch;
-
-    pg = std::vector<PGroup>((size_t) (piped ? o.batch_groups : 0));
-    stage_group = std::vector<int>((size_t) n_pipe, -1);
-    pipe_tick = 0;
-    rr = 0;
     return 0;
 }
 

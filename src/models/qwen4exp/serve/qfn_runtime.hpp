@@ -30,11 +30,6 @@ struct Context {
     std::string& ppl_out;
     basalt::core::ModelFile& model_file;
     const bool& peer_streamed_share;
-    std::vector<int64_t>& split_at;
-    std::vector<int>& split_devs;
-    bool& split_same;
-    bool& multi_gpu;
-    const bool& pipe_want;
     const bool& no_spec;
     std::string& err;
     double& main_link_gbps;
@@ -53,10 +48,6 @@ struct Context {
     void* const& main_cs;
     basalt::kernels::PleTable& ple_table;
     basalt::vision::CudaEncoder& vis_enc;
-    std::vector<std::unique_ptr<engine_local::GpuStage>>& stages;
-    engine_local::GpuStage* const& last_st;
-    std::function<int(int64_t)> stage_of;
-    std::vector<std::pair<int32_t, int32_t>>& profile_all;
     const int64_t& kv_floor;
     std::vector<std::vector<engine_local::SlotSession>>& bslot_ss;
     std::vector<int64_t>& slot_cap;
@@ -67,7 +58,6 @@ struct Context {
     const int64_t& n_vocab;
     std::optional<basalt::program::grammar::PackVocab>& grammar_vocab;
     basalt::core::NativeHead& native_head;
-    basalt::core::NativeHead& mtp_head;
     basalt::core::FileExpertSource& src;
     basalt::core::ExpertSource*& srcp;
     basalt::core::ExpertCache& xcache;

@@ -15,29 +15,10 @@ uint64_t QfnRuntime::part_bytes(const PfPart& p, int32_t first) {
                                    (uint64_t) basalt::kernels::cpu::expert_layout().max_blob;
 }
 
-// A layer split's prompt paths, one per stage, each handing its chunk's rows to the next.  A stage's cache is sized
-// before its prompt path's own buffers are priced, so a chunk that does not fit is tried one size smaller, down to
-// 512 tokens, instead of stopping the start.
+// The prompt path.  The cache is sized before its own buffers are priced, so a chunk that does not fit is tried one
+// size smaller, down to 512 tokens, instead of stopping the start.
 int QfnRuntime::init_prompt_paths() {   // 0: ready; 1: failed (err set); 2: failed with "do not fit"
-    for (size_t i = 0; i < stages.size(); ++i) {
-        GpuStage& st = *stages[i];
-        st.sp.set_stage(st.lb, i + 1 < stages.size() ? st.le : -1, i + 1 < stages.size() ? &stages[i + 1]->sp : nullptr);
-        const basalt::core::OnDevice on(st.dev);
-        void* sb = nullptr;              // this stage's own loan, out of its own cache
-        uint64_t sbb = 0;
-        // `first < 0`: no loan was taken (nothing was lendable), so this stage allocates its own buffers
-        if (i + 1 < pf_parts.size() && pf_parts[i + 1].first >= 0) {
-            sb = st.cache.device_slot(pf_parts[i + 1].first);
-            sbb = part_bytes(pf_parts[i + 1], pf_parts[i + 1].first);
-        }
-        if (!st.sp.init(st.wt, g, st.ss, srcp, &st.cache, host_res.data(), o.prefill_chunk, (void*) st.stream,
-                        err, sb, sbb)) {
-            err = "layer split, CUDA" + std::to_string(st.dev) + " prompt path: " + err;
-            return err.find("do not fit") != std::string::npos ? 2 : 1;
-        }
-    }
-    if (multi_gpu) sp.set_stage(0, split_at[0], &stages[0]->sp);
-    if (!multi_gpu && o.batch <= 0 && !o.no_pool) { sp.set_cpu_pool(&pool); sp.set_cpu_share(o.prefill_cpu_share); }   // the pool is idle while a prompt is read
+    if (o.batch <= 0 && !o.no_pool) { sp.set_cpu_pool(&pool); sp.set_cpu_share(o.prefill_cpu_share); }   // the pool is idle while a prompt is read
     if (!sp.init(wt, g, ss, srcp, &xcache, host_res.data(), o.prefill_chunk, main_cs, err, borrow, borrow_bytes))
         return err.find("do not fit") != std::string::npos ? 2 : 1;
     return 0;
@@ -157,7 +138,7 @@ bool QfnRequest::lend(int64_t tokens, std::string& e, int64_t chunk, int64_t hea
         }));
         cap = std::min(cap, lc);
     }
-    auto [want_full, head_tok] = serve_loans::one_card_chunks(tokens, cap, !beside && runtime_.stages.empty(),
+    auto [want_full, head_tok] = serve_loans::one_card_chunks(tokens, cap, !beside,
                                                            runtime_.o.prefill_auto_fit);
     // a chunk the read must have: a split read's, or the one the read this continues had (if it fits)
     const int64_t fixed_chunk = chunk > 0 ? chunk : (resumed_chunk > 0 && resumed_chunk <= cap) ? resumed_chunk : 0;
@@ -284,9 +265,7 @@ int QfnRuntime::init_prompt() {
     // whose cache already filled its reserve, that is the over-subscription the auto sizing avoids - so the
     // chunk is the largest one every participant can lend (a smaller chunk only reads slower)
     if (pf_borrow && d_res != nullptr) {
-        pf_parts.push_back({&xcache, &ss, &sp, -1, 0, multi_gpu ? split_at[0] : g.n_layers, -1, -1, 0, {}});
-        for (auto& st : stages)
-            pf_parts.push_back({&st->cache, &st->ss, &st->sp, st->dev, st->lb, st->le, -1, -1, 0, {}});
+        pf_parts.push_back({&xcache, &ss, &sp, -1, 0, g.n_layers, -1, -1, 0, {}});
         // The two tests plan_lend makes for CUDA0 alone, one participant at a time: a loan must leave the
         // 128-slot floor.  The percentage cap is an auto-chunk rule and only the auto scan applies it - an
         // explicit --prefill is the operator's number, and a loan of it only has to fit.  With one participant
@@ -414,16 +393,12 @@ int QfnRuntime::init_prompt() {
         // fail to launch).  `bytes_needed` is the same count `init` makes.
         const int64_t kHeadroom = 512ll << 20;
         auto own_fits = [&](int64_t c, int& dev_out, int64_t& need_out, int64_t& free_out) -> bool {
-            for (size_t i = 0; i <= stages.size(); ++i) {
-                const bool loan = i == 0 ? borrow != nullptr : (i < pf_parts.size() && pf_parts[i].first >= 0);
-                if (loan) continue;
-                const int dev = i == 0 ? -1 : stages[i - 1]->dev;
-                const basalt::core::OnDevice on(dev);
+            if (borrow == nullptr) {
                 size_t fb = 0, tb = 0;
                 cudaMemGetInfo(&fb, &tb);
-                const int64_t need = (int64_t) basalt::prefill::Prefill::bytes_needed(g, i == 0 ? ss : stages[i - 1]->ss, c);
+                const int64_t need = (int64_t) basalt::prefill::Prefill::bytes_needed(g, ss, c);
                 if (need + kHeadroom > (int64_t) fb) {
-                    dev_out = dev < 0 ? 0 : dev; need_out = need; free_out = (int64_t) fb;
+                    dev_out = 0; need_out = need; free_out = (int64_t) fb;
                     return false;
                 }
             }
@@ -456,11 +431,6 @@ int QfnRuntime::init_prompt() {
             basalt::log::warn("basalt serve", "%s: trying a %lld-token chunk", err.c_str(), (long long) next);
             // start the prompt paths over (a failed init may hold buffers), and consume the failed allocation's
             // error: it is sticky, and the next launch check would report "out of memory" for a kernel
-            for (auto& stp : stages) {
-                const basalt::core::OnDevice on(stp->dev);
-                stp->sp.reset();
-                (void) cudaGetLastError();
-            }
             sp.reset();
             (void) cudaGetLastError();
             o.prefill_chunk = next;

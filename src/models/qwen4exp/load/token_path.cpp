@@ -5,7 +5,6 @@ namespace basalt::models::qwen4exp::generate {
 
 int token_path(Context& context) {
     auto& o = *context.o;
-    auto& multi_gpu = *context.multi_gpu;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& K = *context.K;
@@ -15,8 +14,6 @@ int token_path(Context& context) {
     auto& main_cs = *context.main_cs;
     auto& db = *context.db;
     auto& d_parts = *context.d_parts;
-    auto& stages = *context.stages;
-    auto& stage_of = context.stage_of;
     auto& native_head = *context.native_head;
     auto& d_logits = *context.d_logits;
     auto& srcp = *context.srcp;
@@ -236,8 +233,7 @@ int token_path(Context& context) {
         int64_t resident = 0;
         for (int64_t l = 0; l < g.n_layers; ++l)
             for (int64_t e = 0; e < g.n_expert; ++e) {
-                const int st = multi_gpu ? stage_of(l) : 0;
-                const int32_t slot = st > 0 ? stages[(size_t) st - 1]->cache.slot_of(l, e) : xcache.slot_of(l, e);
+                const int32_t slot = xcache.slot_of(l, e);
                 host_res[(size_t) (l * g.n_expert + e)] = slot;
                 if (slot != basalt::core::kNotResident) ++resident;
             }
@@ -268,15 +264,6 @@ int token_path(Context& context) {
                     ++pf;
                 }
             (void) pf;
-        }
-        for (auto& st : stages) {   // layer split across GPUs: the same table on every device
-            const basalt::core::OnDevice on(st->dev);
-            if (cudaMalloc((void**) &st->d_res, host_res.size() * sizeof(int32_t)) != cudaSuccess ||
-                res_put(st->d_res) !=
-                    cudaSuccess) {
-                basalt::log::error("basalt generate", "layer split: CUDA%d residency table failed", st->dev);
-                return 1;
-            }
         }
         thits.cache_base = drive.d.cache_base;
         thits.blob = drive.d.cache_blob;

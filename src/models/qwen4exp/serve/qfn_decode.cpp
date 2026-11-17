@@ -58,10 +58,9 @@ void QfnRequest::decode_state_begin() {
     sfx_windows = 0;
     sfx_drafts = 0;
     sfx_ok = 0;
-    // pipelined windows: `cv` runs the next window, `ov` is the other chain; a guess that held leaves the next
-    // window's verdict in `held`
+    // `cv` runs the windows; the pipelined pair paths (`ov`, `held`, `try_pair`) are unreachable on one card
     cv = &runtime_.ver;
-    ov = &runtime_.ver_b;
+    ov = nullptr;
 
     held.win.assign((size_t) runtime_.S, 0);
     held.out.assign((size_t) runtime_.S, 0);
@@ -69,9 +68,7 @@ void QfnRequest::decode_state_begin() {
     n_chain = 0;                       // drafts the last chain produced
     full_ema = 0.5;                 // how often windows are accepted whole
     pair_hint = false;                // windows are accepted whole often enough to run the chain on for a guess
-    pair_req = runtime_.pipe_on && ppl == nullptr && !relax_on && gguard == nullptr && hist_n == 0 && !in_slot && req_logprobs < 0 &&
-                          runtime_.kv_floor == 0;
-    if (runtime_.pipe_on) runtime_.mtp.set_max_drafts((pair_req ? basalt::core::kMtpChainMax : runtime_.S_mtp) - 1);
+    pair_req = false;
     pair_runs = 0;
     pair_holds = 0;
 }
@@ -275,8 +272,8 @@ inline bool QfnRequest::run_window(int T, int e0, int& TB) {
             for (int i = 1; i < tb; ++i) wb[i] = drafts[(size_t) T - 1 + (size_t) i];
             return tb;
         };
-        user_c = cv == &runtime_.ver ? runtime_.win_pool_user : (void*) &runtime_.split_drive_b;
-        user_o = cv == &runtime_.ver ? (void*) &runtime_.split_drive_b : runtime_.win_pool_user;
+        user_c = runtime_.win_pool_user;
+        user_o = runtime_.win_pool_user;
         // the prompt rows the first window folds in send no pick: the head scores them only roughly (exact logits
         // are kept where something reads them: a scored chunk, the logit-hash diagnostic, and a sampled window's
         // kept lists, which the drafter notes as candidates)
@@ -441,11 +438,6 @@ inline bool QfnRequest::draft_next(int T, int a, int e0, int TB, bool from_sfx, 
                 runtime_.mtp.note_candidates(top, (a + 1) * basalt::core::Verifier::kTopIds);
             drafted = runtime_.mtp.draft_from(cv->final_R_all(), T, outv.data(), p, a, drafts.data(), runtime_.err, dprob.data(), &n_chain);
             runtime_.mtp.set_launch_hook(nullptr);
-            if (drafted && runtime_.pipe_on) {   // the next window's first stage starts after the chain's kernels
-                const cudaEvent_t ev = runtime_.mtp.done_event();
-                runtime_.ver.set_wait_event(ev);
-                runtime_.ver_b.set_wait_event(ev);
-            }
             if (tk_log != nullptr && drafted) {
                 for (int j = 0; j < 16 && j < runtime_.S_mtp; ++j) {
                     tk_prev[j].n = runtime_.mtp.diag_top(j, 4, tk_prev[j].id, tk_prev[j].p);

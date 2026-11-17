@@ -24,10 +24,9 @@ void QfnRuntime::make_view(basalt::core::SessionState& v, int b) {
 bool QfnRuntime::copy_to_slot(int b, const std::vector<int32_t>& ids, std::string& e) {
     const int64_t upto = (int64_t) ids.size();
     for (size_t k = 0; k < bslot_ss.size(); ++k) {
-        basalt::core::SessionState& from = k == 0 ? *rsp : stages[k - 1]->ss;
+        basalt::core::SessionState& from = *rsp;
         basalt::core::SessionState& to = *bslot_ss[k][(size_t) b];
         if (from.gdn_state == to.gdn_state) continue;   // the same state (slot 0, or the request's own slot)
-        const basalt::core::OnDevice on_k(k == 0 ? 0 : stages[k - 1]->dev);
         // the elastic KV: the slot backs the copied cells and its room past them, and gives back the rest
         if (k == 0 && (!kv_fit(to, upto + kKvGrowCells, e) || !kv_release(to, upto + kKvGrowCells, e)))
             return false;
@@ -58,9 +57,8 @@ bool QfnRuntime::hold_slot(int b, const ConvCheckpoint* at, std::string& e) {
     slot_held.kv.resize(bslot_ss.size());
     for (size_t k = 0; k < bslot_ss.size(); ++k) {
         basalt::core::SessionState& from = *bslot_ss[k][(size_t) b];
-        const basalt::core::SessionState& to = k == 0 ? *rsp : stages[k - 1]->ss;
+        const basalt::core::SessionState& to = *rsp;
         if (from.gdn_state == to.gdn_state) continue;
-        const basalt::core::OnDevice on_k(k == 0 ? 0 : stages[k - 1]->dev);
         if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch slot hold: device sync failed"; return false; }
         if (at == nullptr) {
             slot_held.ck[k].ids = bs[(size_t) b].ids;
@@ -83,16 +81,14 @@ bool QfnRuntime::hold_slot(int b, const ConvCheckpoint* at, std::string& e) {
 // `at`: one of the slot's checkpoints - only the K/V up to it is copied and its state restored instead
 bool QfnRuntime::copy_from_slot(int b, const ConvCheckpoint* at, std::string& e) {
     const int64_t upto = at != nullptr ? (int64_t) at->ids.size() : (int64_t) bs[(size_t) b].ids.size();
-    if (at != nullptr && at->stage_parts.size() != stages.size()) { e = "a checkpoint without its stage parts"; return false; }
     const bool held = slot_held.b == b;
     for (size_t k = 0; k < bslot_ss.size(); ++k) {
         basalt::core::SessionState& from = *bslot_ss[k][(size_t) b];
-        basalt::core::SessionState& to = k == 0 ? *rsp : stages[k - 1]->ss;
+        basalt::core::SessionState& to = *rsp;
         if (from.gdn_state == to.gdn_state) continue;   // the same state (slot 0, or the request's own slot)
-        const basalt::core::OnDevice on_k(k == 0 ? 0 : stages[k - 1]->dev);
         if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch slot restore: device sync failed"; return false; }
         if (at != nullptr) {
-            if (!basalt::core::conversation_checkpoint_restore(k == 0 ? *at : at->stage_parts[k - 1], to, g, e))
+            if (!basalt::core::conversation_checkpoint_restore(*at, to, g, e))
                 return false;
         } else if (held) {
             if (!basalt::core::conversation_checkpoint_restore(slot_held.ck[k], to, g, e)) return false;

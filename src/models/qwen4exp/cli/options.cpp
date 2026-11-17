@@ -29,7 +29,7 @@ std::vector<std::string> shipped_profiles(const std::string& key) {
     return {key + ".prof"};
 }
 
-std::optional<int> resolve_model_options(Options& o, bool multi_gpu) {
+std::optional<int> resolve_model_options(Options& o) {
     // Built-in defaults for what is given nowhere: the fastest settings that need no knowledge of the machine.
     // Speculation needs the pack's drafter; prompt chunks are sized from what the expert cache can lend; the experts
     // the GPU does not hold go to page-locked RAM when they fit (a plain file mapping when not); the adaptive tier
@@ -44,7 +44,7 @@ std::optional<int> resolve_model_options(Options& o, bool multi_gpu) {
         o.mmap_experts = o.resident_cpu_experts = o.resident_pin = o.resident_soft = true;
         o.resident_headroom = 0;
     }
-    if (!o.adapt_every_given && o.serve && !multi_gpu) o.adapt_every = 1;
+    if (!o.adapt_every_given && o.serve) o.adapt_every = 1;
     if (o.mmap_experts && !o.shared_expert_arena.empty()) {
         basalt::log::error("basalt generate", "--shared-expert-arena backs the resident arena and cannot be used with --mmap-experts");
         return 2;
@@ -89,7 +89,7 @@ std::optional<int> prepare_input_options(Options& o) {
     return std::nullopt;
 }
 
-std::optional<int> validate_generation_options(const Options& o, bool multi_gpu, int min_vram_reserve_mib) {
+std::optional<int> validate_generation_options(const Options& o, int min_vram_reserve_mib) {
     // positions, cells and pooled-block indices are cast to int32 on the device path.
     if (o.max_context > 2147483647LL - 8) {
         basalt::log::error("basalt generate", "--max-context must be below 2^31");
@@ -124,21 +124,6 @@ std::optional<int> validate_generation_options(const Options& o, bool multi_gpu,
         basalt::log::error("basalt generate", "--peer-exclusive runs with one expert tier card (--gpu 0,1)");
         return 2;
     }
-    // the peer tier is the second card's only user: a layer split would put a second engine part on it
-    if (o.peer_device >= 1 && !o.layer_split.empty()) {
-        basalt::log::error("basalt generate", "--peer-device cannot be combined with --layer-split (use one or the other)");
-        return 2;
-    }
-
-    // The whole-model graph measurements replay every layer through CUDA0's session, which a layer split carves to
-    // CUDA0's own range - the answer would read another stage's state.  Refused here rather than at the call, so
-    // the reason is visible before the model is loaded.
-    if (multi_gpu && (o.gpu_only_full || o.gpu_stages)) {
-        basalt::log::error("basalt generate", "--gpu-only-full and --gpu-stages replay the whole model through one "
-                             "session, which a layer split does not have; run them on one GPU (--gpu 0)");
-        return 2;
-    }
-
     return std::nullopt;
 }
 

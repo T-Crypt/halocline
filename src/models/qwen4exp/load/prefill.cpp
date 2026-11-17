@@ -5,7 +5,6 @@ namespace basalt::models::qwen4exp::generate {
 
 int prefill(Context& context) {
     auto& o = *context.o;
-    auto& multi_gpu = *context.multi_gpu;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& wt = *context.wt;
@@ -72,7 +71,7 @@ int prefill(Context& context) {
         }
         if (borrow == nullptr)
             basalt::log::info("basalt generate", "prompt path allocates its own buffers (no cache slots to borrow)");
-        if (!multi_gpu && o.batch <= 0 && !o.no_pool) { prefill.set_cpu_pool(&pool); prefill.set_cpu_share(o.prefill_cpu_share); }
+        if (o.batch <= 0 && !o.no_pool) { prefill.set_cpu_pool(&pool); prefill.set_cpu_share(o.prefill_cpu_share); }
         if (!prefill.init(wt, g, ss, srcp, o.expert_cache > 0 ? &xcache : nullptr,
                           host_res.empty() ? nullptr : host_res.data(), o.prefill_chunk, main_cs, err, borrow,
                           borrow_bytes)) {
