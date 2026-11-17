@@ -1,29 +1,24 @@
 # Models
 
-> [!WARNING]
-> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+A model is one `.basalt` pack, mixture-of-experts or dense. The server reads the architecture from the pack and picks
+the chat format, tool syntax and thinking switch.
 
-A model is one `.basalt` file, mixture-of-experts or dense. The server reads the architecture from the
-file and picks the chat format, tool syntax and thinking switch. Several models can share one address ([router](../configuration/models.md)). What each model supports:
+Halocline runs the Qwen4 family only. Two paths exist:
 
-| | Qwen3.8-Flash-Next | DeepSeek-V4.1-Flash | Qwen3.8-27B |
-| --- | --- | --- | --- |
-| Architecture id | `qwen4exp` | `deepseek41` | `qwen35` |
-| Packs | default `Qwen3.8-FN-NVFP4-DQ6_K`, [Hugging Face](https://huggingface.co/jesdga/Qwen3.8-Flash-Next-Basalt) | default `DeepSeek-V4.1-Flash-1017-UD-IQ1_M`, [Hugging Face](https://huggingface.co/jesdga/DeepSeek-V4.1-Flash-1017-Basalt) | `Qwen3.8-27B-QUASAR-NVFP4`, [Hugging Face](https://huggingface.co/jesdga/Qwen3.8-27B-Basalt), built from QUASAR's checkpoint ([model file](../model-file.md#qwen38-27b-pack)) |
-| Layers, experts | 48 (36 GDN, 12 QSA); 512 per layer, top-10 | 40; 384 per layer, top-6, plus one shared | 64 (48 GDN, 16 gated attention); dense |
-| Context | default 8,192; `--max-context` sets it | default 8,192; `--max-context` sets it, 1,024 to 1,048,576 | default 8,192; `--max-context` sets it, up to 262,144, past it with `--rope-scaling yarn` |
-| Drafting | MTP drafter in the pack, on; `--spec` default 8 | DSpark drafter in the pack, on; `--spec` default 6 | DFlash 2 block drafter in the pack (else the MTP layer), on; `--spec` default 16 |
-| Chat, tools, thinking | yes; `<tool_call>` tools | yes; DSML tools | yes; `<tool_call>` tools |
-| Reasoning effort | `none`, `low`, `medium`, `high`, `max` (`high` = `max`); a number is refused | `none`, `low` (50), `medium` and `high` (75), `max` (100), or 1 to 100 | as Flash-Next |
-| Images | `--vision dynamic`, a GPU number or `cpu` | `--vision dynamic` only | `--vision dynamic` |
-| Video | with images, and FFmpeg on the machine ([video](../running.md#video)) | no | with images, and FFmpeg on the machine |
-| `--kv` | fp16 (default), int8, q4_0, k8v4 | fp8 (default: FP8 window, FP4 compressed rows), fp16 | fp16 (default), int8 |
-| Cards | main card plus up to three expert-tier cards | main card plus one expert-tier card | main card only |
-| Layer split | yes, matched cards, priced at start | no | no |
-| Parallel slots | yes; each slot drafts | yes; each slot drafts | yes; each slot drafts |
-| Lossy flags | `--relaxed-drafting`, `--route-prior`, `--route-tail-skip` (off) | none | none |
-| Prompt skip | no | yes (`--no-prompt-skip` turns it off) | no |
-| Idle sleep, wake | yes (Linux) | yes (Linux); a second-card sleep may be refused | no |
-| `halo-bench --quality` | yes | yes, one row per window | yes |
-| Guide | [guide](qwen38-flash-next.md) | guide | [guide](qwen38-27b.md) |
-| Precision | [precision](../precision/qwen38-flash-next.md) | precision | [precision](../precision/qwen38-27b.md) |
+|  | Qwen3.8-Flash-Next | Qwen3.8-27B |
+|---|---|---|
+| Architecture id | `qwen4exp` | `qwen35` |
+| Shape | 48 layers (36 Gated DeltaNet, 12 Qwen Sparse Attention); 512 experts, 10 routed plus 1 shared | 64 layers (48 Gated DeltaNet, 16 gated attention); dense FFN |
+| Context | 262,144 | 262,144 |
+| Weights | Unsloth UD-IQ4_XS v3.1, converted to a pack | Unsloth UD-IQ4_XS or UD-Q4_K_XL, conversion pending |
+| Drafting | MTP drafter, `--spec 8` | the GGUF's MTP layer, in the plan |
+| `--kv` | int8 (measured best), fp16, k8v4, q4_0 | int8 or fp16, to be chosen |
+| Status | runs, gated, served through llama-swap | does not run yet |
+| Guide | [Flash-Next](qwen38-flash-next.md) | [Qwen3.8-27B](qwen38-27b.md) |
+| Precision | [Flash-Next](../precision/qwen38-flash-next.md) | [Qwen3.8-27B](../precision/qwen38-27b.md) |
+
+The dense path is the plan of record for Qwen4-27B; the sparse path is what runs today. The ordered work, with accept
+criteria, is in [`docs/roadmap.md`](../roadmap.md).
+
+DeepSeek-V4.1-Flash and the multi-GPU paths were removed with the sm_89 scope; their pages are gone. Basalt's changelog
+still records them.

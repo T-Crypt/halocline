@@ -1,0 +1,831 @@
+halo: gpu: RTX 4090 (nvidia-smi 0)
+halo generate: experts IQ3_XXS/Q5_0, layers 0-3: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/Q5_0, layers 4-5: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 6-6: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/IQ4_NL, layers 7-7: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ2_S/Q2_0, layers 8-8: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ2_S/IQ4_NL, layers 9-9: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ2_S/Q2_0, layers 10-10: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/IQ4_NL, layers 11-11: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 12-13: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/IQ4_NL, layers 14-14: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/Q5_0, layers 15-18: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 19-20: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/IQ4_NL, layers 21-21: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 22-22: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/IQ4_NL, layers 23-23: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 24-26: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/Q5_0, layers 27-29: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/IQ4_NL, layers 30-30: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/Q5_0, layers 31-31: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/IQ4_NL, layers 32-32: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/Q5_0, layers 33-33: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/IQ4_NL, layers 34-35: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 36-36: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/Q5_0, layers 37-37: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 38-41: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/IQ4_NL, layers 42-44: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ3_XXS/Q5_0, layers 45-46: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: experts IQ4_XS/Q5_0, layers 47-47: decode device-planned tail + grouped kernels, prefill MMQ, CPU tier dot
+halo generate: PCIe probe: 23.9 GB/s host->device (best of 23.8 23.9 23.9 23.9) -> pcie_frac 0.55 (default 0.55)
+halo generate: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+halo generate: /data/models/halocline/packs/QFN-UD-IQ4_XS-v3.1-compat-mtp.basalt experts (largest blob 2.87 MB), token embedding IQ4_XS in mapped host memory (322 MiB, 0.1 s), its first 8192 rows in VRAM (10.6 MiB)
+halo generate: profile ~/wt/halocline-import/data/profiles/qwen4exp-48x512.prof: 24576 ranked pairs, built for 24576 slots
+halo load: total 64620720640
+halo load: plan cuda0 4235850240
+halo load: cuda0 0 214208000
+halo load: cuda0 2662400 214208000
+halo load: cuda0 6190976 214208000
+halo load: cuda0 19753856 214208000
+halo load: cuda0 23031552 214208000
+halo load: cuda0 26562176 214208000
+halo load: cuda0 30090880 214208000
+halo load: cuda0 32712320 214208000
+halo load: cuda0 36240896 214208000
+halo load: cuda0 39769472 214208000
+halo load: cuda0 43300096 214208000
+halo load: cuda0 46828800 214208000
+halo load: cuda0 49450240 214208000
+halo load: cuda0 52978816 214208000
+halo load: cuda0 56507392 214208000
+halo load: cuda0 60038016 214208000
+halo load: cuda0 63566720 214208000
+halo load: cuda0 66188160 214208000
+halo load: cuda0 69716736 214208000
+halo load: cuda0 73245312 214208000
+halo load: cuda0 76775936 214208000
+halo load: cuda0 80304640 214208000
+halo load: cuda0 82926080 214208000
+halo load: cuda0 86454656 214208000
+halo load: cuda0 89983232 214208000
+halo load: cuda0 93513856 214208000
+halo load: cuda0 97042560 214208000
+halo load: cuda0 99664000 214208000
+halo load: cuda0 103192576 214208000
+halo load: cuda0 106721152 214208000
+halo load: cuda0 110251776 214208000
+halo load: cuda0 113780480 214208000
+halo load: cuda0 116401920 214208000
+halo load: cuda0 119930496 214208000
+halo load: cuda0 123459072 214208000
+halo load: cuda0 126989696 214208000
+halo load: cuda0 130518400 214208000
+halo load: cuda0 133139840 214208000
+halo load: cuda0 136668416 214208000
+halo load: cuda0 140196992 214208000
+halo load: cuda0 143727616 214208000
+halo load: cuda0 147256320 214208000
+halo load: cuda0 149877760 214208000
+halo load: cuda0 153406336 214208000
+halo load: cuda0 156934912 214208000
+halo load: cuda0 160465536 214208000
+halo load: cuda0 163994240 214208000
+halo load: cuda0 166615680 214208000
+halo load: cuda0 170144256 214208000
+halo load: cuda0 173672832 214208000
+halo load: cuda0 177203456 214208000
+halo load: cuda0 180732160 214208000
+halo load: cuda0 183353600 214208000
+halo load: cuda0 186882176 214208000
+halo load: cuda0 190410752 214208000
+halo load: cuda0 193941376 214208000
+halo load: cuda0 197470080 214208000
+halo load: cuda0 200091520 214208000
+halo load: cuda0 203620096 214208000
+halo load: cuda0 207148672 214208000
+halo load: cuda0 210679296 214208000
+halo load: cuda0 214208000 214208000
+halo load: cuda0 214208000 214208000
+halo generate: 204 MiB of weights loaded from /data/models/halocline/packs/QFN-UD-IQ4_XS-v3.1-compat-mtp.basalt in 0.6 s (497 tensors skipped: served from the source tensors)
+halo hc8: 194 hyper-connection matrices held only as 8-bit copies (659 MiB of copies) in 0.1 s
+halo load: cuda0 0 2581928960
+halo load: cuda0 34406400 2581928960
+halo load: cuda0 68449280 2581928960
+halo load: cuda0 94382080 2581928960
+halo load: cuda0 122234880 2581928960
+halo load: cuda0 151848960 2581928960
+halo load: cuda0 177781760 2581928960
+halo load: cuda0 208471040 2581928960
+halo load: cuda0 235351040 2581928960
+halo load: cuda0 274186240 2581928960
+halo load: cuda0 308229120 2581928960
+halo load: cuda0 334161920 2581928960
+halo load: cuda0 363776000 2581928960
+halo load: cuda0 389708800 2581928960
+halo load: cuda0 420398080 2581928960
+halo load: cuda0 447278080 2581928960
+halo load: cuda0 486113280 2581928960
+halo load: cuda0 520156160 2581928960
+halo load: cuda0 546088960 2581928960
+halo load: cuda0 575703040 2581928960
+halo load: cuda0 601635840 2581928960
+halo load: cuda0 632325120 2581928960
+halo load: cuda0 659205120 2581928960
+halo load: cuda0 708198400 2581928960
+halo load: cuda0 743034880 2581928960
+halo load: cuda0 768967680 2581928960
+halo load: cuda0 798581760 2581928960
+halo load: cuda0 824514560 2581928960
+halo load: cuda0 854128640 2581928960
+halo load: cuda0 880061440 2581928960
+halo load: cuda0 910750720 2581928960
+halo load: cuda0 937630720 2581928960
+halo load: cuda0 976465920 2581928960
+halo load: cuda0 1010508800 2581928960
+halo load: cuda0 1036441600 2581928960
+halo load: cuda0 1066055680 2581928960
+halo load: cuda0 1091988480 2581928960
+halo load: cuda0 1122677760 2581928960
+halo load: cuda0 1149557760 2581928960
+halo load: cuda0 1188392960 2581928960
+halo load: cuda0 1222435840 2581928960
+halo load: cuda0 1248368640 2581928960
+halo load: cuda0 1279057920 2581928960
+halo load: cuda0 1305937920 2581928960
+halo load: cuda0 1344773120 2581928960
+halo load: cuda0 1379891200 2581928960
+halo load: cuda0 1406771200 2581928960
+halo load: cuda0 1445606400 2581928960
+halo load: cuda0 1479649280 2581928960
+halo load: cuda0 1505582080 2581928960
+halo load: cuda0 1535196160 2581928960
+halo load: cuda0 1561128960 2581928960
+halo load: cuda0 1591818240 2581928960
+halo load: cuda0 1618698240 2581928960
+halo load: cuda0 1657533440 2581928960
+halo load: cuda0 1691576320 2581928960
+halo load: cuda0 1717509120 2581928960
+halo load: cuda0 1747123200 2581928960
+halo load: cuda0 1773056000 2581928960
+halo load: cuda0 1803745280 2581928960
+halo load: cuda0 1830625280 2581928960
+halo load: cuda0 1869460480 2581928960
+halo load: cuda0 1903503360 2581928960
+halo load: cuda0 1929436160 2581928960
+halo load: cuda0 1959050240 2581928960
+halo load: cuda0 1984983040 2581928960
+halo load: cuda0 2014597120 2581928960
+halo load: cuda0 2040529920 2581928960
+halo load: cuda0 2071219200 2581928960
+halo load: cuda0 2098099200 2581928960
+halo load: cuda0 2136934400 2581928960
+halo load: cuda0 2170977280 2581928960
+halo load: cuda0 2196910080 2581928960
+halo load: cuda0 2226524160 2581928960
+halo load: cuda0 2252456960 2581928960
+halo load: cuda0 2283146240 2581928960
+halo load: cuda0 2310026240 2581928960
+halo load: cuda0 2348861440 2581928960
+halo load: cuda0 2382904320 2581928960
+halo load: cuda0 2408837120 2581928960
+halo load: cuda0 2439526400 2581928960
+halo load: cuda0 2466406400 2581928960
+halo load: cuda0 2505241600 2581928960
+halo load: cuda0 2539284480 2581928960
+halo load: cuda0 2565217280 2581928960
+halo load: cuda0 2581928960 2581928960
+halo generate: 301 native projection matrices, 2462.32 MiB of weights, in 5.1 s
+halo generate: the SSD is kept awake while rows are read: one page of the table after 40 ms without a read, until 60 s after the last request 
+halo generate: PLE on, table 320001536 rows of /data/models/halocline/packs/QFN-UD-IQ4_XS-v3.1-compat-mtp.basalt
+halo load: kv cuda0 343081472 8192 343081472
+halo load: cuda0 0 521472000
+halo load: cuda0 521472000 521472000
+halo load: cuda0 521472000 521472000
+halo generate: native head: Q6_K, 521472000 bytes, in 1.0 s
+halo generate: GPU 0: NVIDIA GeForce RTX 4090, compute capability 8.9
+halo generate: experts via mmap (--mmap-experts)
+halo load: cuda0 0 719585280
+halo load: cuda0 7372800 719585280
+halo load: cuda0 14791680 719585280
+halo load: cuda0 22210560 719585280
+halo load: cuda0 29629440 719585280
+halo load: cuda0 37048320 719585280
+halo load: cuda0 44467200 719585280
+halo load: cuda0 51886080 719585280
+halo load: cuda0 59304960 719585280
+halo load: cuda0 66723840 719585280
+halo load: cuda0 74142720 719585280
+halo load: cuda0 81561600 719585280
+halo load: cuda0 88980480 719585280
+halo load: cuda0 96399360 719585280
+halo load: cuda0 103818240 719585280
+halo load: cuda0 111237120 719585280
+halo load: cuda0 118656000 719585280
+halo load: cuda0 126074880 719585280
+halo load: cuda0 133493760 719585280
+halo load: cuda0 140912640 719585280
+halo load: cuda0 148331520 719585280
+halo load: cuda0 155750400 719585280
+halo load: cuda0 163169280 719585280
+halo load: cuda0 170588160 719585280
+halo load: cuda0 178007040 719585280
+halo load: cuda0 185425920 719585280
+halo load: cuda0 192844800 719585280
+halo load: cuda0 200263680 719585280
+halo load: cuda0 207682560 719585280
+halo load: cuda0 215101440 719585280
+halo load: cuda0 222520320 719585280
+halo load: cuda0 229939200 719585280
+halo load: cuda0 237358080 719585280
+halo load: cuda0 244776960 719585280
+halo load: cuda0 252195840 719585280
+halo load: cuda0 259614720 719585280
+halo load: cuda0 267033600 719585280
+halo load: cuda0 274452480 719585280
+halo load: cuda0 281871360 719585280
+halo load: cuda0 289290240 719585280
+halo load: cuda0 296709120 719585280
+halo load: cuda0 304128000 719585280
+halo load: cuda0 311546880 719585280
+halo load: cuda0 318965760 719585280
+halo load: cuda0 326384640 719585280
+halo load: cuda0 333803520 719585280
+halo load: cuda0 341222400 719585280
+halo load: cuda0 348641280 719585280
+halo load: cuda0 356060160 719585280
+halo load: cuda0 363479040 719585280
+halo load: cuda0 370897920 719585280
+halo load: cuda0 378316800 719585280
+halo load: cuda0 385735680 719585280
+halo load: cuda0 393154560 719585280
+halo load: cuda0 400573440 719585280
+halo load: cuda0 407992320 719585280
+halo load: cuda0 415411200 719585280
+halo load: cuda0 422830080 719585280
+halo load: cuda0 430248960 719585280
+halo load: cuda0 437667840 719585280
+halo load: cuda0 445086720 719585280
+halo load: cuda0 452505600 719585280
+halo load: cuda0 459924480 719585280
+halo load: cuda0 467343360 719585280
+halo load: cuda0 474762240 719585280
+halo load: cuda0 482181120 719585280
+halo load: cuda0 489600000 719585280
+halo load: cuda0 497018880 719585280
+halo load: cuda0 504437760 719585280
+halo load: cuda0 511856640 719585280
+halo load: cuda0 519275520 719585280
+halo load: cuda0 526694400 719585280
+halo load: cuda0 534113280 719585280
+halo load: cuda0 541532160 719585280
+halo load: cuda0 548951040 719585280
+halo load: cuda0 556369920 719585280
+halo load: cuda0 563788800 719585280
+halo load: cuda0 571207680 719585280
+halo load: cuda0 578626560 719585280
+halo load: cuda0 586045440 719585280
+halo load: cuda0 593464320 719585280
+halo load: cuda0 600883200 719585280
+halo load: cuda0 608302080 719585280
+halo load: cuda0 615720960 719585280
+halo load: cuda0 623139840 719585280
+halo load: cuda0 630558720 719585280
+halo load: cuda0 637977600 719585280
+halo load: cuda0 645396480 719585280
+halo load: cuda0 652815360 719585280
+halo load: cuda0 660234240 719585280
+halo load: cuda0 667653120 719585280
+halo load: cuda0 675072000 719585280
+halo load: cuda0 682490880 719585280
+halo load: cuda0 689909760 719585280
+halo load: cuda0 697328640 719585280
+halo load: cuda0 704747520 719585280
+halo load: cuda0 712166400 719585280
+halo load: cuda0 719585280 719585280
+halo load: cuda0 719585280 719585280
+halo hc8: 8-bit hyper-connection copies, 659 MiB of VRAM
+halo generate: expert cache 7961 slots, 18.23 GiB of VRAM; policy is
+halo generate: the GPU computes the experts in the cache; it rounds differently from the CPU,
+                 so a reply can differ slightly from a run without the cache (same quality).
+                 PROFILE, ranked by routing frequency, no eviction.
+halo load: plan cuda0 23806026240
+halo load: plan ram 40814694400
+halo load: cuda0 0 19570176000
+halo load: cuda0 115584000 19570176000
+halo load: cuda0 246144000 19570176000
+halo load: cuda0 378419200 19570176000
+halo load: cuda0 510028800 19570176000
+halo load: cuda0 642508800 19570176000
+halo load: cuda0 773734400 19570176000
+halo load: cuda0 905088000 19570176000
+halo load: cuda0 1036697600 19570176000
+halo load: cuda0 1167488000 19570176000
+halo load: cuda0 1298944000 19570176000
+halo load: cuda0 1429708800 19570176000
+halo load: cuda0 1562419200 19570176000
+halo load: cuda0 1693363200 19570176000
+halo load: cuda0 1805286400 19570176000
+halo load: cuda0 1910476800 19570176000
+halo load: cuda0 2013798400 19570176000
+halo load: cuda0 2117964800 19570176000
+halo load: cuda0 2249113600 19570176000
+halo load: cuda0 2342860800 19570176000
+halo load: cuda0 2473651200 19570176000
+halo load: cuda0 2606336000 19570176000
+halo load: cuda0 2737331200 19570176000
+halo load: cuda0 2868736000 19570176000
+halo load: cuda0 2999424000 19570176000
+halo load: cuda0 3131136000 19570176000
+halo load: cuda0 3261491200 19570176000
+halo load: cuda0 3393305600 19570176000
+halo load: cuda0 3524070400 19570176000
+halo load: cuda0 3656678400 19570176000
+halo load: cuda0 3786470400 19570176000
+halo load: cuda0 3918976000 19570176000
+halo load: cuda0 4050892800 19570176000
+halo load: cuda0 4183270400 19570176000
+halo load: cuda0 4313036800 19570176000
+halo load: cuda0 4443392000 19570176000
+halo load: cuda0 4573952000 19570176000
+halo load: cuda0 4705228800 19570176000
+halo load: cuda0 4836940800 19570176000
+halo load: cuda0 4968166400 19570176000
+halo load: cuda0 5100390400 19570176000
+halo load: cuda0 5231616000 19570176000
+halo load: cuda0 5362150400 19570176000
+halo load: cuda0 5494169600 19570176000
+halo load: cuda0 5624473600 19570176000
+halo load: cuda0 5755622400 19570176000
+halo load: cuda0 5885875200 19570176000
+halo load: cuda0 6017100800 19570176000
+halo load: cuda0 6148710400 19570176000
+halo load: cuda0 6281267200 19570176000
+halo load: cuda0 6409139200 19570176000
+halo load: cuda0 6541132800 19570176000
+halo load: cuda0 6673587200 19570176000
+halo load: cuda0 6805427200 19570176000
+halo load: cuda0 6936115200 19570176000
+halo load: cuda0 7067520000 19570176000
+halo load: cuda0 7198003200 19570176000
+halo load: cuda0 7330201600 19570176000
+halo load: cuda0 7462937600 19570176000
+halo load: cuda0 7593856000 19570176000
+halo load: cuda0 7724211200 19570176000
+halo load: cuda0 7855897600 19570176000
+halo load: cuda0 7987763200 19570176000
+halo load: cuda0 8119193600 19570176000
+halo load: cuda0 8251417600 19570176000
+halo load: cuda0 8383180800 19570176000
+halo load: cuda0 8516121600 19570176000
+halo load: cuda0 8647296000 19570176000
+halo load: cuda0 8777548800 19570176000
+halo load: cuda0 8908723200 19570176000
+halo load: cuda0 9040972800 19570176000
+halo load: cuda0 9171788800 19570176000
+halo load: cuda0 9304166400 19570176000
+halo load: cuda0 9434982400 19570176000
+halo load: cuda0 9565926400 19570176000
+halo load: cuda0 9698022400 19570176000
+halo load: cuda0 9829836800 19570176000
+halo load: cuda0 9961472000 19570176000
+halo load: cuda0 10093696000 19570176000
+halo load: cuda0 10225740800 19570176000
+halo load: cuda0 10356710400 19570176000
+halo load: cuda0 10489292800 19570176000
+halo load: cuda0 10621772800 19570176000
+halo load: cuda0 10753920000 19570176000
+halo load: cuda0 10884684800 19570176000
+halo load: cuda0 11015168000 19570176000
+halo load: cuda0 11146444800 19570176000
+halo load: cuda0 11278822400 19570176000
+halo load: cuda0 11410150400 19570176000
+halo load: cuda0 11541324800 19570176000
+halo load: cuda0 11673779200 19570176000
+halo load: cuda0 11805056000 19570176000
+halo load: cuda0 11937331200 19570176000
+halo load: cuda0 12068992000 19570176000
+halo load: cuda0 12199936000 19570176000
+halo load: cuda0 12331571200 19570176000
+halo load: cuda0 12463206400 19570176000
+halo load: cuda0 12594355200 19570176000
+halo load: cuda0 12724812800 19570176000
+halo load: cuda0 12852428800 19570176000
+halo load: cuda0 12984780800 19570176000
+halo load: cuda0 13116953600 19570176000
+halo load: cuda0 13248665600 19570176000
+halo load: cuda0 13380300800 19570176000
+halo load: cuda0 13510425600 19570176000
+halo load: cuda0 13641625600 19570176000
+halo load: cuda0 13773235200 19570176000
+halo load: cuda0 13905152000 19570176000
+halo load: cuda0 14037555200 19570176000
+halo load: cuda0 14165299200 19570176000
+halo load: cuda0 14296806400 19570176000
+halo load: cuda0 14428723200 19570176000
+halo load: cuda0 14559104000 19570176000
+halo load: cuda0 14690022400 19570176000
+halo load: cuda0 14820454400 19570176000
+halo load: cuda0 14952243200 19570176000
+halo load: cuda0 15083136000 19570176000
+halo load: cuda0 15213696000 19570176000
+halo load: cuda0 15344000000 19570176000
+halo load: cuda0 15476044800 19570176000
+halo load: cuda0 15607680000 19570176000
+halo load: cuda0 15738547200 19570176000
+halo load: cuda0 15869593600 19570176000
+halo load: cuda0 16001689600 19570176000
+halo load: cuda0 16131251200 19570176000
+halo load: cuda0 16262732800 19570176000
+halo load: cuda0 16394777600 19570176000
+halo load: cuda0 16525900800 19570176000
+halo load: cuda0 16656435200 19570176000
+halo load: cuda0 16784384000 19570176000
+halo load: cuda0 16915532800 19570176000
+halo load: cuda0 17046937600 19570176000
+halo load: cuda0 17176371200 19570176000
+halo load: cuda0 17307904000 19570176000
+halo load: cuda0 17439846400 19570176000
+halo load: cuda0 17571481600 19570176000
+halo load: cuda0 17701580800 19570176000
+halo load: cuda0 17832524800 19570176000
+halo load: cuda0 17964416000 19570176000
+halo load: cuda0 18095155200 19570176000
+halo load: cuda0 18226252800 19570176000
+halo load: cuda0 18358067200 19570176000
+halo load: cuda0 18488985600 19570176000
+halo load: cuda0 18619955200 19570176000
+halo load: cuda0 18750387200 19570176000
+halo load: cuda0 18879974400 19570176000
+halo load: cuda0 19011456000 19570176000
+halo load: cuda0 19143859200 19570176000
+halo load: cuda0 19276108800 19570176000
+halo load: cuda0 19406848000 19570176000
+halo load: cuda0 19535692800 19570176000
+halo load: cuda0 19570176000 19570176000
+halo generate: pre-filled 7961 of 7961 slots from the profile in 37.9 s (516 MB/s); slot 0 verified
+halo generate: R4 hit path ON - resident experts are computed on the GPU
+halo generate: session is up (engine 0.1.0)
+halo generate: token graph hit path: 7961 resident experts, decided on the device
+halo generate: 23 expert-pool workers + the host thread
+halo: FileExpertSource: allocating 41.30 GiB page-locked cache complement
+halo load: plan ram 40814694400
+halo load: ram 0 40814694400
+halo load: ram 73472000 40814694400
+halo load: ram 199219200 40814694400
+halo load: ram 329881600 40814694400
+halo load: ram 472934400 40814694400
+halo load: ram 603161600 40814694400
+halo load: ram 725171200 40814694400
+halo load: ram 795340800 40814694400
+halo load: ram 958412800 40814694400
+halo load: ram 1077555200 40814694400
+halo load: ram 1175321600 40814694400
+halo load: ram 1321625600 40814694400
+halo load: ram 1408460800 40814694400
+halo load: ram 1552332800 40814694400
+halo load: ram 1719244800 40814694400
+halo load: ram 1836544000 40814694400
+halo load: ram 1909427200 40814694400
+halo load: ram 2053990400 40814694400
+halo load: ram 2199808000 40814694400
+halo load: ram 2331443200 40814694400
+halo load: ram 2462540800 40814694400
+halo load: ram 2524441600 40814694400
+halo load: ram 2751513600 40814694400
+halo load: ram 2858700800 40814694400
+halo load: ram 3010355200 40814694400
+halo load: ram 3149568000 40814694400
+halo load: ram 3273907200 40814694400
+halo load: ram 3370649600 40814694400
+halo load: ram 3488384000 40814694400
+halo load: ram 3648640000 40814694400
+halo load: ram 3718220800 40814694400
+halo load: ram 3895628800 40814694400
+halo load: ram 4006656000 40814694400
+halo load: ram 4147865600 40814694400
+halo load: ram 4271385600 40814694400
+halo load: ram 4386304000 40814694400
+halo load: ram 4503603200 40814694400
+halo load: ram 4644275200 40814694400
+halo load: ram 4743833600 40814694400
+halo load: ram 4881254400 40814694400
+halo load: ram 4943744000 40814694400
+halo load: ram 5118182400 40814694400
+halo load: ram 5225548800 40814694400
+halo load: ram 5419596800 40814694400
+halo load: ram 5559475200 40814694400
+halo load: ram 5649356800 40814694400
+halo load: ram 5794432000 40814694400
+halo load: ram 5897267200 40814694400
+halo load: ram 6023961600 40814694400
+halo load: ram 6140288000 40814694400
+halo load: ram 6257996800 40814694400
+halo load: ram 6393241600 40814694400
+halo load: ram 6517145600 40814694400
+halo load: ram 6623769600 40814694400
+halo load: ram 6764620800 40814694400
+halo load: ram 6872678400 40814694400
+halo load: ram 6986444800 40814694400
+halo load: ram 7082265600 40814694400
+halo load: ram 7242982400 40814694400
+halo load: ram 7361382400 40814694400
+halo load: ram 7483750400 40814694400
+halo load: ram 7581184000 40814694400
+halo load: ram 7711846400 40814694400
+halo load: ram 7839769600 40814694400
+halo load: ram 7942323200 40814694400
+halo load: ram 8070809600 40814694400
+halo load: ram 8206720000 40814694400
+halo load: ram 8278784000 40814694400
+halo load: ram 8381542400 40814694400
+halo load: ram 8553088000 40814694400
+halo load: ram 8620262400 40814694400
+halo load: ram 8777702400 40814694400
+halo load: ram 8936934400 40814694400
+halo: FileExpertSource: copied cache complement through layer 8/48 (9.24 GiB, 19 s)
+halo load: ram 9027302400 40814694400
+halo load: ram 9123532800 40814694400
+halo load: ram 9284300800 40814694400
+halo load: ram 9420569600 40814694400
+halo load: ram 9537894400 40814694400
+halo load: ram 9654323200 40814694400
+halo load: ram 9796966400 40814694400
+halo load: ram 9935027200 40814694400
+halo load: ram 10059059200 40814694400
+halo load: ram 10166041600 40814694400
+halo load: ram 10306611200 40814694400
+halo load: ram 10414515200 40814694400
+halo load: ram 10565657600 40814694400
+halo load: ram 10694886400 40814694400
+halo load: ram 10840908800 40814694400
+halo load: ram 10948582400 40814694400
+halo load: ram 11080396800 40814694400
+halo load: ram 11201280000 40814694400
+halo load: ram 11319244800 40814694400
+halo load: ram 11446502400 40814694400
+halo load: ram 11533388800 40814694400
+halo load: ram 11678899200 40814694400
+halo load: ram 11823820800 40814694400
+halo load: ram 11926323200 40814694400
+halo load: ram 12071424000 40814694400
+halo load: ram 12182476800 40814694400
+halo load: ram 12292428800 40814694400
+halo load: ram 12406809600 40814694400
+halo load: ram 12482944000 40814694400
+halo load: ram 12592768000 40814694400
+halo load: ram 12705100800 40814694400
+halo load: ram 12823910400 40814694400
+halo load: ram 12902732800 40814694400
+halo load: ram 13068672000 40814694400
+halo load: ram 13166489600 40814694400
+halo load: ram 13292390400 40814694400
+halo load: ram 13436441600 40814694400
+halo load: ram 13536512000 40814694400
+halo load: ram 13671321600 40814694400
+halo load: ram 13768320000 40814694400
+halo load: ram 13943833600 40814694400
+halo load: ram 14019686400 40814694400
+halo load: ram 14183500800 40814694400
+halo load: ram 14335308800 40814694400
+halo load: ram 14443622400 40814694400
+halo load: ram 14563840000 40814694400
+halo load: ram 14689408000 40814694400
+halo load: ram 14830233600 40814694400
+halo load: ram 14932377600 40814694400
+halo: FileExpertSource: copied cache complement through layer 16/48 (15.46 GiB, 33 s)
+halo load: ram 15068979200 40814694400
+halo load: ram 15196236800 40814694400
+halo load: ram 15303859200 40814694400
+halo load: ram 15444787200 40814694400
+halo load: ram 15547443200 40814694400
+halo load: ram 15623833600 40814694400
+halo load: ram 15717862400 40814694400
+halo load: ram 15858611200 40814694400
+halo load: ram 15974016000 40814694400
+halo load: ram 16051916800 40814694400
+halo load: ram 16185804800 40814694400
+halo load: ram 16306688000 40814694400
+halo load: ram 16433920000 40814694400
+halo load: ram 16552012800 40814694400
+halo load: ram 16720486400 40814694400
+halo load: ram 16846233600 40814694400
+halo load: ram 16951961600 40814694400
+halo load: ram 17070387200 40814694400
+halo load: ram 17212441600 40814694400
+halo load: ram 17338880000 40814694400
+halo load: ram 17466265600 40814694400
+halo load: ram 17625881600 40814694400
+halo load: ram 17743027200 40814694400
+halo load: ram 17874790400 40814694400
+halo load: ram 17998489600 40814694400
+halo load: ram 18101145600 40814694400
+halo load: ram 18217907200 40814694400
+halo load: ram 18365670400 40814694400
+halo load: ram 18482739200 40814694400
+halo load: ram 18597350400 40814694400
+halo load: ram 18730265600 40814694400
+halo load: ram 18869350400 40814694400
+halo load: ram 19013836800 40814694400
+halo load: ram 19110630400 40814694400
+halo load: ram 19260851200 40814694400
+halo load: ram 19379507200 40814694400
+halo load: ram 19484185600 40814694400
+halo load: ram 19647078400 40814694400
+halo load: ram 19779814400 40814694400
+halo load: ram 19889715200 40814694400
+halo load: ram 19972838400 40814694400
+halo load: ram 20159539200 40814694400
+halo: FileExpertSource: copied cache complement through layer 24/48 (20.72 GiB, 44 s)
+halo load: ram 20276889600 40814694400
+halo load: ram 20356044800 40814694400
+halo load: ram 20505907200 40814694400
+halo load: ram 20620928000 40814694400
+halo load: ram 20767436800 40814694400
+halo load: ram 20858009600 40814694400
+halo load: ram 20970214400 40814694400
+halo load: ram 21136204800 40814694400
+halo load: ram 21226342400 40814694400
+halo load: ram 21392332800 40814694400
+halo load: ram 21536460800 40814694400
+halo load: ram 21680486400 40814694400
+halo load: ram 21777331200 40814694400
+halo load: ram 21933798400 40814694400
+halo load: ram 22058342400 40814694400
+halo load: ram 22179481600 40814694400
+halo load: ram 22270643200 40814694400
+halo load: ram 22387942400 40814694400
+halo load: ram 22562483200 40814694400
+halo load: ram 22686054400 40814694400
+halo load: ram 22811084800 40814694400
+halo load: ram 22920320000 40814694400
+halo load: ram 23023385600 40814694400
+halo load: ram 23147494400 40814694400
+halo load: ram 23251430400 40814694400
+halo load: ram 23386035200 40814694400
+halo load: ram 23521408000 40814694400
+halo load: ram 23643084800 40814694400
+halo load: ram 23768115200 40814694400
+halo load: ram 23885030400 40814694400
+halo load: ram 23990400000 40814694400
+halo load: ram 24150502400 40814694400
+halo load: ram 24264601600 40814694400
+halo load: ram 24401612800 40814694400
+halo load: ram 24485811200 40814694400
+halo load: ram 24630860800 40814694400
+halo load: ram 24749670400 40814694400
+halo load: ram 24892492800 40814694400
+halo load: ram 24951270400 40814694400
+halo load: ram 25056742400 40814694400
+halo load: ram 25200716800 40814694400
+halo load: ram 25321139200 40814694400
+halo load: ram 25406131200 40814694400
+halo load: ram 25532697600 40814694400
+halo load: ram 25632435200 40814694400
+halo load: ram 25788697600 40814694400
+halo load: ram 25911168000 40814694400
+halo load: ram 26032614400 40814694400
+halo load: ram 26152422400 40814694400
+halo load: ram 26262809600 40814694400
+halo load: ram 26385894400 40814694400
+halo load: ram 26524544000 40814694400
+halo load: ram 26655206400 40814694400
+halo load: ram 26770304000 40814694400
+halo load: ram 26889702400 40814694400
+halo load: ram 27001523200 40814694400
+halo load: ram 27121536000 40814694400
+halo load: ram 27207756800 40814694400
+halo load: ram 27319168000 40814694400
+halo load: ram 27434470400 40814694400
+halo load: ram 27559193600 40814694400
+halo load: ram 27682278400 40814694400
+halo load: ram 27777305600 40814694400
+halo load: ram 27911449600 40814694400
+halo load: ram 28012211200 40814694400
+halo load: ram 28176460800 40814694400
+halo load: ram 28276403200 40814694400
+halo load: ram 28402764800 40814694400
+halo load: ram 28530560000 40814694400
+halo load: ram 28681088000 40814694400
+halo load: ram 28770380800 40814694400
+halo load: ram 28880972800 40814694400
+halo load: ram 28986649600 40814694400
+halo load: ram 29090278400 40814694400
+halo load: ram 29228928000 40814694400
+halo load: ram 29360000000 40814694400
+halo load: ram 29449088000 40814694400
+halo load: ram 29616819200 40814694400
+halo load: ram 29669683200 40814694400
+halo: FileExpertSource: copied cache complement through layer 32/48 (30.41 GiB, 65 s)
+halo load: ram 29887692800 40814694400
+halo load: ram 29994880000 40814694400
+halo load: ram 30111616000 40814694400
+halo load: ram 30158848000 40814694400
+halo load: ram 30363187200 40814694400
+halo load: ram 30454476800 40814694400
+halo load: ram 30569497600 40814694400
+halo load: ram 30734156800 40814694400
+halo load: ram 30820121600 40814694400
+halo load: ram 30979353600 40814694400
+halo load: ram 31090048000 40814694400
+halo load: ram 31204428800 40814694400
+halo load: ram 31309337600 40814694400
+halo load: ram 31447040000 40814694400
+halo load: ram 31538099200 40814694400
+halo load: ram 31716377600 40814694400
+halo load: ram 31824486400 40814694400
+halo load: ram 31970790400 40814694400
+halo load: ram 32071321600 40814694400
+halo load: ram 32216704000 40814694400
+halo load: ram 32274329600 40814694400
+halo load: ram 32440166400 40814694400
+halo load: ram 32555468800 40814694400
+halo load: ram 32662656000 40814694400
+halo load: ram 32777472000 40814694400
+halo load: ram 32894668800 40814694400
+halo load: ram 33026636800 40814694400
+halo load: ram 33164774400 40814694400
+halo load: ram 33228620800 40814694400
+halo load: ram 33327692800 40814694400
+halo load: ram 33478323200 40814694400
+halo load: ram 33595955200 40814694400
+halo load: ram 33699404800 40814694400
+halo load: ram 33803724800 40814694400
+halo load: ram 33955276800 40814694400
+halo load: ram 34078156800 40814694400
+halo load: ram 34212505600 40814694400
+halo load: ram 34320614400 40814694400
+halo load: ram 34436403200 40814694400
+halo load: ram 34538342400 40814694400
+halo load: ram 34640716800 40814694400
+halo load: ram 34798054400 40814694400
+halo load: ram 34958643200 40814694400
+halo load: ram 35079500800 40814694400
+halo load: ram 35205248000 40814694400
+halo load: ram 35325312000 40814694400
+halo load: ram 35433241600 40814694400
+halo load: ram 35592038400 40814694400
+halo load: ram 35739059200 40814694400
+halo load: ram 35845248000 40814694400
+halo: FileExpertSource: copied cache complement through layer 40/48 (36.49 GiB, 79 s)
+halo load: ram 35958348800 40814694400
+halo load: ram 36076748800 40814694400
+halo load: ram 36198220800 40814694400
+halo load: ram 36350566400 40814694400
+halo load: ram 36469862400 40814694400
+halo load: ram 36586905600 40814694400
+halo load: ram 36698316800 40814694400
+halo load: ram 36842163200 40814694400
+halo load: ram 36983884800 40814694400
+halo load: ram 37095321600 40814694400
+halo load: ram 37207705600 40814694400
+halo load: ram 37359129600 40814694400
+halo load: ram 37461376000 40814694400
+halo load: ram 37597542400 40814694400
+halo load: ram 37696179200 40814694400
+halo load: ram 37836185600 40814694400
+halo load: ram 37980851200 40814694400
+halo load: ram 38098560000 40814694400
+halo load: ram 38249779200 40814694400
+halo load: ram 38391116800 40814694400
+halo load: ram 38490752000 40814694400
+halo load: ram 38629990400 40814694400
+halo load: ram 38771353600 40814694400
+halo load: ram 38864921600 40814694400
+halo load: ram 39029452800 40814694400
+halo load: ram 39110451200 40814694400
+halo load: ram 39222041600 40814694400
+halo load: ram 39353420800 40814694400
+halo load: ram 39512499200 40814694400
+halo load: ram 39618918400 40814694400
+halo load: ram 39770547200 40814694400
+halo load: ram 39916390400 40814694400
+halo load: ram 40013542400 40814694400
+halo load: ram 40169011200 40814694400
+halo load: ram 40266188800 40814694400
+halo load: ram 40404224000 40814694400
+halo load: ram 40536780800 40814694400
+halo load: ram 40654131200 40814694400
+halo load: ram 40771686400 40814694400
+halo: FileExpertSource: copied cache complement through layer 48/48 (41.30 GiB, 89 s)
+halo load: ram 40814694400 40814694400
+halo: FileExpertSource: cache complement: allocation 0.0 s, read 89.2 s (0.50 GB/s, 100.0% unbuffered), registration 0.8 s
+halo: FileExpertSource: mapped pinned cache complement ready: resident 41.30 GiB, pinned 41.30 GiB in 90 s; page-locked and mapped
+halo: FileExpertSource: 1440 of the prompt path's 1440 lendable slots keep their experts in RAM too
+halo generate: resident RAM mode: 41.30 GiB of experts in RAM (page-locked), 7961 in the GPU cache; adaptive swaps off
+halo generate: prompt path lends at most 85% of the cache (73% of the expert bytes pinned)
+halo serve: prompt chunk auto: 8192 tokens, a 256-slot ring
+halo serve: the prompt path borrows 1440 CUDA0 cache slots (3.29 GiB)
+halo hc: CUDA0: the hyper-connection read runs as staged (the norm per token and stream, the down projection's activations staged ahead by cp.async); checked bit for bit against the plain read on this card
+halo: mid_chain: sm_89 kernel, 128 CTAs of 512 threads
+halo: hc read: sm_89 kernel, 128 CTAs of 512 threads
+halo verify: side branches at stream priority -5
+halo verify: lazy GDN commit off, L2 read-ahead after the MoE grid: compute capability 8.x
+halo verify: the MoE tail planned on the device
+halo verify: window up to 2 tokens, 55.1 MiB of device buffers
+halo serve: 427 MiB of VRAM free with everything loaded
+halo generate: experts live in VRAM 18.2 GiB (32%), RAM 38.0 GiB (68%), file (SSD) 0.0 GiB (0%); 56.2 GiB in all
+halo serve: RAM 11.32 GiB free, guard 2.00 GiB
+halo verify: captured the 1-token window (upload no error, sync no error), 0 programmatic dependent launches
+halo verify: captured the 2-token window (upload no error, sync no error), 0 programmatic dependent launches
+halo serve: prompt 38 tokens = 0 reused + 38 read in 503 ms (75.6 tok/s), 300 generated in 3188 ms (94.1 tok/s), drafts accepted 0 of 0, 1 checkpoints
+halo serve: decode expert cache hit rate: 74.5% (107321 hits / 144000 lookups)
+halo serve: resident RAM: 41.30 GiB of experts in RAM, 0 exchanged with the VRAM tier, 0 blob reads from the file
+halo serve: expert tiers: GPU 107321 hits this request; since the start RAM 43812 blobs, files 0 blobs 2.9 MB read
+halo serve: prompt 98 tokens = 0 reused + 98 read in 471 ms (208.0 tok/s), 300 generated in 5168 ms (58.0 tok/s), drafts accepted 0 of 0, 1 checkpoints
+halo serve: decode expert cache hit rate: 27.7% (39842 hits / 144000 lookups)
+halo serve: resident RAM: 41.30 GiB of experts in RAM, 0 exchanged with the VRAM tier, 0 blob reads from the file
+halo serve: expert tiers: GPU 39842 hits this request; since the start RAM 154895 blobs, files 0 blobs 2.9 MB read
+halo serve: prompt 19 tokens = 0 reused + 19 read in 242 ms (78.4 tok/s), 300 generated in 3193 ms (93.9 tok/s), drafts accepted 0 of 0, 1 checkpoints
+halo serve: decode expert cache hit rate: 73.4% (105724 hits / 144000 lookups)
+halo serve: resident RAM: 41.30 GiB of experts in RAM, 0 exchanged with the VRAM tier, 0 blob reads from the file
+halo serve: expert tiers: GPU 105724 hits this request; since the start RAM 197319 blobs, files 0 blobs 2.9 MB read

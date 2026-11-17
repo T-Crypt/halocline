@@ -1,73 +1,55 @@
-# Qwen3.8-Flash-Next
+# Qwen3.8-Flash-Next (sparse)
 
-> [!WARNING]
-> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+The sparse path, and the only model that runs today. Qwen3.8-Flash-Next is a 125B-parameter mixture-of-experts model
+with 6B activated per token, plus a 51B n-gram embedding table and a 4B MTP layer
+([card](https://huggingface.co/Qwen/Qwen3.8-Flash-Next),
+[report](https://arxiv.org/abs/2608.30320)).
 
-Runs with the same command as any model: `halo serve PACK`. What it supports next to the others: [models](index.md). Rounding and
-quality: [precision](../precision/qwen38-flash-next.md).
+| Property | Value |
+|---|---|
+| Architecture id | `qwen4_exp` |
+| Layers | 48: 36 Gated DeltaNet, 12 Qwen Sparse Attention |
+| Experts | 512 per layer, 10 routed plus 1 shared, intermediate dimension 640 |
+| Hidden size | 2,560 |
+| Context | 262,144 native |
+| Vocabulary | 248,320 |
+| Drafting | MTP layer, `--spec 8` |
 
 ## Pack
 
-Packs on [Hugging Face](https://huggingface.co/jesdga/Qwen3.8-Flash-Next-Basalt), all named `Qwen3.8-FN-` plus:
+From Unsloth's UD-IQ4_XS v3.1 shards at revision `814db05f`, 93,672,359,738 bytes:
 
-- `NVFP4-DQ6_K` (default) and `NVFP4-DQ8`: NVIDIA's NVFP4 experts. `D` is the dense projections' format: Q6_K, or Q8_0 for DQ8.
-  DQ8 is slower than DQ6_K and has a lower KLD ([precision](../precision/qwen38-flash-next.md#6-bit-dense-projections)).
-- `UD-IQ1_S`, `UD-IQ1_M`, `UD-IQ2_XS`, `UD-IQ3_XXS`, `UD-IQ4_XS`, `UD-Q4_K_XL`, `UD-Q5_K_XL`, `UD-Q6_K_XL` and `Q8_0`: Unsloth's GGUF types.
-- Unsloth's `UD-IQ1_S` GGUF converts as shipped (70.4 GB). One of its layers has IQ2_S gate and IQ2_XXS up rows; every layer runs
-  the same fast kernels as the other UD packs.
+```sh
+.venv/bin/python tools/convert/mtp_fetch.py fetch --out mtp-qfn
+.venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf \
+    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.basalt
+```
 
-Sizes are on the card. The layout, and how to build a pack: [model file](../model-file.md).
+The pack copies the quantized tensors byte for byte. The draft layer adds 0.77 GiB (sections `mtp/dense` and
+`mtp/experts`); the 31 BF16 source tensors are 4.9 GiB and are hash-checked per tensor. The 195 `hc_*` tensors are cast
+from Q8_0 to BF16 at conversion (`--compat-bf16`), an interim step the KLD numbers include.
 
-## Memory
+## Run
 
-- **Context:** `--max-context`, default 8,192. The KV cache grows with it. `--kv fp16` (default), `int8` (half the VRAM), `q4_0`
-  and `k8v4` trade precision for VRAM ([precision](../precision/qwen38-flash-next.md#measured-costs)).
-- **Experts:** the main card's cache holds the most routed ones, system RAM the rest, and an adaptive tier moves them as the
-  conversation changes ([adaptive tier](../configuration/adaptive.md)).
-- **RAM:** before the RAM copy, the checkpoint blocks of every slot are allocated (page-locked, so a checkpoint saves and
-  restores at link speed and a save runs beside the first decode window) and the RAM of the page-locked prompt buffers
-  is held: the PLE rows at the largest chunk, a layer split's hand-offs, and the prompt split's weights, hand-offs and staging.
-  Each buffer takes its held RAM when it is made; what none takes goes back before the top-up. The copy then leaves
-  `--ram-reserve-mib` free beside the driver's page tracking (`RAM floor X GiB of N GiB free` when experts stay on the SSD).
-- **Cards:** every card after the main one is an expert tier, up to three. Matched cards may split the layers instead
-  ([GPUs](../configuration/gpus.md)).
-- **Elastic KV:** with `--max-context` above 32,768 (and not with `--kv-resident`, `--vram-elastic` or a layer split), each session
-  backs its first 32,768 cells at start. More cells come from the expert cache when a request needs them, and go back when it does
-  not. An idle conversation's KV moves to RAM after 15 s. The startup line `elastic KV: ...` shows the figures, and
-  `elastic KV: about N cells fit in the S sessions ...` gives the ceiling: the cells all sessions can hold before the expert
-  cache reaches the slots a prompt chunk needs, past which a request is refused. `/v1/status` gives its current value as
-  `context.elastic_kv_ceiling` (null without elastic KV), so a client can compact a conversation first.
+```sh
+bin/halo serve QFN-UD-IQ4_XS.basalt --host 127.0.0.1 --port 8092 \
+    --spec 8 --prefill auto --max-context 262144 --kv int8
+```
 
-## Long prompts
+Placement on the reference machine: 18.2 GiB of experts in VRAM (7,961 slots), 38.0 to 41.3 GiB page-locked in RAM, 0 on
+SSD. About 4 GiB of system RAM stays free with the model loaded.
 
-- `--prefill auto` reads up to 16,384 tokens per chunk (32,768 for NVFP4). The CPU computes 0.6 of the prompt experts that stream
-  (`--prefill-cpu-share`).
-- A fresh part of 64 tokens or fewer goes through decode windows (`--short-read`).
-- With several cards, a long prompt can be read as a pipeline over them ([GPUs](../configuration/gpus.md#long-prompts-across-the-cards)).
-- Prompts beside decoding slots: [running](../running.md#prompts-beside-decoding-slots).
+## What is measured
 
-## Drafting
+- KLD against BF16 and the KV choice: [README](../../README.md#quality-against-bf16) and
+  [`evals/2026-11-17/halocline-kv-kld`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-kv-kld).
+- Speed, including the needle checks at 36K and 137K:
+  [`halocline-llama-swap`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-llama-swap).
+- Greedy identity across the removals:
+  [`halocline-greedy-identity-final`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-greedy-identity-final).
+- The roundings and the gate: [precision](../precision/qwen38-flash-next.md).
 
-On when the pack has the MTP drafter. `--spec N` sets the window (default 8: the last accepted token plus up to 7 drafts).
-`--spec 0` turns it off. `--suffix-draft` (default 3) also fills a window from an earlier repeat in the context. Output is exactly
-plain decoding's ([precision](../precision/qwen38-flash-next.md#drafting-does-not-change-output)). Structured output drafts best
-and prose least.
+## Not in use
 
-## Parallel slots
-
-`--parallel N` (1 to 8) serves N requests at once ([running](../running.md#concurrent-requests---parallel-n)).
-
-## Images and video
-
-`--vision dynamic`, a GPU number or `cpu` ([vision](../running.md#vision---vision)). Video works with images on and FFmpeg on the
-machine; frames decode on the GPU with NVDEC ([video](../running.md#video)).
-
-## Lossy flags
-
-Off by default. `--relaxed-drafting`, `--route-prior` and `--route-tail-skip` each change output, and each is named in one start
-warning. What they do and what they cost: [precision](../precision/qwen38-flash-next.md#relaxed-drafting).
-
-## Limits
-
-- **Two-card idle sleep** can drop the second card's experts until restart (seen at context 8,192 without elastic KV, not at 64K or
-  262,144).
+The reference pack is built `--no-vision`, so images and video are off. Multi-GPU, the peer expert tier, NVFP4 packs and
+the sm_120 kernels were removed with the sm_89 scope; Basalt's changelog records them.

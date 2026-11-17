@@ -34,14 +34,31 @@ The Hugging Face revisions are the ones the measurements used.
 
 ## Using Halocline as a base for your own card
 
-Halocline will not take a port. Fork it under your own name (`halocline-<arch>` keeps the lineage readable) and:
+Do not run the shipped settings on another machine unchanged. They come from one 4090, one CPU, 64 GB of RAM and a SATA
+pack disk. Fork the repo under your own name (`halocline-<arch>` keeps the lineage readable) and tune it to your parts.
 
-1. Change the architecture check at the top of `CMakeLists.txt` to your compute capability.
-2. Replace the kernels. They live in `src/kernels/cuda/`, `src/models/qwen4exp/kernels/` and `src/prefill/`. Each has a
-   parity test in `tests/` against a CPU or double-precision reference; keep the test and swap the kernel behind the
-   same host function.
-3. Re-measure your own `SPECS.md`, your own floors (step 2) and the quality gate (step 6). None of Halocline's numbers
-   carry to another card.
+**Another Ada card (4080, 4070, 4060 Ti, L4, L40).** The build works without code changes: every 40-series card is compute
+capability 8.9, which is all the engine compiles. What changes is placement and speed:
+
+- `--expert-cache auto` (or a slot count) and `--vram-reserve-mib`: how many expert blobs live in VRAM. Less VRAM means
+  more experts in the page-locked RAM tier.
+- `--prefill-cpu-share`: the share of streamed prompt experts the CPU computes (0.6 on the reference machine). An
+  AVX-512 host can take more.
+- `--ple-io`, `--ple-row-cache`, `--ple-inflight`: the n-gram table's reads. On a SATA pack disk the cold start is about
+  0.5 GB/s; an NVMe helps the table and the cold start, not steady-state decode.
+- `--kv`, `--max-context`, `--kv-resident`: the KV budget. int8 at 262K is 8.25 GiB.
+- RAM is the tier that decides whether the model runs at all: the page-locked complement sizes to the pack and the
+  budget, and with less RAM more experts stream from disk.
+
+Then re-measure. Copy `SPECS.md`, run the speed floors on your machine (step 2), make your own BF16 base for the quality
+gate (step 3; the published base scores only the model it was made from), and run the smoke. No number in this repo
+carries to another card.
+
+**Another GPU architecture.** That is kernel work, not a setting. Change the architecture check at the top of
+`CMakeLists.txt`, then replace the kernels. They live in `src/kernels/cuda/`, `src/models/qwen4exp/kernels/` and
+`src/prefill/`. Each has a parity test in `tests/` against a CPU or double-precision reference; keep the test and swap
+the kernel behind the same host function. `ADA_PORT_NOTES.md` records what each Blackwell kernel became on Ada, which is
+the template for a new architecture.
 
 For another model architecture, fork per family (`halocline-<family>`) and write the adapter under `src/models/<family>/`.
 

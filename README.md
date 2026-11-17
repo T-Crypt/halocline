@@ -4,8 +4,8 @@
 
 <p align="center">
   <b>Halocline: the engine that hides nothing.</b><br>
-  The Qwen4 family on one NVIDIA Ada GPU (sm_89), a 24 GB RTX 4090. Each result names the run directory that
-  produced it.
+  Sparse and dense engines for the Qwen4 family on one NVIDIA Ada GPU (sm_89), a 24 GB RTX 4090. The sparse path runs
+  today; the dense path is in progress ([roadmap](docs/roadmap.md)). Each result names the run directory that produced it.
 </p>
 
 <p align="center">
@@ -20,12 +20,27 @@
 > one machine, so to reproduce them you need the same parts. On another Ada card it builds, and every number has to be
 > measured again.
 >
-> To build an engine like this for your own card, read [the recipe](RESEARCH.md): the steps, the gates, the papers
-> behind each decision, and how to fork Halocline and swap in kernels for your architecture.
+> Do not run the shipped flags on another host unchanged. The expert tier, the CPU share, the page-locked RAM and the
+> n-gram table's disk reads all size to the parts. [The recipe](RESEARCH.md#using-halocline-as-a-base-for-your-own-card)
+> lists the knobs and the order to re-measure in.
 
 A halocline is the layer in deep water where salinity changes so sharply that the water above and below barely mix.
 This repository works on one such boundary: the distance between what Qwen3.8-Flash-Next says at BF16 and what it says
 from 4-bit weights, an int8 KV cache and a draft layer, on a single 24 GB card.
+
+## What it is
+
+|  |  |
+|---|---|
+| **Card** | One NVIDIA Ada GPU, compute capability 8.9: an RTX 4090, 24 GB, at 350 W. No other architecture is compiled, now or later. |
+| **Host** | The machine in [SPECS.md](SPECS.md): i9-14900K (AVX2, AVX-VNNI), 64 GB RAM, Arch Linux, CUDA 13.4. |
+| **Models** | The Qwen4 family only. Another architecture belongs in its own fork (`halocline-<family>`). |
+| **Paths** | Sparse (Qwen3.8-Flash-Next: 512 experts, 10 routed plus 1 shared, expert offload) and dense (Qwen3.8-27B: 64 layers, no experts, no router). The sparse path runs; the dense path is in progress. |
+| **Sparse** | Qwen3.8-Flash-Next (`qwen4_exp`): 512 experts, 10 active plus 1 shared, QSA sparse attention, gated residual, n-gram embedding, MTP drafter. Experts that do not fit the card live in page-locked RAM. **Runs.** |
+| **Dense** | Qwen3.8-27B, standing in for Qwen4-27B until its weights exist. **Does not run yet.** The plan: Unsloth's v3.1 GGUFs, the same gates as the sparse path, measured against NInfer and llama.cpp ([roadmap](docs/roadmap.md#p1-the-dense-path-qwen38-27b-the-priority)). |
+| **Weights** | Unsloth GGUFs, converted to a pack that copies the quantized tensors byte for byte. One interim exception: the 195 `hc_*` tensors (Q8_0 in the GGUF) are cast to BF16. |
+| **API** | OpenAI-compatible chat completions with streaming and tool calls, one request at a time, meant to sit behind [llama-swap](https://github.com/mostlygeek/llama-swap). |
+
 
 ## The question
 
@@ -94,7 +109,8 @@ so the table compares speed only.
 
 ### Identity across the scope removals
 
-900 of 900 greedy tokens, with 7,961 experts pinned in VRAM on both builds and 41.30 GiB page-locked in RAM.
+900 of 900 greedy tokens from `901fd9c9`, before the multi-GPU removals, to the published build. Both placed 7,961
+experts in VRAM (18.23 GiB) and 41.30 GiB page-locked in RAM, with slot 0 verified.
 
 ### Draft window
 
@@ -164,6 +180,8 @@ names.
 | `gates/` | SASS hashes per step, whole objects and per function |
 | `logs/` | build and test logs per step |
 | `docs/design/` | the build spec and the review notes the engine was planned from |
+| [`docs/roadmap.md`](docs/roadmap.md) | the ordered open work, with accept criteria |
+| [`docs/testing.md`](docs/testing.md) | every gate, what it proves, and what is still missing |
 | `docs/research/` | the research notes behind the design, with sources |
 | [`SPECS.md`](SPECS.md) | the reference machine |
 | [`RESEARCH.md`](RESEARCH.md) | the recipe and the sources, applied or read |
@@ -185,13 +203,20 @@ names.
 
 ## Open work
 
-- Remove the last sm_90+ code: the decode cluster kernels (sampler, QSA top-k), the fused-verify chain (GDN cluster
-  recurrence, mid chain, dense tensor-core path, gated-residual fusion), the in-engine model router, the Windows and
-  Docker files.
-- The dense path (Qwen3.8-27B) on the GGUF weights.
-- A DFlash2 drafter A/B against MTP on Halocline.
-- Revisit the `hc_*` BF16 cast against the KLD numbers.
-- Rewrite the carried-over docs.
+The ordered list, with status, accept criteria and blockers, is in [`docs/roadmap.md`](docs/roadmap.md). The testing that
+is missing is in [`docs/testing.md`](docs/testing.md). The short list:
+
+1. **Dense path (Qwen3.8-27B).** Unsloth's v3.1 GGUFs only, repacked losslessly, then the same gates as the sparse
+   path: KLD against the 27B BF16 base, greedy identity, speed against the dense floors, and a measured comparison
+   against NInfer and llama.cpp. The adapter and dense stack exist; the GGUF converter path and the first pack do not.
+2. **Task-level eval.** SWE-bench Lite, one scaffold, the same flags for every arm.
+3. **Gaps in the current gates.** Strata KLD, sampling distribution, KLD at 64K to 200K of context, a broader tool-call
+   set.
+4. **Remove the last sm_90+ code:** the decode cluster kernels (sampler, QSA top-k), the fused-verify chain (GDN cluster
+   recurrence, mid chain, dense tensor-core path, gated-residual fusion), the in-engine model router, the Windows and
+   Docker files.
+5. A DFlash2 drafter A/B against MTP, and the `hc_*` BF16 cast revisited against the KLD numbers.
+6. Rewrite the carried-over docs.
 
 ## Design rules
 

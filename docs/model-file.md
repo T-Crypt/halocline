@@ -94,7 +94,7 @@ python3 tools/convert/convert.py --checkpoint quasar --drafter dflash2 --out Qwe
 - The BF16 output head becomes `F8_E4M3` rows (type 44: one byte per value, Halocline's own type id), each row's FP32 scale (its
   amax / 448) in `output.scale` (F32 [rows]), each value the nearest E4M3 code. `--head nvfp4` rounds it to `NVFP4_PLANES`
   instead (tensor scale amax / (6 x 448), per 16 values the UE4M3 scale with the least squared error among half to four times
-  amax / 6): 0.72 GB instead of 1.27 GB, nine times the squared error ([precision](precision/qwen38-27b.md#quality-against-bf16)).
+  amax / 6): 0.72 GB instead of 1.27 GB, nine times the squared error ([precision](precision/qwen38-27b.md)).
 - `vision/mmproj`: the BF16 tower written as llama.cpp's clip GGUF (`qwen3vl_merger`); `vision/text_vocab` beside it.
 - The drafter's feature projection is stored as one block per target layer (`dflash.fc.N`), so the engine projects each
   layer's rows as the layer ends. 19.7 GiB with the drafter (21,149,505,930 bytes, SHA-256
