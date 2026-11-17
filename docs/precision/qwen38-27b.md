@@ -19,7 +19,7 @@ comparable for the same model and tokenizer.
 
 ## The gate
 
-`halo-bench --quality 100 --kld-base qwen38-27b-bf16-base.kld` scores the decode path and reports mean, median and p99
+`halocline-bench --quality 100 --kld-base qwen38-27b-bf16-base.kld` scores the decode path and reports mean, median and p99
 KLD, top-1 agreement, PPL, and a paired per-chunk difference with a 95% interval. The method is in
 [quality.md](quality.md).
 

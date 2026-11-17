@@ -22,7 +22,7 @@ From Unsloth's UD-IQ4_XS v3.1 shards at revision `814db05f`, 93,672,359,738 byte
 ```sh
 .venv/bin/python tools/convert/mtp_fetch.py fetch --out mtp-qfn
 .venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf \
-    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.basalt
+    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.halo
 ```
 
 The pack copies the quantized tensors byte for byte. The draft layer adds 0.77 GiB (sections `mtp/dense` and
@@ -32,7 +32,7 @@ from Q8_0 to BF16 at conversion (`--compat-bf16`), an interim step the KLD numbe
 ## Run
 
 ```sh
-bin/halo serve QFN-UD-IQ4_XS.basalt --host 127.0.0.1 --port 8092 \
+bin/halocline serve QFN-UD-IQ4_XS.halo --host 127.0.0.1 --port 8092 \
     --spec 8 --prefill auto --max-context 262144 --kv int8
 ```
 

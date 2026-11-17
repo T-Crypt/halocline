@@ -6,7 +6,8 @@ MIT licence in `THIRD_PARTY_LICENSES`.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
-ninja -C build                       # bin/halo, bin/halo-bench, bin/halo-probe, bin/halo-vision
+ninja -C build                       # bin/halocline, bin/halocline-bench, bin/halocline-probe, bin/halocline-vision
+                                     # (bin/halo is a symlink to bin/halocline, for scripts written before the rename)
 ```
 
 `-DWERROR=ON` makes project warnings errors. A clean build of both models takes about 25 minutes on 24 threads; most of
@@ -16,7 +17,7 @@ it is device code.
 
 - `src/`, `include/`: the engine.
 - `serve/`: the Python server with the OpenAI and Anthropic API and the stats page.
-- `tools/`: the converter (`tools/convert/convert.py`), the `.basalt` reader (`model_file.py`), the quality gate
+- `tools/`: the converter (`tools/convert/convert.py`), the `.halo` reader (`model_file.py`), the quality gate
   (`ppl_gate.py`), the greedy-identity check and the tokenizer.
 - `tests/`: parity and unit tests. `data/`: expert profiles (`data/profiles`) and benchmark fixtures (`data/bench`).
 
@@ -51,13 +52,13 @@ Configure with `-DBUILD_TESTING=ON`, build, and run `ctest --test-dir build`. Th
 
 ## Benchmark
 
-`halo-bench` reads its prompts from `data/bench` (run it from the repository root, or pass `--fixtures DIR`). The
+`halocline-bench` reads its prompts from `data/bench` (run it from the repository root, or pass `--fixtures DIR`). The
 standard benchmark and the fixed preset that fills the community table are in [community.md](community.md):
 
 ```sh
-./bin/halo-bench --model PACK.basalt -- --kv int8 --prefill auto     # the standard protocol
-./bin/halo-bench --community --model PACK.basalt --submitter NAME    # the comparable row
-./bin/halo-bench --hardware                                          # host figures alone
+./bin/halocline-bench --model PACK.halo -- --kv int8 --prefill auto     # the standard protocol
+./bin/halocline-bench --community --model PACK.halo --submitter NAME    # the comparable row
+./bin/halocline-bench --hardware                                          # host figures alone
 ```
 
 The quality gate is the same binary with `--quality N --kld-base FILE`; the method is in

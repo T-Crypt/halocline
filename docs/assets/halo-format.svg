@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
 <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC566"/><stop offset=".55" stop-color="#F2662B"/><stop offset="1" stop-color="#C9461C"/></linearGradient></defs>
 <rect width="1600" height="900" fill="#0E1114"/>
-<text x="60" y="98" font-family="Geist, Helvetica, Arial, sans-serif" font-size="56" font-weight="600" fill="#E9ECEE" letter-spacing="-1">Inside a <tspan fill="#FF7A3D" font-family="Geist Mono, SF Mono, Menlo, Consolas, monospace">.basalt</tspan> file</text>
+<text x="60" y="98" font-family="Geist, Helvetica, Arial, sans-serif" font-size="56" font-weight="600" fill="#E9ECEE" letter-spacing="-1">Inside a <tspan fill="#FF7A3D" font-family="Geist Mono, SF Mono, Menlo, Consolas, monospace">.halo</tspan> file</text>
 <text x="1540" y="98" font-family="Geist Mono, SF Mono, Menlo, Consolas, monospace" font-size="30" text-anchor="end" fill="#9AA4AD">NVFP4 pack</text>
 <polygon points="290.8,174.0 452.7,267.5 452.7,454.5 290.8,548.0 128.8,454.5 128.8,267.5" fill="#151A1F" stroke="#2A343D" stroke-width="4" stroke-linejoin="round"/>
 <polygon points="290.8,302.4 306.4,311.4 306.4,329.4 290.8,338.4 275.2,329.4 275.2,311.4" fill="#3A4651"/>

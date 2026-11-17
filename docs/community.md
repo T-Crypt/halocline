@@ -3,12 +3,12 @@
 Every row in `docs/community/benchmarks.json` was produced by the same command on someone's own card:
 
 ```sh
-halo-bench --community --model PACK.basalt --submitter YOUR_NAME
+halocline-bench --community --model PACK.halo --submitter YOUR_NAME
 ```
 
 The preset is fixed: three decode fixtures (`conv`, `struct`, `prose`), a 16K and a 64K prompt, each measured cold in
 its own engine process. The bench refuses a flag that would change it, because a row with different flags would not
-compare with the others. `halo-bench --help` prints the fixture contents and how to regenerate them.
+compare with the others. `halocline-bench --help` prints the fixture contents and how to regenerate them.
 
 ## What the preset needs
 
@@ -66,9 +66,9 @@ ninja -C build
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python tools/convert/mtp_fetch.py fetch --out mtp-qfn
 .venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf \
-    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.basalt
+    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.halo
 
-./bin/halo-bench --community --model QFN-UD-IQ4_XS.basalt --submitter YOUR_NAME
+./bin/halocline-bench --community --model QFN-UD-IQ4_XS.halo --submitter YOUR_NAME
 ```
 
 The bench starts its own engine three times, once for the decode fixtures and once per prompt depth, so every number is
@@ -79,7 +79,7 @@ Run it on an idle machine. Each engine start pins about 47 GiB of experts in hos
 short of free memory: two runs of this preset an hour apart on the reference 4090 measured 1,958 and 5,070 t/s for the
 same 64K prompt. The row records one number, so state in `notes` when the machine was busy.
 
-`halo-bench --hardware` prints the host figures alone, with no model and no engine start. Use it to check a new machine
+`halocline-bench --hardware` prints the host figures alone, with no model and no engine start. Use it to check a new machine
 before a run.
 
 ## What a row records

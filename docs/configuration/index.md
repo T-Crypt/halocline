@@ -14,18 +14,18 @@ Every setting: server options, engine flags, and the sampling fields. Effects on
 ## How settings are given
 
 ```sh
-bin/halo serve --config halo_config.json [options]
-bin/halo serve MODEL.basalt [--python PY] [options]
+bin/halocline serve --config halo_config.json [options]
+bin/halocline serve MODEL.halo [--python PY] [options]
 ```
 
 - **Server options** (the Python server): model, address, port, slots, vision, logging. `--name value` on the command line.
-- **Engine flags** (`bin/halo --help`): context, KV, expert cache, prefill, speculation. Given like any flag; the server passes them
+- **Engine flags** (`bin/halocline --help`): context, KV, expert cache, prefill, speculation. Given like any flag; the server passes them
   on in order and asks the engine which it accepts.
 
 A config file is one JSON object. `models` lists the models; `engine` applies to every model that takes it; `server` is shared:
 
 ```json
-{ "version": 2, "models": [{ "model": "model.basalt", "kv": "int8" }],
+{ "version": 2, "models": [{ "model": "model.halo", "kv": "int8" }],
   "engine": { "resident-experts": true }, "server": { "port": 8080 } }
 ```
 
@@ -57,7 +57,7 @@ Command line `--name`; the Where column says which config block takes it.
 
 | Setting | Where | Type, values | Default | What it does |
 | --- | --- | --- | --- | --- |
-| `model` | model entry | path | required | The `.basalt` file: weights, tokenizer, chat template, drafter, vision projector and default sampling. |
+| `model` | model entry | path | required | The `.halo` file: weights, tokenizer, chat template, drafter, vision projector and default sampling. |
 | `alias` | model entry | string | name in the file | The model name the API reports. |
 | `host` | server | address | `127.0.0.1` | Listen address. `0.0.0.0` serves the network; never without `api-key`. |
 | `port` | server | integer | `8080` | TCP port. |
@@ -85,7 +85,7 @@ Command line `--name`; the Where column says which config block takes it.
 
 | Setting | Where | Type, values | Default | What it does |
 | --- | --- | --- | --- | --- |
-| `gpu` | entry, `halo`, `halo-bench`, `halo-probe` | `"0"`, `"0,1"`, `"auto"` | GPU 0 alone | Cards, numbered as `nvidia-smi`. The first is the main card. `auto` takes every Blackwell card and makes the fastest main. [GPUs](gpus.md) |
+| `gpu` | entry, `halocline`, `halocline-bench`, `halocline-probe` | `"0"`, `"0,1"`, `"auto"` | GPU 0 alone | Cards, numbered as `nvidia-smi`. The first is the main card. `auto` takes every Blackwell card and makes the fastest main. [GPUs](gpus.md) |
 | `peer-reserve-mib` | engine | MiB | 600 | VRAM the second card keeps free after its experts and prompt buffers. Raise it when the start says the peer's buffers do not fit. [GPUs](gpus.md#two-16-gb-cards) |
 
 ## Context and KV cache

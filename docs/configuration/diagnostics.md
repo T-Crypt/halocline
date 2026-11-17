@@ -4,7 +4,7 @@
 > Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
 
 Flags for measuring, debugging and testing the engine. All are off by default and are not settings.
-Binary: **CLI** = `bin/halo` one-shot (`--tokens IDS`), **serve** = `--serve` engine, **bench** = `halo-bench`.
+Binary: **CLI** = `bin/halocline` one-shot (`--tokens IDS`), **serve** = `--serve` engine, **bench** = `halocline-bench`.
 
 ## One-shot generation
 
@@ -72,14 +72,14 @@ Binary: **CLI** = `bin/halo` one-shot (`--tokens IDS`), **serve** = `--serve` en
 | `-r N` | 1 | Repetitions; above 1 the table shows mean and deviation. |
 | `--seed N` | | Seed every decode request. |
 | `--set "FLAG VALUE"` | | Replace or add engine arguments (repeatable). |
-| `--engine PATH`, `--fixtures DIR` | `halo` beside the bench, `data/bench` | Binary and fixtures. |
+| `--engine PATH`, `--fixtures DIR` | `halocline` beside the bench, `data/bench` | Binary and fixtures. |
 | `-o md` or `json` | md | Output format. |
 | `--power-label W` | read from the GPU | The power limit to print. |
 | `--logs DIR`, `--no-windows`, `--print-command` | | Logs, window stats, command printing. |
 | `--hardware` | | Measure CPU, RAM and each GPU's link, then exit. |
 | `--community`, `--submitter NAME`, `--community-file PATH` | bench | | The community preset and its row, which names the model ([community runs](../community.md)). |
 
-`halo-device` (in the build folder): `--list-devices`, `--link-rates`, `--selftest`.
+`halocline-device` (in the build folder): `--list-devices`, `--link-rates`, `--selftest`.
 
 ## Experiment keys (`--exp`)
 

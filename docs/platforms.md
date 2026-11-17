@@ -23,7 +23,7 @@ ninja -C build
 ctest --test-dir build -L cpu -j 16 --output-on-failure
 ```
 
-`bin/halo` and the other binaries land in `bin/`. A GPU suite runs with `ctest -L gpu`; it needs the card to itself and
+`bin/halocline` and the other binaries land in `bin/`. A GPU suite runs with `ctest -L gpu`; it needs the card to itself and
 about 20 GB of VRAM.
 
 ## Container image
@@ -40,12 +40,12 @@ docker run --rm --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=all \
 `/data` holds `halo_config.json` (v2; `tools/migrations/config_v1_to_v2.py` converts an older file) and takes the
 server's folder per model under `~/.cache/halo`, where `HOME` points: its engine log and, when the conversation disk
 tier is on, that tier. A pack is read where it lies, so the packs go on `/models` and the config names them by their
-mount path (`/models/<pack>.basalt`); paths in the config are relative to the config file. The entrypoint is
-`halo serve --config /data/halo_config.json --host 0.0.0.0`, and arguments after the image name follow it
+mount path (`/models/<pack>.halo`); paths in the config are relative to the config file. The entrypoint is
+`halocline serve --config /data/halo_config.json --host 0.0.0.0`, and arguments after the image name follow it
 (`--api-key KEY`). The served port is `server.port` (8080) and the mapped host port has to match it; `--gpu` names the
 cards the container sees.
 
-The container path is untested: no `halo-bench` run and no KLD run has been measured inside the image, so every number in
+The container path is untested: no `halocline-bench` run and no KLD run has been measured inside the image, so every number in
 this repo describes native runs.
 
 ## Platform code

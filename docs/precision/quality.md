@@ -8,7 +8,7 @@ models use this method. Their numbers: [Qwen3.8-Flash-Next](qwen38-flash-next.md
 
 ## The gate
 
-`halo-bench --quality` runs the gate. `tools/ppl_gate.py` runs it offline against a built engine ([commands](#reproduce-the-reference)).
+`halocline-bench --quality` runs the gate. `tools/ppl_gate.py` runs it offline against a built engine ([commands](#reproduce-the-reference)).
 
 - **Text:** wikitext-2 in 512-token chunks. The first 256 tokens of each chunk are prefilled.
 - **Scored rows:** 256 to 510, through the decode path in verify windows of `--quality-t` tokens (default 3). The window tokens are the
@@ -37,7 +37,7 @@ The official Flash-Next packs are scored against the first base on their
 experts and tiers pinned, on an RTX 5090 at 400 W with an RTX 5060 Ti at 180 W.
 
 The bases are published as the [basalt-kld-bases](https://huggingface.co/datasets/jesdga/basalt-kld-bases) dataset on Hugging Face,
-with checksums: pass one to `halo-bench --quality --kld-base FILE` to score a build or a self-converted pack.
+with checksums: pass one to `halocline-bench --quality --kld-base FILE` to score a build or a self-converted pack.
 
 A quantized base is not a reference. llama.cpp's Q8_0 GGUF adds its own rounding, so every pack reads 0.003 to 0.010 KLD higher against a
 Q8_0 base than against BF16 (see [Flash-Next](qwen38-flash-next.md#summary)).
@@ -52,7 +52,7 @@ a fixed `--expert-cache N`, and a fixed peer tier.
 Forced-window identity (the same window width must give the same rows):
 
 ```sh
-python3 tools/ppl_gate.py --model PACK.basalt --engine-bin bin/halo --base flashnext-bf16-base.kld \
+python3 tools/ppl_gate.py --model PACK.halo --engine-bin bin/halocline --base flashnext-bf16-base.kld \
     --chunks 20 --t {1|3|7} --out DIR --expert-cache N --kv int8 --resident-experts --peer-exclusive --prefill auto
 python3 tools/ppl_gate.py --diff DIR1/rows.tsv DIR7/rows.tsv
 ```
@@ -60,7 +60,7 @@ python3 tools/ppl_gate.py --diff DIR1/rows.tsv DIR7/rows.tsv
 MTP on and off, token by token: one engine session per configuration over `--serve`:
 
 ```sh
-bin/halo --serve --model MODEL.basalt {--spec 0 | --spec 7} --expert-cache N --prefill auto --kv int8 \
+bin/halocline --serve --model MODEL.halo {--spec 0 | --spec 7} --expert-cache N --prefill auto --kv int8 \
     --vram-reserve-mib 700 --resident-experts --peer-exclusive --gpu 0,1 --max-context 8192 \
     --adapt-swaps 0 --peer-adapt-swaps 0 --exp concur9_logit_hash=1
 ```

@@ -67,7 +67,7 @@ output, no CUDA error.
 
 ### D4: the BF16 gate
 
-`halo-bench --quality 100 --kld-base qwen38-27b-bf16-base.kld` (base PPL 6.7437, made from Unsloth's BF16 GGUF with
+`halocline-bench --quality 100 --kld-base qwen38-27b-bf16-base.kld` (base PPL 6.7437, made from Unsloth's BF16 GGUF with
 llama.cpp, sha256 `9ffb3bd9…`). Report mean, median, p99, top-1, PPL and the paired per-chunk interval for each quant and
 each KV format that fits. Accept: the dense gate row exists, and the KV choice is made by whole-system KLD at depth,
 then speed.
@@ -170,7 +170,7 @@ These run beside P1 because they need GPU time, not converter work.
 Distributional distance near the baseline does not predict task outcomes, so the repo needs a task gate. SWE-bench is
 the right first one: long context, tool use and code editing in one loop.
 
-- **Harness:** mini-swe-agent, one scaffold for every arm, OpenAI-compatible endpoint against `bin/halo serve`.
+- **Harness:** mini-swe-agent, one scaffold for every arm, OpenAI-compatible endpoint against `bin/halocline serve`.
 - **Set:** SWE-bench Lite first (300 instances), then Verified (500). Pin the dataset revision and the images.
 - **Settings:** temperature 0, one attempt per instance, 262,144 context, int8 KV, drafter on. Same flags for every arm.
 - **Arms:** the sparse pack, the dense pack, then llama.cpp and NInfer on the same set if their harness support allows.

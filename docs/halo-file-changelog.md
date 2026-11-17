@@ -1,16 +1,31 @@
 > [!WARNING]
-> Basalt's model-file changelog, kept from the snapshot. The pack format is unchanged (v2, `.basalt`, magic
-> `BASALTMF`); [model-file](model-file.md) is the reference.
+> Basalt's model-file changelog, kept from the snapshot. The format version is unchanged (v2); the magic and the
+> extension changed with the rename (see the 2026-11-17 entry). [model-file](model-file.md) is the reference.
 
-# `.basalt` file format changelog
+# `.halo` file format changelog
 
 The version is the `u32` after the magic in the file's header. The engine reads one version; the
 [model file](model-file.md) page describes the current one.
 
+## 2026-11-17: Halocline's magic, the same version
+
+- **New magic:** a file written from now on carries `HALOCLMF` where it carried `BASALTMF`, and its `hc8` table carries
+  `HALOCLH8` where it carried `BASALTH8`. `tools/model_file.py` and `tools/convert/hc8.py` write the new ones.
+- **Every old file still reads:** the C++ reader and the Python one accept both magics, for the file header and for the
+  hc8 table, so the packs already on disk load without a rewrite. Only a file written from now on gets the new magic;
+  nothing rewrites a pack in place.
+- **No version change:** no section, field, alignment or byte offset moved, so the version stays 2.
+- **No hash to fail:** a section's SHA-256 in the header covers the hc8 table's bytes as the writer produced them, and
+  no reader checks a section's hash when it opens the file (`ModelFile::open` checks the magic, the version, the size
+  and the section bounds; `tools/model_file.py`'s `verify` is the caller's). A legacy table therefore takes the same
+  path as a new one.
+- **Extension:** a new pack is named `.halo`. Nothing in the engine requires an extension; the programs that decide
+  "pack or raw GGUF" (`tests/vision/cuda_parity`, `tests/ngram/ple_reader_test`) accept both `.halo` and `.basalt`.
+
 ## Version 2
 
 The current version. The engine refuses version 1 files and names
-[tools/migrations/basalt_v1_to_v2.py](../tools/migrations/README.md), which writes a version 2 file from a version 1 file without a
+[tools/migrations/halo_v1_to_v2.py](../tools/migrations/README.md), which writes a version 2 file from a version 1 file without a
 download or any re-quantizing.
 
 - **Contains:** `meta`, `tokenizer/*`, `dense`, `dense.index`, `experts`, `experts.layout`, `gguf`, `mtp/*`, `hc8`,

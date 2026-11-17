@@ -171,7 +171,7 @@ log that made each measurement, `gates/` with the SASS hashes per step, and `log
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
-ninja -C build                       # binaries land in bin/: halo, halo-bench, halo-probe, halo-vision
+ninja -C build                       # binaries land in bin/: halocline, halocline-bench, halocline-probe, halocline-vision
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # the draft layer: Qwen's BF16 mtp.* tensors, hash-checked
@@ -179,20 +179,21 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # the pack: Unsloth's GGUF shards, quantized tensors copied as published
 .venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf \
-    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.basalt
+    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.halo
 
 # serve, with the settings the evals above used
-bin/halo serve QFN-UD-IQ4_XS.basalt --host 127.0.0.1 --port 8092 \
+bin/halocline serve QFN-UD-IQ4_XS.halo --host 127.0.0.1 --port 8092 \
     --spec 8 --prefill auto --max-context 262144 --kv int8
 
 # the quality gate against the BF16 base
-bin/halo-bench --model QFN-UD-IQ4_XS.basalt --quality 100 --kld-base flashnext-bf16-base.kld -- --kv int8 --prefill auto
+bin/halocline-bench --model QFN-UD-IQ4_XS.halo --quality 100 --kld-base flashnext-bf16-base.kld -- --kv int8 --prefill auto
 ```
 
-The pack format is Basalt's model-file format v2, unchanged (`.basalt`, magic `BASALTMF`), so converted packs keep their
-names.
+The pack format is version 2, the layout Halocline inherited (`.halo`, magic `HALOCLMF`). Every pack written before the
+rename carries `BASALTMF` and still loads; nothing rewrites a pack in place, so a `.basalt` file keeps its name and
+the engine reads it as it is.
 
-On any other Ada card, `bin/halo-bench --community --model PACK.basalt --submitter NAME` runs the fixed preset, checks the
+On any other Ada card, `bin/halocline-bench --community --model PACK.halo --submitter NAME` runs the fixed preset, checks the
 card and prints one row for [the community table](docs/community.md). That page lists the supported cards, what each VRAM
 size does to the expert pool, and what a row records.
 

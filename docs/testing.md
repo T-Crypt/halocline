@@ -12,7 +12,7 @@ What runs today, what each gate proves, and what is still missing. The method pa
 | CPU suite | host logic, formats, tokenizers, planning | `ctest -L cpu -j 16` | 86 of 86 |
 | GPU suite | kernels and their parity tests against CPU or double references | `ctest -L gpu -j 1` under a GPU lease | 122 of 122; with `HALO_QWEN35_PACK` set the 27B round trip runs too |
 | Python server suite | request parsing, streaming, tools, config, images | `python -m unittest discover -s serve/tests -t .` | 1,079 OK, 3 skips |
-| KLD gate, sparse | output distribution against the frozen BF16 base | `halo-bench --quality 100 --kld-base ...` | mean 0.08195, top-1 90.45% |
+| KLD gate, sparse | output distribution against the frozen BF16 base | `halocline-bench --quality 100 --kld-base ...` | mean 0.08195, top-1 90.45% |
 | KLD gate, dense | the same, against `qwen38-27b-bf16-base.kld` | the same | UD-Q4_K_XL 0.00582 / 96.67%; UD-IQ4_XS 0.01618 / 94.31% (int8 KV) |
 | Dense state round trip | a saved session restores to the same bytes and tokens | `qwen35_checkpoint_round_trip` with `HALO_QWEN35_PACK` | passes on the UD-IQ4_XS pack, plain and with the drafter |
 | Greedy identity | a change that must not alter output does not | `tools/greedy_identity.py REF NEW --model PACK` | 900 of 900 tokens, pre-removal build to published build |

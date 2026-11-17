@@ -1,6 +1,6 @@
 # Models
 
-A model is one `.basalt` pack, mixture-of-experts or dense. The server reads the architecture from the pack and picks
+A model is one `.halo` pack, mixture-of-experts or dense. The server reads the architecture from the pack and picks
 the chat format, tool syntax and thinking switch.
 
 Halocline runs the Qwen4 family only. Two paths exist:

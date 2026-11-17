@@ -39,7 +39,7 @@ GGUF is the proof.
 Not built. When it exists, the command is the same as any model:
 
 ```sh
-bin/halo serve Qwen3.8-27B-UD-IQ4_XS.basalt --host 127.0.0.1 --port 8092 --max-context 262144 --kv int8
+bin/halocline serve Qwen3.8-27B-UD-IQ4_XS.halo --host 127.0.0.1 --port 8092 --max-context 262144 --kv int8
 ```
 
 The BF16 reference for the quality gate is `qwen38-27b-bf16-base.kld`; the method and status are in

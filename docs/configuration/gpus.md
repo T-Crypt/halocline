@@ -8,7 +8,7 @@ holding the experts of its own block of layers (DeepSeek memory).
 Qwen3.8-27B uses a second card for long prompts, or for its later layers when it does not fit the main card.
 
 One setting picks the cards: `gpu`. It means the same in the server (`"gpu"` in the config's `server` section, or
-`--gpu`), in `halo` itself, in `halo-bench` and in `halo-probe`.
+`--gpu`), in `halocline` itself, in `halocline-bench` and in `halocline-probe`.
 
 | Value | Cards used | Main card |
 | --- | --- | --- |

@@ -1,4 +1,4 @@
-# `.basalt` model file
+# `.halo` model file
 
 > [!WARNING]
 > Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
@@ -7,8 +7,10 @@ One file holds everything the engine, the server and the vision sidecar load: we
 drafter, 8-bit hyper-connection copies, vision projector, and the GGUF metadata with default sampling. Flags and the expert profile are
 not in it.
 
-- **Layout:** a 64 KiB header (magic `BASALTMF`, version 2, up to 511 named sections with offset, size and SHA-256), then sections aligned
-  to 2 MiB. Authoritative: [model_format.hpp](../include/halo/core/model_format.hpp).
+- **Layout:** a 64 KiB header (magic `HALOCLMF`, version 2, up to 511 named sections with offset, size and SHA-256),
+  then sections aligned to 2 MiB. A pack written before the rename carries `BASALTMF` (its `hc8` table `BASALTH8`);
+  both magics load and nothing rewrites a pack in place. Authoritative:
+  [model_format.hpp](../include/halo/core/model_format.hpp).
 - **Versions:** the engine reads version 2 only. Version 1 files convert with
   [tools/migrations/halo_v1_to_v2.py](../tools/migrations/README.md), without a download. What changed:
   [file format changes](halo-file-changelog.md).
@@ -16,7 +18,7 @@ not in it.
 ## Build a pack from a GGUF
 
 ```sh
-python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --mmproj MMPROJ.gguf --out MODEL.basalt \
+python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --mmproj MMPROJ.gguf --out MODEL.halo \
     [--mtp-source DIR [--mtp-dense FILE]] [--draft-vocab FILE] [--compat-bf16] [--name NAME]
 ```
 
@@ -27,14 +29,14 @@ without the official tuned drafter is slower than the official file.
 
 - `dense`: F32 and BF16 tensors. `gguf`: quantized non-expert tensors. `experts`: routed experts per layer.
 - `engram`: the Engram table alone (IQ4_NL rows of 144 bytes, or MXFP4 rows of 136 in the NVFP4 pack), 2 MiB aligned.
-- `vision/mmproj`: present only when built with `--mmproj`; the engine and `halo-vision --model FILE.basalt` read it in place.
+- `vision/mmproj`: present only when built with `--mmproj`; the engine and `halocline-vision --model FILE.halo` read it in place.
 - `dspark/gguf`: DeepSeek's DSpark drafter. Attach it to an existing pack without copying weights:
 
 ```sh
-python3 tools/convert/convert.py --dspark DRAFTER.gguf --into PACK.basalt --undo-dir DIR
+python3 tools/convert/convert.py --dspark DRAFTER.gguf --into PACK.halo --undo-dir DIR
 ```
 
-`--roll-back --into PACK.basalt --undo-dir DIR` reverts it.
+`--roll-back --into PACK.halo --undo-dir DIR` reverts it.
 
 ## DeepSeek NVFP4 pack
 
@@ -47,8 +49,8 @@ two (about 430 GB). The routed experts' shards and those holding the other tenso
 and vision shards are not.
 
 ```sh
-python3 tools/convert/convert.py --sections-from DeepSeek-V4.1-Flash-1017-UD-IQ1_M.basalt --checkpoint nvidia-ds \
-    --stream-shards --out DeepSeek-V4.1-Flash-1017-NVFP4.basalt --name "DeepSeek-V4.1-Flash-1017 NVFP4"
+python3 tools/convert/convert.py --sections-from DeepSeek-V4.1-Flash-1017-UD-IQ1_M.halo --checkpoint nvidia-ds \
+    --stream-shards --out DeepSeek-V4.1-Flash-1017-NVFP4.halo --name "DeepSeek-V4.1-Flash-1017 NVFP4"
 ```
 
 ## Flash-Next NVFP4 pack
@@ -61,12 +63,12 @@ tensors are quantized once from BF16.
 hf download nvidia/Qwen3.8-Flash-Next-NVFP4 --revision fc694b54 --local-dir nvidia
 
 # 6-bit dense (the official file)
-python3 tools/convert/convert.py --sections-from Qwen3.8-FN-UD-Q4_K_XL.basalt --checkpoint nvidia \
-    --out Qwen3.8-FN-NVIDIA-NVFP4.basalt --name "Qwen3.8-Flash-Next NVIDIA-NVFP4"
+python3 tools/convert/convert.py --sections-from Qwen3.8-FN-UD-Q4_K_XL.halo --checkpoint nvidia \
+    --out Qwen3.8-FN-NVIDIA-NVFP4.halo --name "Qwen3.8-Flash-Next NVIDIA-NVFP4"
 
 # 8-bit dense variant
-python3 tools/convert/convert.py --sections-from Qwen3.8-FN-UD-Q4_K_XL.basalt --checkpoint nvidia --dense-q8-0 \
-    --out Qwen3.8-FN-NVIDIA-NVFP4-Q8.basalt --name "Qwen3.8-Flash-Next NVIDIA-NVFP4"
+python3 tools/convert/convert.py --sections-from Qwen3.8-FN-UD-Q4_K_XL.halo --checkpoint nvidia --dense-q8-0 \
+    --out Qwen3.8-FN-NVIDIA-NVFP4-Q8.halo --name "Qwen3.8-Flash-Next NVIDIA-NVFP4"
 ```
 
 `--mtp-dense FILE` (the `mtp/dense` bytes of an official NVFP4, UD-IQ1_M, UD-IQ2_XS or UD-IQ3_XXS pack) swaps in a tuned drafter layer; the converter
@@ -83,7 +85,7 @@ tower come from the checkpoint's own files. `--drafter` adds the DFlash 2 block 
 ```sh
 hf download QUASAR-QAT/Qwen3.8-27B-QUASAR-NVFP4 --revision 4a22293a --local-dir quasar
 hf download z-lab/Qwen3.8-27B-DFlash2 --revision 50307d4c --local-dir dflash2
-python3 tools/convert/convert.py --checkpoint quasar --drafter dflash2 --out Qwen3.8-27B-QUASAR-NVFP4.basalt --name "Qwen3.8-27B QUASAR NVFP4"
+python3 tools/convert/convert.py --checkpoint quasar --drafter dflash2 --out Qwen3.8-27B-QUASAR-NVFP4.halo --name "Qwen3.8-27B QUASAR NVFP4"
 ```
 
 - `gguf`: every tensor in llama.cpp's `qwen35` names. GDN, attention and MLP projections move bit for bit as `NVFP4_PLANES`
@@ -107,7 +109,7 @@ with the same command:
 
 ```sh
 hf download nvidia/Qwen3.8-27B-NVFP4 --revision 482ca0f3 --local-dir nvidia
-python3 tools/convert/convert.py --checkpoint nvidia --drafter dflash2 --out Qwen3.8-27B-NVFP4.basalt --name "Qwen3.8-27B NVFP4"
+python3 tools/convert/convert.py --checkpoint nvidia --drafter dflash2 --out Qwen3.8-27B-NVFP4.halo --name "Qwen3.8-27B NVFP4"
 ```
 
 - Its MLP and output head are NVFP4 and move bit for bit as `NVFP4_PLANES` with each matrix's FP32 `weight_scale_2` as
