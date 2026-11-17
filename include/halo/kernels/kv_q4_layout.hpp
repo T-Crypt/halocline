@@ -32,7 +32,7 @@ struct KvQ4Block {
 static_assert(sizeof(KvQ4Block) == 18, "a q4_0 KV block is 18 bytes");
 
 /// Bytes one KV head's row of blocks takes (head_dim / 32 blocks of 18).
-inline uint64_t kv_q4_head_bytes(int head_dim) { return (uint64_t) (head_dim / kKvQ4Block) * sizeof(KvQ4Block); }
+HALO_KVQ4_HD uint64_t kv_q4_head_bytes(int head_dim) { return (uint64_t) (head_dim / kKvQ4Block) * sizeof(KvQ4Block); }
 
 /// The block's delta from its signed largest-|value|: ggml's rule, that value over -8. A tie on |x| resolves to the
 /// larger VALUE, so every lane of a warp (or a host loop in another order) picks the same scale. The codes are
@@ -51,6 +51,14 @@ HALO_KVQ4_HD uint8_t kv_q4_code(float x, float d) {
     const float id = d != 0.0f ? 1.0f / d : 0.0f;
     const int q = (int) (x * id + 8.5f);
     return (uint8_t) (q < 0 ? 0 : (q > 15 ? 15 : q));
+}
+
+/// The eight codes of dims d8 .. d8 + 7 of a block, `d8` a multiple of 8. Element j sits in the low nibble of qs[j]
+/// for j < 16 and in the high nibble of qs[j - 16] from 16 on, so the eight are eight bytes of qs from `d8 & 15` with
+/// one nibble selected: a reader never has to know which 16-dim half of the block it is in.
+HALO_KVQ4_HD void kv_q4_codes8(const uint8_t* qs, int d8, int codes[8]) {
+    const int shift = (d8 & 16) ? 4 : 0, o = d8 & 15;
+    for (int e = 0; e < 8; ++e) codes[e] = (qs[o + e] >> shift) & 0x0F;
 }
 
 /// One block from 32 contiguous values, on the host: the CPU reference and its tests. The scale is the same

@@ -2,6 +2,7 @@
 #include "internal.hpp"
 
 #include "halo/core/conversation_cache.hpp"
+#include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/kernels/logprobs.hpp"
 #include "halo/kernels/sampler.hpp"
 #include "halo/log.hpp"
@@ -62,7 +63,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     const size_t cells = (size_t) m.o.max_context * g.n_kv * g.head_dim;
     // with K/V streaming each layer keeps its first `near` cells here and the rest in page-locked host memory
     const int64_t near_cells = resident_cells(m.o.max_context, m.o.kv_resident);
-    const bool int8 = m.o.kv == KvFormat::Int8;
+    const bool int8 = m.o.kv == KvFormat::Int8, k8v4f = m.o.kv == KvFormat::K8V4;
     const size_t n_near = (size_t) near_cells * g.n_kv * g.head_dim, n_far = cells - n_near;
     uint8_t* host = nullptr;
     if (n_far > 0 && m.n_attn > 0) {
@@ -93,6 +94,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     };
     for (int i = 0; i < m.n_attn; ++i) {
         kernels::KvInt8 q8;
+        kernels::KvK8V4 k4;
         st.far_kv.emplace_back();
         if (n_far > 0) far_view(st.far_kv.back());
         if (int8) {
@@ -106,11 +108,23 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
                 err = m.o.arch + ": the KV cache does not fit the session's arena";
                 return false;
             }
+        } else if (k8v4f) {   // K's codes and per-64 scales, then V's q4_0 blocks (kv_q4_layout.hpp), cell for cell
+            const size_t blocks = (size_t) near_cells * g.n_kv * (size_t) kernels::kv_q4_head_bytes(g.head_dim);
+            k4.k = st.arena.take<int8_t>(n_near);
+            k4.ks = st.arena.take<uint16_t>(n_near / 64);
+            k4.vq = st.arena.take<uint8_t>(blocks);
+            st.kc.push_back(nullptr);
+            st.vc.push_back(nullptr);
+            if (!k4.vq) {
+                err = m.o.arch + ": the K8V4 cache does not fit the session's arena";
+                return false;
+            }
         } else {
             st.kc.push_back(st.arena.take<uint16_t>(n_near));
             st.vc.push_back(st.arena.take<uint16_t>(n_near));
         }
         st.kq.push_back(q8);
+        st.k8v4.push_back(k4);
     }
     if (mtp) {
         st.mtp_kc = st.arena.take<uint16_t>(cells);
@@ -523,13 +537,16 @@ public:
         return {};
     }
 
-    // a layer's cells: fp16 K and V (format 1), or int8 codes with fp16 scales per 64 values (format 2); the MTP
-    // drafter's own layer is fp16 and comes last
+    // a layer's cells: fp16 K and V (format 1), int8 codes with fp16 scales per 64 values (format 2), or K that int8
+    // form with V in rotated q4_0 blocks (format 3, kv_q4_layout.hpp); the MTP drafter's own layer is fp16 and comes last
     size_t row_bytes(bool int8) const { return (size_t) g_.n_kv * g_.head_dim * (int8 ? 1 : 2); }
+    size_t v4_row_bytes() const { return (size_t) g_.n_kv * (size_t) kernels::kv_q4_head_bytes(g_.head_dim); }
     // the conversation's attention layers
     size_t kv_layers() const { return st_.kc.size(); }
     size_t cells_bytes(int64_t positions) const override {
-        const size_t main = m_.o.kv == KvFormat::Int8 ? 2 * (row_bytes(true) + row_bytes(true) / 32) : 2 * row_bytes(false);
+        const size_t main = m_.o.kv == KvFormat::Int8   ? 2 * (row_bytes(true) + row_bytes(true) / 32)
+                            : m_.o.kv == KvFormat::K8V4 ? row_bytes(true) + row_bytes(true) / 32 + v4_row_bytes()
+                                                       : 2 * row_bytes(false);
         return (size_t) positions * (kv_layers() * main + (drafter_ ? 2 * row_bytes(false) : 0));
     }
 
@@ -549,22 +566,31 @@ public:
             const bool mtp = i == kv_layers();
             const size_t j = i;
             const SessionState& ls = st_;
-            const bool int8 = !mtp && m_.o.kv == KvFormat::Int8;
+            const KvFormat fmt = mtp ? KvFormat::Fp16 : m_.o.kv;
             core::ConversationKv k;
-            k.format = int8 ? 2 : 1;
+            k.format = fmt == KvFormat::Int8 ? 2 : fmt == KvFormat::K8V4 ? 3 : 1;
             k.cells = positions;
             k.heads = g_.n_kv;
             k.head_dim = g_.head_dim;
             k.page_size = 1;
-            const size_t rows = (size_t) positions * row_bytes(int8);
             const kernels::KvFar f = mtp ? kernels::KvFar{} : ls.far_kv[j];
-            const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(int8);
             bool ok;
-            if (int8) {
+            if (fmt == KvFormat::Int8) {
+                const size_t rows = (size_t) positions * row_bytes(true);
+                const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(true);
                 const kernels::KvInt8& q = ls.kq[j];
                 ok = down(q.k, f.q8.k, split, k.k, rows) && down(q.v, f.q8.v, split, k.v, rows) &&
                      down(q.ks, f.q8.ks, split / 32, k.k_scale, rows / 32) && down(q.vs, f.q8.vs, split / 32, k.v_scale, rows / 32);
+            } else if (fmt == KvFormat::K8V4) {
+                // K's codes and scales use the int8 cache's row bytes; V's rows are whole q4_0 blocks. A K8V4 cache is
+                // never streamed, so every byte is read from the card.
+                const size_t krows = (size_t) positions * row_bytes(true), vrows = (size_t) positions * v4_row_bytes();
+                const kernels::KvK8V4& q = ls.k8v4[j];
+                ok = down(q.k, nullptr, krows, k.k, krows) && down(q.ks, nullptr, krows / 32, k.k_scale, krows / 32) &&
+                     down(q.vq, nullptr, vrows, k.v, vrows);
             } else {
+                const size_t rows = (size_t) positions * row_bytes(false);
+                const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(false);
                 ok = down(mtp ? st_.mtp_kc : ls.kc[j], f.k, split, k.k, rows) && down(mtp ? st_.mtp_vc : ls.vc[j], f.v, split, k.v, rows);
             }
             if (!ok) return fail("reading the KV cells back failed");
@@ -588,19 +614,27 @@ public:
             const bool mtp = i == kv_layers();
             const size_t j = i;
             const SessionState& ls = st_;
-            const bool int8 = !mtp && m_.o.kv == KvFormat::Int8;
+            const KvFormat fmt = mtp ? KvFormat::Fp16 : m_.o.kv;
             const core::ConversationKv& k = kv[i];
-            if (k.format != (int8 ? 2 : 1) || k.heads != g_.n_kv || k.head_dim != g_.head_dim)
+            if (k.format != (fmt == KvFormat::Int8 ? 2 : fmt == KvFormat::K8V4 ? 3 : 1) || k.heads != g_.n_kv ||
+                k.head_dim != g_.head_dim)
                 return fail(m_.o.arch + ": a parked conversation has other caches");
-            const size_t rows = (size_t) positions * row_bytes(int8);
             const kernels::KvFar f = mtp ? kernels::KvFar{} : ls.far_kv[j];
-            const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(int8);
             bool ok;
-            if (int8) {
+            if (fmt == KvFormat::Int8) {
+                const size_t rows = (size_t) positions * row_bytes(true);
+                const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(true);
                 const kernels::KvInt8& q = ls.kq[j];
                 ok = up(q.k, f.q8.k, split, k.k, rows) && up(q.v, f.q8.v, split, k.v, rows) &&
                      up(q.ks, f.q8.ks, split / 32, k.k_scale, rows / 32) && up(q.vs, f.q8.vs, split / 32, k.v_scale, rows / 32);
+            } else if (fmt == KvFormat::K8V4) {
+                const size_t krows = (size_t) positions * row_bytes(true), vrows = (size_t) positions * v4_row_bytes();
+                const kernels::KvK8V4& q = ls.k8v4[j];
+                ok = up(q.k, nullptr, krows, k.k, krows) && up(q.ks, nullptr, krows / 32, k.k_scale, krows / 32) &&
+                     up(q.vq, nullptr, vrows, k.v, vrows);
             } else {
+                const size_t rows = (size_t) positions * row_bytes(false);
+                const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(false);
                 ok = up(mtp ? st_.mtp_kc : ls.kc[j], f.k, split, k.k, rows) && up(mtp ? st_.mtp_vc : ls.vc[j], f.v, split, k.v, rows);
             }
             if (!ok) return fail(m_.o.arch + ": a parked conversation has other caches");
