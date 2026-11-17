@@ -899,6 +899,7 @@ constexpr int K8V4_NG = HD / kKvQ4Block;   // V scale blocks per row (32 dims ea
 constexpr int K8V4_STAGE = 2 * I8_TILE + I8BC * (HD / 64) * 2 + I8BC * K8V4_NG * 2;
 
 template <int W> constexpr int k8v4_smem() { return W * 16 * HD + 2 * K8V4_STAGE; }
+static_assert(k8v4_smem<8>() <= 101376, "K8V4 prompt attention: the 8-warp shape must fit sm_89's 99 KiB opt-in");
 
 template <int W, bool Split, class IO = float>
 __global__ void __launch_bounds__(W * 32, 1) prompt_k8v4_kernel(const IO* __restrict__ q, int n_head, int n_kv, int pos0,
@@ -1252,8 +1253,9 @@ void launch_prompt_i8(const IO* q, int n_head, int n_kv, int pos0, int T, IO* ou
     }
 }
 
-// The K8V4 prompt launch: the int8 kernel's plan, at 4 warps (the 8-warp shape's shared memory does not fit with eight
-// V scales a cell), with the same split scratch and merge.
+// The K8V4 prompt launch: the int8 kernel's plan (4 warps unsplit, or 8 warps split or not), the same split scratch and
+// merge. The 8-warp shape takes 101,376 B of shared memory, exactly sm_89's per-block opt-in maximum (with the 1 KiB the
+// driver reserves, the SM's 102,400): one block an SM, the int8 8-warp kernel's occupancy.
 template <int W, bool Split, class IO = float>
 void launch_prompt_k8v4(const IO* q, int n_head, int n_kv, int pos0, int T, IO* out, KvK8V4 k8v4, int splits,
                         float* scratch, cudaStream_t st) {
@@ -1397,6 +1399,12 @@ size_t gqa_prompt_split_floats(int64_t T, int n_head, int splits) {
     return (size_t) splits * T * n_head * (HD + 2);   // the splits' rows, then their (max, sum) pairs
 }
 
+void gqa_prompt_plan_query(int n_head, int64_t T, int64_t cells, size_t split_floats, int* warps, int* splits) {
+    const I8Plan p = plan_prompt_i8(n_head, T, cells, split_floats);
+    if (warps) *warps = p.warps;
+    if (splits) *splits = p.splits;
+}
+
 void gqa_prompt_attn_bf16(const uint16_t* q, int n_head, int n_kv, int64_t pos0, int64_t T, uint16_t* out, void* stream,
                           KvInt8 q8, float* split_scratch, size_t split_floats, KvFar far_kv, KvK8V4 k8v4) {
     if (T <= 0) return;
@@ -1409,8 +1417,9 @@ void gqa_prompt_attn_bf16(const uint16_t* q, int n_head, int n_kv, int64_t pos0,
     __nv_bfloat16* ob = reinterpret_cast<__nv_bfloat16*>(out);
     const I8Plan p = plan_prompt_i8(n_head, T, pos0 + T, split_scratch ? split_floats : 0);
     if (k8v4.k) {
-        if (p.splits == 1) launch_prompt_k8v4<4, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, 1, nullptr, st);
-        else launch_prompt_k8v4<4, true>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, p.splits, split_scratch, st);
+        if (p.warps == 4) launch_prompt_k8v4<4, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, 1, nullptr, st);
+        else if (p.splits == 1) launch_prompt_k8v4<8, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, 1, nullptr, st);
+        else launch_prompt_k8v4<8, true>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, p.splits, split_scratch, st);
     } else if (p.warps == 4) launch_prompt_i8<4, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, q8, 1, nullptr, st, far_kv);
     else if (p.splits == 1) launch_prompt_i8<8, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, q8, 1, nullptr, st, far_kv);
     else launch_prompt_i8<8, true>(qb, n_head, n_kv, (int) pos0, (int) T, ob, q8, p.splits, split_scratch, st, far_kv);
@@ -1429,8 +1438,9 @@ void gqa_prompt_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
     const cudaStream_t st = (cudaStream_t) stream;
     if (k8v4.k) {
         const I8Plan p = plan_prompt_i8(n_head, T, pos0 + T, split_scratch ? split_floats : 0);
-        if (p.splits == 1) launch_prompt_k8v4<4, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, 1, nullptr, st);
-        else launch_prompt_k8v4<4, true>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, p.splits, split_scratch, st);
+        if (p.warps == 4) launch_prompt_k8v4<4, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, 1, nullptr, st);
+        else if (p.splits == 1) launch_prompt_k8v4<8, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, 1, nullptr, st);
+        else launch_prompt_k8v4<8, true>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, p.splits, split_scratch, st);
     } else if (q8.k) {
         const I8Plan p = plan_prompt_i8(n_head, T, pos0 + T, split_scratch ? split_floats : 0);
         if (p.warps == 4) launch_prompt_i8<4, false>(q, n_head, n_kv, (int) pos0, (int) T, out, q8, 1, nullptr, st, far_kv);

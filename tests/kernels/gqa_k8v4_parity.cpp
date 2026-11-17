@@ -349,17 +349,23 @@ int main() {
         report(ed.abs < 2e-3 && bitwise, "gqa_decode_attn over a K8V4 cache matches the fp64 reference");
     }
 
-    // ---- [4] prompt chunks: 300 rows at the end of the cache, plain and split over three key ranges
-    {
-        const int T = 300;
+    // ---- [4] prompt chunks at the end of the cache, plain and with split scratch, at two sizes so the planner takes both
+    // block shapes: 300 rows plan 4 warps unsplit, 1,200 rows plan 8 warps (split when it has the scratch).  Then the K8V4
+    // launch is timed against the int8 cache of the same launch (cache8: same K, V unrotated int8) on the same queries.
+    bool ran8 = false;
+    std::vector<float> q1200, out1200;   // the 1,200-row (8-warp) launch's queries and rows, for the shape check below
+    for (const int T : {300, 1200}) {
         const int64_t pp = cell0 + L - T;
         std::vector<float> qp((size_t) T * NH * HD);
         for (auto& x : qp) x = 2.0f * nd(rng);
         float *d_qp = dev<float>(qp.size()), *d_op = dev<float>(qp.size());
-        const size_t sf = k::gqa_prompt_split_floats(T, NH, 3);
+        const size_t sf = k::gqa_prompt_split_floats(T, NH, 8);
         float* d_split = dev<float>(sf);
         ck(cudaMemcpy(d_qp, qp.data(), qp.size() * 4, cudaMemcpyHostToDevice), "qp");
         for (int cfg = 0; cfg < 2; ++cfg) {
+            int warps = 0, splits = 0;
+            k::gqa_prompt_plan_query(NH, T, pp + T, cfg ? sf : 0, &warps, &splits);
+            ran8 = ran8 || warps == 8;
             k::gqa_prompt_attn(d_qp, nullptr, nullptr, NH, NKV, pp, T, d_op, nullptr, k::KvInt8{}, cfg ? d_split : nullptr,
                                cfg ? sf : 0, k::KvFar{}, cache);
             k::fwht256_inplace_cuda(d_op, (int64_t) T * NH, nullptr);
@@ -368,20 +374,127 @@ int main() {
             ck(cudaMemcpy(got.data(), d_op, got.size() * 4, cudaMemcpyDeviceToHost), "prompt out");
             Err ep;
             std::vector<double> want((size_t) NH * HD);
-            for (const int r : {0, 1, 55, 63, 64, 65, 127, 128, 255, T - 2, T - 1}) {
+            if (T == 1200 && cfg == 0) { q1200 = qp; out1200 = got; }
+            for (const int r : {0, 1, 55, 63, 64, 65, 127, 128, 255, 511, 512, 767, 1023, T - 2, T - 1}) {
                 if (r >= T) continue;
                 ref_attn(&qp[(size_t) r * NH * HD], kdq, vtrue, pp + r + 1, want.data());
-                for (int j = 0; j < NH * HD; ++j) ep.add(got[(size_t) r * NH * HD + j], want[(size_t) j]);
+                Err er;
+                for (int j = 0; j < NH * HD; ++j) {
+                    ep.add(got[(size_t) r * NH * HD + j], want[(size_t) j]);
+                    er.add(got[(size_t) r * NH * HD + j], want[(size_t) j]);
+                }
+                if (cfg == 0) std::printf("    row %4d (cell %lld): max abs %.4f\n", r, (long long) (pp + r), er.abs);
             }
-            std::printf("  K8V4 prompt %s: max abs %.3g rel %.3g vs double on the dequantized cells\n",
-                        cfg ? "split over 3 key ranges" : "300 rows", ep.abs, ep.rel);
-            // the kernel re-quantizes each 32-dim block's probabilities to u8 and sums the stored codes exactly: the
-            // error is the format's 4-bit V plus that per-row rounding, the int8 prompt kernel's tolerance class
-            report(ep.abs < 3e-2, "gqa_prompt_attn over a K8V4 cache is within its rounding of the fp64 reference");
+            std::printf("  K8V4 prompt %d rows, %d warps x %d split%s: max abs %.3g rel %.3g vs double on the dequantized cells\n",
+                        T, warps, splits, splits == 1 ? "" : "s", ep.abs, ep.rel);
+            // the kernel re-quantizes each 32-dim block's probabilities to u8 and sums the stored codes exactly, as the int8
+            // prompt kernel does: rows with few keys (large probabilities) err most, up to 0.036 for int8 itself on these
+            // queries (the int8 comparison below), so the bound is 0.05 here and the int8 ratio is the tight check
+            report(ep.abs < 5e-2, "gqa_prompt_attn over a K8V4 cache is within its rounding of the fp64 reference");
+        }
+        if (T == 1200) {   // time: 20 launches each, unsplit, after one warm-up
+            cudaEvent_t e0, e1;
+            cudaEventCreate(&e0);
+            cudaEventCreate(&e1);
+            float ms8 = 1e30f, ms4 = 1e30f;   // the best of 5 interleaved rounds each (another job may share the card)
+            for (int pass = 0; pass < 10; ++pass) {
+                const bool kv4 = pass % 2 == 0;
+                const auto launch = [&] {
+                    k::gqa_prompt_attn(d_qp, nullptr, nullptr, NH, NKV, pp, T, d_op, nullptr, kv4 ? k::KvInt8{} : cache8, nullptr, 0,
+                                       k::KvFar{}, kv4 ? cache : k::KvK8V4{});
+                };
+                launch();
+                cudaEventRecord(e0);
+                for (int i = 0; i < 20; ++i) launch();
+                cudaEventRecord(e1);
+                ck(cudaEventSynchronize(e1), "bench");
+                float ms = 0;
+                cudaEventElapsedTime(&ms, e0, e1);
+                float& best = kv4 ? ms4 : ms8;
+                best = std::min(best, ms / 20.0f);
+            }
+            std::printf("  bench: prompt %d rows over %lld cells: K8V4 %.1f us, int8 %.1f us (K8V4 / int8 = %.2f)\n", T,
+                        (long long) (pp + T), 1000.0 * ms4, 1000.0 * ms8, ms4 / ms8);
+            cudaEventDestroy(e0);
+            cudaEventDestroy(e1);
         }
         cudaFree(d_qp);
         cudaFree(d_op);
         cudaFree(d_split);
+    }
+    report(ran8, "the 8-warp K8V4 prompt shape ran and was checked");
+    // a row's math does not depend on the block shape: the 8-warp launch's last 300 rows are the 4-warp launch's over the
+    // same 300 queries at the same positions, bit for bit
+    {
+        const int T = 300, T8 = 1200;
+        const int64_t pp = cell0 + L - T;
+        float *d_qp = dev<float>((size_t) T * NH * HD), *d_op = dev<float>((size_t) T * NH * HD);
+        ck(cudaMemcpy(d_qp, &q1200[(size_t) (T8 - T) * NH * HD], (size_t) T * NH * HD * 4, cudaMemcpyHostToDevice), "q300");
+        int warps = 0, splits = 0;
+        k::gqa_prompt_plan_query(NH, T, pp + T, 0, &warps, &splits);
+        k::gqa_prompt_attn(d_qp, nullptr, nullptr, NH, NKV, pp, T, d_op, nullptr, k::KvInt8{}, nullptr, 0, k::KvFar{}, cache);
+        k::fwht256_inplace_cuda(d_op, (int64_t) T * NH, nullptr);
+        std::vector<float> got((size_t) T * NH * HD);
+        ck(cudaMemcpy(got.data(), d_op, got.size() * 4, cudaMemcpyDeviceToHost), "out300");
+        const bool same = std::memcmp(got.data(), &out1200[(size_t) (T8 - T) * NH * HD], got.size() * 4) == 0;
+        double shape_worst = 0;
+        {
+            double worst = 0;
+            int first_row = -1, n_rows = 0;
+            for (int r = 0; r < T; ++r) {
+                double w = 0;
+                for (int j = 0; j < NH * HD; ++j)
+                    w = std::max(w, (double) std::fabs(got[(size_t) r * NH * HD + j] - out1200[(size_t) (T8 - T + r) * NH * HD + j]));
+                if (w > 0) { ++n_rows; if (first_row < 0) first_row = r; }
+                worst = std::max(worst, w);
+            }
+            std::printf("    shapes: %d of %d rows differ, first row %d, max abs %.3g\n", n_rows, T, first_row, worst);
+            shape_worst = worst;
+        }
+        std::printf("  K8V4 prompt: the 8-warp launch's last %d rows vs a %d-warp launch over them: %s\n", T, warps,
+                    same ? "bitwise" : "DIFFER");
+        report(warps == 4 && shape_worst <= 1e-6, "the 8-warp K8V4 prompt rows are the 4-warp rows to float rounding (1e-6)");
+        cudaFree(d_qp);
+        cudaFree(d_op);
+    }
+    // the K8V4 prompt error against the int8 prompt kernel's on the same 1,200 queries: both re-quantize P to u8 against
+    // V's scales, so a row's error against its own fp64 reference (on its own dequantized cells) should be the same class
+    {
+        const int T = 1200;
+        const int64_t pp = cell0 + L - T;
+        std::vector<int8_t> iv((size_t) L * NKV * HD);
+        std::vector<uint16_t> ivs((size_t) L * NKV * (HD / 64));
+        ck(cudaMemcpy(iv.data(), d_iv + (size_t) cell0 * NKV * HD, iv.size(), cudaMemcpyDeviceToHost), "int8 v");
+        ck(cudaMemcpy(ivs.data(), d_ivs + (size_t) cell0 * NKV * (HD / 64), ivs.size() * 2, cudaMemcpyDeviceToHost), "int8 vs");
+        std::vector<float> v8dq(kdq.size(), 0.0f);
+        for (int64_t row = 0; row < L * NKV; ++row) {
+            const size_t dst = (size_t) ((cell0 + row / NKV) * NKV + row % NKV) * HD;
+            for (int d = 0; d < HD; ++d)
+                v8dq[dst + d] = h2f(k::f16_from_f32((float) iv[(size_t) row * HD + d] * h2f(ivs[(size_t) row * (HD / 64) + d / 64])));
+        }
+        float *d_qp = dev<float>((size_t) T * NH * HD), *d_op = dev<float>((size_t) T * NH * HD);
+        ck(cudaMemcpy(d_qp, q1200.data(), q1200.size() * 4, cudaMemcpyHostToDevice), "q1200");
+        k::gqa_prompt_attn(d_qp, nullptr, nullptr, NH, NKV, pp, T, d_op, nullptr, cache8, nullptr, 0, k::KvFar{}, k::KvK8V4{});
+        std::vector<float> o8((size_t) T * NH * HD);
+        ck(cudaMemcpy(o8.data(), d_op, o8.size() * 4, cudaMemcpyDeviceToHost), "int8 out");
+        double worst_ratio = 0, worst4 = 0, worst8 = 0;
+        std::vector<double> want((size_t) NH * HD);
+        for (const int r : {0, 1, 2, 3, 8, 15, 31, 55, 63, 64, 65, 127, 128, 255, 511, 512, 767, 1023, T - 2, T - 1}) {
+            Err e4, e8;
+            ref_attn(&q1200[(size_t) r * NH * HD], kdq, vtrue, pp + r + 1, want.data());
+            for (int j = 0; j < NH * HD; ++j) e4.add(out1200[(size_t) r * NH * HD + j], want[(size_t) j]);
+            ref_attn(&q1200[(size_t) r * NH * HD], kdq, v8dq, pp + r + 1, want.data());
+            for (int j = 0; j < NH * HD; ++j) e8.add(o8[(size_t) r * NH * HD + j], want[(size_t) j]);
+            std::printf("    row %4d (%4lld keys): K8V4 %.4f  int8 %.4f\n", r, (long long) (pp + r + 1), e4.abs, e8.abs);
+            worst4 = std::max(worst4, e4.abs);
+            worst8 = std::max(worst8, e8.abs);
+            worst_ratio = std::max(worst_ratio, e4.abs / std::max(e8.abs, 1e-4));
+        }
+        std::printf("  K8V4 vs int8 prompt error on the same rows: worst K8V4 %.4f, worst int8 %.4f, worst row ratio %.2f\n", worst4,
+                    worst8, worst_ratio);
+        report(worst_ratio <= 1.5, "the K8V4 prompt error is the int8 prompt kernel's on the same rows (ratio <= 1.5)");
+        cudaFree(d_qp);
+        cudaFree(d_op);
     }
 
     // ---- [5] BF16 queries and output rows: the same launch on the same (bf16-exact) queries, its rows rounded to bf16
