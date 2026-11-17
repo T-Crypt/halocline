@@ -59,8 +59,8 @@ std::optional<int> select_gpus(CommonOptions& o, std::vector<GpuCard>& chosen_ca
         }
         if (!halo::build_has_arch(major, minor)) {
             const int i = choice.cards[(size_t) d];
-            halo::log::error("halo", "gpu: %s is sm_%d%d and this build has device code for %s only; build with "
-                                         "-DCMAKE_CUDA_ARCHITECTURES=\"120;89\" for Blackwell and Ada cards together",
+            halo::log::error("halo", "gpu: %s is sm_%d%d and this build has device code for %s only; Halocline runs "
+                                         "on compute capability 8.9 (sm_89) alone",
                                bp::gpu_label(visible, i).c_str(), major, minor, halo::build_archs());
             return 2;
         }

@@ -68,10 +68,10 @@ int main() {
     }
     // A 5090 and a 5060 Ti, in nvidia-smi order.
     {
-        const std::vector<GpuCard> v = {card(0, "RTX 5090", 12, 0, 1792, 32), card(1, "RTX 5060 Ti", 12, 0, 448, 16)};
+        const std::vector<GpuCard> v = {card(0, "RTX 4090", 8, 9, 1792, 32), card(1, "RTX 4060 Ti", 8, 9, 448, 16)};
         GpuChoice c = pick("", v);
         CHECK_STR(cards(c), "0");
-        CHECK_STR(c.warning, "GPU 1 (RTX 5060 Ti) unused; use gpu 0,1 or gpu auto");
+        CHECK_STR(c.warning, "GPU 1 (RTX 4060 Ti) unused; use gpu 0,1 or gpu auto");
         c = pick("0,1", v);
         CHECK_STR(cards(c), "0,1");
         CHECK(c.warning.empty() && c.error.empty());
@@ -82,8 +82,8 @@ int main() {
         CHECK_STR(pick("2", v).error, "gpu 2: 2 GPUs are visible (0-1)");
         CHECK_STR(pick("0,0", v).error, "gpu 0,0: GPU 0 is listed twice");
         CHECK_STR(gpu_plan_json(v, pick("1,0", v)),
-                  "{\"devices\":\"1,0\",\"cards\":[{\"visible\":1,\"token\":\"1\",\"smi\":1,\"name\":\"RTX 5060 Ti\"},"
-                  "{\"visible\":0,\"token\":\"0\",\"smi\":0,\"name\":\"RTX 5090\"}],\"notes\":[],\"warning\":\"\",\"error\":\"\"}");
+                  "{\"devices\":\"1,0\",\"cards\":[{\"visible\":1,\"token\":\"1\",\"smi\":1,\"name\":\"RTX 4060 Ti\"},"
+                  "{\"visible\":0,\"token\":\"0\",\"smi\":0,\"name\":\"RTX 4090\"}],\"notes\":[],\"warning\":\"\",\"error\":\"\"}");
         CHECK_STR(gpu_plan_json({}, GpuChoice{}, "qwen4exp", "", 0, 8, 8192, "Qwen3.8-Flash-Next", "--route-tail-skip"),
                   "{\"arch\":\"qwen4exp\",\"model\":\"Qwen3.8-Flash-Next\",\"quality_flags\":\"\",\"quality_window\":\"0\","
                   "\"lossy\":\"--route-tail-skip\",\"spec\":8,\"max_context\":8192,\"devices\":\"\",\"cards\":[],\"notes\":[],"
@@ -91,45 +91,45 @@ int main() {
     }
     // The same cards with the slower one first: auto still makes the 5090 main.
     {
-        const std::vector<GpuCard> v = {card(0, "RTX 5060 Ti", 12, 0, 448, 16), card(1, "RTX 5090", 12, 0, 1792, 32)};
+        const std::vector<GpuCard> v = {card(0, "RTX 4060 Ti", 8, 9, 448, 16), card(1, "RTX 4090", 8, 9, 1792, 32)};
         CHECK_STR(cards(pick("auto", v)), "1,0");
         CHECK_STR(cards(pick("", v)), "0");
     }
     // Two equal 5090s: the lowest number is main.
     {
-        const std::vector<GpuCard> v = {card(0, "RTX 5090", 12, 0, 1792, 32), card(1, "RTX 5090", 12, 0, 1792, 32)};
+        const std::vector<GpuCard> v = {card(0, "RTX 4090", 8, 9, 1792, 32), card(1, "RTX 4090", 8, 9, 1792, 32)};
         const GpuChoice c = pick("auto", v);
         CHECK_STR(cards(c), "0,1");
         CHECK(c.notes.empty());
     }
-    // Four mixed cards, one of them not Blackwell.
+    // Four mixed cards, one of them not Ada.
     {
-        const std::vector<GpuCard> v = {card(0, "RTX 5070 Ti", 12, 0, 896, 16), card(1, "RTX 3090", 8, 6, 936, 24),
-                                        card(2, "RTX 5090", 12, 0, 1792, 32), card(3, "RTX 5060 Ti", 12, 0, 448, 16)};
+        const std::vector<GpuCard> v = {card(0, "RTX 4070 Ti", 8, 9, 896, 16), card(1, "RTX 3090", 8, 6, 936, 24),
+                                        card(2, "RTX 4090", 8, 9, 1792, 32), card(3, "RTX 4060 Ti", 8, 9, 448, 16)};
         GpuChoice c = pick("auto", v);
         CHECK_STR(cards(c), "2,0,3");
         CHECK(c.notes.size() == 1);
-        if (c.notes.size() == 1) CHECK_STR(c.notes[0], "gpu auto: GPU 1 (RTX 3090) skipped, not sm_120 or sm_89");
+        if (c.notes.size() == 1) CHECK_STR(c.notes[0], "gpu auto: GPU 1 (RTX 3090) skipped, not sm_89");
         c = pick("", v);
         CHECK_STR(cards(c), "0");
-        CHECK_STR(c.warning, "GPU 2 (RTX 5090), GPU 3 (RTX 5060 Ti) unused; use gpu 0,2,3 or gpu auto");
-        CHECK_STR(pick("1", v).error, "gpu: GPU 1 (RTX 3090) is sm_86, not sm_120 or sm_89");
+        CHECK_STR(c.warning, "GPU 2 (RTX 4090), GPU 3 (RTX 4060 Ti) unused; use gpu 0,2,3 or gpu auto");
+        CHECK_STR(pick("1", v).error, "gpu: GPU 1 (RTX 3090) is sm_86, not sm_89");
         CHECK_STR(cards(pick("3,2,0", v)), "3,2,0");
     }
     // A laptop's own card beside a desktop card in an enclosure: the desktop card's bandwidth makes it main; the
     // laptop card is the first visible, so it runs alone when nothing is set.
     {
-        const std::vector<GpuCard> v = {card(0, "RTX 5080 Laptop GPU", 12, 0, 896, 16), card(1, "RTX 5090", 12, 0, 1792, 32)};
+        const std::vector<GpuCard> v = {card(0, "RTX 4080 Laptop GPU", 8, 9, 896, 16), card(1, "RTX 4090", 8, 9, 1792, 32)};
         CHECK_STR(cards(pick("auto", v)), "1,0");
         CHECK_STR(cards(pick("", v)), "0");
         CHECK(!pick("", v).warning.empty());
         // the same bandwidth: the larger card is main
-        const std::vector<GpuCard> w = {card(0, "RTX 5070 Ti Laptop GPU", 12, 0, 896, 12), card(1, "RTX 5080", 12, 0, 896, 16)};
+        const std::vector<GpuCard> w = {card(0, "RTX 4070 Ti Laptop GPU", 8, 9, 896, 12), card(1, "RTX 4080", 8, 9, 896, 16)};
         CHECK_STR(cards(pick("auto", w)), "1,0");
     }
     // A first card Halocline cannot run: unset is an error that points at gpu N and auto.
     {
-        const std::vector<GpuCard> v = {card(0, "RTX 3090", 8, 6, 936, 24), card(1, "RTX 5090", 12, 0, 1792, 32)};
+        const std::vector<GpuCard> v = {card(0, "RTX 3090", 8, 6, 936, 24), card(1, "RTX 4090", 8, 9, 1792, 32)};
         CHECK(!pick("", v).error.empty());
         CHECK_STR(cards(pick("auto", v)), "1");
         CHECK(pick("auto", v).notes.size() == 1);

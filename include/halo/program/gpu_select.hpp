@@ -35,7 +35,7 @@ struct GpuSpec {
 /// Parses "", "auto" or "A,B,..."; false with `err` naming what is wrong.
 bool parse_gpu_spec(const std::string& text, GpuSpec& out, std::string& err);
 
-/// Whether Halocline runs on the card: compute capability 12.0, or unknown (nothing to check against).
+/// Whether Halocline runs on the card: compute capability 8.9, or unknown (nothing to check against).
 bool gpu_supported(const GpuCard& c);
 
 /// "GPU 1 (RTX 5060 Ti)": the visible number the user types, and the name when known.

@@ -1,7 +1,7 @@
-# halo: a local inference engine for one NVIDIA GPU.
+# Halocline (halo): an inference engine for one NVIDIA Ada GPU (sm_89) and the Qwen4 family.
 cmake_minimum_required(VERSION 3.24)
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES 120 CACHE STRING "CUDA architectures" FORCE)
+  set(CMAKE_CUDA_ARCHITECTURES 89 CACHE STRING "CUDA architectures" FORCE)
 endif()
 project(halocline VERSION 0.1.0 LANGUAGES C CXX CUDA)
 add_compile_definitions(HALO_VERSION="${PROJECT_VERSION}")
@@ -37,38 +37,18 @@ endfunction()
 # the CUDA language gives the .cu compile rules but not the imported targets, so `CUDA::cudart` is brought in
 # explicitly for the host-side programs that call the runtime themselves
 find_package(CUDAToolkit REQUIRED)
-# Two architectures: 120 (the full engine) and 89 (Ada, e.g. -DCMAKE_CUDA_ARCHITECTURES=89), where the kernels that
-# need thread-block clusters, bulk async copies or FP4 tensor cores are compiled out and their callers take the
-# plain kernels instead.
-set(_halo_has_sm90 FALSE)
-foreach(_a IN LISTS CMAKE_CUDA_ARCHITECTURES)
-  string(REGEX REPLACE "[-a].*$" "" _base "${_a}")     # 120-real / 120a are still 120
-  if(NOT (_base STREQUAL "120" OR _base STREQUAL "89"))
-    message(FATAL_ERROR "CMAKE_CUDA_ARCHITECTURES is '${CMAKE_CUDA_ARCHITECTURES}': halo builds for compute capability 12.0 and 8.9 only")
-  endif()
-  if(_base STREQUAL "120")
-    set(_halo_has_sm90 TRUE)
-  endif()
-endforeach()
-if(NOT _halo_has_sm90)
-  # Nothing in the build has thread-block clusters (gdn_window.cu drops __cluster_dims__ in every compile pass).
-  add_compile_definitions($<$<COMPILE_LANGUAGE:CUDA>:HALO_ARCH_BELOW_SM90=1>)
-endif()
-# The architectures of a target whose 12.0 code needs sm_120a's instructions (the block-scaled mma, the E2M1
-# conversions): 120a-real for a 120, 89-real for an 89, where the same files build their Ada kernels instead.  A 120-only
-# build gets 120a-real alone.
-set(HALO_CUDA_ARCHS_A "")
+# One architecture, now and later: compute capability 8.9 (Ada, -DCMAKE_CUDA_ARCHITECTURES=89). Nothing in the build has
+# thread-block clusters, bulk async copies or FP4 tensor cores.
 foreach(_a IN LISTS CMAKE_CUDA_ARCHITECTURES)
   string(REGEX REPLACE "[-a].*$" "" _base "${_a}")
-  if(_base STREQUAL "120")
-    list(APPEND HALO_CUDA_ARCHS_A 120a-real)
-  else()
-    list(APPEND HALO_CUDA_ARCHS_A 89-real)
+  if(NOT _base STREQUAL "89")
+    message(FATAL_ERROR "CMAKE_CUDA_ARCHITECTURES is '${CMAKE_CUDA_ARCHITECTURES}': Halocline builds for compute capability 8.9 (sm_89, Ada) only")
   endif()
 endforeach()
-list(REMOVE_DUPLICATES HALO_CUDA_ARCHS_A)
+add_compile_definitions($<$<COMPILE_LANGUAGE:CUDA>:HALO_ARCH_BELOW_SM90=1>)
+set(HALO_CUDA_ARCHS_A 89-real)   # the targets that once took sm_120a's instructions build their Ada kernels
 # The architectures the build holds device code for (include/halo/build_archs.hpp): the engine refuses a card of
-# another one at start. A Blackwell main card with an Ada tier card needs both: -DCMAKE_CUDA_ARCHITECTURES="120;89".
+# another one at start.
 string(REPLACE ";" "," _halo_arch_list "${CMAKE_CUDA_ARCHITECTURES}")
 add_compile_definitions(HALO_CUDA_ARCHS="${_halo_arch_list}")
 if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 13.0)
