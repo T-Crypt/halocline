@@ -1,0 +1,1 @@
+strata: no Strata server answers at that address

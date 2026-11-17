@@ -4,7 +4,7 @@
 > Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
 
 Halocline scores a model against a full-precision reference on the same text, through the decode path that generates tokens. Both
-models use this method. Their numbers: [Qwen3.8-Flash-Next](qwen38-flash-next.md) and [DeepSeek-V4.1-Flash](deepseek41.md).
+models use this method. Their numbers: [Qwen3.8-Flash-Next](qwen38-flash-next.md) and DeepSeek-V4.1-Flash.
 
 ## The gate
 

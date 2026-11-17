@@ -1,0 +1,12 @@
+title = "Halocline"
+description = "Secret scan for the Halocline tree."
+
+# The default rules are enough; the allowlist only clears GGUF tensor names and a
+# kernel name that the generic-api-key rule reads as keys.
+[[allowlists]]
+description = "GGUF tensor names and kernel symbols"
+regexTarget = "match"
+regexes = [
+  'blk\.[0-9]+\.(ple_key|ple_key_proj|ffn_[a-z_]+|attn_[a-z_]+|linear_[a-z_]+)\.weight',
+  'q5k_head_top1',
+]

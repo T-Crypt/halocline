@@ -1,0 +1,2 @@
+prompt  : '<|im_start|>user\nExplain how a B-tree differs from an LSM tree, with a worked example of each. About 600 words.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n'
+output  : 'The primary distinction between a B-tree and an LSM (Log-Structured Merge) tree lies in their approach to handling write operations and data organization. B-trees are designed for read-optimized workloads with random access patterns, while LSM trees are optimized for high-throughput write workloads by converting random writes into sequential ones'

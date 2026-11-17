@@ -1,0 +1,26 @@
+{
+ "model": "qwen3.8-flash-next-ud-iq4_xs",
+ "url": "http://127.0.0.1:8080",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 96.5-97.8 t/s (cold 94.1), prompt 39 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 52 tok, 1.4 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 26.3 s, prompt 1494 t/s, decode 69.4 t/s"
+  },
+  "error": {
+   "ok": false,
+   "detail": "HTTPError: HTTP Error 503: Service Unavailable"
+  }
+ }
+}

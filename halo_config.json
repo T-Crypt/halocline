@@ -6,8 +6,8 @@
     {
       "gpu": "0",
       "kv": "int8",
-      "max-context": 70000,
-      "model": "models/Qwen3.8-FN-NVFP4.basalt"
+      "max-context": 262144,
+      "model": "models/QFN-UD-IQ4_XS.basalt"
     }
   ],
   "server": {

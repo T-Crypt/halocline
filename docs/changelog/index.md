@@ -1,3 +1,7 @@
+> [!WARNING]
+> Basalt's changelog, kept from the snapshot with the names changed. It records Basalt's releases, not Halocline's.
+> Halocline's own history starts at 0.1.0 and lives in the commit log and `gates/`.
+
 # Changelog
 
 Releases, newest first. Versions are 0.x: a minor release adds a model or another large change; a patch release brings fixes and smaller features, and can rename or remove a flag (a removed or renamed flag breaks a config, as Basalt keeps no shims, so each entry's Upgrading section lists them). Each release is an annotated tag `vX.Y.Z` with a GitHub Release carrying its entry. From 0.3.2 each release also carries Linux and Windows x64 archives ([platforms](../platforms.md#release-archives)); or build from source ([building](../building.md)).

@@ -1,4 +1,6 @@
-# Plan: the hc read on sm_89 (RTX 4090), local fork only
+# The HC read on sm_89 (RTX 4090)
+
+Development notes, 450 W power limit. The reference-machine numbers are in the README.
 
 Status: the kernel is the default on 8.9 and bitwise equal to hc8_gr's three kernels (`--exp hc_ada=0`). Development A/B
 at 450 W, per-window log on, a download running: +3.17 % decode (token-weighted) over `hc_ada=0`, faster on all three

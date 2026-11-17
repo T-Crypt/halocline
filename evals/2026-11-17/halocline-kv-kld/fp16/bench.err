@@ -1,0 +1,58 @@
+berth: waiting: next in line: waiting for halocline-quality [foreground, pinned, releasing] to free memory
+berth: granted halocline-quality-130
+basalt-bench: starting ~/halocline/releases/d314a21a/bin/basalt (log: /data/models/halocline/sweeps/kv-20261117/fp16/engine.log)
+basalt-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+basalt-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+basalt-bench: loading cuda0 5.1 / 21.1 GiB (24%)
+basalt-bench: loading cuda0 10.0 / 21.1 GiB (47%)
+basalt-bench: loading cuda0 14.7 / 21.1 GiB (69%)
+basalt-bench: loading cuda0 19.6 / 21.1 GiB (92%)
+basalt-bench: loading cuda0 20.9 / 20.9 GiB done (43 s)
+basalt-bench: loading ram 2.6 / 39.8 GiB (6%)
+basalt-bench: loading ram 6.4 / 39.8 GiB (16%)
+basalt-bench: loading ram 10.1 / 39.8 GiB (25%)
+basalt-bench: loading ram 14.0 / 39.8 GiB (35%)
+basalt-bench: loading ram 17.9 / 39.8 GiB (45%)
+basalt-bench: loading ram 21.8 / 39.8 GiB (54%)
+basalt-bench: loading ram 25.6 / 39.8 GiB (64%)
+basalt-bench: loading ram 29.5 / 39.8 GiB (74%)
+basalt-bench: loading ram 33.5 / 39.8 GiB (84%)
+basalt-bench: loading ram 37.6 / 39.8 GiB (94%)
+basalt-bench: loading ram 39.8 / 39.8 GiB done (103 s)
+basalt-bench: engine ready in 149 s
+  run 1 conv    135.4 tok/s, 972 tokens
+  run 1 struct  259.5 tok/s, 7230 tokens
+  run 1 prose   131.0 tok/s, 1200 tokens
+  run 1 pp32768 33323 tokens, 4773 t/s engine, 4731 t/s wall
+  run 1 pp131072 133205 tokens, 2997 t/s engine, 2992 t/s wall
+basalt-bench: starting the engine for the quality gate
+basalt-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+basalt-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+basalt-bench: loading cuda0 5.1 / 21.1 GiB (24%)
+basalt-bench: loading cuda0 9.9 / 21.1 GiB (46%)
+basalt-bench: loading cuda0 14.3 / 21.1 GiB (67%)
+basalt-bench: loading cuda0 18.9 / 21.1 GiB (89%)
+basalt-bench: loading cuda0 20.9 / 20.9 GiB done (45 s)
+basalt-bench: loading ram 1.8 / 39.8 GiB (4%)
+basalt-bench: loading ram 5.6 / 39.8 GiB (14%)
+basalt-bench: loading ram 9.2 / 39.8 GiB (23%)
+basalt-bench: loading ram 12.9 / 39.8 GiB (32%)
+basalt-bench: loading ram 16.6 / 39.8 GiB (41%)
+basalt-bench: loading ram 20.3 / 39.8 GiB (50%)
+basalt-bench: loading ram 24.1 / 39.8 GiB (60%)
+basalt-bench: loading ram 27.9 / 39.8 GiB (70%)
+basalt-bench: loading ram 31.8 / 39.8 GiB (79%)
+basalt-bench: loading ram 35.7 / 39.8 GiB (89%)
+basalt-bench: loading ram 39.7 / 39.8 GiB (99%)
+basalt-bench: loading ram 39.8 / 39.8 GiB done (106 s)
+basalt-bench: engine ready in 156 s
+  quality 10/100 chunks, 31 s
+  quality 20/100 chunks, 63 s
+  quality 30/100 chunks, 96 s
+  quality 40/100 chunks, 128 s
+  quality 50/100 chunks, 161 s
+  quality 60/100 chunks, 193 s
+  quality 70/100 chunks, 223 s
+  quality 80/100 chunks, 255 s
+  quality 90/100 chunks, 285 s
+  quality 100/100 chunks, 315 s

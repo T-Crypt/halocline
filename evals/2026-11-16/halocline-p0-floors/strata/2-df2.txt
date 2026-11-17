@@ -1,0 +1,5 @@
+PASS  speed    warm decode 96.5-97.8 t/s (cold 94.1), prompt 39 t/s
+PASS  sampling '391', 52 tok, 1.4 s
+PASS  tool     {"city": "Oslo"}
+PASS  needle   36467 tok, 26.3 s, prompt 1494 t/s, decode 69.4 t/s
+FAIL  error    HTTPError: HTTP Error 503: Service Unavailable

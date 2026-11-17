@@ -25,5 +25,5 @@ file and picks the chat format, tool syntax and thinking switch. Several models 
 | Prompt skip | no | yes (`--no-prompt-skip` turns it off) | no |
 | Idle sleep, wake | yes (Linux) | yes (Linux); a second-card sleep may be refused | no |
 | `halo-bench --quality` | yes | yes, one row per window | yes |
-| Guide | [guide](qwen38-flash-next.md) | [guide](deepseek41.md) | [guide](qwen38-27b.md) |
-| Precision | [precision](../precision/qwen38-flash-next.md) | [precision](../precision/deepseek41.md) | [precision](../precision/qwen38-27b.md) |
+| Guide | [guide](qwen38-flash-next.md) | guide | [guide](qwen38-27b.md) |
+| Precision | [precision](../precision/qwen38-flash-next.md) | precision | [precision](../precision/qwen38-27b.md) |

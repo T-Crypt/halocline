@@ -9,7 +9,8 @@ as written and scrubbed of lab paths and private hosts. They answer one question
 - **Gaps:** what the pass did not establish.
 
 Read them as a working notebook, not as a paper. A claim in a note is only as good as the link beside it, and the notes
-say where the link is missing.
+say where the link is missing. Paths that start with `~` name files on the machine the notes were written on; they are
+kept as provenance, not as links a reader can follow.
 
 ## The notes
 

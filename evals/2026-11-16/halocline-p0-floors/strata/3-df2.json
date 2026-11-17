@@ -1,0 +1,26 @@
+{
+ "model": "qwen3.8-flash-next-ud-iq4_xs",
+ "url": "http://127.0.0.1:8080",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 90.6-101.5 t/s (cold 91.9), prompt 94 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 56 tok, 1.4 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 27.8 s, prompt 1402 t/s, decode 70.5 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 59.2 s, prompt 2079 t/s, decode 92.9 t/s"
+  }
+ }
+}

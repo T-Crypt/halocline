@@ -1,0 +1,27 @@
+berth: waiting: next in line: waiting for halocline-quality [foreground, pinned, releasing] to free memory
+berth: granted halocline-quality-141
+basalt-bench: starting ~/halocline/releases/d314a21a/bin/basalt (log: /data/models/halocline/sweeps/spec-20261117b/spec12/engine.log)
+basalt-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+basalt-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+basalt-bench: loading cuda0 5.2 / 21.9 GiB (23%)
+basalt-bench: loading cuda0 10.1 / 21.9 GiB (46%)
+basalt-bench: loading cuda0 14.9 / 21.9 GiB (67%)
+basalt-bench: loading cuda0 19.7 / 21.9 GiB (90%)
+basalt-bench: loading cuda0 21.7 / 21.7 GiB done (44 s)
+basalt-bench: loading ram 2.4 / 39.0 GiB (6%)
+basalt-bench: loading ram 6.7 / 39.0 GiB (17%)
+basalt-bench: loading ram 11.0 / 39.0 GiB (28%)
+basalt-bench: loading ram 15.4 / 39.0 GiB (39%)
+basalt-bench: loading ram 19.7 / 39.0 GiB (50%)
+basalt-bench: loading ram 24.2 / 39.0 GiB (61%)
+basalt-bench: loading ram 28.6 / 39.0 GiB (73%)
+basalt-bench: loading ram 33.1 / 39.0 GiB (84%)
+basalt-bench: loading ram 37.5 / 39.0 GiB (96%)
+basalt-bench: loading ram 39.0 / 39.0 GiB done (90 s)
+basalt-bench: engine ready in 137 s
+  run 1 conv    138.7 tok/s, 1108 tokens
+  run 1 struct  268.7 tok/s, 7230 tokens
+  run 1 prose   132.2 tok/s, 1200 tokens
+  run 2 conv    128.2 tok/s, 1177 tokens
+  run 2 struct  267.0 tok/s, 7230 tokens
+  run 2 prose   134.4 tok/s, 1200 tokens

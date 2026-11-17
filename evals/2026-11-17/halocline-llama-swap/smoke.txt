@@ -1,0 +1,6 @@
+PASS  speed    warm decode 147.8-181.6 t/s (cold 170.2), prompt 0 t/s
+PASS  sampling '391', 48 tok, 0.9 s
+PASS  tool     {"city": "Oslo"}
+PASS  needle   36467 tok, 6.8 s, prompt 6298 t/s, decode 123.1 t/s
+PASS  long     137400 tok, 22.1 s, prompt 5664 t/s, decode 121.0 t/s
+rc=0

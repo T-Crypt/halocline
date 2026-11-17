@@ -1,0 +1,26 @@
+{
+ "model": "qfn-halocline",
+ "url": "http://127.0.0.1:8091",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 102.6-103.2 t/s (cold 97.9), prompt 2682 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 52 tok, 1.6 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 7.2 s, prompt 6274 t/s, decode 91.3 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 19.5 s, prompt 6523 t/s, decode 91.3 t/s"
+  }
+ }
+}

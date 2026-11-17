@@ -6,10 +6,11 @@
 # Build from the repository root:
 #   docker build -t halo .
 #
-# The host needs an NVIDIA Blackwell GPU (compute capability 12.0) and a driver
-# of the R580 branch or newer. The GPU reaches the container through the NVIDIA
-# container runtime. Building needs no GPU: the engine is compiled for sm_120
-# with no device present, and nothing runs CUDA during the build.
+# The host needs an NVIDIA Ada GPU (compute capability 8.9, an RTX 4090 or another
+# Ada card) and a driver of the 615 branch or newer. The GPU reaches the container
+# through the NVIDIA container runtime. Building needs no GPU: the engine is
+# compiled for sm_89 with no device present, and nothing runs CUDA during the
+# build.
 #
 # The tree inside the image is a release archive's, with the venv already
 # installed: bin/, serve/, tools/, data/ and .venv/ under one top directory. A

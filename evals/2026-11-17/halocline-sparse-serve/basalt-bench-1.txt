@@ -1,0 +1,19 @@
+basalt-bench: starting ~/wt/halocline-import/bin/basalt (log: /tmp/basalt-bench-373375/engine.log)
+basalt-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+basalt-bench: engine ready in 150 s
+  run 1 conv    104.0 tok/s, 924 tokens
+  run 1 struct  106.1 tok/s, 7230 tokens
+  run 1 prose   105.8 tok/s, 1137 tokens
+  run 1 pp16384 16676 tokens, 5243 t/s engine, 5212 t/s wall
+  run 1 pp32768 33323 tokens, 6475 t/s engine, 6447 t/s wall
+  run 1 pp131072 133205 tokens, 6354 t/s engine, 6346 t/s wall
+basalt-bench  build c7132d5d62  power limit 350 W
+
+| test      |  t/s | accept % | draft len |
+| --------- | ---: | -------: | --------: |
+| pp16384   | 5243 |        - |         - |
+| pp32768   | 6475 |        - |         - |
+| pp131072  | 6354 |        - |         - |
+| tg conv   |  104 |        - |         - |
+| tg struct |  106 |        - |         - |
+| tg prose  |  106 |        - |         - |

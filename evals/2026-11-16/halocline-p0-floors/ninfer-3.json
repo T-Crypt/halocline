@@ -1,0 +1,26 @@
+{
+ "model": "NInfer-Qwen3.8-27B",
+ "url": "http://127.0.0.1:9090",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 112.4-118.2 t/s (cold 112.4), prompt 61 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 54 tok, 0.5 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 1.2 s, prompt 58 t/s, decode 118.2 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 1.1 s, prompt 54 t/s, decode 93.0 t/s"
+  }
+ }
+}

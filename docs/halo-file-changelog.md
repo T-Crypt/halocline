@@ -1,3 +1,7 @@
+> [!WARNING]
+> Basalt's model-file changelog, kept from the snapshot. The pack format is unchanged (v2, `.basalt`, magic
+> `BASALTMF`); [model-file](model-file.md) is the reference.
+
 # `.basalt` file format changelog
 
 The version is the `u32` after the magic in the file's header. The engine reads one version; the

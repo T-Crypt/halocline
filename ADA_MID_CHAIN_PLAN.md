@@ -1,4 +1,6 @@
-# Plan: the mid chain on sm_89 (RTX 4090), local fork only
+# The mid chain on sm_89 (RTX 4090)
+
+Development notes, 450 W power limit. The reference-machine numbers are in the README.
 
 Status: the kernel is the default on 8.9 and bitwise equal to the separate kernels (`--exp mid_ada=0`). Development
 A/B at 450 W: +2.2 % decode (token-weighted) over `mid_ada=0`, faster on all three prompts. `--exp mid_ada=2` runs it

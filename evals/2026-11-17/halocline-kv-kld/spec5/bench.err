@@ -1,0 +1,57 @@
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 56s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 54s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 52s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 50s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 48s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 46s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 44s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 42s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 40s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 38s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 36s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 34s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 32s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 30s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 28s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 26s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 24s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 22s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 20s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 18s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 16s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 14s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 12s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 10s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 8s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 6s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 4s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 2s left
+berth: waiting: next in line: NInfer-Qwen3.8-27B has its minimum turn, 0s left
+berth: waiting: next in line: draining NInfer-Qwen3.8-27B [foreground, active]
+berth: waiting: next in line: waiting for NInfer-Qwen3.8-27B [foreground, releasing] to free memory
+berth: granted halocline-quality-139
+basalt-bench: starting ~/halocline/releases/d314a21a/bin/basalt (log: /data/models/halocline/sweeps/spec-20261117b/spec5/engine.log)
+basalt-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+basalt-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+basalt-bench: loading cuda0 5.1 / 21.9 GiB (23%)
+basalt-bench: loading cuda0 10.0 / 21.9 GiB (45%)
+basalt-bench: loading cuda0 14.8 / 21.9 GiB (67%)
+basalt-bench: loading cuda0 19.6 / 21.9 GiB (89%)
+basalt-bench: loading cuda0 21.7 / 21.7 GiB done (44 s)
+basalt-bench: loading ram 2.3 / 39.0 GiB (5%)
+basalt-bench: loading ram 6.6 / 39.0 GiB (16%)
+basalt-bench: loading ram 11.0 / 39.0 GiB (28%)
+basalt-bench: loading ram 15.3 / 39.0 GiB (39%)
+basalt-bench: loading ram 19.7 / 39.0 GiB (50%)
+basalt-bench: loading ram 24.1 / 39.0 GiB (61%)
+basalt-bench: loading ram 28.5 / 39.0 GiB (73%)
+basalt-bench: loading ram 32.9 / 39.0 GiB (84%)
+basalt-bench: loading ram 37.5 / 39.0 GiB (96%)
+basalt-bench: loading ram 39.0 / 39.0 GiB done (90 s)
+basalt-bench: engine ready in 138 s
+  run 1 conv    137.2 tok/s, 1153 tokens
+  run 1 struct  237.6 tok/s, 7230 tokens
+  run 1 prose   134.4 tok/s, 1035 tokens
+  run 2 conv    132.5 tok/s, 1064 tokens
+  run 2 struct  238.6 tok/s, 7230 tokens
+  run 2 prose   138.2 tok/s, 1187 tokens
