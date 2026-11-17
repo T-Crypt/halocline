@@ -1,6 +1,6 @@
 // include/halo/kernels/kv_q4_layout.hpp - the q4_0 KV block, its quantizer and the Walsh-Hadamard rotation: what the
-// sparse path stores 4-bit K/V in (src/models/qwen4exp/kernels/kv_q4.cu) and what the dense path's K8V4 cache and
-// rotated 4-bit cache use, so one quantizer and one dequant rule serve both.
+// sparse model's 4-bit K/V kernels and what the dense path's K8V4 cache and rotated 4-bit cache use, so one quantizer
+// and one dequant rule serve both.
 //
 // A block is ggml's q4_0: an fp16 scale and 16 bytes of 4-bit codes for 32 values, value j in the low nibble of qs[j]
 // and j + 16 in the high one. The scale is the block's signed largest-|value| over -8, so the codes span -8..7 and
