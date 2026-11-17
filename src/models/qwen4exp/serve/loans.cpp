@@ -8,7 +8,7 @@
 #include "basalt/kernels/cpu/expert_layout.hpp"
 #include "basalt/models/qwen4exp/geometry.hpp"
 #include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/program/multi_gpu_plan.hpp"   // prompt_one_card_chunks, prompt_chunk_list
+#include "basalt/program/prompt_chunks.hpp"
 
 #include "../load/engine_local.hpp"   // biggest_chunk
 

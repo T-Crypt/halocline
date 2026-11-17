@@ -31,7 +31,6 @@
 #include "basalt/core/weights.hpp"
 #include "basalt/models/qwen4exp/prefill/prefill.hpp"
 
-#include "basalt/program/multi_gpu_plan.hpp"   // PsPrice
 
 namespace basalt::models::qwen4exp::engine_local {
 
