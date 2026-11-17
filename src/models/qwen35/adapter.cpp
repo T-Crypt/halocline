@@ -73,6 +73,15 @@ bool on_card(const std::string& name, const dense::Options& o, int lo, int hi) {
                        (o.drafter == dense::Drafter::Mtp && name.starts_with("mtp.")));
 }
 
+// The KV format a --kv value names; `empty` is the model's default, fp16.
+bool kv_format(const std::string& kv, dense::KvFormat& out) {
+    if (kv.empty() || kv == "fp16") out = dense::KvFormat::Fp16;
+    else if (kv == "int8") out = dense::KvFormat::Int8;
+    else if (kv == "k8v4") out = dense::KvFormat::K8V4;
+    else return false;
+    return true;
+}
+
 // The dense stack's options for a run of these flags (the drafter the pack carries, when drafting).
 dense::Options run_options(const GgufFile& gg, int64_t max_context, int sessions, int spec, bool draft, bool vision, const std::string& kv,
                            int64_t kv_resident) {
@@ -89,7 +98,7 @@ dense::Options run_options(const GgufFile& gg, int64_t max_context, int sessions
     o.draft = draft;
     o.drafter = block ? dense::Drafter::Block : mtp ? dense::Drafter::Mtp : dense::Drafter::None;
     o.vision = vision;
-    o.kv_int8 = kv == "int8";
+    kv_format(kv, o.kv);
     o.kv_resident = kv_resident;
     o.arch = "qwen35";
     return o;
@@ -232,10 +241,10 @@ public:
             core::model_sources(file, srcs);
             o.mmproj = srcs.vision;
         }
-        const uint64_t need_b = dense::shared_bytes(g, o.max_context, o.kv_int8, o.kv_resident) +
-                                (uint64_t) o.sessions * dense::session_bytes(g, o.max_context, o.drafter == dense::Drafter::Mtp, o.kv_int8,
+        const uint64_t need_b = dense::shared_bytes(g, o.max_context, o.kv, o.kv_resident) +
+                                (uint64_t) o.sessions * dense::session_bytes(g, o.max_context, o.drafter == dense::Drafter::Mtp, o.kv,
                                                                              o.kv_resident);
-        if (const uint64_t host_b = dense::session_host_bytes(g, o.max_context, o.kv_int8, o.kv_resident))
+        if (const uint64_t host_b = dense::session_host_bytes(g, o.max_context, o.kv, o.kv_resident))
             halo::log::info("halo qwen35", "K/V streaming: %lld of %lld cells per attention layer in VRAM, %.2f GiB in page-locked "
                               "RAM per slot", (long long) dense::resident_cells(o.max_context, o.kv_resident), (long long) o.max_context,
                               (double) host_b / 1073741824.0);
@@ -580,8 +589,14 @@ public:
     }
 
     std::optional<int> finish_flags(program::CommonOptions& o) const override {
-        if (!o.kv.empty() && o.kv != "fp16" && o.kv != "int8") {
-            halo::log::error("halo qwen35", "--kv %s: fp16 (the default) or int8", o.kv.c_str());
+        dense::KvFormat fmt = dense::KvFormat::Fp16;
+        if (!kv_format(o.kv, fmt)) {
+            halo::log::error("halo qwen35", "--kv %s: fp16 (the default), int8 or k8v4", o.kv.c_str());
+            return 2;
+        }
+        // K8V4 has no streamed form: a cell's V blocks are not a byte range that maps one-to-one onto fp16's rows
+        if (fmt == dense::KvFormat::K8V4 && o.kv_resident > 0 && o.kv_resident < o.max_context) {
+            halo::log::error("halo qwen35", "--kv k8v4 does not support --kv-resident streaming");
             return 2;
         }
         if (const auto code = model::check_rope_flags(o.rope, "halo qwen35")) return code;

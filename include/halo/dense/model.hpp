@@ -110,6 +110,12 @@ struct Weights {
 /// Which drafter a model's sessions run.
 enum class Drafter { None, Mtp, Block };
 
+/// How an attention layer stores K and V.  Fp16 is the unrounded reference; Int8 keeps int8 codes with an fp16 scale
+/// per 64 values; K8V4 keeps K in that int8 form and V in rotated q4_0 blocks (kv_q4_layout.hpp), which is a third of
+/// fp16's bytes per cell.  Each format is gated in the attention kernels; the fp16 and int8 arithmetic is not shared
+/// with the others.
+enum class KvFormat { Fp16, Int8, K8V4 };
+
 struct Options {
     int64_t max_context = 0;            ///< cells each session holds
     int sessions = 1;
@@ -119,7 +125,7 @@ struct Options {
     uint64_t host_embedding_bytes = 0;  ///< the token embedding the adapter keeps in page-locked RAM (a row lookup per token)
     uint64_t gpu_weight_bytes = 0;      ///< the weights the adapter put on the main card (its "GiB on the GPU" load figure, no KV cache)
     bool vision = false;                ///< requests may carry images
-    bool kv_int8 = false;               ///< the attention layers' K/V as int8 codes with a scale per 64 values
+    KvFormat kv = KvFormat::Fp16;       ///< the attention layers' K/V storage
     /// K/V streaming: each attention layer keeps its first kv_resident cells on the card and the rest in page-locked RAM,
     /// read over the bus by every decode window and staged to the card for each prompt chunk (0, or at least max_context:
     /// all on the card)
@@ -142,14 +148,17 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
 std::unique_ptr<model::ModelSession> make_session(Model& m, std::string& err);
 /// The cells of each attention layer a session keeps on the card (kv_resident's rule).
 int64_t resident_cells(int64_t max_context, int64_t kv_resident);
+/// Device bytes one cell (one token, one attention layer) of `fmt` takes: K and V of every KV head, with the scales
+/// a format stores beside the codes. The planner and the cache carve both read this one number.
+uint64_t kv_cell_bytes(const Geometry& g, KvFormat fmt);
 /// Device bytes one session takes: its KV cells on the card, recurrent states and window rows, the logits and the drafter's state.
-uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, bool kv_int8 = false, int64_t kv_resident = 0);
+uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0);
 /// Device bytes one session's cells and recurrent state take in layer `il`.
-uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, bool kv_int8, int64_t kv_resident);
+uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, KvFormat kv, int64_t kv_resident);
 /// Page-locked host bytes one session's streamed K/V takes (0 without streaming).
-uint64_t session_host_bytes(const Geometry& g, int64_t max_context, bool kv_int8, int64_t kv_resident);
+uint64_t session_host_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident);
 /// Device bytes the model's shared scratch takes (with streaming, the VRAM copy a prompt chunk reads one layer's far cells from).
-uint64_t shared_bytes(const Geometry& g, int64_t max_context, bool kv_int8 = false, int64_t kv_resident = 0);
+uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0);
 /// Device bytes a session's block drafter keeps (its context ring and its window rows); 0 without one.
 uint64_t block_session_bytes(const Geometry& g, const BlockDrafter& bd);
 

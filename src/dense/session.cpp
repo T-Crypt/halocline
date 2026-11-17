@@ -42,7 +42,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
         blockbytes = bd.layers.size() * 2 * (size_t) (bd.window + 256) * bd.n_kv * bd.head_dim * 2 +
                       (size_t) kWindow * (g.n_embd * 4 + 16) + 64 * 256;
     }
-    const uint64_t dev_bytes = session_bytes(g, m.o.max_context, mtp, m.o.kv_int8, m.o.kv_resident);
+    const uint64_t dev_bytes = session_bytes(g, m.o.max_context, mtp, m.o.kv, m.o.kv_resident);
     if (!st.arena.reserve(dev_bytes + blockbytes)) {
         err = m.o.arch + ": out of device memory for a session of " + std::to_string((long long) m.o.max_context) +
               " cells (" + std::to_string((unsigned long long) (dev_bytes >> 20)) + " MiB); lower --max-context or --parallel";
@@ -62,10 +62,11 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     const size_t cells = (size_t) m.o.max_context * g.n_kv * g.head_dim;
     // with K/V streaming each layer keeps its first `near` cells here and the rest in page-locked host memory
     const int64_t near_cells = resident_cells(m.o.max_context, m.o.kv_resident);
+    const bool int8 = m.o.kv == KvFormat::Int8;
     const size_t n_near = (size_t) near_cells * g.n_kv * g.head_dim, n_far = cells - n_near;
     uint8_t* host = nullptr;
     if (n_far > 0 && m.n_attn > 0) {
-        const uint64_t hb = session_host_bytes(g, m.o.max_context, m.o.kv_int8, m.o.kv_resident) / (uint64_t) g.attn_layers() * m.n_attn;
+        const uint64_t hb = session_host_bytes(g, m.o.max_context, m.o.kv, m.o.kv_resident) / (uint64_t) g.attn_layers() * m.n_attn;
         if (cudaHostAlloc(&st.far_host, hb, cudaHostAllocMapped | cudaHostAllocPortable) != cudaSuccess) {
             cudaGetLastError();
             st.far_host = nullptr;
@@ -78,7 +79,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     // the far cells of one layer, carved from the host block (device-mapped: the same address on the card)
     const auto far_view = [&](kernels::KvFar& f) {
         f.at = near_cells;
-        if (m.o.kv_int8) {
+        if (int8) {
             f.q8.k = (int8_t*) host;
             f.q8.v = f.q8.k + n_far;
             f.q8.ks = (uint16_t*) (f.q8.v + n_far);
@@ -94,7 +95,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
         kernels::KvInt8 q8;
         st.far_kv.emplace_back();
         if (n_far > 0) far_view(st.far_kv.back());
-        if (m.o.kv_int8) {
+        if (int8) {
             q8.k = st.arena.take<int8_t>(n_near);
             q8.v = st.arena.take<int8_t>(n_near);
             q8.ks = st.arena.take<uint16_t>(n_near / 64);
@@ -146,7 +147,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     st.logits = st.arena.take<float>((size_t) kWindow * g.n_vocab);
     st.picks = st.arena.take<int32_t>(kWindow);
     st.n_keep = st.arena.take<int32_t>(4);
-    if (!st.n_keep || (ng && !st.gdn) || (!st.kc.empty() && !m.o.kv_int8 && !st.vc.back())) {
+    if (!st.n_keep || (ng && !st.gdn) || (!st.kc.empty() && m.o.kv == KvFormat::Fp16 && !st.vc.back())) {
         err = m.o.arch + ": a session's buffers do not fit its arena";
         return false;
     }
@@ -528,7 +529,7 @@ public:
     // the conversation's attention layers
     size_t kv_layers() const { return st_.kc.size(); }
     size_t cells_bytes(int64_t positions) const override {
-        const size_t main = m_.o.kv_int8 ? 2 * (row_bytes(true) + row_bytes(true) / 32) : 2 * row_bytes(false);
+        const size_t main = m_.o.kv == KvFormat::Int8 ? 2 * (row_bytes(true) + row_bytes(true) / 32) : 2 * row_bytes(false);
         return (size_t) positions * (kv_layers() * main + (drafter_ ? 2 * row_bytes(false) : 0));
     }
 
@@ -548,7 +549,7 @@ public:
             const bool mtp = i == kv_layers();
             const size_t j = i;
             const SessionState& ls = st_;
-            const bool int8 = !mtp && m_.o.kv_int8;
+            const bool int8 = !mtp && m_.o.kv == KvFormat::Int8;
             core::ConversationKv k;
             k.format = int8 ? 2 : 1;
             k.cells = positions;
@@ -587,7 +588,7 @@ public:
             const bool mtp = i == kv_layers();
             const size_t j = i;
             const SessionState& ls = st_;
-            const bool int8 = !mtp && m_.o.kv_int8;
+            const bool int8 = !mtp && m_.o.kv == KvFormat::Int8;
             const core::ConversationKv& k = kv[i];
             if (k.format != (int8 ? 2 : 1) || k.heads != g_.n_kv || k.head_dim != g_.head_dim)
                 return fail(m_.o.arch + ": a parked conversation has other caches");
@@ -656,7 +657,8 @@ public:
     }
 
     std::string info_words() const override {
-        const std::string kv = m_.o.kv_int8 ? "kv=int8" : "kv=fp16";
+        const char* kvname = m_.o.kv == KvFormat::Int8 ? "int8" : m_.o.kv == KvFormat::K8V4 ? "k8v4" : "fp16";
+        const std::string kv = std::string("kv=") + kvname;
         // a dense model has no routed experts, so none can sit on the SSD (the community check reads this)
         // host_weight_bytes: model weights held in host RAM, none for the dense stack (the community check refuses a row if
         // any). gpu_weight_bytes is what the load log calls "GiB on the GPU". The token embedding and the --vision dynamic encoder wait in host RAM by design and are told apart.
