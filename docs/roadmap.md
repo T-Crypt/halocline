@@ -9,6 +9,28 @@ gates as the sparse path, with lower KLD to BF16 and better output quality than 
 Added the same day: **262,144 tokens of context is a hard requirement, with MTP and vision**, the highest-quality UD quant
 that fits with it, and no loss of speed against NInfer anywhere. A 4-bit quant only for a measured reason.
 
+## Standing orders (maintainer, 2026-11-17 evening)
+
+These hold for every change until the maintainer replaces them.
+
+1. **The dense baseline is being set now, on Qwen3.8-27B UD-Q4_K_XL.** It is the comparison arm for Qwen4-27B when its
+   weights are public (the architecture diff is scoped then, P3). Q4_K_XL is the dense quant; IQ4_XS is not wanted.
+   Slightly slower decode than the sparse path is acceptable; quality is not traded.
+2. **Dense is measured against NInfer the way sparse was measured against Strata:** one card, one engine at a time,
+   the same fixtures (decode conv/struct/prose `--seed 1`, prefill at fixed depths), power limit recorded, ABBA for
+   speed, the 100-chunk KLD gate against the same BF16 base, depth KLD (P0 item 3), greedy identity across builds,
+   sampling distribution, tool-call breadth. The goal is **large gains over NInfer**, reported with intervals. Where
+   Halocline does not win, the README says so.
+3. **Both paths keep their baselines.** A change that touches shared code (kernels, KV formats, planner, serve, the
+   model file, the CLI) runs both paths' gates before it ships: the sparse gate (greedy identity 900/900 against the
+   served release, KLD 0.08195 / top-1 90.45% at int8, decode 131.8 / 264.6 / 133.7 tok/s, prefill 6,053 / 6,019 at
+   32K / 131K, `halocline-kv-kld`) and the dense gate (KLD 0.00582 / top-1 96.67% at int8, the D4/D5 fixtures).
+   A sparse loss from dense work is a regression, not a trade.
+4. **Levers come from research with citations.** A dense lever is proposed with its paper or measured source (arXiv,
+   Hugging Face, the lab's research base), A/B'd on the gates above, and kept only on a measured win.
+5. **Model targets stay open.** Qwen4-27B and a Qwen4 Flash are not public. Whether Qwen3.8-Flash-Next stays the
+   Flash target or a new Flash ships is unknown: the sparse path keeps Flash-Next as its baseline until weights land.
+
 Status:
 
 | Area | State |
