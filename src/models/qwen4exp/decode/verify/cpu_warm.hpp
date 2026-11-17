@@ -26,7 +26,7 @@ struct CpuWarm {
     // the job in flight
     int layer = 0, n_tok = 0;
     const uint8_t* xq = nullptr;                      ///< the ring's q8_1 rows, tokens back to back
-    const int32_t* res0 = nullptr, *res1 = nullptr;   ///< the layer's CUDA0 / peer residency (res1 may be null)
+    const int32_t* res0 = nullptr;                    ///< the layer's CUDA0 residency
     std::vector<float> logits;                        ///< [kVerifyMaxT][n_expert]
     alignas(64) std::atomic<int> arrive{0};
     alignas(64) std::atomic<int> ready{0};
@@ -36,9 +36,7 @@ struct CpuWarm {
 
 namespace verify_detail {
 void warm_job(void* ctx, int w, int W, const std::atomic<bool>& stop);
-bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<int8_t>* q8, std::vector<float>* s8,
-                  std::vector<uint8_t>* q4, std::vector<float>* s4);
-bool warm_router(const std::vector<int8_t>& q, const std::vector<float>& sc, int8_t** rq, float** rs);
+bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<uint8_t>* q4, std::vector<float>* s4);
 }
 
 }  // namespace basalt::core

@@ -151,52 +151,6 @@ void dec_moe_wait(const DmPlan* plan, const volatile uint32_t* peer_done_m, cons
     check("dec_moe_wait");
 }
 
-// One block: the rows to mapped memory, then the doorbell after them.
-__global__ void dm_mix_publish_kernel(const uint4* __restrict__ xq, int n16, const uint4* __restrict__ x, int x16, uint4* xq_m,
-                                      uint4* x_m, uint32_t* seq_m, uint32_t word) {
-    for (int i = threadIdx.x; i < n16; i += blockDim.x) xq_m[i] = xq[i];
-    for (int i = threadIdx.x; i < x16; i += blockDim.x) x_m[i] = x[i];
-    __syncthreads();
-    if (threadIdx.x == 0) {
-        __threadfence_system();
-        *(volatile uint32_t*) seq_m = word;
-    }
-}
-
-__global__ void dm_mix_wait_kernel(const volatile uint32_t* done_m, uint32_t ring) {
-    while (*done_m < ring) spin_pause();
-    __threadfence_system();
-}
-
-void dec_moe_mix_publish(const void* xq, const float* x, int n_tok, int n_embd, uint8_t* xq_m, float* x_m, uint32_t* seq_m,
-                         uint32_t ring, bool work, void* stream) {
-    const int n16 = n_tok * (n_embd / 32) * (int) sizeof(block_q8_1) / 16;
-    const int x16 = work ? n_tok * n_embd / 4 : 0;
-    const uint32_t word = ring | (uint32_t) n_tok << 16 | (work ? 1u << 30 : 0u);
-    dm_mix_publish_kernel<<<1, 256, 0, (cudaStream_t) stream>>>((const uint4*) xq, n16, (const uint4*) x, x16, (uint4*) xq_m,
-                                                                (uint4*) x_m, seq_m, word);
-    check("dec_moe_mix_publish");
-}
-
-__global__ void dm_mix_combine_kernel(const volatile uint32_t* done_m, uint32_t ring, const float* part_m, float* out, int count) {
-    if (threadIdx.x == 0)
-        while (*done_m < ring) spin_pause();
-    __syncthreads();
-    __threadfence_system();
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < count; i += gridDim.x * blockDim.x) out[i] += __ldcv(part_m + i);
-}
-
-void dec_moe_mix_combine(const volatile uint32_t* done_m, uint32_t ring, const float* part_m, float* out, int count,
-                         void* stream) {
-    dm_mix_combine_kernel<<<(count + 255) / 256, 256, 0, (cudaStream_t) stream>>>(done_m, ring, part_m, out, count);
-    check("dec_moe_mix_combine");
-}
-
-void dec_moe_mix_wait(const volatile uint32_t* done_m, uint32_t ring, void* stream) {
-    dm_mix_wait_kernel<<<1, 1, 0, (cudaStream_t) stream>>>(done_m, ring);
-    check("dec_moe_mix_wait");
-}
-
 std::string dec_moe_stats_text(const unsigned long long* w, double windows) {
     std::string s;
     char buf[256];
@@ -266,25 +220,6 @@ std::string dec_moe_stats_text(const unsigned long long* w, double windows) {
     return s;
 }
 
-size_t dec_moe_peer_scratch_bytes(int n_embd, int n_ff) {
-    return (size_t) kDmCap * n_ff * 2 * sizeof(float) + (size_t) kVerifyMaxT * (n_embd / 32) * sizeof(block_q8_1) +
-           sizeof(DmRing) + (kDmCap + 4) * sizeof(unsigned int) + (size_t) kVerifyMaxT * kDmPredExperts * sizeof(float) +
-           kDmCap * sizeof(unsigned long long) + (size_t) kVerifyMaxT * (n_embd / 32) * sizeof(block_q8_1) + 256;
-}
-
-std::string dec_moe_peer_diag(const uint32_t* d) {
-    if (d == nullptr || d[0] == 0u) return "";
-    const uint32_t r = d[0];
-    const char* why = r == 1u ? "a wait past the limit" : r == 2u ? "a group of more entries than tokens"
-                    : r == 3u ? "released by the host" : "unknown";
-    const char* where = d[5] == 1u ? "waiting for a group's gate/up items" : d[5] == 2u ? "at a grid barrier" : "planning";
-    char b[512];
-    std::snprintf(b, sizeof b, "aborted ring %u (%s): layer %d, %u tokens; block %u %s (group %d: %u of %u; the block "
-                  "has %u groups, %u entries, this group %u; ids checksum %08x, header %08x)", d[1], why, (int) d[2],
-                  d[3], d[4], where, (int) d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13]);
-    return b;
-}
-
 bool dec_moe_formats_ok(int gu_type, int d_type, int64_t n_embd, int64_t n_ff, int up_type) {
     if (up_type >= 0 && up_type != gu_type) {
         bool mix = false;
@@ -317,37 +252,6 @@ bool dec_moe_formats_ok(int gu_type, int d_type, int64_t n_embd, int64_t n_ff, i
         default: break;
     }
     return pair && gu && d && n_ff == 640 && n_embd % 256 == 0 && !iq_old_kernels() && !native_grouped_v1();
-}
-
-static const void* dm_peer_fn(bool q2, bool mix = false) {
-    if (mix) return q2 ? dm_peer_fn_q1_m1() : dm_peer_fn_q0_m1();
-    return q2 ? dm_peer_fn_q1_m0() : dm_peer_fn_q0_m0();
-}
-
-int dec_moe_peer_blocks(bool q2) {
-    int dev = 0, sms = 0, coop = 0, per = 0;
-    if (cudaGetDevice(&dev) != cudaSuccess || cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev) != cudaSuccess ||
-        cudaDeviceGetAttribute(&coop, cudaDevAttrCooperativeLaunch, dev) != cudaSuccess ||
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per, dm_peer_fn(q2), kDmThreads, 0) != cudaSuccess) {
-        cudaGetLastError();
-        return 0;
-    }
-    if (!coop || per <= 0) return 0;
-    return sms * per;
-}
-
-bool dec_moe_peer_launch(const DmPeerArgs& a, int blocks, void* stream, bool q2) {
-    DmPeerArgs args = a;
-    args.gu2 = 1;
-    void* params[] = {&args};
-    const cudaError_t e = cudaLaunchCooperativeKernel(dm_peer_fn(q2, a.mixl != nullptr),
-                                                      dim3((unsigned) blocks),
-                                                      dim3(kDmThreads), params, 0, (cudaStream_t) stream);
-    if (e != cudaSuccess) {
-        basalt::log::error("basalt", "dec_moe_peer_launch: %s", cudaGetErrorString(e));
-        return false;
-    }
-    return true;
 }
 
 __global__ void dm_table_put_kernel(const __grid_constant__ DmTablePut a) {
@@ -500,21 +404,6 @@ void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* x
         std::exit(1);
     }
     check("dec_moe_vram");
-}
-
-void dec_moe_peer_math_test(const NativeExpertLayout& L, const unsigned long long* grp_ptr, const int32_t* start,
-                            int n_groups, const int32_t* tok, const int32_t* dst, const void* xq, void* scratch,
-                            float* out, void* stream, bool gu2) {
-    float* gate = (float*) scratch;
-    float* up = gate + (size_t) kDmCap * L.n_ff;
-    unsigned int* sync = (unsigned int*) (up + (size_t) kDmCap * L.n_ff);   // zeroed by the caller, left zeroed
-    int dev = 0, sms = 0;
-    cudaGetDevice(&dev);
-    cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
-    dm_test_kernel<<<(unsigned) sms, kDmThreads, 0, (cudaStream_t) stream>>>(L, grp_ptr, start, n_groups, tok, dst,
-                                                                              (const block_q8_1*) xq, gate, up, out, sync,
-                                                                              gu2);
-    check("dec_moe_peer_math_test");
 }
 
 }  // namespace basalt::kernels

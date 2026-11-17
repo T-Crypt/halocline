@@ -11,7 +11,6 @@
 // tier gives the same bits as before; only the PCIe share is gone (those entries go to the CPU pool).
 #pragma once
 
-#include "basalt/kernels/gdn_window.hpp"
 #include "basalt/kernels/iq_kernels.hpp"
 
 #include <cstddef>
@@ -139,63 +138,6 @@ bool dec_moe_glue_ok(const NativeExpertLayout& L);
 /// `scratch` / `out` / `cap` as native_expert_grouped's (entries cap, rows into out at the entry's index).
 void dec_moe_glue(const NativeExpertLayout& L, const DmGlueArgs& a, void* scratch, float* out, int cap, void* stream);
 
-/// The peer's key heads of one GDN layer (gdn_head_split.hpp's packed layout): qkv and z rows and the out
-/// projection's columns in native formats (Q4_K, Q5_K, Q6_K, IQ4_XS), and the recurrence's arguments on the slice
-/// (nk 0, its h_k / h_v / C) with qkv, z, o, yq and x in the peer's scratch.
-struct DmMixLayer {
-    const void *wqkv = nullptr, *wz = nullptr, *wo = nullptr;
-    int tq = 0, tz = 0, to = 0;
-    DecRecArgs rec;
-};
-/// Whether the peer's mixer item covers a native weight type.
-inline bool dec_moe_mix_type_ok(int t) { return t == 12 || t == 13 || t == 14 || t == 23; }
-
-/// The peer card's window: one persistent kernel serves `steps` rings.
-struct DmPeerArgs {
-    const DmRing* rings_m = nullptr;             ///< mapped: ring s at rings_m[s]
-    const uint8_t* xq_m = nullptr;               ///< mapped: ring s's q8_1 rows at xq_m + s * xq_stride
-    size_t xq_stride = 0;
-    const volatile uint32_t* seq_m = nullptr;    ///< mapped: low 16 bits the last ring CUDA0 published, bits 16-23 its
-                                                 ///< tokens, bit 28 set when it has peer entries, bit 29 when its q8_1
-                                                 ///< rows were published anyway (the warm-up's input); UINT32_MAX: stop
-    uint32_t* done_m = nullptr;                  ///< mapped: the last ring whose rows have landed
-    float* rows_m = nullptr;                     ///< mapped: entry i's row at rows_m + i * n_embd
-    const unsigned long long* ptr = nullptr;     ///< peer device: [n_layers * n_expert] blob address or 0
-    const NativeExpertLayout* lay = nullptr;     ///< peer device: per layer
-    int n_expert = 0, k = 0, n_embd = 0, n_ff = 0, steps = 0;
-    void* scratch = nullptr;                     ///< peer device: dec_moe_peer_scratch_bytes
-    unsigned int* arrive = nullptr;              ///< peer device: 16 words zeroed before the launch (arrivals, barrier,
-                                                 ///< abort, the warm-up's words)
-    unsigned long long* stamps_m = nullptr;      ///< tests: block 0's phase times per ring (8 each), then the mixer item's per ring, or null
-    int gu2 = 0;                                 ///< the grid formats' gate/up two rows a warp (DEC_GU2 sets it)
-    uint32_t* diag_m = nullptr;                  ///< mapped, kDmDiagWords zeroed words: the abort record, or null
-    /// The next ring's L2 warm-up: peer device, [n_layers][n_expert][n_embd] the router rows in int8 and one scale per
-    /// 32 of them, or null (no warm-up).  Between rings the idle blocks predict the next layer's experts from this
-    /// ring's q8_1 rows and read the predicted blobs the peer holds; the rows computed are unchanged.
-    const int8_t* rq = nullptr;
-    const float* rs = nullptr;
-    /// The GDN mixer split by key head (null mix: off).  Ring s first serves a mixer doorbell when mix[s] is set:
-    /// CUDA0 raises mseq_m to ring | tokens << 16 (| 1 << 30 when the peer computes its heads) after the layer's q8_1
-    /// rows reach mxq_m + s * xq_stride (dec_moe_mix_publish); block 0 copies them to mxq and the peer raises mdone_m
-    /// to the ring when its share has landed.
-    const uint8_t* mix = nullptr;                ///< peer device: [steps]
-    const volatile uint32_t* mseq_m = nullptr;   ///< mapped
-    uint32_t* mdone_m = nullptr;                 ///< mapped
-    const uint8_t* mxq_m = nullptr;              ///< mapped
-    void* mxq = nullptr;                         ///< peer device: kVerifyMaxT q8_1 rows
-    const float* mx_m = nullptr;                 ///< mapped: ring s's fp32 rows, as many per ring as xq_stride holds q8_1 rows
-    const DmMixLayer* mixl = nullptr;            ///< peer device: [steps] (the layer's slice; rec.x is the rows' copy)
-    float* part_m = nullptr;                     ///< mapped: the out projection's partial, token t at t * n_embd
-};
-/// CUDA0: the mixer doorbell of `ring` (DmPeerArgs::mix): n_tok q8_1 rows of n_embd from xq to xq_m, then seq_m.
-/// `work`: the peer computes its heads (bit 30).
-void dec_moe_mix_publish(const void* xq, const float* x, int n_tok, int n_embd, uint8_t* xq_m, float* x_m, uint32_t* seq_m,
-                         uint32_t ring, bool work, void* stream);
-/// CUDA0: out[i] += part_m[i] for i < count once done_m >= ring (the peer's share added after CUDA0's own).
-void dec_moe_mix_combine(const volatile uint32_t* done_m, uint32_t ring, const float* part_m, float* out, int count,
-                         void* stream);
-/// CUDA0: spins until done_m >= ring (the peer's mixer share of that ring has landed or the window was released).
-void dec_moe_mix_wait(const volatile uint32_t* done_m, uint32_t ring, void* stream);
 /// Router rows the warm-up's predictor covers.
 constexpr int kDmPredExperts = 512;
 /// A down wait inside a ring that does not end within this long aborts the window (so does a corrupt ring, or the host's
@@ -203,16 +145,8 @@ constexpr int kDmPredExperts = 512;
 /// pass) and exits.
 constexpr unsigned long long kDmWaitLimitNs = 200ull * 1000 * 1000;
 constexpr int kDmDiagWords = 16;
-/// The abort record in words (empty when diag[0] is 0).
-std::string dec_moe_peer_diag(const uint32_t* diag);
-size_t dec_moe_peer_scratch_bytes(int n_embd, int n_ff);
-/// Blocks the peer kernel runs with on the current device (all co-resident); 0 when it cannot run there.  q2: the
-/// kernel for a model with Q2_0 gate/up layers.
-int dec_moe_peer_blocks(bool q2 = false);
 /// Whether the persistent kernels cover this layer's expert formats (`up_type`: the up rows' type, -1 for gu_type's).
 bool dec_moe_formats_ok(int gu_type, int d_type, int64_t n_embd, int64_t n_ff, int up_type = -1);
-/// Launches the peer window (cooperative) on `stream` of the current device; false on a launch error.
-bool dec_moe_peer_launch(const DmPeerArgs& a, int blocks, void* stream, bool q2 = false);
 /// Entries one dec_moe_table_put launch carries in its arguments.
 constexpr int kDmTablePutMax = 320;
 /// Changes to a device table of blob addresses: tab[idx[i]] = val[i] for i < n.
@@ -259,13 +193,6 @@ size_t dec_moe_vram_scratch_bytes(int n_ff);
 /// native_expert_grouped's SwiGLU and down launches over `cap` possible groups (the window's entries).
 void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* xq, void* scratch, float* out,
                   unsigned int* sync, void* stream, int kind = 0, int cap = kDmCap);
-
-/// The tests: the persistent kernel's per-group math against native_expert_grouped on one device, without rings.
-/// Entries [start[g], start[g+1]) of group g read q8_1 row tok[e] and write row dst[e] of `out` (device).  `gu2`:
-/// the gate/up rows two a warp, as the peer window runs them.
-void dec_moe_peer_math_test(const NativeExpertLayout& L, const unsigned long long* grp_ptr, const int32_t* start,
-                            int n_groups, const int32_t* tok, const int32_t* dst, const void* xq, void* scratch,
-                            float* out, void* stream, bool gu2 = false);
 
 /// The layer's FFN output: entry i's row from its tier (CUDA0's `parts`, the peer's or the CPU pool's mapped rows,
 /// entry i at row i of each), summed with the router weights in native_moe_combine_multi's order, plus `shared`.

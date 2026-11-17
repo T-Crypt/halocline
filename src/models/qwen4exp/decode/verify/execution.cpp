@@ -224,7 +224,7 @@ int Verifier::serve_poll(PoolMultiFn pool, void* user, std::string& err) {
                 // the caller ends the engine; no spin kernel may outlive it
                 const std::string words = dm_note();   // read before the release overwrites them
                 const bool drained = release_gpu_waits(5000);
-                err = "verify: timed out at layer " + std::to_string(l) + words + released_note(drained) + peer_released();
+                err = "verify: timed out at layer " + std::to_string(l) + words + released_note(drained);
                 return -1;
             }
             return 0;
@@ -277,7 +277,6 @@ int Verifier::serve_poll(PoolMultiFn pool, void* user, std::string& err) {
             w.n_tok = std::min(n, (int) kVerifyMaxT);
             w.xq = dm_->h_xq + (size_t) k * dm_->xq_stride;
             w.res0 = dm_->shadow0.data() + (size_t) (l + 1) * g.n_expert;
-            w.res1 = dm_->pdev >= 0 ? dm_->shadow1.data() + (size_t) (l + 1) * g.n_expert : nullptr;
             w.arrive.store(0, std::memory_order_relaxed);
             w.ready.store(0, std::memory_order_relaxed);
             w.blob = nullptr;
@@ -331,8 +330,7 @@ bool Verifier::run_end(int32_t* out, std::string& err) {
     // with cudaStreamQuery here would cost decode time (a core calling the driver beside the expert workers).
     const cudaError_t se = cudaStreamSynchronize(cs_);
     gm.mark(-1);
-    const bool dm_ok = dm_end(err);
-    if (!window_intact(err) || !dm_ok) return false;
+    if (!window_intact(err)) return false;
     if (se != cudaSuccess) { err = std::string("verify: ") + cudaGetErrorString(se); return false; }
     if (!ar_plan_intact(err)) return false;
     constexpr int64_t wstat_every = 200;   // windows per report

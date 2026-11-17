@@ -57,7 +57,6 @@ if (line.rfind("PROBE set ", 0) == 0) {   // PROBE set workers=K share=F: live v
         penv.ram_blob = [this](int64_t l, int64_t e) { return srcp->resident_blob(l, e); };
         if (const basalt::kernels::cpu::ExpertLayout& lay = basalt::kernels::cpu::expert_layout(); lay.native) penv.fmt = lay.fmt;
         penv.peer_device = peer.valid() ? peer.device() : -1;
-        penv.peer_path = basalt::models::qwen4exp::make_probe_peer_path();
         penv.n_layers = g.n_layers;
         penv.n_expert = g.n_expert;
         basalt::program::probe_rates(penv, stdout, perr);

@@ -6,8 +6,6 @@
 // GPU (skipped without a device), windows of T = 1, 3, 6, 8 tokens over 9 experts:
 //   halves     native_expert_grouped's gate rows BITWISE those of an all-IQ2_S expert with the same gate rows, its up
 //              rows those of an all-IQ2_XXS expert with the same up rows (the kernels the uniform layers run)
-//   peer math  the persistent kernel's items (dec_moe_peer_math_test, with and without the two-rows-a-warp gate/up)
-//              BITWISE native_expert_grouped's rows
 //   width      a token's rows the same alone in its group as among the window's
 //   reference  the rows against a double-precision reference (ggml's dequantized weights and the q8_1 activations
 //              as the kernels see them), next to the same error of the all-IQ2_S and all-IQ2_XXS experts
@@ -168,9 +166,8 @@ void gpu_part(const std::vector<Expert>& ex, std::mt19937& rng) {
             for (int i = 0; i < 32; ++i) xs[(size_t) (b * 32 + i)] = d * (float) (int8_t) blk[4 + i];
         }
     }
-    const size_t scr_bytes = std::max(k::native_expert_scratch_bytes(cap, FF), k::dec_moe_peer_scratch_bytes((int) H, (int) FF));
+    const size_t scr_bytes = k::native_expert_scratch_bytes(cap, FF);
     uint8_t* scr = dalloc<uint8_t>(scr_bytes);
-    uint8_t* pscr = dalloc<uint8_t>(scr_bytes);
     float* out = dalloc<float>((size_t) cap * H);
     unsigned long long* ptr = dalloc<unsigned long long>(cap);
     int32_t *start = dalloc<int32_t>(cap + 1), *n = dalloc<int32_t>(1), *dst = dalloc<int32_t>(cap), *tok = dalloc<int32_t>(cap);
@@ -215,21 +212,6 @@ void gpu_part(const std::vector<Expert>& ex, std::mt19937& rng) {
         run(0, om, gm, um);
         check(std::memcmp(gm.data(), ga.data(), gm.size() * 4) == 0 && std::memcmp(um.data(), ub.data(), um.size() * 4) == 0,
               "T " + std::to_string(T) + ", " + std::to_string(ng) + " groups: grouped gate rows = all-IQ2_S's, up rows = all-IQ2_XXS's");
-        // the persistent kernel's items on the same plan (its pointers are the mixed blobs now)
-        for (const bool g2 : {false, true}) {
-            float* out2 = dalloc<float>((size_t) cap * H);
-            ck(cudaMemset(out2, 0xff, (size_t) cap * H * 4), "memset");
-            ck(cudaMemset(pscr, 0, scr_bytes), "memset");
-            k::dec_moe_peer_math_test(LM, ptr, start, ng, tok, dst, xq, pscr, out2, s, g2);
-            ck(cudaStreamSynchronize(s), "peer math");
-            const auto o2 = down(out2, (size_t) cap * H);
-            size_t diff = 0;
-            for (int e = 0; e < ne; ++e)
-                diff += std::memcmp(&o2[(size_t) ds[(size_t) e] * H], &om[(size_t) ds[(size_t) e] * H], H * 4) != 0;
-            check(diff == 0, std::string("T ") + std::to_string(T) + ": peer math" + (g2 ? " (gate/up two rows a warp)" : "") +
-                                 " rows = grouped rows (" + std::to_string(diff) + " differ)");
-            cudaFree(out2);
-        }
         // each entry alone in a one-entry group: the same rows
         {
             size_t diff = 0;
@@ -269,7 +251,7 @@ void gpu_part(const std::vector<Expert>& ex, std::mt19937& rng) {
     std::printf("  vs the double reference (max abs / worst row's max rel): mixed %.3e / %.3e, all-IQ2_S %.3e / %.3e, "
                 "all-IQ2_XXS %.3e / %.3e\n", em.max_abs, em.max_rel, ea.max_abs, ea.max_rel, eb.max_abs, eb.max_rel);
     check(em.max_rel <= 2.0 * std::max(ea.max_rel, eb.max_rel), "the mixed rows' error is that of the uniform layers");
-    cudaFree(blobs); cudaFree(dx); cudaFree(xq); cudaFree(scr); cudaFree(pscr); cudaFree(out);
+    cudaFree(blobs); cudaFree(dx); cudaFree(xq); cudaFree(scr); cudaFree(out);
     cudaFree(ptr); cudaFree(start); cudaFree(n); cudaFree(dst); cudaFree(tok);
     cudaStreamDestroy(s);
 }

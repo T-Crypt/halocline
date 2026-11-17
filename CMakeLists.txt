@@ -146,7 +146,6 @@ target_link_libraries(model PUBLIC artifact warnings)
 if(BASALT_MODEL_QWEN4EXP)
 add_library(model_qwen4exp STATIC src/models/qwen4exp/adapter.cpp src/models/qwen4exp/flags.cpp
   src/models/qwen4exp/load/engine_local.cpp
-  src/models/qwen4exp/serve/probe_peer.cpp
   src/models/qwen4exp/load/helpers.cpp
   src/models/qwen4exp/load/model.cpp
   src/models/qwen4exp/load/layer_plan.cpp
@@ -821,13 +820,6 @@ target_include_directories(dec_gdn_parity PRIVATE ${_gpu_include_directories})
 target_link_libraries(dec_gdn_parity PRIVATE model_qwen4exp_kernels ${_gpu_runtime_target})
 basalt_gpu_test(NAME dec_gdn_parity COMMAND dec_gdn_parity)
 set_tests_properties(dec_gdn_parity PROPERTIES SKIP_RETURN_CODE 77)
-# a GDN layer split by key-head group across two cards against the whole layer and a CPU reference (synthetic, GPU,
-# no model; --bench)
-add_executable(gdn_head_split_parity tests/models/qwen4exp/kernels/gdn_head_split_parity.cpp)
-target_include_directories(gdn_head_split_parity PRIVATE ${_gpu_include_directories})
-target_link_libraries(gdn_head_split_parity PRIVATE model_qwen4exp_kernels artifact ${_gpu_runtime_target})
-basalt_gpu_test(NAME gdn_head_split_parity COMMAND gdn_head_split_parity)
-set_tests_properties(gdn_head_split_parity PROPERTIES SKIP_RETURN_CODE 77)
 # the peer table update by kernel and the counter zeroing against the span copy and memset they replace, bitwise
 # (GPU, synthetic, no model; --bench times each behind a burst of expert copies on another stream)
 add_executable(dm_table_put_parity tests/models/qwen4exp/kernels/dm_table_put_parity.cpp)

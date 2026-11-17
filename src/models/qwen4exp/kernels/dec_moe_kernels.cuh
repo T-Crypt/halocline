@@ -337,26 +337,5 @@ __global__ void dm_wait_kernel(const DmPlan* plan, const volatile uint32_t* peer
     pdl_wait();   // started during the down kernel: its rows are complete once this returns
 }
 
-// the tests: the work items over given groups, without rings (one launch)
-__global__ void __launch_bounds__(kDmThreads) dm_test_kernel(NativeExpertLayout L, const unsigned long long* grp_ptr,
-                                                              const int32_t* start, int n_groups, const int32_t* tok,
-                                                              const int32_t* dst, const block_q8_1* xq, float* gate,
-                                                              float* up, float* out, unsigned int* sync, bool gu2) {
-    __shared__ DmShared sm;
-    if (threadIdx.x == 0) sm.ng = n_groups;
-    for (int i = threadIdx.x; i <= n_groups; i += kDmThreads) {
-        sm.start[i] = start[i];
-        if (i < n_groups) sm.gptr[i] = grp_ptr[i];
-    }
-    for (int i = threadIdx.x; i < kDmCap; i += kDmThreads) {
-        sm.tok[i] = tok[i];
-        sm.dst[i] = dst[i];
-    }
-    __syncthreads();
-    dm_experts_any(sm, xq, L, gate, up, out, sync + 1, blockIdx.x, gridDim.x, gu2);
-    if (dm_arrive(sync, gridDim.x, sync + 1, n_groups)) sync[0] = 0u;
-}
-
-
 }  // namespace
 }  // namespace basalt::kernels

@@ -24,9 +24,6 @@ int QfnRuntime::init_verify() {
     ver.set_route_tail_skip(o.route_tail_skip);
     ver.set_route_prior(o.route_prior);
     ver.set_main_priority(o.batch > 0);   // beside a prompt read the slots' windows must win the SMs
-    if (peer.valid()) ver.set_peer(&peer);   // the window drives the peer tier itself
-    for (const auto& xpe : xpeers)
-        if (xpe->valid()) ver.add_peer(xpe.get());
     ver.set_cpu_warm(drive.d.pool, drive.d.src);
     if (!ver.init(wt, g, ss, vh, native_head.loaded() ? &native_head : nullptr, std::max({o.spec, o.batch, 2}), err) ||
         (mtp_on && !mtp.bind(wt, &native_head, ver.final_R_all(), err))) {

@@ -288,8 +288,6 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
     if (dm && (v_.route_prior_ > 0.0f || v_.route_tail_skip_ > 0) && n * (int) K <= kDmCap) {   // opt-in routing changes
         ResidentTabs held;
         held.add(v_.dm_->res0 + l * g.n_expert);
-        if (v_.dm_->pdev >= 0) held.add(v_.dm_->res1 + l * g.n_expert);
-        for (const DecMoe::XPeer& x : v_.dm_->xp) held.add(x.res + l * g.n_expert);
         PdlScope pt(false);
         try {
             if (v_.route_prior_ > 0.0f && NE == 512 && K == 10)   // the selection again, biased toward the held experts
@@ -304,24 +302,16 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
         ra.ids = v_.ids_; ra.x = xm; ra.n_tok = n; ra.k = (int) K; ra.n_embd = (int) N;
         ra.n_expert = (int) g.n_expert; ra.layer = (int) l;
         ra.res0 = v_.dm_->res0 + l * g.n_expert;
-        ra.res1 = v_.dm_->pdev >= 0 ? v_.dm_->res1 + l * g.n_expert : nullptr;
         ra.cache_base = v_.hits_.cache_base; ra.slot_off = v_.dm_->slot_off; ra.blob = (long long) v_.hits_.blob;
         ra.plan = v_.dm_->plan; ra.xq = v_.nat_xq_;
         const int64_t r = l - v_.lb_;
         ra.ring_m = v_.dm_->m_ring + r; ra.x_m = v_.dm_->m_x + (size_t) r * v_.dm_->x_stride;
         ra.xq_m = v_.dm_->m_xq + (size_t) r * v_.dm_->xq_stride;
         ra.host_seq_m = v_.m_seq_; ra.peer_seq_m = v_.dm_->m_w;
-        ra.n_x = (int) v_.dm_->xp.size();
-        for (int q = 0; q < ra.n_x; ++q) {
-            const DecMoe::XPeer& x = v_.dm_->xp[(size_t) q];
-            ra.xres[q] = x.res + l * g.n_expert;
-            ra.xring_m[q] = x.m_ring + r;
-            ra.xseq_m[q] = x.m_w;
-        }
         ra.ring = (uint32_t) (r + 1); ra.ctr = v_.dm_->ctr;
         ra.stats = v_.dm_->wstat;
         ra.peer_cap = 0;
-        ra.rows = v_.dm_->rq != nullptr || v_.dm_->warm != nullptr;
+        ra.rows = v_.dm_->warm != nullptr;
         if (v_.dm_->stage_src != nullptr && v_.batch_rec_) {   // batch windows: many rows, many misses
             ra.stage_src = v_.dm_->stage_src + l * g.n_expert;
             ra.stage_k = v_.dm_->stage_k;

@@ -221,8 +221,7 @@ bool Verifier::run_slot_segs(const int* rows, const int* lens, int S, const int3
     }
     progress_at("verify batch: waiting for the GPU to finish the window", R);
     const cudaError_t se = cudaStreamSynchronize(cs_);
-    const bool dm_ok = !dm || dm_end(err);
-    if (!window_intact(err) || !dm_ok) return false;
+    if (!window_intact(err)) return false;
     if (se != cudaSuccess) { err = std::string("verify batch: ") + cudaGetErrorString(se); return false; }
     if (!ar_plan_intact(err)) return false;
     if (prof_on_) collect_profile();

@@ -1,7 +1,6 @@
 #include "cpu_warm.hpp"
 #include "basalt/models/qwen4exp/decode/verify.hpp"
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/decode/gdn_head_split.hpp"
 #include "basalt/platform/compiler.hpp"
 #include "basalt/kernels/pdl.hpp"
 #include "basalt/core/progress.hpp"
@@ -75,7 +74,7 @@ void warm_select(CpuWarm& c) {
         for (int j = 0; j < m; ++j) sum += (w[j] = std::exp(val[j] - val[0]));
         for (int j = 0; j < m; ++j) {
             const int e = top[j];
-            if (c.res0[e] >= 0 || (c.res1 != nullptr && c.res1[e] >= 0)) continue;   // a GPU holds it
+            if (c.res0[e] >= 0) continue;   // the GPU holds it
             score[e] += w[j] / sum;
         }
     }
@@ -115,22 +114,14 @@ void warm_job(void* ctx, int w, int W, const std::atomic<bool>& stop) {
     if (x == 0x9e3779b97f4a7c15ull) c.sink.fetch_add(x, std::memory_order_relaxed);   // keeps the loads
 }
 
-// Every layer's BF16 router [n_expert x n_embd] with one scale per 32 values, read once: as int8 codes for the peer's
-// warm-up (`q8`, `s8`) and as 4-bit codes in CpuWarm's layout for the CPU pool's (`q4`, `s4`); either may be null.  A
-// prediction only.  False when a layer's router is not such a table.
-bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<int8_t>* q8, std::vector<float>* s8,
-                  std::vector<uint8_t>* q4, std::vector<float>* s4) {
+// Every layer's BF16 router [n_expert x n_embd] with one scale per 32 values, read once, as 4-bit codes in CpuWarm's
+// layout for the CPU pool's warm-up (`q4`, `s4`).  A prediction only.  False when a layer's router is not such a table.
+bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<uint8_t>* q4, std::vector<float>* s4) {
     const int64_t N = g.n_embd, NE = g.n_expert, L = g.n_layers, NB = N / 32;
     if (NE > basalt::kernels::kDmPredExperts || N % 32 != 0) return false;
     std::vector<uint16_t> src((size_t) (NE * N));
-    if (q8 != nullptr) {
-        q8->assign((size_t) (L * NE * N), 0);
-        s8->assign((size_t) (L * NE * NB), 0.0f);
-    }
-    if (q4 != nullptr) {
-        q4->assign((size_t) (L * NE * N / 2), 0);
-        s4->assign((size_t) (L * NE * NB), 0.0f);
-    }
+    q4->assign((size_t) (L * NE * N / 2), 0);
+    s4->assign((size_t) (L * NE * NB), 0.0f);
     for (int64_t l = 0; l < L; ++l) {
         const WeightRef* w = LayerView(wt, l).get("ffn_gate_inp.weight");
         if (w == nullptr || w->bytes != (uint64_t) (NE * N * 2)) return false;
@@ -147,13 +138,7 @@ bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<int
                     amax = std::max(amax, std::fabs(v[i]));
                 }
                 const size_t blk = (size_t) ((l * NE + r) * NB + b);
-                if (q8 != nullptr) {
-                    const float d = amax / 127.0f;
-                    (*s8)[blk] = d;
-                    for (int i = 0; i < 32; ++i)
-                        (*q8)[blk * 32 + (size_t) i] = (int8_t) (d > 0.0f ? std::lrintf(v[i] / d) : 0);
-                }
-                if (q4 != nullptr) {   // value i in the low nibble of byte i, value i + 16 in its high nibble, code + 8
+                {   // value i in the low nibble of byte i, value i + 16 in its high nibble, code + 8
                     const float d = amax / 7.0f;
                     (*s4)[blk] = d;
                     uint8_t* out = q4->data() + blk * 16;
@@ -163,21 +148,6 @@ bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<int
                     }
                 }
             }
-    }
-    return true;
-}
-
-// The peer warm-up's predictor rows (router_codes' int8 ones) on the current device.
-bool warm_router(const std::vector<int8_t>& q, const std::vector<float>& sc, int8_t** rq, float** rs) {
-    if (cudaMalloc((void**) rq, q.size()) != cudaSuccess || cudaMalloc((void**) rs, sc.size() * 4) != cudaSuccess ||
-        cudaMemcpy(*rq, q.data(), q.size(), cudaMemcpyHostToDevice) != cudaSuccess ||
-        cudaMemcpy(*rs, sc.data(), sc.size() * 4, cudaMemcpyHostToDevice) != cudaSuccess) {
-        cudaGetLastError();
-        if (*rq) cudaFree(*rq);
-        if (*rs) cudaFree(*rs);
-        *rq = nullptr;
-        *rs = nullptr;
-        return false;
     }
     return true;
 }

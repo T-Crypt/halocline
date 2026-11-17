@@ -179,11 +179,10 @@ bool Verifier::WindowRecorder::post(int64_t l) {
     }
     if (dm) l2_ahead(l);
     if (dm) {
-        // the combine polls the peers' rows themselves (with further peers always: the wait counts one done word);
-        // one peer's done word also ends the poll, but with further peers only a release does (word 60).  Without
-        // --wait-stats it also waits for the CPU pool's word itself, with no wait launch before it.
-        const bool dm_tag = v_.dm_->tags || (v_.dm_->tag && (v_.dm_->wstat == nullptr || !v_.dm_->xp.empty()));
-        const volatile uint32_t* tag_done = !dm_tag ? nullptr : v_.dm_->xp.empty() ? v_.dm_->m_w + 16 : v_.dm_->m_w + 60;
+        // the combine polls the peer's rows itself, its done word ending the poll.  Without --wait-stats it also
+        // waits for the CPU pool's word itself, with no wait launch before it.
+        const bool dm_tag = v_.dm_->tags || (v_.dm_->tag && v_.dm_->wstat == nullptr);
+        const volatile uint32_t* tag_done = !dm_tag ? nullptr : v_.dm_->m_w + 16;
         if (!v_.dm_->tags) {
             PdlScope pw(false);
             dec_moe_wait(v_.dm_->plan, v_.dm_->m_w + 16, v_.m_flag_, ring, cs, v_.dm_->wstat, (int) l, true, dm_tag);

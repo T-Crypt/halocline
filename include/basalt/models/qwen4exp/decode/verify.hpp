@@ -42,12 +42,10 @@
 #include <vector>
 
 namespace basalt::kernels::cpu { class ExpertPool; }
-namespace basalt::kernels { struct DmMixLayer; }
 
 namespace basalt::core {
 
 class NativeHead;
-class PeerExperts;
 struct DecMoe;
 
 /// The CPU pool for a window: x_f (n_tok, n_embd), ids (n_tok, k) -> out (n_tok * k, n_embd), hit rows zeroed.
@@ -115,12 +113,6 @@ public:
     Verifier& operator=(const Verifier&) = delete;
     /// Before init: the window's main stream outranks other streams' kernels (a prompt read running beside the windows).
     void set_main_priority(bool high) { main_high_ = high; }
-    /// The peer expert tier the window drives itself (persistent kernel, mapped rings) instead of the pool launching it
-    /// per layer.  Before init.
-    void set_peer(PeerExperts* peer) { peer_ = peer; }
-    /// A further peer card's expert tier, served like the first by a persistent kernel of its own (its own ring,
-    /// doorbell and done word); only with the device-planned MoE tail.  Before init, after set_peer.
-    void add_peer(PeerExperts* peer) { xpeers_.push_back(peer); }
     /// The CPU pool and the expert source the window's CPU tier runs on: between doorbells the parked workers predict
     /// the next layer's CPU experts (its router on this layer's FFN input) and read the likeliest into their caches.
     /// Before init; only with the device-planned MoE tail.
@@ -337,18 +329,14 @@ public:
 private:
     struct WindowRecorder;
     bool main_high_ = false;
-    PeerExperts* peer_ = nullptr;
-    std::vector<PeerExperts*> xpeers_;
     basalt::kernels::cpu::ExpertPool* warm_pool_ = nullptr;
     ExpertSource* warm_src_ = nullptr;
     DecMoe* dm_ = nullptr;   // the device-planned MoE tail (null: off)
     bool dm_init(std::string& err);
     bool dm_sync(std::string& err);        ///< the residency tables to the devices, before a window
-    bool dm_begin(std::string& err, DecodeGaps* gm);   ///< the tail's window start (tables, flags, the peer window)
+    bool dm_begin(std::string& err, DecodeGaps* gm);   ///< the tail's window start (tables, flags)
     bool dm_stage_places(std::string& err);            ///< the staged share's RAM addresses, read again when they moved
-    bool dm_end(std::string& err);         ///< the peer window's end
     void dm_free();
-    std::string peer_released();           ///< after a release: whether the peer window ended (see dm_note)
     bool capture(int T, std::string& err);
     // run(), in three parts: the launch, the host's serving of the rings, the finish
     bool run_begin(int T, const int32_t* tokens, int64_t pos0, std::string& err, cudaEvent_t after = nullptr);

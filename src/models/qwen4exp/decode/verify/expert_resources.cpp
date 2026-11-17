@@ -4,7 +4,6 @@
 #include "basalt/models/qwen4exp/decode/verify.hpp"
 #include "basalt/core/diag.hpp"
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/decode/gdn_head_split.hpp"
 #include "basalt/core/on_device.hpp"
 #include "basalt/platform/compiler.hpp"
 #include "basalt/core/peer_experts.hpp"
@@ -55,10 +54,8 @@ bool Verifier::dm_init(std::string& err) {
     d->x_stride = (size_t) (T * N);
     d->xq_stride = (size_t) (T * (N / 32) * 36);
     bool ok = cudaMalloc((void**) &d->res0, (size_t) LE * 4) == cudaSuccess &&
-              cudaMalloc((void**) &d->res1, (size_t) LE * 4) == cudaSuccess &&
               cudaMalloc((void**) &d->plan, sizeof(DmPlan)) == cudaSuccess &&
               cudaMalloc((void**) &d->ctr, 64) == cudaSuccess && cudaMemset(d->ctr, 0, 64) == cudaSuccess &&
-              cudaMemset(d->res1, 0xff, (size_t) LE * 4) == cudaSuccess &&
               mapped((size_t) d->rings * sizeof(DmRing), (void**) &d->h_ring, (void**) &d->m_ring) &&
               mapped((size_t) d->rings * d->x_stride * 4, (void**) &d->h_x, (void**) &d->m_x) &&
               mapped((size_t) d->rings * d->xq_stride, (void**) &d->h_xq, (void**) &d->m_xq) &&
@@ -93,95 +90,19 @@ bool Verifier::dm_init(std::string& err) {
     d->rows_words = (size_t) (T * K * N);
     d->tags = d->wstat == nullptr;
     d->shadow0.assign((size_t) LE, INT32_MIN);
-    d->shadow1.assign((size_t) LE, -1);
-    d->pin_stride = (size_t) LE * 24;   // [res0 | ptab0 | res1 | ptab1] per slot
+    d->pin_stride = (size_t) LE * 12;   // [res0 | ptab0] per slot
     if (cudaHostAlloc((void**) &d->pin, d->pin_stride * DecMoe::kPinSlots, cudaHostAllocPortable) != cudaSuccess) {
         cudaGetLastError();
         d->pin = nullptr;
     }
-    // the warm-ups' predictors, quantized once: every layer's router in int8 for the peer's, in 4-bit for the CPU pool's
+    // the CPU pool's warm-up predictor, quantized once: every layer's router in 4-bit
     const bool cpu_warm = warm_pool_ != nullptr && warm_src_ != nullptr && K <= 16 &&
                           std::all_of(lay.fmt.begin(), lay.fmt.end(), [&](const basalt::kernels::cpu::NativeFmt& f) {
                               return f.bytes == lay.fmt[0].bytes && f.down_off == lay.fmt[0].down_off;
                           });
-    std::vector<int8_t> rq_h;
-    std::vector<float> rs_h;
     std::vector<uint8_t> rq4_h;
     std::vector<float> rs4_h;
-    const bool peer_on = peer_ != nullptr && peer_->valid();
-    const bool codes_ok = (cpu_warm || peer_on) &&
-                          router_codes(*wt_, g, peer_on ? &rq_h : nullptr, peer_on ? &rs_h : nullptr,
-                                       cpu_warm ? &rq4_h : nullptr, cpu_warm ? &rs4_h : nullptr);
-    const bool router_ok = peer_on && codes_ok;
-    if (peer_ != nullptr && peer_->valid()) {
-        const OnDevice on(peer_->device());
-        d->pdev = peer_->device();
-        std::vector<NativeExpertLayout> ls((size_t) g.n_layers);
-        for (int64_t l = 0; l < g.n_layers; ++l) {
-            const auto& f = lay.fmt[(size_t) l];
-            ls[(size_t) l] = native_expert_layout(f.gu_type, f.d_type, f.n_embd, f.n_ff, 0.0f, f.up_type);
-            d->pq2 |= f.gu_type == 42;
-        }
-        d->pblocks = dec_moe_peer_blocks(d->pq2);
-        ok = d->pblocks > 0 && cudaStreamCreateWithFlags(&d->ps, cudaStreamNonBlocking) == cudaSuccess &&
-             basalt::kernels::dec_moe_table_load(d->ps) &&
-             cudaMalloc((void**) &d->ptab, (size_t) LE * 8) == cudaSuccess &&
-             cudaMemset(d->ptab, 0, (size_t) LE * 8) == cudaSuccess &&
-             cudaMalloc((void**) &d->lay, ls.size() * sizeof(NativeExpertLayout)) == cudaSuccess &&
-             cudaMemcpy(d->lay, ls.data(), ls.size() * sizeof(NativeExpertLayout), cudaMemcpyHostToDevice) == cudaSuccess &&
-             cudaMalloc(&d->pscr, dec_moe_peer_scratch_bytes((int) N, (int) lay.fmt[0].n_ff)) == cudaSuccess &&
-             cudaMemset(d->pscr, 0, dec_moe_peer_scratch_bytes((int) N, (int) lay.fmt[0].n_ff)) == cudaSuccess &&
-             cudaMalloc((void**) &d->parr, 64) == cudaSuccess;
-        d->tag = true;
-        for (size_t i = 0; i < d->rows_words; ++i) ((volatile uint32_t*) d->h_rows)[i] = basalt::kernels::dec_moe_tag_word();
-        if (!ok) { err = "verify: device-planned MoE peer buffers"; return false; }
-        d->shadow1.assign((size_t) LE, INT32_MIN);
-        if (!router_ok || !warm_router(rq_h, rs_h, &d->rq, &d->rs))
-            basalt::log::warn("basalt verify", "the peer's L2 warm-up is off (a router the predictor does not cover)");
-        // further peers: a window, ring and doorbell each; cards that hold several peers split their blocks
-        std::vector<int> devs = {d->pdev};
-        for (PeerExperts* xpe : xpeers_)
-            if (xpe != nullptr && xpe->valid()) devs.push_back(xpe->device());
-        auto sharing = [&](int dev) { return (int) std::count(devs.begin(), devs.end(), dev); };
-        d->pblocks = std::max(1, d->pblocks / sharing(d->pdev));
-        for (PeerExperts* xpe : xpeers_) {
-            if (xpe == nullptr || !xpe->valid()) continue;
-            if ((int) d->xp.size() == kDmMaxX) {
-                basalt::log::warn("basalt verify", "the device plan serves %d further peers; the others' experts run on the CPU",
-                                  kDmMaxX);
-                break;
-            }
-            d->xp.emplace_back();
-            DecMoe::XPeer& x = d->xp.back();
-            x.peer = xpe;
-            x.dev = xpe->device();
-            {   // CUDA0 reads its residency
-                const OnDevice on0(device_);
-                ok = cudaMalloc((void**) &x.res, (size_t) LE * 4) == cudaSuccess &&
-                     cudaMemset(x.res, 0xff, (size_t) LE * 4) == cudaSuccess &&
-                     mapped((size_t) d->rings * sizeof(DmRing), (void**) &x.h_ring, (void**) &x.m_ring) &&
-                     mapped(256, (void**) &x.h_w, (void**) &x.m_w);
-            }
-            {
-                const OnDevice onx(x.dev);
-                x.pblocks = std::max(1, dec_moe_peer_blocks(d->pq2) / sharing(x.dev));
-                ok = ok && cudaStreamCreateWithFlags(&x.ps, cudaStreamNonBlocking) == cudaSuccess &&
-                     basalt::kernels::dec_moe_table_load(x.ps) &&
-                     cudaMalloc((void**) &x.ptab, (size_t) LE * 8) == cudaSuccess &&
-                     cudaMemset(x.ptab, 0, (size_t) LE * 8) == cudaSuccess &&
-                     cudaMalloc((void**) &x.lay, ls.size() * sizeof(NativeExpertLayout)) == cudaSuccess &&
-                     cudaMemcpy(x.lay, ls.data(), ls.size() * sizeof(NativeExpertLayout), cudaMemcpyHostToDevice) == cudaSuccess &&
-                     cudaMalloc(&x.pscr, dec_moe_peer_scratch_bytes((int) N, (int) lay.fmt[0].n_ff)) == cudaSuccess &&
-                     cudaMemset(x.pscr, 0, dec_moe_peer_scratch_bytes((int) N, (int) lay.fmt[0].n_ff)) == cudaSuccess &&
-                     cudaMalloc((void**) &x.parr, 64) == cudaSuccess;
-                if (ok && router_ok && d->rq != nullptr) (void) warm_router(rq_h, rs_h, &x.rq, &x.rs);
-            }
-            x.shadow.assign((size_t) LE, INT32_MIN);
-            if (!ok) { err = "verify: device-planned MoE buffers of a further peer"; return false; }
-        }
-    }
-    if (d->pdev >= 0) {
-    }
+    const bool codes_ok = cpu_warm && router_codes(*wt_, g, &rq4_h, &rs4_h);
     if (cpu_warm && codes_ok) {
         CpuWarm* w = new CpuWarm;
         w->rq = std::move(rq4_h);
@@ -197,8 +118,7 @@ bool Verifier::dm_init(std::string& err) {
     // is never staged; the addresses are read again before a batch window when the source's places moved (a swap).
     // The count staged for m misses balances the pool's time for the rest against the copy's, both reading host
     // memory at once.
-    bool stage = d->pdev < 0 && d->xp.empty() &&
-                 warm_src_ != nullptr && staging_ != nullptr && warm_src_->pcie_layer(0) && lay.fmt[0].bytes % 16 == 0;
+    bool stage = warm_src_ != nullptr && staging_ != nullptr && warm_src_->pcie_layer(0) && lay.fmt[0].bytes % 16 == 0;
     for (int64_t l = 1; stage && l < g.n_layers; ++l) stage = lay.fmt[(size_t) l].bytes == lay.fmt[0].bytes;
     const int64_t blob = (int64_t) lay.fmt[0].bytes, stride = dec_moe_stage_stride(blob);
     const int stage_slots =
@@ -234,13 +154,7 @@ bool Verifier::dm_init(std::string& err) {
         d->stage_min = 1;
         while (d->stage_min < kDmCap && kt[(size_t) d->stage_min] == 0) ++d->stage_min;
     }
-    std::string served;
-    if (d->pdev >= 0) {
-        served = ", the peer card served by a persistent kernel (" + std::to_string(d->pblocks) + " blocks";
-        for (const DecMoe::XPeer& x : d->xp) served += ", then " + std::to_string(x.pblocks) + " on CUDA" + std::to_string(x.dev);
-        served += ")";
-    }
-    basalt::log::info("basalt verify", "the MoE tail planned on the device%s", served.c_str());
+    basalt::log::info("basalt verify", "the MoE tail planned on the device");
     if (d->warm != nullptr)
         basalt::log::info("basalt verify", "the CPU pool warms its likeliest next-layer expert between doorbells");
     return true;
@@ -253,27 +167,10 @@ void Verifier::dm_free() {
         warm_pool_->idle_stop();
         delete d->warm;
     }
-    if (d->pdev >= 0) {
-        const OnDevice on(d->pdev);
-        if (d->ps) { cudaStreamSynchronize(d->ps); cudaStreamDestroy(d->ps); }
-        for (void* p : {(void*) d->ptab, (void*) d->lay, d->pscr, (void*) d->parr, (void*) d->rq, (void*) d->rs})
-            if (p) cudaFree(p);
-    }
-    for (DecMoe::XPeer& x : d->xp) {
-        {
-            const OnDevice on(x.dev);
-            if (x.ps) { cudaStreamSynchronize(x.ps); cudaStreamDestroy(x.ps); }
-            for (void* p : {(void*) x.ptab, (void*) x.lay, x.pscr, (void*) x.parr, (void*) x.rq, (void*) x.rs})
-                if (p) cudaFree(p);
-        }
-        if (x.res) cudaFree(x.res);
-        for (void* h : {(void*) x.h_ring, (void*) x.h_w})
-            if (h) cudaFreeHost(h);
-    }
     if (d->st_s) { cudaStreamSynchronize(d->st_s); cudaStreamDestroy(d->st_s); }
     for (cudaEvent_t e : {d->st_fork, d->st_join})
         if (e) cudaEventDestroy(e);
-    for (void* p : {(void*) d->res0, (void*) d->res1, (void*) d->plan, (void*) d->ctr, (void*) d->slot_off, d->vscr,
+    for (void* p : {(void*) d->res0, (void*) d->plan, (void*) d->ctr, (void*) d->slot_off, d->vscr,
                     (void*) d->vsync, d->xq_pub, (void*) d->wstat,
                     (void*) d->ptab0, (void*) d->pub, (void*) d->cseen, (void*) d->landed,
                     (void*) d->stage_src, (void*) d->stage_k, (void*) d->route_counts})

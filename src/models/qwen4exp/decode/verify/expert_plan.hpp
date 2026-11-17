@@ -11,13 +11,12 @@
 
 namespace basalt::core {
 
-// the MoE tail (dec_moe.hpp): planned on CUDA0 from device residency tables, the peer card served from mapped rings
-// by one persistent kernel per window, the CPU pool by the host loop (only its own entries).
+// the MoE tail (dec_moe.hpp): planned on CUDA0 from device residency tables, the CPU pool served by the host loop
+// (only its own entries).
 struct DecMoe {
     int64_t rings = 0;                       ///< rings per window (one per layer)
     int32_t* res0 = nullptr;                 ///< CUDA0: [n_layers * n_expert] CUDA0 slot or -1 (host_res mirrored)
-    int32_t* res1 = nullptr;                 ///< CUDA0: the same for the peer's slots
-    std::vector<int32_t> shadow0, shadow1;   ///< what res0 / res1 hold
+    std::vector<int32_t> shadow0;            ///< what res0 holds
     CpuWarm* warm = nullptr;                 ///< the CPU tier's warm-up (null: off)
     basalt::kernels::DmPlan* plan = nullptr;
     unsigned int* ctr = nullptr;
@@ -49,40 +48,7 @@ struct DecMoe {
     size_t rows_words = 0;
     bool tag_dirty = false; ///< a released window may have left written rows behind
     size_t x_stride = 0, xq_stride = 0;      ///< per ring, floats / bytes
-    // the peer card
-    int pdev = -1;
-    cudaStream_t ps = nullptr;
-    unsigned long long* ptab = nullptr;      ///< [n_layers * n_expert] blob address or 0
-    basalt::kernels::NativeExpertLayout* lay = nullptr;
-    void* pscr = nullptr;
-    unsigned int* parr = nullptr;
-    int pblocks = 0;
-    int8_t* rq = nullptr;   ///< the warm-up's predictor: every layer's router in int8, one scale per 32 values (rs)
-    float* rs = nullptr;
-    bool pq2 = false;   // a layer's gate/up is Q2_0: the peer kernel's Q2_0 build
-    bool peer_live = false;                  ///< a peer window was launched and not yet waited for
-    /// a further peer card: its own residency, ring, doorbell and done word ([0], [16], [32] of h_w as the first's)
-    /// and its own persistent window; the FFN input's q8_1 rows and the rows it writes are the first peer's.  With
-    /// further peers the combine ends its row poll on the first peer's word 60, raised only by a release.
-    struct XPeer {
-        PeerExperts* peer = nullptr;
-        int dev = -1;
-        cudaStream_t ps = nullptr;
-        int32_t* res = nullptr;                  ///< CUDA0: [n_layers * n_expert] its slot or -1
-        std::vector<int32_t> shadow;             ///< what res holds
-        unsigned long long* ptab = nullptr;      ///< its card: blob address or 0
-        basalt::kernels::NativeExpertLayout* lay = nullptr;
-        void* pscr = nullptr;
-        unsigned int* parr = nullptr;
-        int pblocks = 0;
-        int8_t* rq = nullptr;
-        float* rs = nullptr;
-        basalt::kernels::DmRing* h_ring = nullptr; basalt::kernels::DmRing* m_ring = nullptr;
-        uint32_t* h_w = nullptr; uint32_t* m_w = nullptr;
-        bool live = false;
-    };
-    std::vector<XPeer> xp;
-    // the staged share (a card without peers): every expert's host-RAM address (device alias) or 0, its host copy and
+    // the staged share: every expert's host-RAM address (device alias) or 0, its host copy and
     // the source's places it was read at, the staged count per count of distinct CPU misses, the copy's own stream
     unsigned long long* stage_src = nullptr;
     unsigned long long* stage_host = nullptr;
@@ -99,7 +65,6 @@ struct DecMoe {
     size_t pin_stride = 0;
     int pin_i = 0;
     static constexpr int kPinSlots = 8;
-    std::vector<uint32_t> put_i;             ///< dm_sync: the peer entries that changed
 };
 
 }  // namespace basalt::core
