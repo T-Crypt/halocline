@@ -8,10 +8,6 @@ namespace basalt::program {
 
 namespace {
 constexpr double kGiB = 1073741824.0;
-
-bool fits(uint64_t complement, const AutoInputs& in) {
-    return in.ram_available >= in.floor_bytes && complement <= in.ram_available - in.floor_bytes;
-}
 }  // namespace
 
 const char* auto_affinity_name(AutoAffinity a) {
@@ -38,23 +34,14 @@ AutoPlan choose_auto(const AutoInputs& in) {
     const AutoGiven& g = in.given;
     AutoPlan p;
 
-    // Peer-exclusive only when the full complement does not fit and holding the peer's experts only on the peer
-    // leaves nothing to read from the SSD.
-    if (g.peer_exclusive) {
-        p.peer_exclusive = g.peer_exclusive_value;
-        p.peer_exclusive_src = AutoSource::Given;
-    } else {
-        p.peer_exclusive = in.peer && in.serve && !fits(in.complement_full, in) && fits(in.complement_peer_excl, in);
-    }
-
     // Resident: what fits, capped at the complement and its optional copies.
     if (g.resident) {
         p.resident_gb = g.resident_gb;
         p.resident_bytes = (uint64_t) (g.resident_gb * kGiB);
         p.resident_src = AutoSource::Given;
     } else {
-        const uint64_t complement = p.peer_exclusive ? in.complement_peer_excl : in.complement_full;
-        const uint64_t extra = p.peer_exclusive ? in.extra_peer_excl : in.extra_full;
+        const uint64_t complement = in.complement_full;
+        const uint64_t extra = in.extra_full;
         // experts left in the file read through the OS file cache, which keeps its floor beside the copy's
         const uint64_t floor =
             in.floor_bytes + basalt::core::file_cache_keep(in.ram_available, in.floor_bytes, false, complement, in.file_cache);
@@ -83,7 +70,6 @@ std::string auto_flags_line(const AutoPlan& p) {
     std::string out;
     auto add = [&](const std::string& s) { out += out.empty() ? "auto flags: " : ", "; out += s; };
     char buf[64];
-    if (p.peer_exclusive_src == AutoSource::Auto) add(std::string("peer-exclusive ") + (p.peer_exclusive ? "on" : "off"));
     if (p.resident_src == AutoSource::Auto) {
         std::snprintf(buf, sizeof buf, "resident %.1f GB", p.resident_gb);
         add(buf);

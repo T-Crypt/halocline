@@ -320,10 +320,10 @@ class Precedence(unittest.TestCase):
                 split_engine_extras(bad)
 
     def test_former_server_options_are_engine_flags(self):
-        for name in ("spec", "mtp-max-t", "max-context", "peer-exclusive"):
+        for name in ("spec", "mtp-max-t", "max-context", "resident-experts"):
             self.assertNotIn(name, server_options(build_parser()))
-        _, _, _, cli_words = parse(["--spec", "5", "--peer-exclusive", "--max-context=8192"])
-        self.assertEqual(cli_words, ["--spec", "5", "--peer-exclusive", "--max-context", "8192"])
+        _, _, _, cli_words = parse(["--spec", "5", "--resident-experts", "--max-context=8192"])
+        self.assertEqual(cli_words, ["--spec", "5", "--resident-experts", "--max-context", "8192"])
 
     def test_server_read_flags_are_found_last_wins(self):
         self.assertEqual(flag_value(["--spec", "3", "--kv", "x", "--spec", "5"], "--spec"), "5")

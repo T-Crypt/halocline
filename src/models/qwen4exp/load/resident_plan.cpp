@@ -117,7 +117,6 @@ int resident_plan(Context& context) {
         in.ram_available = basalt::platform::available_memory();
         if (basalt::platform::HostMemory hm; basalt::platform::host_available_memory(hm) && hm.available > 0)
             in.ram_available = in.ram_available > 0 ? std::min(in.ram_available, hm.available) : hm.available;
-        in.serve = o.serve;
         in.worker_cores = (int) topo.worker_cores.size();
         in.p_cores = topo.p_cores;
         in.e_cores = topo.e_cores;
@@ -139,7 +138,6 @@ int resident_plan(Context& context) {
                 basalt::core::pin_tracking_bytes(basalt::core::host_plan_bytes()),
             o.resident_pin);
         bp::AutoGiven& gv = in.given;
-        gv.peer_exclusive = true;   // one card: not applicable
         if (!o.resident_cpu_experts || o.resident_budget_given) {
             gv.resident = true;
             gv.resident_gb = (double) o.resident_budget / 1073741824.0;

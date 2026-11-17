@@ -39,15 +39,6 @@ struct CommonOptions {
     /// Slots of VRAM-resident experts.  **0 = off, and off is the default.**  Switching the cache on moves work off the
     /// CPU pool (the model's hit kernel).
     int expert_cache = 0;
-    /// Multi-GPU: a second expert tier on CUDA device `peer_device` (-1 = off), `peer_reserve_mib` left free
-    /// there, `peer_slots` caps its size (0 = as many as fit), `peer_adapt_swaps` per adaptive round
-    /// (-1 = adapt_swaps).
-    int peer_device = -1;
-    /// every expert tier's device, the first one peer_device, and each card's memory bandwidth (GB/s, 0 unknown)
-    std::vector<int> peer_devices;
-    std::vector<double> peer_gbps;
-    double main_gbps = 0;         ///< the main card's memory bandwidth (GB/s, 0 unknown)
-    int peer_reserve_mib = 600;
     bool no_prompt_skip = false;  ///< --no-prompt-skip: every prompt row through every layer
     std::string kv;               ///< --kv: the KV storage, as each model names it (empty: the model's default)
     /// --rope-scaling, --rope-scale, --yarn-* ...: taken by the models that extend their context (basalt/model/rope_flags.hpp)

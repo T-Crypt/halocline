@@ -53,34 +53,6 @@ struct GpuChoice {
 /// management library and no CUDA_VISIBLE_DEVICES): numbers are then taken as given and `auto` is an error.
 GpuChoice choose_gpus(const GpuSpec& spec, const std::vector<GpuCard>& visible, bool known = true);
 
-/// What a chosen card does.
-enum class GpuRole { Main, ExpertTier, PromptLine, LayerStage, Idle };
-const char* gpu_role_name(GpuRole r);
-
-/// The inputs of the role decision: the chosen cards, main first, and what this platform and engine can run.
-struct RoleInputs {
-    std::vector<GpuCard> cards;
-    int max_expert_tiers = 1;       ///< how many cards the engine can run as expert tiers
-    bool prompt_line = false;       ///< the model puts its one helper card on long prompts (a dense model), not on experts
-    bool layer_stage = false;       ///< such a model does not fit its main card: the helper card runs its later layers
-};
-
-/// The role of each card, in order: the cards after the main one are expert tiers, as many as the engine runs, and idle
-/// otherwise (PromptLine in place of ExpertTier when `prompt_line`, LayerStage when `layer_stage` too). How a model with
-/// experts spreads over its tier cards (expert tier or layer split) is priced at its load (multi_gpu_plan.hpp).
-std::vector<GpuRole> choose_roles(const RoleInputs& in);
-
-/// One expert tier's room for experts (bytes) and its card's memory bandwidth (0: unknown, counted as equal).
-struct TierRoom {
-    uint64_t bytes = 0;
-    double gbps = 0;
-};
-
-/// Deals ranked experts (their slot bytes, hottest first) to the expert tiers: each goes to the tier that has taken the
-/// fewest so far for its bandwidth among those it still fits, so the hot experts split by bandwidth and every tier
-/// fills. A tier closes at the first expert that no longer fits it. Returns each expert's tier, -1 when none takes it.
-std::vector<int> spread_experts(const std::vector<uint64_t>& bytes, const std::vector<TierRoom>& tiers);
-
 /// The visible cards: CUDA_VISIBLE_DEVICES when set (integers read as nvidia-smi numbers), else every card the NVIDIA
 /// management library lists, with what that library says about each. `known` false: neither was available.
 std::vector<GpuCard> visible_gpus(bool& known);

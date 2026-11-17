@@ -472,7 +472,6 @@ public:
     PreTokenizer pretokenizer() const override { return {"qwen35", program::tokenizer::pretok_qwen35}; }
     model::TokenNames token_names() const override { return program::qwen_token_names(); }
     program::grammar::ToolForm tool_form() const override { return program::qwen_tool_form(); }
-    int max_expert_cards() const override { return 0; }
     bool parse_flag(const std::string& a, model::FlagArgs& args, program::CommonOptions& o, int& code) const override {
         (void) code;
         if (model::parse_rope_flag(a, args, o.rope)) {}

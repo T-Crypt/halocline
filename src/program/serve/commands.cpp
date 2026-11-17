@@ -36,13 +36,12 @@ std::vector<ImgKey> Runtime::imgs_below(const std::vector<ImgKey>& all, int64_t 
 bool Runtime::batch_on() { for (const BSlot& b : bs) if (b.active) return true; return false; }
 
 Flow Runtime::dispatch() {
-    if (batch_on() || windows_in_flight()) {
+    if (batch_on()) {
         if (!try_next_line(line)) {
             const BusyClock busy(busy_s, busy_on, busy_from);
             if (!next_batch_window()) return Flow::error;
             return Flow::next;
         }
-        if (line.rfind("BSTOP ", 0) != 0 && !drain_windows()) return Flow::error;
     } else {
         kv_ceiling_note();   // between requests too: the free VRAM also moves without the KV
         // idle: once no line has come for a second (a client's next turn usually comes sooner), what a crash would

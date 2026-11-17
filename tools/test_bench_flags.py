@@ -68,8 +68,8 @@ class BenchFlags(unittest.TestCase):
         self.assertEqual(cmd.count("--max-context"), 1)
 
     def test_a_switch_does_not_take_the_next_option(self):
-        cmd = self.command("--peer-exclusive", "-p", "16384", "-t", "prose", "--vram-reserve-mib", "-1")
-        self.assertIn("--peer-exclusive", cmd)
+        cmd = self.command("--resident-experts", "-p", "16384", "-t", "prose", "--vram-reserve-mib", "-1")
+        self.assertIn("--resident-experts", cmd)
         self.assertNotIn("-p", cmd)
         self.assertEqual(cmd[cmd.index("--vram-reserve-mib") + 1], "-1")
 

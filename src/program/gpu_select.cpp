@@ -216,49 +216,6 @@ GpuChoice choose_gpus(const GpuSpec& spec, const std::vector<GpuCard>& visible, 
     return c;
 }
 
-const char* gpu_role_name(GpuRole r) {
-    return r == GpuRole::Main ? "main" : r == GpuRole::ExpertTier ? "expert tier" : r == GpuRole::PromptLine ? "prompt line"
-         : r == GpuRole::LayerStage ? "layer stage" : "idle";
-}
-
-std::vector<GpuRole> choose_roles(const RoleInputs& in) {
-    std::vector<GpuRole> r(in.cards.size(), GpuRole::Idle);
-    if (r.empty()) return r;
-    r[0] = GpuRole::Main;
-    int tiers = 0;
-    const GpuRole helper = !in.prompt_line ? GpuRole::ExpertTier : in.layer_stage ? GpuRole::LayerStage : GpuRole::PromptLine;
-    for (size_t i = 1; i < r.size() && tiers < in.max_expert_tiers; ++i, ++tiers) r[i] = helper;
-    return r;
-}
-
-std::vector<int> spread_experts(const std::vector<uint64_t>& bytes, const std::vector<TierRoom>& tiers) {
-    std::vector<int> owner(bytes.size(), -1);
-    const size_t n = tiers.size();
-    std::vector<uint64_t> used(n, 0);
-    std::vector<int64_t> taken(n, 0);
-    std::vector<bool> open(n, true);
-    for (size_t i = 0; i < bytes.size(); ++i) {
-        // the least loaded open tier takes it; one it no longer fits closes, and the next is asked
-        for (;;) {
-            int best = -1;
-            double best_load = 0;
-            for (size_t t = 0; t < n; ++t) {
-                if (!open[t]) continue;
-                const double load = (double) taken[t] / (tiers[t].gbps > 0 ? tiers[t].gbps : 1.0);
-                if (best < 0 || load < best_load) { best = (int) t; best_load = load; }
-            }
-            if (best < 0) return owner;
-            const size_t b = (size_t) best;
-            if (used[b] + bytes[i] > tiers[b].bytes) { open[b] = false; continue; }
-            owner[i] = best;
-            used[b] += bytes[i];
-            ++taken[b];
-            break;
-        }
-    }
-    return owner;
-}
-
 std::vector<GpuCard> visible_gpus(bool& known) {
     const NvmlCards nv = read_nvml();
     const char* env = std::getenv("CUDA_VISIBLE_DEVICES");

@@ -9,9 +9,7 @@
 
 namespace basalt::models::qwen4exp::serve {
 
-bool QfnRuntime::windows_in_flight() { return false; }
 bool QfnRuntime::next_batch_window() { return batch_step(); }
-bool QfnRuntime::drain_windows() { return true; }
 
 void QfnRuntime::script_command(const std::string& line) {
     char* e1 = nullptr;
@@ -106,16 +104,13 @@ void QfnRuntime::print_info() {
         const int64_t mib_primary = (int64_t) (xcache.bytes() >> 20);
         const int64_t slots_all = slots_primary, mib_all = mib_primary;
         // the pack's quantization label (the last word of its name, without the publisher's prefixes) and the PCI
-        // bus ids of the cards this engine computes on, primary first: what a benchmark row records
+        // bus id of the card this engine computes on: what a benchmark row records
         std::string quant_label, gpu_ids;
         {
             const basalt::core::Json* nm = model_file.meta().get("name");
             quant_label = basalt::program::pack_quant_label(nm != nullptr && nm->is_string() ? nm->s : std::string());
-            for (int d : basalt::program::engine_gpu_order(o.peer_device, o.peer_devices, std::vector<int>())) {
-                char bus[32] = {};
-                if (cudaDeviceGetPCIBusId(bus, sizeof bus, d) == cudaSuccess)
-                    gpu_ids += (gpu_ids.empty() ? "" : ",") + std::string(bus);
-            }
+            char bus[32] = {};
+            if (cudaDeviceGetPCIBusId(bus, sizeof bus, 0) == cudaSuccess) gpu_ids = bus;
         }
         std::printf("INFO logit_bias=%lld context=%lld kv=%s kv_resident=%lld expert_slots=%lld expert_cache_mib=%lld "
                     "expert_slots_primary=%lld expert_cache_primary_mib=%lld spec=%d "

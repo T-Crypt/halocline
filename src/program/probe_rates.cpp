@@ -1,7 +1,7 @@
 // src/program/probe_rates.cpp - the `PROBE rates` serve command (see the header).
 //
 // Each step reuses the code the microbenches use: the startup PCIe probe's burst timing and avx_bench's cold-expert
-// pool loop and its idle read.  A model's own peer path is measured through its ProbePeerPath.
+// pool loop and its idle read.
 #include "basalt/program/probe_rates.hpp"
 
 #include "basalt/kernels/cpu/cpu_quota.hpp"
@@ -108,7 +108,7 @@ private:
 struct Probe {
     const ProbeEnv& env;
     std::FILE* out;
-    std::vector<int> devs;   // CUDA0 and the peer card
+    std::vector<int> devs;   // CUDA0
     bool have_layout = false;
     C::NativeFmt fmt;
     std::vector<const uint8_t*> blobs;   // distinct RAM-resident blobs of the layers that share layer 0's format
@@ -322,45 +322,8 @@ void step_cpu_expert(Probe& P, int original_workers) {
     }
 }
 
-// 6 and 7: the peer's round trip by entry count, and the copy costs into each tier
-void step_peer_and_copies(Probe& P) {
-    const ProbeEnv& env = P.env;
-    const bool peer = env.peer_device >= 0;
-    ProbePeerPath* pr = env.peer_path.get();
-    std::string why, err;
-    bool peer_ok = false;
-    if (!P.have_layout) {
-        P.line("peer", "rt_us=n/a reason=not_native");
-    } else if (!peer) {
-        P.line("peer", "rt_us=n/a reason=no_peer");
-    } else if (pr == nullptr || !pr->setup(env, P.fmt, why)) {
-        P.line("peer", "rt_us=n/a reason=%s", pr == nullptr ? "no_peer_kernel" : why.c_str());
-    } else {
-        peer_ok = true;
-        double sx = 0, sy = 0, sxx = 0, sxy = 0;
-        int cnt = 0;
-        std::vector<double> rt;
-        for (int n = 1; n <= pr->max_entries() && peer_ok; ++n) {
-            pr->fill(n);
-            std::vector<double> all;
-            for (int rep = 0; rep < 2 && peer_ok; ++rep) {
-                peer_ok = pr->window(P.fmt, [](int) {}, rt, err);
-                for (size_t i = 2; i < rt.size() && peer_ok; ++i) all.push_back(rt[i]);
-            }
-            if (!peer_ok) break;
-            const double m = median(all);
-            P.line("peer", "entries=%d rt_median_us=%.1f", n, m);
-            sx += n; sy += m; sxx += (double) n * n; sxy += n * m; ++cnt;
-        }
-        if (peer_ok) {
-            const double b = (cnt * sxy - sx * sy) / (cnt * sxx - sx * sx);
-            P.line("peer", "fit base_us=%.1f per_entry_us=%.2f peer_blocks=%d", (sy - b * sx) / cnt, b, pr->blocks());
-        } else {
-            P.line("peer", "rt_us=n/a reason=%s", err.c_str());
-        }
-    }
-
-    // copy costs: one expert-sized pinned copy into each tier's card, timed by events
+// 6: the copy cost into the card: one expert-sized pinned copy, timed by events
+void step_copies(Probe& P) {
     if (!P.have_layout) { P.line("copy", "us=n/a reason=not_native"); return; }
     const size_t bytes = P.fmt.bytes;
     HostBuf src;
@@ -387,35 +350,6 @@ void step_peer_and_copies(Probe& P) {
         const double m = median(us);
         P.line("copy", "dev=%d blob_bytes=%zu median_us=%.1f gbps=%.1f", d, bytes, m, (double) bytes / (m * 1e3));
     }
-
-    // the peer's rings with one such copy running into the peer beside them
-    if (!peer_ok) return;
-    const int d = env.peer_device;
-    DevBuf dst;
-    Stream cs;
-    Event ce;
-    if (!(dst.alloc(d, bytes) && cs.make(d) && ce.make(d))) return;
-    pr->fill(std::min(3, pr->max_entries()));
-    std::vector<double> during, idle, rt;
-    for (int launch = 0; launch < 30 && peer_ok; ++launch) {
-        bool active = false;
-        std::vector<char> busy_at((size_t) pr->rings(), 0);
-        peer_ok = pr->window(P.fmt, [&](int r) {
-            if (active && cudaEventQuery(ce.e) != cudaErrorNotReady) active = false;
-            busy_at[(size_t) r] = active ? 1 : 0;
-            if (r == 4) {
-                core::OnDevice od(d);
-                cudaMemcpyAsync(dst.p, src.p, bytes, cudaMemcpyHostToDevice, cs.s);
-                cudaEventRecord(ce.e, cs.s);
-                active = true;
-            }
-        }, rt, err);
-        for (size_t r = 2; r < rt.size() && peer_ok; ++r) (busy_at[r] ? during : idle).push_back(rt[r]);
-        { core::OnDevice od(d); cudaStreamSynchronize(cs.s); }
-    }
-    if (peer_ok && !during.empty())
-        P.line("copy", "peer_rings_beside_copy entries=3 idle_median_us=%.1f during_median_us=%.1f during_rings=%zu",
-               median(idle), median(during), during.size());
 }
 
 }  // namespace
@@ -428,7 +362,6 @@ bool probe_rates(const ProbeEnv& env, std::FILE* out, std::string& err) {
     int cur = 0;
     cudaGetDevice(&cur);
     P.devs.push_back(cur);
-    if (env.peer_device >= 0) P.devs.push_back(env.peer_device);
 
     if (!env.fmt.empty() && env.n_layers > 0) {
         P.fmt = env.fmt[0];
@@ -463,7 +396,7 @@ bool probe_rates(const ProbeEnv& env, std::FILE* out, std::string& err) {
     timed("host_mem", [&] { step_host_mem(P); });
     timed("cpu_expert", [&] { step_cpu_expert(P, original); });
     env.pool->set_active_workers(original);
-    timed("peer_copies", [&] { step_peer_and_copies(P); });
+    timed("copies", [&] { step_copies(P); });
     env.pool->set_active_workers(original);
     cudaSetDevice(cur);
     (void) cudaGetLastError();

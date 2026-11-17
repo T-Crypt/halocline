@@ -14,7 +14,7 @@ from unittest import mock
 
 from serve.engine.process import ProcessEngine
 
-LINE = "auto flags: peer-exclusive off, resident 51.2 GB, pool-affinity all, pool-workers 15"
+LINE = "auto flags: resident 51.2 GB, pool-affinity all, pool-workers 15"
 
 # Writes raw bytes with CRLF, as a Windows child does. A file next to the script holds the line to print before READY.
 FAKE = r'''
@@ -59,7 +59,7 @@ class AutoFlagsLine(unittest.TestCase):
     def test_the_line_is_relayed_verbatim_once(self):
         with tempfile.TemporaryDirectory() as d:
             _, out, _ = self.start(d, LINE)
-            self.assertEqual(out.getvalue(), "[server] auto     peer-excl=off ram-experts=51.2GB pool-affinity=all pool=15\n")
+            self.assertEqual(out.getvalue(), "[server] auto     ram-experts=51.2GB pool-affinity=all pool=15\n")
 
     def test_no_line_prints_nothing(self):
         with tempfile.TemporaryDirectory() as d:
@@ -71,7 +71,7 @@ class AutoFlagsLine(unittest.TestCase):
             engine, out, auto = self.start(d, LINE)
             with contextlib.redirect_stdout(out):
                 engine.restart()
-            self.assertEqual(out.getvalue().count("[server] auto     peer-excl=off"), 2)
+            self.assertEqual(out.getvalue().count("[server] auto     ram-experts=51.2GB"), 2)
             auto.unlink()
             with contextlib.redirect_stdout(out):
                 engine.restart()

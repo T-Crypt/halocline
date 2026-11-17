@@ -904,7 +904,6 @@ int main(int argc, char** argv) {
 
     std::vector<Result> results;
     std::map<std::string, std::string> info;
-    std::string peer_line;
     std::string engine_args_text;
     std::string lossy;   // the engine's flags that change the model's output (its INFO lossy=), comma separated
     Quality quality;
@@ -954,7 +953,7 @@ int main(int argc, char** argv) {
             }
         }
         if (o.community) {
-            // every expert must sit in VRAM, the peer GPU or RAM: reads from the file would make the row incomparable
+            // every expert must sit in VRAM or RAM: reads from the file would make the row incomparable
             const char* k = "spill_bytes";
             const double spill = eng.info.count(k) ? std::atof(eng.info[k].c_str()) / 1073741824.0 : -1.0;
             if (spill != 0.0) {
@@ -963,7 +962,7 @@ int main(int argc, char** argv) {
                     basalt::log::warn("basalt-bench", "the engine did not report where the experts live; cannot check for SSD spill");
                 else
                     basalt::log::error("basalt-bench", "this run would read %.1f GiB of experts from the SSD. Community runs need every "
-                                 "expert in VRAM, the peer GPU or RAM: free roughly %.0f GiB more RAM (close other programs) "
+                                 "expert in VRAM or RAM: free roughly %.0f GiB more RAM (close other programs) "
                                  "and run again. No row was written.", spill, std::ceil(spill));
                 return 1;
             }
@@ -988,10 +987,6 @@ int main(int argc, char** argv) {
         }
         if (si == 0) {
             info = eng.info;
-            std::ifstream lg(log_path);
-            std::string l;
-            while (std::getline(lg, l))
-                if (l.find("peer GPU") != std::string::npos && l.find("experts") != std::string::npos) peer_line = l;
         }
         for (int run = 1; run <= o.reps && !failed; ++run) {
             for (size_t i = 0; i < 3 && !failed; ++i) {
@@ -1356,7 +1351,6 @@ int main(int argc, char** argv) {
         j.begin_obj();
         for (const auto& kv : info) { j.key(kv.first); j.str(kv.second); }
         j.end_obj();
-        j.key("peer_tier"); j.str(peer_line);
         j.key("engine_args"); j.str(engine_args_text);
         j.key("lossy");   // the flags that change the model's output; empty for a run of the model as it is
         j.begin_arr();

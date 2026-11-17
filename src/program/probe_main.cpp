@@ -100,23 +100,6 @@ bool parse_args(int argc, char** argv, ProbeOptions& o, std::string& err) {
     return true;
 }
 
-// "peer GPU 1: 5704 experts, ..." from the engine log; -1 when there is none.
-long long peer_experts_from_log(const std::string& log_path) {
-    std::ifstream f(log_path);
-    std::string l;
-    long long n = -1;
-    while (std::getline(f, l)) {
-        const size_t p = l.find("peer GPU ");
-        if (p == std::string::npos) continue;
-        const size_t c = l.find(": ", p);
-        if (c == std::string::npos) continue;
-        char* e = nullptr;
-        const long long v = std::strtoll(l.c_str() + c + 2, &e, 10);
-        if (e != l.c_str() + c + 2 && std::string(e).rfind(" experts", 0) == 0) n = v;
-    }
-    return n;
-}
-
 // The adaptive tier's settings, each run from the tiers' start placement (PROBE adapt) on one sequence: prose, then
 // struct (a cold start, then a topic switch). The first request is as long as a served reply, so the start's ramp
 // weighs in as it does there. Fills `t.tps`; a setting left at 0 is the engine's and is read back.
@@ -134,7 +117,7 @@ bool adapt_trial(Engine& eng, const std::vector<std::vector<int64_t>>& fixtures,
     if (t.saved) cmd += " profile=" + saved;
     std::vector<std::string> blk;
     if (!eng.command(cmd, "PROBE end", blk, err)) return false;
-    std::string ms = "?", moved = "?", peer_moved = "0", kept = "0";
+    std::string ms = "?", moved = "?", kept = "0";
     std::istringstream is(blk.back());
     for (std::string kv; is >> kv;) {
         const size_t eq = kv.find('=');
@@ -144,7 +127,6 @@ bool adapt_trial(Engine& eng, const std::vector<std::vector<int64_t>>& fixtures,
         else if (k == "decay") t.decay = std::atof(v.c_str());
         else if (k == "ms") ms = v;
         else if (k == "moved") moved = v;
-        else if (k == "peer_moved") peer_moved = v;
         else if (k == "kept") kept = v;
     }
     long long gen = 0;
@@ -163,8 +145,8 @@ bool adapt_trial(Engine& eng, const std::vector<std::vector<int64_t>>& fixtures,
     t.tps = dms > 0 ? (double) gen * 1000.0 / dms : 0.0;
     if (t.saved) std::snprintf(b, sizeof b, "saved profile");
     else std::snprintf(b, sizeof b, "%d/%d/%.2f", t.every, t.swaps, t.decay);
-    basalt::log::raw("  adapt %s: %.1f tok/s (prose %.1f, struct %.1f; reset %s ms, %s + %s slots moved, %s kept)\n", b,
-                     t.tps, rate[0], rate[1], ms.c_str(), moved.c_str(), peer_moved.c_str(), kept.c_str());
+    basalt::log::raw("  adapt %s: %.1f tok/s (prose %.1f, struct %.1f; reset %s ms, %s slots moved, %s kept)\n", b,
+                     t.tps, rate[0], rate[1], ms.c_str(), moved.c_str(), kept.c_str());
     return true;
 }
 
@@ -348,9 +330,7 @@ int main(int argc, char** argv) {
     };
     long long primary = info_num("expert_slots_primary");
     if (primary < 0) primary = info_num("expert_slots");
-    const long long peer = peer_experts_from_log(log_path);
     std::string experts = "experts " + rates.gpus[0].name + " " + std::to_string(std::max(primary, 0LL));
-    if (peer >= 0 && rates.gpus.size() > 1) experts += " / " + rates.gpus[1].name + " " + std::to_string(peer);
     experts += " / RAM rest";
     const long long engine_ctx = info_num("context");
     const std::string kv = eng.info.count("kv") ? eng.info["kv"] : "?";

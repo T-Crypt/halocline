@@ -114,7 +114,6 @@ std::optional<int> parse_options(int argc, char** argv, CommonOptions& o, const 
             if (!parse_i64_list(next("--eos-ids"), o.eos_ids, e)) { basalt::log::error("basalt", "--eos-ids: %s", e.c_str()); return 2; }
             o.stop_eos = true;
         }
-        else if (a == "--peer-reserve-mib") o.peer_reserve_mib = std::atoi(next("--peer-reserve-mib"));
         else if (a == "--expert-profile") o.expert_profile = next("--expert-profile");
         else if (a == "--resident-budget-gib") {
             const double gib = std::atof(next("--resident-budget-gib"));

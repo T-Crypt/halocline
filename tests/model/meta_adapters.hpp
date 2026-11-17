@@ -22,7 +22,6 @@ public:
         return {model::Status::NotImplemented, "metadata only"};
     }
     model::TokenizerSpec tokenizer_spec() const override { return {}; }
-    int max_expert_cards() const override { return 0; }
     model::TokenNames token_names() const override { return {}; }
     PreTokenizer pretokenizer() const override { return {}; }
     program::grammar::ToolForm tool_form() const override { return {}; }

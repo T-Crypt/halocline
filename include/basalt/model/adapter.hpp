@@ -77,7 +77,6 @@ struct LoadRequest {
     std::string diag_dump;            ///< diagnostic: directory for per-layer tensor dumps (empty = off)
     int diag_tier_ram = -1;           ///< diagnostic: fixed RAM-tier experts per layer (-1 = sized from free memory)
     int diag_tier_vram = -1;          ///< diagnostic: fixed VRAM-tier experts per layer (-1 = sized from free memory)
-    std::vector<int> peer_devices;    ///< CUDA devices of the expert tier cards after the main one
     int64_t max_context = 0;          ///< --max-context, or the default every model shares
     int sessions = 1;                 ///< sessions the model will be asked for (--batch)
     bool vision = false;              ///< --vision: requests may carry images (each slot keeps buffers for one)
@@ -87,7 +86,6 @@ struct LoadRequest {
     int pool_workers = 0;             ///< CPU pool workers (0: the machine's physical cores)
     kernels::cpu::PoolAffinity pool_affinity = kernels::cpu::PoolAffinity::All;
     bool pool_affinity_given = false;
-    int peer_reserve_mib = 600;       ///< VRAM a second card leaves free
     bool prompt_skip = true;          ///< a prompt's far rows may stop at the layer a model says is the last they matter to
     int vram_reserve_mib = 0;         ///< VRAM the main card leaves free beyond what the model needs (0: none)
     int spec = 0;                     ///< rows a decode window may hold (0 or 1: one)
@@ -99,7 +97,6 @@ struct LoadRequest {
     std::string kv;                   ///< --kv: the KV storage as the model names it, checked by its flags (empty: default)
     RopeFlags rope;                   ///< the rope scaling flags, for a model that takes them (rope_flags.hpp)
     int64_t kv_resident = 0;          ///< --kv-resident: K/V cells per attention layer kept in VRAM (0: all)
-    std::vector<double> card_gbps;    ///< memory bandwidth of the main card, then of each peer device (GB/s, 0: unknown)
 };
 
 struct DecodeRequest {
@@ -295,16 +292,6 @@ public:
     virtual const char* model_name() const { return ""; }
     /// The widest window the gate scores on this model; 0 takes what the request asks.
     virtual int quality_window() const { return 1; }
-    /// The cards that may hold experts beside the main one.
-    virtual int max_expert_cards() const = 0;
-    /// A model with no experts to put on a second card reads long prompts there instead (a prompt line, not an expert tier).
-    virtual bool second_card_reads_prompts() const { return false; }
-    /// Such a model with these flags does not fit its main card and splits its layers across the main card and the second
-    /// (a layer stage), given the two cards' memory bandwidth; asked once the run's cards are visible, before the load.
-    virtual bool second_card_runs_layers(const program::CommonOptions& o, double main_gbps, double peer_gbps) const {
-        (void) o; (void) main_gbps; (void) peer_gbps;
-        return false;
-    }
     virtual TokenNames token_names() const = 0;
     /// The pre-tokenizer's name in the pack's tokenizer.json and its rule.
     struct PreTokenizer {
@@ -330,8 +317,6 @@ void register_adapter(std::unique_ptr<ModelAdapter> a);
 /// Null when no adapter has that architecture.
 const ModelAdapter* find_adapter(const std::string& arch);
 std::vector<std::string> adapter_names();
-/// The most expert cards any registered model takes: a card plan before a model is known.
-int max_expert_cards();
 /// Why no adapter serves `arch`: a Basalt model this build left out (what the build holds and the option that adds
 /// it), or an architecture Basalt does not have.
 std::string unavailable_architecture(const std::string& arch);

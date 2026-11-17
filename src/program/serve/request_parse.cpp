@@ -87,10 +87,6 @@ Flow Request::parse() {
         bad = "penalty_freq, penalty_present: numbers";
     else if (!(req_relax >= 0.0f && req_relax <= 1.0f)) bad = "relax: 0..1";
     else if (req_logprobs < -1 || req_logprobs > kMaxTopLogprobs) bad = "logprobs: 0 to 20 alternatives";
-    else if (req_logprobs >= 0 && runtime_.o.batch > 0 && runtime_.pipelined()) bad = "logprobs: pipelined batch groups are not supported";
-    if (bad == nullptr && runtime_.o.batch > 0 && runtime_.pipelined() && req_penalty_last_n > 0 &&
-        (req_penalty_repeat != 1.0f || req_penalty_freq != 0.0f || req_penalty_present != 0.0f))
-        bad = "penalties: pipelined batch groups are not supported";
     if (bad != nullptr) {
         std::printf("ERR sampling %s\n", bad);
         return Flow::next;
@@ -147,8 +143,7 @@ Flow Request::parse() {
 
     if (!req_grammar_text.empty() && runtime_.grammar_vocab) {
         std::string gerr;
-        if (runtime_.o.batch > 0 && runtime_.pipelined()) gerr = "pipelined batch groups are not supported";
-        else {
+        {
             gguard = std::make_unique<basalt::program::grammar::Guard>(*runtime_.grammar_vocab);
             const size_t gp = req_gprompt > 0 && (size_t) req_gprompt < ids.size() ? (size_t) req_gprompt : ids.size();
             if (!gguard->begin(req_grammar_text, ids.data(), gp, gerr)) gguard.reset();

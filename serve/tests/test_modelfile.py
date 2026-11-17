@@ -117,8 +117,8 @@ class Peer(Tmp):
 
     def test_engine_words_follow_the_model_as_given(self):
         path = self.build()
-        args = modelfile.model_config(modelfile.ModelSpec(path, engine_words=tuple(["--spec", "0", "--mtp-max-t", "4", "--peer-exclusive"])), str(self.engine_bin))["args"]
-        self.assertEqual(args, ["--model", path, "--spec", "0", "--mtp-max-t", "4", "--peer-exclusive"])
+        args = modelfile.model_config(modelfile.ModelSpec(path, engine_words=tuple(["--spec", "0", "--mtp-max-t", "4", "--resident-experts"])), str(self.engine_bin))["args"]
+        self.assertEqual(args, ["--model", path, "--spec", "0", "--mtp-max-t", "4", "--resident-experts"])
         args = modelfile.model_config(modelfile.ModelSpec(path, engine_words=tuple(["--control-vector-layer-range", "4", "44"])), str(self.engine_bin))["args"]
         self.assertEqual(args, ["--model", path, "--control-vector-layer-range", "4", "44"])
 

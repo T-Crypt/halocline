@@ -146,9 +146,7 @@ public:
     void after_input_start() override;
     void print_info() override;
     void at_exit() override;
-    bool windows_in_flight() override;
     bool next_batch_window() override;
-    bool drain_windows() override;
     void script_command(const std::string& line) override;
     void probe_command(const std::string& line, std::string& e) override;
     void sleep_command(bool down, std::string& e) override;

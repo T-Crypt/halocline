@@ -373,17 +373,6 @@ bool community_add_row_file(const std::string& path, const CommunityRow& row, st
     return true;
 }
 
-std::vector<int> engine_gpu_order(int peer_device, const std::vector<int>& peer_devices, const std::vector<int>& split_devices) {
-    std::vector<int> out{0};
-    auto add = [&out](int d) {
-        if (d >= 0 && std::find(out.begin(), out.end(), d) == out.end()) out.push_back(d);
-    };
-    add(peer_device);
-    for (int d : peer_devices) add(d);
-    for (int d : split_devices) add(d);
-    return out;
-}
-
 std::vector<std::string> split_gpu_ids(const std::string& csv) {
     std::vector<std::string> out;
     size_t a = 0;

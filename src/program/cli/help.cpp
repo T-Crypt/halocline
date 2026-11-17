@@ -173,7 +173,6 @@ void usage() {
                  "                       left after the weights, the session and --vram-reserve-mib\n"
                  "  --vram-reserve-mib N  VRAM left free on the primary GPU for graphs, scratch and the head when\n"
                  "                       --expert-cache auto sizes the tier (default 700; at least 256)\n"
-                 "  --peer-reserve-mib N  VRAM the peer tier leaves free on its card (default 600)\n"
                  "  --adapt-every N      adaptive expert tier: a round every N decode windows (default 1 for a\n"
                  "                       server, with or without the peer tier; 4 with the layers split over GPUs\n"
                  "                       and outside --serve; 0 = the VRAM experts stay as loaded)\n"

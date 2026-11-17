@@ -1,4 +1,4 @@
-// tests/program/gpu_select_test.cpp - the gpu setting over fake card tables: parsing, the card choice, the roles.
+// tests/program/gpu_select_test.cpp - the gpu setting over fake card tables: parsing and the card choice.
 #include "basalt/program/gpu_select.hpp"
 
 #include "basalt/build_archs.hpp"
@@ -52,17 +52,6 @@ static std::string cards(const GpuChoice& c) {
     return s;
 }
 
-static std::string roles(const std::vector<GpuCard>& v, const GpuChoice& c, int tiers, bool prompt_line = false, bool layer_stage = false) {
-    RoleInputs in;
-    for (int i : c.cards) in.cards.push_back(v[(size_t) i]);
-    in.max_expert_tiers = tiers;
-    in.prompt_line = prompt_line;
-    in.layer_stage = layer_stage;
-    std::string s;
-    for (GpuRole r : choose_roles(in)) s += (s.empty() ? "" : ",") + std::string(gpu_role_name(r));
-    return s;
-}
-
 int main() {
     // Parsing.
     {
@@ -86,7 +75,6 @@ int main() {
         c = pick("0,1", v);
         CHECK_STR(cards(c), "0,1");
         CHECK(c.warning.empty() && c.error.empty());
-        CHECK_STR(roles(v, c, 1), "main,expert tier");
         CHECK_STR(cards(pick("1,0", v)), "1,0");
         CHECK_STR(cards(pick("1", v)), "1");
         CHECK(pick("1", v).warning.empty());
@@ -113,7 +101,6 @@ int main() {
         const GpuChoice c = pick("auto", v);
         CHECK_STR(cards(c), "0,1");
         CHECK(c.notes.empty());
-        CHECK_STR(roles(v, c, 1), "main,expert tier");
     }
     // Four mixed cards, one of them not Blackwell.
     {
@@ -123,10 +110,6 @@ int main() {
         CHECK_STR(cards(c), "2,0,3");
         CHECK(c.notes.size() == 1);
         if (c.notes.size() == 1) CHECK_STR(c.notes[0], "gpu auto: GPU 1 (RTX 3090) skipped, not sm_120 or sm_89");
-        CHECK_STR(roles(v, c, 1), "main,expert tier,idle");
-        CHECK_STR(roles(v, c, 3), "main,expert tier,expert tier");
-        CHECK_STR(roles(v, c, 1, true), "main,prompt line,idle");
-        CHECK_STR(roles(v, c, 1, true, true), "main,layer stage,idle");
         c = pick("", v);
         CHECK_STR(cards(c), "0");
         CHECK_STR(c.warning, "GPU 2 (RTX 5090), GPU 3 (RTX 5060 Ti) unused; use gpu 0,2,3 or gpu auto");
@@ -179,28 +162,6 @@ int main() {
         CHECK(visible_gpus(known).empty() && known);
     }
     CHECK_STR(gpu_identity(3), "0,1,2");
-    // Expert placement over several tiers: equal cards alternate; bandwidth sets the share of the hot experts; a
-    // smaller card closes first and the others take the rest; a single tier takes the ranking in order.
-    {
-        const std::vector<uint64_t> eq(8, 10);
-        auto owners = [](const std::vector<int>& o) {
-            std::string s;
-            for (int x : o) s += x < 0 ? std::string("-") : std::to_string(x);
-            return s;
-        };
-        CHECK_STR(owners(spread_experts(eq, {{40, 448}, {40, 448}})), "01010101");
-        CHECK_STR(owners(spread_experts(eq, {{80, 1792}, {80, 896}})), "01001001");
-        CHECK_STR(owners(spread_experts(eq, {{20, 1792}, {100, 448}})), "01011111");
-        CHECK_STR(owners(spread_experts(eq, {{30, 448}})), "000-----");
-        CHECK_STR(owners(spread_experts(eq, {{0, 448}, {30, 448}})), "111-----");
-        // three and four tiers of mixed sizes and bandwidths: every expert placed while room lasts, none twice
-        const std::vector<uint64_t> mixed = {12, 12, 12, 8, 8, 8, 8, 8, 8, 8, 8, 8};
-        const std::vector<int> o3 = spread_experts(mixed, {{30, 1792}, {20, 896}, {60, 448}});
-        CHECK_STR(owners(o3), "012001222222");
-        const std::vector<int> o4 = spread_experts(mixed, {{16, 448}, {16, 448}, {16, 448}, {200, 1792}});
-        CHECK_STR(owners(o4), "012333333333");
-        CHECK_STR(owners(spread_experts(eq, {{0, 1}, {0, 1}, {0, 1}})), "--------");
-    }
     // The architecture list a build holds device code for (build_archs.hpp): a Blackwell main card with an Ada tier
     // card needs both entries; suffixes after the number do not count.
     {

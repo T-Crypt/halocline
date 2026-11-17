@@ -32,8 +32,6 @@ public:
         return run_engine(static_cast<Options&>(o), cards);
     }
 
-    int max_expert_cards() const override { return 1; }
-
     // pinned tiers; without --resident-experts a pack larger than free RAM is refused
     const char* quality_flags() const override { return "--spec 5 --adapt-swaps 0 --resident-experts"; }
     int quality_window() const override { return 0; }

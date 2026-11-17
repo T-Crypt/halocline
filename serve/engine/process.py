@@ -102,7 +102,7 @@ def info_facts(line: str) -> dict:
 
 AUTO_FLAGS = "auto flags: "
 # the console's names: short ones, and `resident` is only the experts held in RAM, not the model
-AUTO_NAMES = {"peer-exclusive": "peer-excl", "pool-workers": "pool", "resident": "ram-experts"}
+AUTO_NAMES = {"pool-workers": "pool", "resident": "ram-experts"}
 
 
 def relay_auto_flags(line: str) -> bool:

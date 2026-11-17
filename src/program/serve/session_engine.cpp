@@ -101,10 +101,7 @@ public:
     std::string identity_words() const {
         const basalt::core::Json* nm = model_file.meta().get("name");
         std::string ids;
-        for (int d : basalt::program::engine_gpu_order(o.peer_device, o.peer_devices, {})) {
-            std::string bus;
-            if (basalt::core::device_pci_bus_id(d, bus)) ids += (ids.empty() ? "" : ",") + bus;
-        }
+        if (std::string bus; basalt::core::device_pci_bus_id(0, bus)) ids = bus;
         return "quant=" + basalt::program::pack_quant_label(nm != nullptr && nm->is_string() ? nm->s : std::string()) +
                " gpus=" + ids + " ";
     }
@@ -130,13 +127,11 @@ public:
         std::printf("INFO logit_bias=%lld context=%lld spec=%d mtp_max=0 lookup=0%s engine=" BASALT_VERSION "\n",
                     (long long) n_vocab, (long long) o.max_context, o.spec, slots.c_str());
     }
-    bool windows_in_flight() override { return false; }
     bool next_batch_window() override;
     void slot_window_begin(int b, SlotWin& w, int limit);
     bool slot_window_finish(int b, SlotWin& w);
     bool slot_window_accept(int b, SlotWin& w);
     bool slot_window_end(int b, SlotWin& w);
-    bool drain_windows() override { return true; }
     void script_command(const std::string&) override {
         std::printf("ERR BSCRIPT: this model's slots take no scripts\n");
         std::fflush(stdout);

@@ -333,7 +333,6 @@ int run_session_model(basalt::program::CommonOptions& o, const basalt::model::Mo
         lreq.diag_dump = o.diag_dump;
         lreq.diag_tier_ram = o.diag_tier_ram;
         lreq.diag_tier_vram = o.diag_tier_vram;
-        lreq.peer_devices = o.peer_devices;
         lreq.max_context = o.max_context;
         lreq.sessions = std::max(o.batch, 1);
         lreq.vision = o.vision;
@@ -357,7 +356,6 @@ int run_session_model(basalt::program::CommonOptions& o, const basalt::model::Mo
         lreq.pool_workers = o.pool_workers;
         lreq.pool_affinity = o.pool_affinity;
         lreq.pool_affinity_given = o.pool_affinity_given;
-        lreq.peer_reserve_mib = o.peer_reserve_mib;
         lreq.prompt_skip = !o.no_prompt_skip;
         lreq.vram_reserve_mib = o.vram_reserve_given ? o.vram_reserve_mib : 0;
         lreq.spec = o.spec;
@@ -369,8 +367,6 @@ int run_session_model(basalt::program::CommonOptions& o, const basalt::model::Mo
         lreq.kv = o.kv;
         lreq.rope = o.rope;
         lreq.kv_resident = o.kv_resident;
-        lreq.card_gbps.push_back(o.main_gbps);
-        lreq.card_gbps.insert(lreq.card_gbps.end(), o.peer_gbps.begin(), o.peer_gbps.end());
         const basalt::model::Result r = adapter->load(lreq, loaded);
         if (!r.ok() || !loaded) return fatal_start_error(r.message);
         std::vector<int64_t> stop;
