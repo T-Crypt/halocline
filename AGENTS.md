@@ -1,14 +1,22 @@
 # AGENTS.md
 
-Basalt is a local inference engine built for NVIDIA Blackwell (sm_120) on Linux and Windows x64. A model runs on one Blackwell GPU, optionally with more GPUs as peer expert tiers, and, for the mixture-of-experts models, system RAM holding the rest (a dense model runs fully on one GPU). The C++/CUDA engine is in `src/` and `include/`, each model's own code under `src/models/<model>`, and the Python server with an OpenAI- and Anthropic-compatible API is in `serve/`.
+Halocline is an inference engine for one card and one model family: NVIDIA Ada (sm_89) and the Qwen4 family. The C++
+and CUDA engine is in `src/` and `include/`, each model's code under `src/models/<model>`, and the Python server with an
+OpenAI-compatible API is in `serve/`.
 
 ## Rules
 
-[CONTRIBUTING.md](CONTRIBUTING.md) is the project's rulebook and applies to agents in full: scope, platform and model layering, one fast path, what every change must include, benchmark hygiene, commits and docs. The rules below are only for agents.
+[CONTRIBUTING.md](CONTRIBUTING.md) is the project's rulebook and applies to agents in full: scope, model layering, the
+gates every change carries, benchmark hygiene, and commits. The rules below are only for agents.
 
-- **Design the end state first.** Before writing code, design the architecture properly and read similar code. If a model already implements the feature, reuse that logic or make it shared. Do not propose features or improvements before testing them and checking the architecture.
-- **Flag odd numbers.** Sanity-check every result before reporting it (size against speed, run-to-run spread, earlier numbers) and report anything odd with its suspected cause.
-- **Read before answering.** Check the code, docs and existing results before stating a fact about Basalt.
-- **No amends, no force-pushes.** Always make new commits.
-- **Don't push or publish anywhere** (GitHub, HF, any remote) without the user's approval.
-- **Don't write tools nobody asked for.**
+- **Read before answering.** Check the code, the docs and the eval for the number before stating a fact about
+  Halocline. A plausible path, flag or model id that you did not read is the most common failure.
+- **Cite the run.** Every number you report names the directory under `evals/` or the commit and hash file under
+  `gates/` that produced it. If no run exists, say so and stop.
+- **Design the end state first.** Read the similar code and reuse it. Do not propose a feature before testing the
+  architecture you would add it to.
+- **Flag odd numbers.** Sanity-check every result against size, speed and earlier numbers, and report anything odd with
+  its suspected cause.
+- **No amends, no force-pushes.** Make new commits.
+- **Do not push or publish anywhere** (GitHub, Hugging Face, any remote) without the maintainer's approval.
+- **Do not write tools nobody asked for.**
