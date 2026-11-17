@@ -23,11 +23,19 @@ void check(bool ok, const std::string& what, const std::string& got = "") {
     failures |= !ok;
 }
 
+// a card with the fields a row's GPU entry names (the rest left at their defaults)
+CommunityGpu gpu(const char* name, double vram_gib, double power_w, const char* pcie = "", double h2d_gbps = 0) {
+    CommunityGpu g;
+    g.name = name; g.vram_gib = vram_gib; g.power_w = power_w; g.pcie = pcie; g.h2d_gbps = h2d_gbps;
+    return g;
+}
+
 CommunityRow plain_row() {
     CommunityRow r;
     r.submitter = "tester"; r.date = "2026-10-24"; r.commit = "abc1234"; r.preset = "community-1";
     r.model = "Qwen3.8-Flash-Next"; r.kv = "int8";
-    r.gpus = {{"RTX 5090", 32, 400, "5.0 x16", 55.3}, {"RTX 5060 Ti", 16, 180, "5.0 x8", 27.9}};
+    r.gpus = {gpu("RTX 5090", 32, 400, "5.0 x16", 55.3),
+              gpu("RTX 5060 Ti", 16, 180, "5.0 x8", 27.9)};
     r.cpu = "Test CPU 9, 16 cores";
     r.ram_gib = 64; r.ram_gbps = 78.2; r.os = "Linux"; r.quant = "NVFP4";
     r.prefill_16k_tps = 1234.5; r.prefill_64k_tps = 2345.6; r.decode_tps = 345.7;
@@ -40,7 +48,7 @@ CommunityRow plain_row() {
 CommunityRow odd_row() {
     CommunityRow r = plain_row();
     r.submitter = "\xC3\x9Cn\xC3\xAF\"q\"\\\xE2\x98\x83\xE6\x97\xA5\xE6\x9C\xAC";
-    r.gpus = {{"Card \"X\"\tTi", 24, 300, "", 0}};   // no link figures: the optional keys are left out
+    r.gpus = {gpu("Card \"X\"\tTi", 24, 300)};   // no link figures: the optional keys are left out
     r.cpu.clear(); r.ram_gbps = 0;
     for (CommunityTest& t : r.tests) t = CommunityTest();   // no per-test figures, no engine arguments
     r.engine_args.clear();

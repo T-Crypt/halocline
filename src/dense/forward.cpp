@@ -15,6 +15,7 @@
 #include "halo/kernels/elementwise.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <initializer_list>
 #include <cstddef>
 #include <vector>
@@ -41,6 +42,21 @@ bool on_wg(int type) { return type == kTypeF8 || type == kTypeNvfp4Planes || typ
 // F8 and NVFP4 planes (their products apply it)
 const float* post_scale(const Linear& l) { return l.type == kTypeF8 || l.type == kTypeNvfp4Planes ? nullptr : l.scale; }
 int mmq_tile(int T) { return T <= kNarrow ? kNarrow : kBatch; }
+// A decode window of up to kMmvqMaxRows rows runs a GGUF matrix the native GEMV reads (Q8_0, Q3_K-Q6_K, IQ4_NL, IQ4_XS: most of
+// an Unsloth Dynamic GGUF) on native_mmvq, which streams the weights once at close to the card's bandwidth; MMQ's
+// narrow tile reads them at about 60% of it. Its activations are llama.cpp's plain q8_1 columns (any of those types read
+// the same ones), in m.ws.x8 like MMQ's. HALO_DENSE_MMVQ=0 keeps every product on MMQ (the A/B arm).
+bool mmvq_enabled() {
+    static const bool on = [] {
+        const char* e = std::getenv("HALO_DENSE_MMVQ");
+        return !(e && e[0] == '0');
+    }();
+    return on;
+}
+// Up to 5 rows: measured on the 4090 with UD-IQ4_XS (verify ms per window, MMQ vs mmvq): T1 23.8/18.2, T3 23.4/18.1,
+// T5 24.1/21.3, T6 24.4/25.6, T8 25.0/32.8 (state/evals/2026-11-17/halocline-dense-quality).
+constexpr int kMmvqMaxRows = 5;
+bool on_native(int type, int T) { return T <= kMmvqMaxRows && mmvq_enabled() && kernels::native_mmvq_supported(type); }
 // the vocabulary rows the block drafter's head scores: the first kDraftVocab when the head is in planes or F8, else all
 int64_t draft_vocab(const Model& m) {
     const Linear& hd = m.w.head;
@@ -53,7 +69,8 @@ const void* wact(Model& m, const float* x, int type, int64_t cols, int T, cudaSt
         wg::pack(x, cols, cols, T, m.ws.xq, s);
         return m.ws.xq;
     }
-    prefill::mmq::quantize(x, nullptr, m.ws.x8, type, cols, cols, mmq_tile(T), s);
+    if (on_native(type, T)) kernels::native_quantize_q8_1(x, m.ws.x8, (int) cols, T, s);
+    else prefill::mmq::quantize(x, nullptr, m.ws.x8, type, cols, cols, mmq_tile(T), s);
     return m.ws.x8;
 }
 // the RMS norm of x's rows into xn, readied for products of `type` (one kernel on the window gemm)
@@ -76,13 +93,17 @@ const void* wnorm(Model& m, const uint16_t* x, const float* w, float* xn, int ty
     kernels::rms_norm_rows(x, w, xn, T, cols, eps, s);
     return wact(m, xn, type, cols, T, s);
 }
-// the window's first rows: the embedding (BF16 in the pack) into the BF16 residual, exactly
+// the window's first rows: the embedding (BF16, or a GGUF quant dequantized per row) into the BF16 residual
 void embed_rows(Model& m, const int32_t* tok, int T, cudaStream_t s) {
     const int H = m.g.n_embd;
-    kernels::iq_embed_rows(30, m.w.embd, (size_t) H * 2, tok, T, H, m.ws.tmp, s);
+    kernels::iq_embed_rows(m.w.embd_type, m.w.embd, m.w.embd_row_bytes ? m.w.embd_row_bytes : (size_t) H * 2, tok, T, H, m.ws.tmp, s);
     kernels::to_bf16(m.ws.tmp, m.ws.x, (int64_t) T * H, s);
 }
 void mmq_run(Model& m, const Linear& l, const void* xq, float* y, int T, cudaStream_t s) {
+    if (on_native(l.type, T)) {   // wact readied plain q8_1 columns for it
+        kernels::native_mmvq(l.type, l.w, xq, y, (int) l.cols, (int) l.rows, T, s);
+        return;
+    }
     prefill::mmq::Product p;
     p.w = l.w;
     p.type = l.type;
@@ -182,6 +203,7 @@ void prod_swiglu(Model& m, const Linear& gate, const Linear& up, const float* x,
     if (h16) wg::pack(h, gate.rows, gate.rows, T, h16, s);
 }
 
+void chunk_act(Model& m, const float* x, int type, int64_t cols, int T, cudaStream_t s);
 // y [T][rows] = W . x from chunk_act's activations: on MMQ, or for F8 and NVFP4 planes on the FP8 / FP4 tensor cores with
 // the tensor scale applied
 void gemm(Model& m, const Linear& l, float* y, int T, cudaStream_t s) {
@@ -194,6 +216,7 @@ void gemm(Model& m, const Linear& l, float* y, int T, cudaStream_t s) {
         prefill::fp4_dense::product(l.w, l.scale, l.rows, l.cols, m.cs.a4, m.cs.gs, T, y, l.rows, false, s);
         return;
     }
+    if (l.type != m.cs.xq_type && m.cs.xq_src && l.cols == m.cs.xq_cols) chunk_act(m, m.cs.xq_src, l.type, l.cols, T, s);
     prefill::mmq::Product p;
     p.w = l.w;
     p.type = l.type;
@@ -215,6 +238,9 @@ void gemm(Model& m, const Linear& l, float* y, int T, cudaStream_t s) {
 // planes W4A4, E2M1 with a UE4M3 scale per 16 values against a per-row FP32 scale, in cs.a4 and cs.gs
 void chunk_act(Model& m, const float* x, int type, int64_t cols, int T, cudaStream_t s) {
     ChunkScratch& b = m.cs;
+    b.xq_src = x;
+    b.xq_cols = cols;
+    b.xq_type = type;
     if (type == kTypeF8) prefill::fp8::quantize(x, T, cols, cols, b.xq, s);
     else if (type == kTypeNvfp4Planes) prefill::fp4_dense::quantize(x, T, cols, cols, b.a4, b.gs, s);
     else prefill::mmq::quantize(x, nullptr, b.xq, type, cols, cols, T, s);
@@ -867,7 +893,7 @@ void chunk_start(Model& m, SessionState& st, const int32_t* tokens, const float*
         cudaMemcpyAsync(b.tmp, rows, (size_t) T * H * sizeof(float), cudaMemcpyHostToDevice, s);
     } else {
         cudaMemcpyAsync(b.tok, tokens, (size_t) T * sizeof(int32_t), cudaMemcpyHostToDevice, s);
-        kernels::iq_embed_rows(30, m.w.embd, (size_t) H * 2, b.tok, T, H, b.tmp, s);
+        kernels::iq_embed_rows(m.w.embd_type, m.w.embd, m.w.embd_row_bytes ? m.w.embd_row_bytes : (size_t) H * 2, b.tok, T, H, b.tmp, s);
     }
     kernels::to_bf16(b.tmp, residual(b), (int64_t) T * H, s);
     // the drafter's history needs the chunk's inputs: its next-token embeddings are the chunk's own rows 1..T-1
@@ -1150,7 +1176,7 @@ bool mtp_window(Model& m, SessionState& st, const float* hid, const int32_t* tok
     cudaMemcpyAsync(b.bounds, bounds, sizeof bounds, cudaMemcpyHostToDevice, s);
     cudaMemcpyAsync(b.pos0, first, sizeof first, cudaMemcpyHostToDevice, s);
     cudaMemcpyAsync(b.pos, p3.data(), p3.size() * sizeof(int32_t), cudaMemcpyHostToDevice, s);
-    kernels::iq_embed_rows(30, m.w.embd, (size_t) H * 2, tok, n, H, b.tmp, s);
+    kernels::iq_embed_rows(m.w.embd_type, m.w.embd, m.w.embd_row_bytes ? m.w.embd_row_bytes : (size_t) H * 2, tok, n, H, b.tmp, s);
     mtp_input(m, b.tmp, hid, b.cat, n, s);
     prod(m, d.fc, wact(m, b.cat, d.fc.type, 2 * H, n, s), b.tmp, n, s);
     kernels::to_bf16(b.tmp, b.x, (int64_t) n * H, s);

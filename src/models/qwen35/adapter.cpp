@@ -10,12 +10,15 @@
 #include "halo/program/options.hpp"
 #include "halo/log.hpp"
 #include "halo/platform/file.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 #include "halo/program/qwen_forms.hpp"
 #include "models/qwen35/meta.hpp"
 
 #include <cuda_runtime.h>
 
 #include <algorithm>
+#include <cstring>
 #include <cstdlib>
 #include <map>
 #include <optional>
@@ -53,7 +56,12 @@ bool block_meta(const GgufFile& gg, dense::BlockDrafter& d, int H, std::string& 
 
 // The device bytes a weight takes: its payload in its card's weight block, 256-byte aligned (load_weights carves every
 // tensor from one allocation per card, so the planner counts exactly what the load takes).
-uint64_t weight_bytes(const TensorInfo& t) { return (tensor_payload_bytes(t) + 255) & ~(uint64_t) 255; }
+// A GGUF's Q8_0 ssm_alpha / ssm_beta go up as BF16 (q8_pair_as_bf16), two bytes a value.
+uint64_t weight_bytes(const TensorInfo& t) {
+    const bool gate_q8 = t.type == (uint32_t) kTypeQ8_0 && (t.name.ends_with(".ssm_alpha.weight") || t.name.ends_with(".ssm_beta.weight"));
+    const uint64_t payload = gate_q8 ? (uint64_t) t.elements() * 2 : tensor_payload_bytes(t);
+    return (payload + 255) & ~(uint64_t) 255;
+}
 
 // Whether the load places tensor `name` on a card: the layers [lo, hi), and with lo == 0 the head and the drafter in use.
 bool on_card(const std::string& name, const dense::Options& o, int lo, int hi) {
@@ -151,9 +159,20 @@ public:
         if (!reserve_block(gg, o, 0, g.n_layers, err)) return false;   // the weights in one block on the card
         dense::Weights w;
         const int H = g.n_embd;
-        // the token embedding stays in page-locked host memory; the kernels read the rows they need
-        const TensorInfo* te = need(gg, "token_embd.weight", kTypeBf16, (int64_t) H * g.n_vocab, err);
+        // the token embedding stays in page-locked host memory in the pack's type (BF16, or a GGUF quant as the GGUF stores
+        // it); the kernels read and dequantize the rows they need
+        const auto te_it = tensors_.find("token_embd.weight");
+        const int te_type = te_it == tensors_.end() ? kTypeBf16 : (int) te_it->second.type;
+        if (!kernels::embed_type_supported(te_type)) {
+            err = std::string("qwen35: token_embd.weight is ") + ggml_type_name((uint32_t) te_type) + ", which the embedding kernel does not read";
+            return false;
+        }
+        const TensorInfo* te = need(gg, "token_embd.weight", te_type, (int64_t) H * g.n_vocab, err);
         if (!te) return false;
+        if (kernels::iq_row_bytes(te_type, H) * (uint64_t) g.n_vocab != tensor_payload_bytes(*te)) {
+            err = "qwen35: token_embd.weight's rows are not whole blocks of its type";
+            return false;
+        }
         if (cudaHostAlloc(&embd_, tensor_payload_bytes(*te), cudaHostAllocMapped | cudaHostAllocPortable) != cudaSuccess) {
             err = "out of page-locked memory for the token embedding";
             return false;
@@ -165,7 +184,9 @@ public:
         progress.add(tensor_payload_bytes(*te));
         void* dev_embd = nullptr;
         cudaHostGetDevicePointer(&dev_embd, embd_, 0);
-        w.embd = (const uint16_t*) dev_embd;
+        w.embd = dev_embd;
+        w.embd_type = te_type;
+        w.embd_row_bytes = kernels::iq_row_bytes(te_type, H);
         w.out_norm = floats(gg, "output_norm.weight", H, err);
         if (!w.out_norm || !linear(gg, "output", g.n_vocab, H, w.head, err)) return false;
         const int AQ = g.n_head * g.head_dim, KV = g.n_kv * g.head_dim;
@@ -385,6 +406,8 @@ private:
 
     // two BF16 tensors in one buffer, the first then the second
     const uint16_t* bf16_pair(const GgufFile& gg, const std::string& a, const std::string& b, int64_t elems, std::string& err) {
+        auto ia = tensors_.find(a);
+        if (ia != tensors_.end() && ia->second.type == (uint32_t) kTypeQ8_0) return q8_pair_as_bf16(gg, a, b, elems, err);
         const TensorInfo* ta = need(gg, a, kTypeBf16, elems, err);
         const TensorInfo* tb = ta ? need(gg, b, kTypeBf16, elems, err) : nullptr;
         if (!tb) return nullptr;
@@ -405,7 +428,68 @@ private:
         return (const uint16_t*) d;
     }
 
-    // `<base>.weight` (Q8_0, NVFP4_PLANES or F8_E4M3, rows x cols) and, for the last two, its tensor scale `<base>.scale`
+    // bf16_pair of two Q8_0 tensors (a GGUF's ssm_alpha and ssm_beta): each value d q as ggml dequantizes it (fp32), rounded
+    // to BF16 (nearest, ties to even) for the gating kernels, which read BF16 rows. The one rounding a GGUF pack's load
+    // makes: 2 x 48 x 5,120 values a GDN layer, recorded in docs/roadmap.md (D2).
+    const uint16_t* q8_pair_as_bf16(const GgufFile& gg, const std::string& a, const std::string& b, int64_t elems, std::string& err) {
+        if (elems % 32 != 0) {
+            err = "qwen35: " + a + " is not whole Q8_0 blocks";
+            return nullptr;
+        }
+        const TensorInfo* ta = need(gg, a, kTypeQ8_0, elems, err);
+        const TensorInfo* tb = ta ? need(gg, b, kTypeQ8_0, elems, err) : nullptr;
+        if (!tb) return nullptr;
+        std::vector<uint16_t> out((size_t) elems * 2);
+        size_t o = 0;
+        for (const TensorInfo* t : {ta, tb}) {
+            staging_.resize((size_t) tensor_payload_bytes(*t));
+            if (!platform::pread_all(fd_, staging_.data(), tensor_payload_bytes(*t), gg.data_start() + t->offset)) {
+                err = "qwen35: reading " + t->name + " failed";
+                return nullptr;
+            }
+            for (int64_t blk = 0; blk < elems / 32; ++blk) {   // block_q8_0: fp16 d, then 32 int8
+                const uint8_t* q = staging_.data() + blk * 34;
+                uint16_t hbits;
+                std::memcpy(&hbits, q, 2);
+                const float d = half_to_float(hbits);
+                for (int j = 0; j < 32; ++j) out[o++] = float_to_bf16_rne(d * (float) (int8_t) q[2 + j]);
+            }
+            if (progress_) progress_->add(tensor_payload_bytes(*t));
+        }
+        void* d = take(out.size() * 2, a, err);
+        if (!d) return nullptr;
+        if (cudaMemcpy(d, out.data(), out.size() * 2, cudaMemcpyHostToDevice) != cudaSuccess) {
+            err = "qwen35: uploading " + a + " failed";
+            return nullptr;
+        }
+        dev_bytes_ += out.size() * 2;
+        return (const uint16_t*) d;
+    }
+    static float half_to_float(uint16_t h) {
+        const uint32_t sign = (uint32_t) (h & 0x8000) << 16;
+        uint32_t exp = (h >> 10) & 0x1f, man = h & 0x3ff, bits;
+        if (exp == 0) {
+            if (man == 0) bits = sign;
+            else {   // subnormal: normalise
+                exp = 127 - 15 + 1;
+                while (!(man & 0x400)) { man <<= 1; --exp; }
+                bits = sign | (exp << 23) | ((man & 0x3ff) << 13);
+            }
+        } else if (exp == 31) bits = sign | 0x7f800000u | (man << 13);
+        else bits = sign | ((exp + 127 - 15) << 23) | (man << 13);
+        float f;
+        std::memcpy(&f, &bits, 4);
+        return f;
+    }
+    static uint16_t float_to_bf16_rne(float f) {
+        uint32_t u;
+        std::memcpy(&u, &f, 4);
+        if ((u & 0x7fffffffu) > 0x7f800000u) return (uint16_t) ((u >> 16) | 0x40);   // NaN stays NaN
+        u += 0x7fffu + ((u >> 16) & 1u);
+        return (uint16_t) (u >> 16);
+    }
+
+    // `<base>.weight` (a GGUF quant on MMQ, NVFP4_PLANES or F8_E4M3, rows x cols) and, for the last two, its tensor scale `<base>.scale`
     // (F32 [1]; the F8 head's may be F32 [rows], a scale per row)
     bool linear(const GgufFile& gg, const std::string& base, int64_t rows, int64_t cols, dense::Linear& l, std::string& err) {
         auto it = tensors_.find(base + ".weight");
@@ -415,6 +499,11 @@ private:
         }
         const int type = (int) it->second.type;
         if (err = linear_type_error(base, it->second.type, rows, cols); !err.empty()) return false;
+        if (gguf_block_values(it->second.type) && !prefill::mmq::fits(type, rows)) {
+            err = "qwen35: " + base + ".weight: MMQ has no " + ggml_type_name(it->second.type) + " tile for " + std::to_string(rows) +
+                  " rows on this card";
+            return false;
+        }
         const TensorInfo* t = need(gg, base + ".weight", type, rows * cols, err);
         if (!t || (int64_t) t->shape[0] != cols) {
             if (err.empty()) err = "qwen35: " + base + ".weight has the wrong shape";

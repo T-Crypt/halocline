@@ -87,6 +87,11 @@ struct WindowScratch {
 struct ChunkScratch {
     float *x = nullptr, *xn = nullptr, *tmp = nullptr;
     void* xq = nullptr;                           // MMQ activations
+    // what chunk_act last readied in xq: its source rows, their width and the weight type (gemm readies them again for a
+    // matrix of another type: a GGUF pack mixes types among the products of one input, and MMQ's q8_1 layout is per type)
+    const float* xq_src = nullptr;
+    int64_t xq_cols = 0;
+    int xq_type = -1;
     float *qkv = nullptr, *z = nullptr, *hc = nullptr, *gate = nullptr, *beta = nullptr, *ab = nullptr;
     float *y = nullptr, *yn = nullptr;
     void* work = nullptr;

@@ -13,13 +13,31 @@ namespace halo::models::qwen35 {
 
 constexpr int kTypeF32 = 0, kTypeQ8_0 = 8, kTypeBf16 = 30, kTypeNvfp4 = 40, kTypeF8 = 44, kTypeNvfp4Planes = 45;
 
+/// Values per block of a llama.cpp type the dense stack runs on MMQ as the GGUF stores it (a Unsloth Dynamic GGUF mixes
+/// these per tensor: tools/convert/gguf_qwen35.py copies them byte for byte); 0 for any other type.
+inline int gguf_block_values(uint32_t type) {
+    switch (type) {
+        case kTypeQ8_0: case 6: case 7: case 20: return 32;                            // Q8_0, Q5_0, Q5_1, IQ4_NL
+        case 10: case 11: case 12: case 13: case 14:                                   // Q2_K .. Q6_K
+        case 16: case 17: case 18: case 19: case 21: case 22: case 23: case 29: return 256;   // the i-quants
+        default: return 0;
+    }
+}
+
 /// Why `<base>.weight`, of tensor type `type` and rows x cols, is not a matrix the dense kernels read; empty when it is.
 inline std::string linear_type_error(const std::string& base, uint32_t type, int64_t rows, int64_t cols) {
     if (type == kTypeNvfp4)
         return "qwen35: " + base + ".weight is NVFP4 in ggml blocks, from a pack older than NVFP4_PLANES: re-convert the "
                "pack (tools/convert/convert.py --checkpoint, docs/model-file.md)";
-    if (type != kTypeQ8_0 && type != kTypeNvfp4Planes && type != kTypeF8)
-        return "qwen35: " + base + ".weight is " + ggml_type_name(type) + "; the dense kernels read Q8_0, NVFP4_PLANES and F8_E4M3";
+    if (const int qk = gguf_block_values(type)) {
+        if (cols % qk != 0)
+            return "qwen35: " + base + ".weight: " + ggml_type_name(type) + " rows of " + std::to_string(cols) + " values (whole " +
+                   std::to_string(qk) + "-value blocks)";
+        return {};
+    }
+    if (type != kTypeNvfp4Planes && type != kTypeF8)
+        return "qwen35: " + base + ".weight is " + ggml_type_name(type) +
+               "; the dense kernels read the GGUF quants on MMQ (Q8_0, Q5_0/1, Q2_K-Q6_K, the i-quants), NVFP4_PLANES and F8_E4M3";
     if (type == kTypeNvfp4Planes && !kernels::nvfp4p::fits(rows, cols))
         return "qwen35: " + base + ".weight: NVFP4_PLANES of " + std::to_string(rows) + " x " + std::to_string(cols) +
                " (planes need rows in 128s and 64-value groups)";

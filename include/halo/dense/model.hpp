@@ -98,7 +98,9 @@ struct Geometry {
 
 struct Weights {
     std::vector<Layer> layers;
-    const uint16_t* embd = nullptr;     ///< bf16 [n_vocab][n_embd], device-visible (may be mapped host memory)
+    const void* embd = nullptr;         ///< [n_vocab][n_embd] of embd_type, device-visible (may be mapped host memory)
+    int embd_type = 30;                 ///< BF16, or the GGUF quant the pack stores (kernels::embed_type_supported)
+    size_t embd_row_bytes = 0;          ///< one row's bytes (0: n_embd BF16 values)
     const float* out_norm = nullptr;
     Linear head;
     Mtp mtp;
