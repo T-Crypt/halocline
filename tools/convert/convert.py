@@ -9,6 +9,9 @@
     python3 tools/convert/convert.py --sections-from DEEPSEEK.basalt --checkpoint DIR --out MODEL.basalt [--stream-shards] \\
         [--name NAME] [--workers N] [--force]
     python3 tools/convert/convert.py --checkpoint QWEN35_DIR --out MODEL.basalt [--drafter DFLASH2_DIR] [--head nvfp4] [--name NAME] [--workers N] [--force]
+    python3 tools/convert/convert.py --gguf QWEN35.gguf --out MODEL.basalt [--mmproj MMPROJ.gguf | --no-vision] [--name NAME] [--force]
+        (a dense qwen35 GGUF: every tensor copied as stored, tools/convert/gguf_qwen35.py; check with
+         python3 tools/convert/gguf_qwen35.py verify MODEL.basalt QWEN35.gguf)
 
 Inputs
   --gguf FILE        the model's GGUF: shard 1 of a split model (the others are found beside it) or --gguf per shard
@@ -833,6 +836,12 @@ def main():
         ap.error("--gguf is required")
     if not Path(a.gguf[0]).is_file():
         ap.error(f"missing input: {a.gguf[0]}")
+    if source_architecture(Path(a.gguf[0])) == "qwen35":   # dense: every tensor copied as stored (gguf_qwen35.py)
+        if a.sections_from or a.mtp_source or a.mtp_dense or a.draft_vocab or a.dspark or a.compat_bf16:
+            ap.error("a qwen35 --gguf takes only --mmproj, --no-vision, --name, --out, --force and --dry-run")
+        import gguf_qwen35
+        gguf_qwen35.build(a, Job, fingerprint, die, export_tokenizer)
+        return
     arch = A.for_architecture(source_architecture(Path(a.gguf[0])))
     if arch.side_sections:
         a.name = a.name or arch.default_name(a.gguf[0], {}, bool(a.sections_from))
