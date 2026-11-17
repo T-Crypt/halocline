@@ -243,6 +243,8 @@ class ModelFile:
         self.path = path
         with open(path, "rb") as f:
             head = f.read(HEADER_BYTES)
+        if len(head) < HEADER.size:
+            raise ValueError(f"{path}: too short to be a model file")
         magic, version, n, file_bytes, _ = HEADER.unpack_from(head, 0)
         if magic not in (MAGIC, LEGACY_MAGIC):
             raise ValueError(f"{path}: not a Halocline model file")

@@ -3,7 +3,8 @@
 
 Run from a tree that has been built (the executables are in bin/). The archive holds one top-level directory with the
 executables, the server and the Python files it imports, the expert profiles and bench fixtures, the requirements,
-the licences and the docs. No CUDA libraries and no Python environment are packed.
+the licences and the docs. On Linux, a tree that has bin/halocline also gets bin/halo in the archive as a symlink to it
+(the rename lands in the same release). No CUDA libraries and no Python environment are packed.
 
     python tools/package_release.py --tag v0.3.1 --platform linux-x64 [--root DIR] [--out DIR]
 
@@ -19,6 +20,8 @@ import zipfile
 from pathlib import Path
 
 EXECUTABLES = ("halocline", "halocline-bench", "halocline-probe", "halocline-vision")
+PRIMARY = "halocline"          # the binary the release is named for; bin/halo stays as a symlink to it
+ALIAS = "halo"
 TOOLS = ("tools/tokenizer.py", "tools/model_file.py", "tools/migrations/config_v1_to_v2.py")
 FILES = ("requirements.txt", "LICENSE", "THIRD_PARTY_LICENSES", "README.md")
 TREES = ("serve", "data/profiles", "data/bench", "docs")
@@ -63,14 +66,15 @@ def main() -> int:
     if not re.fullmatch(r"v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?", a.tag):
         sys.exit(f"package_release: tag {a.tag!r} is not of the form v0.3.1")
     cmake_text = (a.root / "CMakeLists.txt").read_text(encoding="utf-8")
-    version = re.search(r"project\(halo VERSION (\S+)", cmake_text)
+    version = re.search(r"project\(halocline VERSION (\S+)", cmake_text)
     if not version or a.tag[1:].split("-")[0] != version.group(1):
         sys.exit(f"package_release: tag {a.tag} does not match the CMakeLists version {version and version.group(1)}")
     windows = a.platform.startswith("windows")
     top = f"halo-{a.tag}-{a.platform}"
     a.out.mkdir(parents=True, exist_ok=True)
     path = a.out / (top + (".zip" if windows else ".tar.gz"))
-    files = members(a.root.resolve(), windows)
+    root = a.root.resolve()
+    files = members(root, windows)
     if windows:
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
             for src, rel, _ in files:
@@ -84,6 +88,14 @@ def main() -> int:
                 info.mode = 0o755 if exe else 0o644
                 with open(src, "rb") as f:
                     t.addfile(info, f)
+            if (root / "bin" / PRIMARY).is_file():
+                link = tarfile.TarInfo(f"{top}/bin/{ALIAS}")
+                link.type = tarfile.SYMTYPE
+                link.linkname = PRIMARY
+                link.mode = 0o777
+                link.uid = link.gid = 0
+                link.uname = link.gname = "root"
+                t.addfile(link)
     print(path)
     return 0
 
