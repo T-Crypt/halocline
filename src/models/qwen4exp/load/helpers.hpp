@@ -21,7 +21,6 @@ using engine_local::SlotDelete;
 using engine_local::SlotSession;
 using engine_local::drive_pool;
 using engine_local::drive_pool_multi;
-using engine_local::peer_hot_share_order;
 
 
 

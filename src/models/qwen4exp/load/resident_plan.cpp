@@ -6,9 +6,7 @@ namespace basalt::models::qwen4exp::generate {
 
 int resident_plan(Context& context) {
     auto& o = *context.o;
-    auto& err = *context.err;
     auto& g = *context.g;
-    auto& profile = *context.profile;
     auto& expert_total_bytes = *context.expert_total_bytes;
     auto& ss = *context.ss;
     auto& srcp = *context.srcp;
@@ -17,9 +15,6 @@ int resident_plan(Context& context) {
     auto& xcache = *context.xcache;
     auto& kv_tail_slots = *context.kv_tail_slots;
     auto& cache_fill_bytes = *context.cache_fill_bytes;
-    auto& peer_expert_room = context.peer_expert_room;
-    auto& peer = *context.peer;
-    auto& xpeers = *context.xpeers;
     auto& drive = *context.drive;
     auto& d_res = *context.d_res;
 
@@ -68,76 +63,6 @@ int resident_plan(Context& context) {
     const int64_t kMaxAutoChunk = basalt::kernels::cpu::expert_layout().max_blob > (3u << 19) ? 32768 : 16384;
     int64_t auto_ceiling = std::max<int64_t>(8192, std::min<int64_t>(o.prefill_auto_max, o.max_context));
     if (o.prefill_auto_fit && !o.resident_cpu_experts) auto_ceiling = 8192;
-    // The peer tier's fill.  `exclusive` (--peer-exclusive): done before the RAM complement, which then leaves the
-    // peer's experts out, so they are read from the file here and held only on the peer.
-    auto open_peer = [&](bool exclusive) -> bool {
-        const auto tp0 = Clock::now();
-        // the GDN mixer split loads the peer's key heads after its tier is filled
-        int d0 = 0;
-        cudaGetDevice(&d0);
-        const int peer_reserve = o.peer_reserve_mib;
-        if (o.peer_devices.size() <= 1) {
-            if (!peer.open(o.peer_device, profile, xcache, *srcp, g.n_layers, g.n_expert, g.n_embd, g.n_ff, peer_reserve, o.peer_slots,
-                           err, exclusive)) {
-                basalt::log::error("basalt generate", "%s", err.c_str());
-                return false;
-            }
-            basalt::log::info("basalt generate", "peer GPU %d: %lld experts, %.2f GiB (filled in %.1f s); with the primary's "
-                                 "%lld that is %lld of %lld on the GPUs", o.peer_device, (long long) peer.resident(), peer.gib(),
-                         std::chrono::duration<double>(Clock::now() - tp0).count(), (long long) xcache.slots(),
-                         (long long) (peer.resident() + xcache.slots()), (long long) (g.n_layers * g.n_expert));
-            return true;
-        }
-        // several tiers: every card's buffers first, then the pairs the primary does not hold dealt out by room and
-        // bandwidth (gpu_select.hpp), each card's room shared by the tiers it holds
-        const size_t np = o.peer_devices.size();
-        xpeers.clear();
-        for (size_t i = 1; i < np; ++i) xpeers.push_back(std::make_unique<basalt::core::PeerExperts>());
-        auto tier = [&](size_t i) -> basalt::core::PeerExperts& { return i == 0 ? peer : *xpeers[i - 1]; };
-        for (size_t i = 0; i < np; ++i)
-            if (!tier(i).prepare(o.peer_devices[i], *srcp, g.n_layers, g.n_expert, g.n_embd, g.n_ff, err)) {
-                basalt::log::error("basalt generate", "%s", err.c_str());
-                return false;
-            }
-        std::vector<basalt::program::TierRoom> rooms(np);
-        for (size_t i = 0; i < np; ++i) {
-            const int dev = o.peer_devices[i];
-            size_t fb = 0, tb = 0;
-            {
-                const basalt::core::OnDevice on(dev);
-                cudaMemGetInfo(&fb, &tb);
-            }
-            const uint64_t reserve = (uint64_t) std::max(o.peer_reserve_mib, 128) << 20;
-            const uint64_t share = (uint64_t) std::count(o.peer_devices.begin(), o.peer_devices.end(), dev);
-            rooms[i].bytes = fb > reserve ? ((uint64_t) fb - reserve) / share : 0;
-            rooms[i].gbps = o.peer_gbps[i];
-        }
-        std::vector<std::pair<int32_t, int32_t>> ranked;
-        std::vector<uint64_t> bytes;
-        for (const auto& pr : profile)
-            if (xcache.slot_of(pr.first, pr.second) < 0) {
-                ranked.push_back(pr);
-                bytes.push_back(basalt::core::PeerExperts::slot_bytes(pr.first));
-            }
-        const std::vector<int> owner = basalt::program::spread_experts(bytes, rooms);
-        int64_t held = xcache.slots();
-        for (size_t i = 0; i < np; ++i) {
-            std::vector<std::pair<int32_t, int32_t>> pick;
-            for (size_t j = 0; j < ranked.size(); ++j)
-                if (owner[j] == (int) i) pick.push_back(ranked[j]);
-            if (!tier(i).fill(pick, err)) {
-                basalt::log::error("basalt generate", "%s", err.c_str());
-                return false;
-            }
-            held += tier(i).resident();
-            basalt::log::info("basalt generate", "peer GPU %d: %lld experts, %.2f GiB (tier %zu of %zu)", o.peer_devices[i],
-                              (long long) tier(i).resident(), tier(i).gib(), i + 1, np);
-        }
-        basalt::log::info("basalt generate", "%zu peer tiers filled in %.1f s; with the primary's %lld that is %lld of %lld "
-                             "on the GPUs", np, std::chrono::duration<double>(Clock::now() - tp0).count(),
-                          (long long) xcache.slots(), (long long) held, (long long) (g.n_layers * g.n_expert));
-        return true;
-    };
     // what experts left in the file read through the OS file cache: every expert of the largest layer, and one prompt
     // chunk's reads for the lent slots the copy leaves out (sized below, with the lent slots)
     basalt::core::FileCache file_cache;
@@ -179,7 +104,7 @@ int resident_plan(Context& context) {
     // below it the prompt path's lend region as before: the RAM decides how far down that goes, as it does today
     if (kv_tail_slots > 0)
         lend_from = lend_from >= 0 ? std::max<int64_t>(0, lend_from - kv_tail_slots) : xcache.slots() - kv_tail_slots;
-    // ---- the start-up picks for the settings the user left out (peer-exclusive, resident RAM, pool affinity and
+    // ---- the start-up picks for the settings the user left out (resident RAM, pool affinity and
     // size): one pure rule over what this machine and pack have, so a given setting is never replaced.  The pool is
     // built here, with the picks.
     {
@@ -192,7 +117,6 @@ int resident_plan(Context& context) {
         in.ram_available = basalt::platform::available_memory();
         if (basalt::platform::HostMemory hm; basalt::platform::host_available_memory(hm) && hm.available > 0)
             in.ram_available = in.ram_available > 0 ? std::min(in.ram_available, hm.available) : hm.available;
-        in.peer = o.peer_devices.size() == 1 && o.resident_cpu_experts;   // peer-exclusive: one tier card
         in.serve = o.serve;
         in.worker_cores = (int) topo.worker_cores.size();
         in.p_cores = topo.p_cores;
@@ -204,25 +128,18 @@ int resident_plan(Context& context) {
         file_cache.prompt_file_bytes = std::min<uint64_t>(lent_bytes, basalt::platform::kPromptFileReadBytes);
         in.file_cache = file_cache;
         in.complement_full = expert_total_bytes - std::min(expert_total_bytes, cache_fill_bytes);
-        in.complement_peer_excl = in.complement_full - std::min(in.complement_full, peer_expert_room());
         // the RAM copy also holds the free places the adaptive swaps use (see set_spares)
         const uint64_t blob = basalt::kernels::cpu::expert_layout().max_blob;
         const uint64_t spares_full = adapt_fast_on ? (uint64_t) o.adapt_swaps * kSatBoost * blob : 0;
-        const uint64_t spares_excl =
-            adapt_fast_on ? (uint64_t) (o.adapt_swaps * kSatBoost + std::max(o.peer_adapt_swaps, o.adapt_swaps)) * blob : 0;
         // the lent slots' copies and the spares are kept as far as RAM allows: they do not decide whether the complement fits
         in.extra_full = lent_bytes + spares_full;
-        in.extra_peer_excl = lent_bytes + spares_excl;
         in.floor_bytes = in.ram_available - basalt::core::ram_tier_room(
             in.ram_available,
             std::max(o.resident_headroom, basalt::core::plan_reserve(basalt::platform::ram_reserve())) +
                 basalt::core::pin_tracking_bytes(basalt::core::host_plan_bytes()),
             o.resident_pin);
         bp::AutoGiven& gv = in.given;
-        if (!(in.peer && in.serve) || o.peer_exclusive_given) {   // not applicable, or given
-            gv.peer_exclusive = true;
-            gv.peer_exclusive_value = o.peer_exclusive;
-        }
+        gv.peer_exclusive = true;   // one card: not applicable
         if (!o.resident_cpu_experts || o.resident_budget_given) {
             gv.resident = true;
             gv.resident_gb = (double) o.resident_budget / 1073741824.0;
@@ -239,8 +156,6 @@ int resident_plan(Context& context) {
         }
         const bp::AutoPlan plan = bp::choose_auto(in);
         auto_resident_bytes = plan.resident_bytes;
-        if (plan.peer_exclusive_src == bp::AutoSource::Auto && plan.peer_exclusive != o.peer_exclusive)
-            o.peer_exclusive = plan.peer_exclusive;
         const cpu::PoolAffinity affinity = plan.pool_affinity == bp::AutoAffinity::All    ? cpu::PoolAffinity::All
                                            : plan.pool_affinity == bp::AutoAffinity::PCores ? cpu::PoolAffinity::PCores
                                                                                             : cpu::PoolAffinity::Auto;
@@ -265,30 +180,16 @@ int resident_plan(Context& context) {
         drive.d.pool = &pool;
     }
     auto& pool = *pool_store;
-    std::vector<std::pair<int32_t, int32_t>> peer_only;   // experts only the peer holds (--peer-exclusive)
-    uint64_t peer_only_bytes = 0;
-    if (o.resident_cpu_experts && o.peer_exclusive && o.peer_device >= 1) {
-        if (!open_peer(true)) return 1;
-        for (int64_t l = 0; l < g.n_layers; ++l)
-            for (int64_t e = 0; e < g.n_expert; ++e)
-                if (peer.has(l, e)) {
-                    peer_only.emplace_back((int32_t) l, (int32_t) e);
-                    peer_only_bytes += basalt::kernels::cpu::expert_layout().blob_bytes(l);
-                }
-    }
 
     context.measure_pinned_share = measure_pinned_share;
     context.lend_pct_for_share = lend_pct_for_share;
     context.auto_lend_pct = &auto_lend_pct;
     context.kMaxAutoChunk = &kMaxAutoChunk;
     context.auto_ceiling = &auto_ceiling;
-    context.open_peer = open_peer;
     context.adapt_fast_on = &adapt_fast_on;
     context.file_cache = &file_cache;
     context.lend_from = &lend_from;
     context.pool = &pool;
-    context.peer_only = &peer_only;
-    context.peer_only_bytes = &peer_only_bytes;
     return resident_load(context);
 }
 

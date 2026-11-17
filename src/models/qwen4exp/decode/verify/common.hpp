@@ -1,7 +1,6 @@
 #pragma once
 
 #include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/models/qwen4exp/kernels/qsa.hpp"
 #include <algorithm>
 #include <chrono>
@@ -25,7 +24,7 @@ struct Bump {
 };
 
 inline bool mapped(size_t bytes, void** h, void** d) {
-    if (cudaHostAlloc(h, bytes, cudaHostAllocMapped | (peer_portable() ? cudaHostAllocPortable : 0)) != cudaSuccess) return false;   // multi-GPU: portable only with a peer - the peer card writes its rows into them
+    if (cudaHostAlloc(h, bytes, cudaHostAllocMapped) != cudaSuccess) return false;
     std::memset(*h, 0, bytes);
     return cudaHostGetDevicePointer(d, *h, 0) == cudaSuccess;
 }

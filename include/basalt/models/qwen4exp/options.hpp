@@ -40,10 +40,6 @@ struct Options : CommonOptions {
     uint64_t resident_headroom = 8ull << 30;
     bool resident_soft = false;
     bool resident_cpu_explicit = false;   // --resident-cpu-experts given by itself (not only implied)
-    int64_t peer_slots = 0;
-    int peer_adapt_swaps = -1;
-    /// The peer's experts are held only on the peer, not also in the RAM complement (needs --resident-experts).
-    bool peer_exclusive = false;
     /// --serve (opt-in): where to save what the adaptive tier learned, as a profile (the resident experts first,
     /// then the routing counted since the start; the format of data/profiles); on QUIT and every
     /// `expert_profile_save_min` minutes between requests.  Empty (the default): nothing is counted or written.
@@ -103,7 +99,6 @@ struct Options : CommonOptions {
     /// place of the least-routed resident ones (decayed counts).  0 = static residency.
     int adapt_every = 4;
     bool adapt_every_given = false;   // --adapt-every on the command line
-    bool peer_exclusive_given = false;   // --peer-exclusive on the command line
     float adapt_decay = 0.7f;   ///< the usage counts are multiplied by this after each adaptation (--adapt-decay)
     bool adapt_decay_set = false;
     double prefill_cpu_share = 0.6;   ///< the share of the streamed prompt experts the CPU computes (--prefill-cpu-share)

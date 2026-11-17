@@ -2,7 +2,6 @@
 #include "basalt/core/load_progress.hpp"
 #include "basalt/models/qwen4exp/decode/verify.hpp"
 #include "basalt/platform/compiler.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/kernels/pdl.hpp"
 #include "basalt/core/progress.hpp"
 #include "basalt/log.hpp"

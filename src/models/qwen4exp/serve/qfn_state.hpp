@@ -27,7 +27,6 @@
 #include "basalt/platform/process.hpp"
 #include "basalt/platform/system.hpp"
 #include "basalt/core/on_device.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/models/qwen4exp/decode/layer.hpp"
 #include "basalt/models/qwen4exp/decode/layout.hpp"
 #include "basalt/models/qwen4exp/decode/session.hpp"
@@ -106,7 +105,6 @@ using engine_local::JobRunner;
 using engine_local::biggest_chunk;
 using engine_local::drive_pool_multi;
 using engine_local::kSatBoost;
-using engine_local::peer_hot_share_order;
 
 // ---- --serve's conversation cache.  A chat or an agent sends the whole conversation again with every request, and
 // reading it again would make a long session wait for every turn.  What a sequence leaves behind splits in
@@ -134,7 +132,7 @@ bool checkpoint_save(ConvCheckpoint& c, const basalt::core::SessionState& ss, co
 bool checkpoint_restore(const ConvCheckpoint& c, basalt::core::SessionState& ss, const basalt::core::ModelGeometry& g);
 uint64_t conversation_identity(const Options& o, const basalt::core::ModelGeometry& g);
 void seed_usage_from_prompt(std::vector<float>& usage, const std::vector<uint32_t>& hist, int64_t tokens,
-                            const std::vector<int32_t>& host_res, int64_t n_expert, const basalt::core::PeerExperts& peer);
+                            const std::vector<int32_t>& host_res);
 
 
 class QfnRequest;
@@ -222,16 +220,9 @@ private:
     cudaStream_t adapt_stream{};
     // swaps in flight - (residency index, slot) admitted when adapt_ev has completed
     std::vector<std::pair<int32_t, int32_t>> pending{};
-    std::vector<std::array<int32_t, 3>> promoted{};   // (layer, in, out) of swaps from the peer
     cudaEvent_t adapt_ev{};
-    bool peer_landing{};
-    std::vector<uint8_t> xlanding{};
     std::vector<std::pair<int32_t, int32_t>> pending_spare{};   // the RAM places the incoming experts free once resident
     // the VRAM tier follows the conversation
-    // the peer's experts are candidates too, so the ones a workload routes most move to
-    // CUDA0 (from their RAM copy, as any other swap) and its coldest go to the CPU
-    // routings a peer expert needs above CUDA0's victim before it moves
-    static constexpr float promote_margin = 10.0f;
     // the count at which a CPU-tier expert routed about once lately takes a slot the round leaves unused
     static constexpr float once_bar = 1.0f;
     // at most this many of them a round: more copies cost the CPU tier host memory bandwidth on routing that rarely
@@ -240,14 +231,10 @@ private:
     // the round's swaps, best first: the most-routed missing experts against the least-routed resident ones, per
     // layer, or over all layers (`across`: the incoming expert takes a slot of the outgoing one's layer `lout`)
     struct Swap { float gain; int32_t layer, in, out, lout; };
-    // a layer whose peer experts take more than this share of its 10 routed entries per token promotes them without
-    // the margin (a layer's peer share, not the step's, sets how late the peer is)
-    static constexpr float promote_load = 0.0f;
     std::vector<int32_t> prof_rank{};
     bool adapt_fast{};
     float fast_decay{};
-    struct XSwap { int32_t layer, in, out, lout, slot; uint64_t off; bool xchg, promo, p2p; };
-    bool peer_excl{};
+    struct XSwap { int32_t layer, in, out, lout, slot; uint64_t off; bool xchg; };
     bool xq_across{};
     std::vector<XSwap> xq{};
     int xq_stage{};
@@ -262,13 +249,11 @@ private:
     uint32_t xq_no{};
     bool xq_words{};
     uint32_t* xq_pin{};
-    cudaEvent_t p2p_ev{};
     bool xq_unsettled{};
     std::vector<std::pair<int32_t, int32_t>> xq_released{};
     int S{};
     int S_mtp{};
     std::vector<int32_t> res_at_start{};
-    std::vector<int32_t> peer_at_start{};
     std::vector<int32_t> prof_rank_start{};
     int64_t rounds{};
     std::optional<basalt::spec::SuffixDrafter> sfx;
@@ -280,16 +265,10 @@ private:
     int64_t chunk_full{};
     int64_t kKvGrowCells{};
     static constexpr int64_t kKvWindowCells = 2* basalt::kernels::kVerifyMaxT + 64;   // a decoding session's next window
-    static constexpr int64_t kPeerTakeCells = 32768;   // a fit backing this many new cells hands its experts to the peer
     int64_t kv_moves{};
     int64_t kv_ceiling_sent = -1;   // the elastic KV's ceiling the server was last told (INFO elastic_kv_ceiling)
     bool kv_short{};
     bool kv_keep_routed{};   // an admission while slots decode: a shrink keeps their routed experts
-    // a solo request's fits before its prompt read leave their handoffs to the peer to that read: (peer slot, its
-    // expert, the expert it takes), done by the split's loan of the slot or else before the first window
-    bool peer_defer{};
-    std::vector<std::array<int32_t, 3>> peer_due{};
-    int64_t peer_due_off{}, peer_due_lent_n{};
     bool batch_spec{};
     /// the solo conversation's draft K/V waits in slot 0's store while a request in another slot holds the main one
     bool solo_draft_in0{};
@@ -341,7 +320,6 @@ private:
     bool checkpoint_at(int64_t L, bool defer = false,
                        ConvCheckpoint::Source source = ConvCheckpoint::kPeriodic);
     void res_upload();
-    bool adapt_peers(const std::vector<int32_t>& r0, std::string& perr);
     void apply_pending(bool wait, bool exchanges = true);
     void rank_swaps(std::vector<Swap>& swaps, bool across);
     void rank_once(std::vector<Swap>& swaps, size_t room);
@@ -363,9 +341,6 @@ private:
                            const std::vector<serve_loans::LentEntry>* lent_out = nullptr);
     bool kv_drain(std::string& e);
     bool cache_regrow(std::string& e);
-    bool peer_take(const std::vector<int32_t>& off, std::string& e);
-    void peer_due_lent(std::vector<std::pair<int32_t, int32_t>>& lent);
-    bool peer_due_apply(std::string& e);
     bool kv_fit(basalt::core::SessionState& s, int64_t cells, std::string& e, bool shrink = true, int64_t min_cells = -1);
     bool kv_release(basalt::core::SessionState& s, int64_t cells, std::string& e);
     uint64_t row_hash(int t);

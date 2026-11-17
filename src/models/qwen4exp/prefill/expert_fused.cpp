@@ -3,7 +3,6 @@
 #include "basalt/models/qwen4exp/decode/mtp.hpp"
 #include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
 #include "basalt/models/qwen4exp/prefill/moe_fused_iq.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include <algorithm>
 #include <cmath>
 

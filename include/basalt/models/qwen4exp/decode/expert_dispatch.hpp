@@ -7,8 +7,6 @@
 
 namespace basalt::core {
 
-class PeerExperts;
-
 /// The adapter's own state.  One per session, reused every layer so the token path allocates nothing.
 struct ExpertDispatch {
     basalt::kernels::cpu::ExpertPool* pool = nullptr;
@@ -110,7 +108,7 @@ struct ExpertDispatch {
     int pcie_num = 0;
     int64_t pcie_experts = 0;      ///< distinct experts the GPU read over PCIe in verify windows
     /// routed (token, expert) entries the GPU computed from outside its cache in verify windows: read over PCIe
-    /// (the PCIe share, kind 1) or on another GPU (kind 2).  In neither cache_hits nor cache_refused.
+    /// (the PCIe share, kind 1).  In neither cache_hits nor cache_refused.
     int64_t offload_entries = 0;
     double ms_plan = 0, ms_actq = 0, ms_jobs = 0, ms_run = 0;   ///< verify-window dispatch sections
     /// Decayed routing counts per (layer, expert) during decode (sized by the caller; empty = off), which the driver
@@ -118,9 +116,6 @@ struct ExpertDispatch {
     std::vector<float> usage;
     int64_t multi_misses = 0;      ///< distinct (layer, expert) pairs the CPU computed in verify windows
     int64_t multi_entries = 0;     ///< routed (token, expert) entries the CPU served in verify windows
-    /// Multi-GPU: the second GPU's tier.  Its experts are computed there instead of on the CPU (kind 2).
-    PeerExperts* peer = nullptr;
-    int64_t peer_entries = 0;      ///< routed entries the peer served in verify windows
     /// Set when `dispatch` could not produce an answer.  The loop itself has no error channel, so this is
     /// where a source failure surfaces: the driver checks it after `session_loop` returns rather than the
     /// engine computing from a half-filled `parts`.

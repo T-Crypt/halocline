@@ -23,7 +23,6 @@
 #include <string>
 #include <vector>
 
-namespace basalt::core { class PeerExperts; }
 namespace basalt::kernels::cpu { class ExpertPool; }
 
 namespace basalt::prefill {

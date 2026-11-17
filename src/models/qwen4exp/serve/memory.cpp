@@ -81,8 +81,7 @@ bool QfnRuntime::home_given_up(int64_t live, std::string& e) {
 }
 
 // `for_sleep` (SLEEP and WAKE): the cache goes to its smallest size and comes back to the same placement, with no
-// request between the two, so neither --vram-elastic (any segmented cache does) nor a peer card's tier stands in
-// the way
+// request between the two, so --vram-elastic does not stand in the way (any segmented cache does)
 bool QfnRuntime::vram_command(const std::string& cmd, std::string& e, bool for_sleep, std::string* reply) {
     // `VRAM` alone: the reserve the engine started with (--vram-reserve-mib)
     char* end = nullptr;
@@ -99,7 +98,6 @@ bool QfnRuntime::vram_command(const std::string& cmd, std::string& e, bool for_s
                       : "VRAM needs an engine started with --vram-elastic (one NVIDIA GPU, --serve)";
         return false;
     }
-    if (peer.valid() && !for_sleep) { e = "VRAM: not with a second GPU as expert tier"; return false; }
     for (const PfPart& p : pf_parts)
         if (!p.lent.empty()) { e = "VRAM: a prompt's loan is still out"; return false; }
     if (!ver.wait_commit(e)) return false;
@@ -230,7 +228,7 @@ int QfnRuntime::init_memory() {
     if (srcp == &src && src.complement_ready() && o.resident_budget == 0) {
         int64_t n_top = 0;
         const uint64_t add = src.top_up(profile, [&](int32_t l, int32_t e) {
-            return host_res[(size_t) l * g.n_expert + (size_t) e] >= 0 || (peer.valid() && peer.has(l, e));
+            return host_res[(size_t) l * g.n_expert + (size_t) e] >= 0;
         }, o.resident_pin, n_top);
         if (add > 0) {
             basalt::platform::watch_resident_ram(true, src.resident_bytes() + add);

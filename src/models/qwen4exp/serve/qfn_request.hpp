@@ -104,7 +104,6 @@ private:
                 ~KeepRouted() { on = false; }
             };
     std::optional<KeepRouted> keep_routed;
-    std::optional<KeepRouted> defer_peer;
     bool kv_ok{};
     // `copied`: the copies already ran (and were waited for) on the overlapped read's thread, so only the table is left
     bool ov_copied{};
@@ -132,8 +131,8 @@ private:
     int n_chain{};
     bool dec_timing{};
     struct DecSnap {
-        double wait, pool, host, plan, actq, jobs, run, peer_wait;
-        int64_t misses, entries, hits, pcie, peer;
+        double wait, pool, host, plan, actq, jobs, run;
+        int64_t misses, entries, hits, pcie;
     };
     DecSnap ds0{};
     double dt_run{};

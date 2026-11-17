@@ -7,7 +7,6 @@
 #include "basalt/models/qwen4exp/kernels/ngram.hpp"
 #include "basalt/models/qwen4exp/prefill/gemm.hpp"
 #include "basalt/core/host_plan.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/log.hpp"
 #include <algorithm>
 #include <string>
@@ -99,7 +98,7 @@ bool Prefill::init(const core::WeightTable& wt, const core::ModelGeometry& g, co
             m.grp_host = m.grp_dev = nullptr;
             m.grp_n = m.grp_tk = 0;
             void *h = nullptr, *d = nullptr;
-            if (cudaHostAlloc(&h, need * 4, cudaHostAllocMapped | (core::peer_portable() ? cudaHostAllocPortable : 0)) == cudaSuccess &&
+            if (cudaHostAlloc(&h, need * 4, cudaHostAllocMapped) == cudaSuccess &&
                 cudaHostGetDevicePointer(&d, h, 0) == cudaSuccess) {
                 m.grp_host = (int32_t*) h;
                 m.grp_dev = (int32_t*) d;
@@ -131,7 +130,7 @@ bool Prefill::init(const core::WeightTable& wt, const core::ModelGeometry& g, co
         got = got && cudaMalloc((void**) &m.guess_w, (size_t) rows * 4) == cudaSuccess;
         if (got) m.owned.push_back(m.guess_w);
         got = got && cudaHostAlloc((void**) &m.guess_host, (size_t) rows * 4,
-                                   cudaHostAllocMapped | (core::peer_portable() ? cudaHostAllocPortable : 0)) == cudaSuccess &&
+                                   cudaHostAllocMapped) == cudaSuccess &&
               cudaHostGetDevicePointer(&hd, m.guess_host, 0) == cudaSuccess;
         if (got) {
             m.guess_host_dev = (int32_t*) hd;

@@ -24,7 +24,6 @@
 #include "basalt/kernels/cpu/pool.hpp"
 #include "basalt/models/qwen4exp/kernels/qsa.hpp"
 #include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include <future>
 
 namespace basalt::prefill {

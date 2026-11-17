@@ -24,7 +24,6 @@
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
 #include "basalt/platform/compiler.hpp"
 #include "basalt/models/qwen4exp/decode/native_dense.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/core/spin_wait.hpp"
 #include "basalt/models/qwen4exp/decode/session.hpp"
 #include "basalt/core/staged_copy.hpp"
@@ -126,8 +125,5 @@ void drive_pool(void* user, const float* x_f, const int32_t* ids, const float* w
                 float* out);
 void drive_pool_multi(void* user, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k, float* out,
                       int64_t layer);
-
-// Shares the hottest profile pairs between the main and peer expert tiers.
-size_t peer_hot_share_order(std::vector<std::pair<int32_t, int32_t>>& profile, size_t& at, size_t& fill);
 
 }  // namespace basalt::models::qwen4exp::engine_local

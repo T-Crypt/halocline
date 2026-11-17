@@ -56,31 +56,4 @@ void drive_pool_multi(void* user, const float* x_f, const int32_t* ids, int64_t 
     }
 }
 
-// A peer card as fast as the main one gets a share `f` of the hot pairs, so both cards compute routed experts every
-// layer.  Of the first `at` ranks, every pair with floor((r+1)f) > floor(rf) moves to just after that point: the
-// primary fills past them and the peer, which takes what the primary does not hold, gets them first.  Returns the
-// pairs moved; `at` and `fill` get the ranks the log names.
-size_t peer_hot_share_order(std::vector<std::pair<int32_t, int32_t>>& profile, size_t& at, size_t& fill) {
-    const double f = 0.45;
-    at = std::min(profile.size(), (size_t) 8700);
-    fill = at;
-    if (at == 0) return 0;
-    std::vector<std::pair<int32_t, int32_t>> keep, moved;
-    for (size_t r = 0; r < at; ++r) {
-        const bool to_peer = (int64_t) ((double) (r + 1) * f) > (int64_t) ((double) r * f);
-        (to_peer ? moved : keep).push_back(profile[r]);
-    }
-    const size_t n_moved = moved.size();
-    // the primary's share continues with the ranks after `at` until it is full; then the moved ones
-    std::vector<std::pair<int32_t, int32_t>> out;
-    out.reserve(profile.size());
-    out.insert(out.end(), keep.begin(), keep.end());
-    fill = std::min(profile.size(), at + n_moved);   // what the primary still takes
-    out.insert(out.end(), profile.begin() + (long) at, profile.begin() + (long) fill);
-    out.insert(out.end(), moved.begin(), moved.end());
-    out.insert(out.end(), profile.begin() + (long) fill, profile.end());
-    profile.swap(out);
-    return n_moved;
-}
-
 }  // namespace basalt::models::qwen4exp::engine_local

@@ -6,7 +6,6 @@
 #include "basalt/models/qwen4exp/decode/layer.hpp"
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
 #include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/models/qwen4exp/prefill/kernels.hpp"
 #include <algorithm>
 #include <future>

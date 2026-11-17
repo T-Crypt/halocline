@@ -10,7 +10,6 @@
 #include "basalt/kernels/cpu/pool.hpp"
 #include "basalt/models/qwen4exp/decode/layer.hpp"
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/platform/file.hpp"
 #include "basalt/platform/memory.hpp"
 #include "basalt/log.hpp"

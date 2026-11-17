@@ -16,7 +16,6 @@ int resident_load(Context& context) {
     auto& xcache = *context.xcache;
     auto& kv_tail_slots = *context.kv_tail_slots;
     auto& cache_fill_bytes = *context.cache_fill_bytes;
-    auto& peer = *context.peer;
     auto& measure_pinned_share = context.measure_pinned_share;
     auto& lend_pct_for_share = context.lend_pct_for_share;
     auto& auto_lend_pct = *context.auto_lend_pct;
@@ -24,8 +23,6 @@ int resident_load(Context& context) {
     auto& auto_ceiling = *context.auto_ceiling;
     auto& adapt_fast_on = *context.adapt_fast_on;
     auto& lend_from = *context.lend_from;
-    auto& peer_only = *context.peer_only;
-    auto& peer_only_bytes = *context.peer_only_bytes;
 
     // ---- the resident RAM mode (--resident-experts / --resident-cpu-experts): the experts the GPU cache does not
     // hold are copied from the experts section into RAM once, so no decode or prompt step reads the file (the plain mmap
@@ -41,10 +38,7 @@ int resident_load(Context& context) {
                 "cannot determine the available RAM (no MemAvailable in /proc/meminfo, or a malformed cgroup memory "
                 "limit or memory.stat), which the resident RAM mode (--resident-experts) sizes its copy of the "
                 "experts from");
-        // --peer-exclusive: peer swaps take places too (an evicted peer expert goes to one)
-        if (adapt_fast_on)
-            src.set_spares(o.peer_exclusive ? o.adapt_swaps * kSatBoost + std::max(o.peer_adapt_swaps, o.adapt_swaps)
-                                            : o.adapt_swaps * kSatBoost);
+        if (adapt_fast_on) src.set_spares(o.adapt_swaps * kSatBoost);
         // the copy leaves the reserve free (or the legacy headroom, when larger), and the driver's tracking of the
         // buffers whose RAM is held for them
         const uint64_t reserve = basalt::core::plan_reserve(basalt::platform::ram_reserve());
@@ -62,7 +56,7 @@ int resident_load(Context& context) {
         // the driver's tracking of its own pages.
         src.set_file_cache(*context.file_cache);
         {
-            const uint64_t gpu_held = std::min(expert_total_bytes, cache_fill_bytes + peer_only_bytes);
+            const uint64_t gpu_held = std::min(expert_total_bytes, cache_fill_bytes);
             const uint64_t complement = expert_total_bytes - gpu_held;
             basalt::platform::HostMemory hm;
             const uint64_t avail = basalt::platform::host_available_memory(hm) ? hm.available : 0;
@@ -88,7 +82,7 @@ int resident_load(Context& context) {
                                   (double) (o.resident_budget > 0 ? std::min(o.resident_budget, room) : room) / kGiB);
             }
         }
-        const std::vector<std::pair<int32_t, int32_t>>& gpu_only = peer_only;
+        const std::vector<std::pair<int32_t, int32_t>> gpu_only;
         bool resident_ok = src.pin_cache_complement(xcache, err, o.resident_pin, gpu_only, lend_from, resident_headroom,
                                                     o.resident_budget, &profile);
         std::string whole_err;
@@ -145,19 +139,13 @@ int resident_load(Context& context) {
     }
     // experts no RAM tier holds (none was asked for, or the RAM is short) are read from the file when needed
     if (srcp == &src && !src.complement_ready() && expert_total_bytes > cache_fill_bytes) {
-        basalt::core::LoadProgress::skipped(expert_total_bytes - cache_fill_bytes - peer_only_bytes);
+        basalt::core::LoadProgress::skipped(expert_total_bytes - cache_fill_bytes);
         basalt::core::LoadProgress::plan("ram", 0);
     }
-    // the peer's swaps keep their experts in RAM or on a GPU, never only in the file
-    if (o.peer_exclusive && peer.valid() && srcp == &src && src.complement_ready()) peer.set_exclusive(&src);
-    // ---- the peer's experts: the ranked pairs the primary does not hold.  Without --peer-exclusive they are copies of
-    // experts the RAM complement holds, so with the complement built they are read from it, not from the file.
-    if (o.peer_device >= 1 && !peer.valid() && !context.open_peer(false)) return 1;
     // the largest chunk a read alone takes now (the loan's chunk follows the slots left: see relend)
     auto read_cap = [&]() -> int64_t {
         return o.prefill_auto_fit ? std::min<int64_t>(o.prefill_chunk, kMaxAutoChunk) : o.prefill_chunk;
     };
-    context.drive->d.peer = peer.valid() ? &peer : nullptr;
     context.read_cap = read_cap;
     return dispatch(context);
 }

@@ -109,7 +109,7 @@ def run(a) -> int:
     n_ctx, n_vocab, n_chunk, chunks = read_base(a.base)
     first = n_ctx // 2
     args = ["--model", str(Path(a.model).resolve()), "--spec", "5",
-            "--adapt-swaps", "0", "--peer-adapt-swaps", "0", "--max-context", "4096"]
+            "--adapt-swaps", "0", "--max-context", "4096"]
     if gpu_count() > 1:
         args += ["--gpu", "0,1"]
     args = set_args(args, a.engine_args + ["--ppl-base", str(Path(a.base).resolve())])
@@ -170,7 +170,7 @@ def run(a) -> int:
     extra = {"T": a.t, "load s": f"{t_load:.0f}", "run s": f"{t_run:.1f}",
              "prompt ms/chunk": f"{pp_ms / nc:.0f}", "decode ms/chunk": f"{dec_ms / nc:.0f}",
              "decode routed experts": f"{look + off}: VRAM hits {100.0 * hits / max(1, look + off):.1f}%, "
-                                      f"peer GPU/PCIe {100.0 * off / max(1, look + off):.1f}%, "
+                                      f"PCIe {100.0 * off / max(1, look + off):.1f}%, "
                                       f"CPU {100.0 * (look - hits) / max(1, look + off):.1f}%"}
     rep = summary(str(rows), extra)
     (out / "report.txt").write_text(f"engine {a.engine_bin}\nargs {' '.join(args)}\n{rep}\n")

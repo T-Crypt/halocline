@@ -35,7 +35,7 @@ public:
     int max_expert_cards() const override { return 1; }
 
     // pinned tiers; without --resident-experts a pack larger than free RAM is refused
-    const char* quality_flags() const override { return "--spec 5 --adapt-swaps 0 --peer-adapt-swaps 0 --resident-experts"; }
+    const char* quality_flags() const override { return "--spec 5 --adapt-swaps 0 --resident-experts"; }
     int quality_window() const override { return 0; }
 
     const char* model_name() const override { return "Qwen3.8-Flash-Next"; }

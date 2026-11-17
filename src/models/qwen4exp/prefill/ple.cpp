@@ -6,7 +6,6 @@
 #include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
 #include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
 #include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/models/qwen4exp/prefill/kernels.hpp"
 #include "basalt/log.hpp"
 #include <algorithm>

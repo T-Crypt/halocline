@@ -2,7 +2,6 @@
 #include "basalt/core/expert_source.hpp"
 #include "basalt/models/qwen4exp/decode/expert_dispatch.hpp"
 #include "basalt/core/load_progress.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/kernels/cpu/expert_layout.hpp"
 #include "basalt/models/qwen4exp/geometry.hpp"
 #include "basalt/core/pinned.hpp"
@@ -37,7 +36,7 @@ namespace basalt::core {
 
 // ================================ THE ADAPTER ================================
 
-// Read-ahead for what the CPU tier may read from the file: every routed id that no GPU holds.
+// Read-ahead for what the CPU tier may read from the file: every routed id the GPU does not hold.
 static void advise_routed(ExpertDispatch& d, const int32_t* ids, int64_t n) {
     int32_t want[128];
     int64_t m = 0;
@@ -45,7 +44,6 @@ static void advise_routed(ExpertDispatch& d, const int32_t* ids, int64_t n) {
         const int32_t e = ids[i];
         if (e < 0 || e >= d.n_expert) continue;
         if (d.host_res != nullptr && d.host_res[(size_t) d.layers * (size_t) d.n_expert + (size_t) e] >= 0) continue;
-        if (d.peer != nullptr && d.peer->has(d.layers, e)) continue;
         bool seen = false;
         for (int64_t j = 0; j < m && !seen; ++j) seen = want[j] == e;
         if (!seen) want[m++] = e;
@@ -126,8 +124,7 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
             if (first_of[i] == i) {
                 distinct[nd++] = i;
                 const int32_t e = ids[i];
-                if (e >= 0 && e < d.n_expert && d.host_res[(size_t) d.layers * (size_t) d.n_expert + (size_t) e] < 0 &&
-                    !(d.peer != nullptr && d.peer->has(d.layers, e))) ++nmiss;
+                if (e >= 0 && e < d.n_expert && d.host_res[(size_t) d.layers * (size_t) d.n_expert + (size_t) e] < 0) ++nmiss;
             }
         }
         const bool pcie_ok = d.pcie_num > 0 && d.src->pcie_layer(d.layers);
@@ -146,8 +143,6 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
                     kd = 0;
                     ptr = (unsigned long long) (d.cache_base + (d.cache_slot_off ? (size_t) d.cache_slot_off[slot]
                                                                                  : (size_t) slot * (size_t) d.cache_blob));
-                } else if (d.peer != nullptr && d.peer->has(d.layers, e)) {
-                    kd = 2;                        // multi-GPU: the second GPU computes it
                 } else {
                     if (miss_rank >= nmiss - m && fetches < P.staging_cap && fetches < 64) {
                         const uint8_t* src = d.src->pinned(d.layers, e) ? d.src->blob(d.layers, e) : nullptr;
@@ -197,18 +192,7 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
         for (int64_t i = 0; i < n; ++i) {
             const int32_t e = ids[i];
             kind[i] = (e >= 0 && e < d.n_expert && d.host_res != nullptr &&
-                       d.host_res[(size_t) d.layers * (size_t) d.n_expert + (size_t) e] >= 0) ? 0
-                    : (e >= 0 && e < d.n_expert && d.peer != nullptr && d.peer->has(d.layers, e)) ? 2 : -1;
-        }
-    }
-    if (d.peer != nullptr && !ext) {         // multi-GPU: start the second GPU's share before the CPU's own work
-        std::string perr;
-        if (!d.peer->launch(d.layers, x_f, ids, n_tok, k, kind, perr, out)) {
-            basalt::log::error("basalt", "%s (layer %lld)", perr.c_str(), (long long) d.layers);
-            d.failed = true;
-            d.fail = "the peer GPU's experts could not be launched";
-            d.fail_layer = d.layers;
-            return;
+                       d.host_res[(size_t) d.layers * (size_t) d.n_expert + (size_t) e] >= 0) ? 0 : -1;
         }
     }
     // the GPU's copy_rows_from_mapped zeroes the rows it computed itself
@@ -218,7 +202,7 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
         if (kind[i] < 0) { any_cpu = true; break; }
     const auto c1 = std::chrono::steady_clock::now();
     if (any_cpu) {
-        // a token whose experts all run on a GPU (CUDA0 or the peer) needs no CPU activation
+        // a token whose experts all run on the GPU needs no CPU activation
         for (int64_t t = 0; t < n_tok; ++t) {
             bool cpu = false;   // an id of -1 (dropped by the route tail skip) needs no activation
             for (int64_t j = t * k; j < (t + 1) * k; ++j) cpu |= kind[j] < 0 && ids[j] >= 0;
@@ -249,15 +233,12 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
                 d.fail_expert = e;
                 return;
             }
-            if (kind[i] >= 0) {             // CUDA0, PCIe, or a peer result staged into this row below
+            if (kind[i] >= 0) {             // CUDA0 or PCIe
                 if (kind[i] == 0) ++d.cache_hits;
-                else ++d.offload_entries;   // PCIe or another GPU
-                if (kind[i] == 2 && d.peer != nullptr) ++d.peer_entries;
-                // multi-GPU: a direct peer launch is writing this row right now - zeroing it would race it;
+                else ++d.offload_entries;   // PCIe
                 // dec_batch: copy_rows_from_mapped_kernel already zeroes kind 0/1 rows on the GPU;
                 // ext: the GPU reads only the CPU rows
-                if (!(ext || (kind[i] == 2 && d.peer != nullptr && d.peer->launched_direct()) ||
-                      (gpu_zeroes_hits && (kind[i] == 0 || kind[i] == 1))))
+                if (!(ext || (gpu_zeroes_hits && (kind[i] == 0 || kind[i] == 1))))
                     std::memset(row, 0, (size_t) H * sizeof(float));
                 continue;
             }
@@ -288,16 +269,6 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
     const auto c3 = std::chrono::steady_clock::now();
     if (njobs > 0) {
         d.pool->run_split_multi_native(lay.fmt[(size_t) d.layers], d.jobs_multi.data(), njobs);
-    }
-    if (d.peer != nullptr && !ext) {         // multi-GPU: the second GPU's rows, into the same mapped rows
-        std::string perr;
-        if (!d.peer->finish(out, perr)) {
-            basalt::log::error("basalt", "%s (layer %lld)", perr.c_str(), (long long) d.layers);
-            d.failed = true;
-            d.fail = "the peer GPU's experts failed";
-            d.fail_layer = d.layers;
-            return;
-        }
     }
     const auto c4 = std::chrono::steady_clock::now();
     auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };

@@ -41,8 +41,6 @@ struct ExpertLayout;
 
 namespace basalt::core {
 
-class PeerExperts;   // multi-GPU: the second GPU's expert tier (peer_experts.hpp)
-
 namespace detail {
 
 /// Sentinel used by the pure complement planner for a blob that remains in the mmap fallback.
@@ -208,8 +206,8 @@ struct GpuPlanSink {
     /// Raises flag B: the PCIe groups of this layer are planned and the graph may stage them.
     void (*staged)(void* ctx) = nullptr;
     void* ctx = nullptr;
-    /// the window planned this layer on the device; ext_kind[i] is entry i's tier (0 CUDA0, 2 the peer, -1 the CPU).
-    /// The pool then computes only the CPU entries, publishes no plan and launches no peer.
+    /// the window planned this layer on the device; ext_kind[i] is entry i's tier (0 CUDA0, -1 the CPU).
+    /// The pool then computes only the CPU entries and publishes no plan.
     const int32_t* ext_kind = nullptr;
 };
 

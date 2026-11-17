@@ -12,7 +12,6 @@
 #include "basalt/models/qwen4exp/geometry.hpp"
 #include "basalt/models/qwen4exp/kernels/qsa.hpp"
 #include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include <algorithm>
 #include <atomic>
 #include <string>

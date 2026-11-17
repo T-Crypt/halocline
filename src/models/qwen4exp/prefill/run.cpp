@@ -3,7 +3,6 @@
 #include "basalt/models/qwen4exp/decode/mtp.hpp"
 #include "basalt/core/progress.hpp"
 #include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include <algorithm>
 #include <string>
 

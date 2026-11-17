@@ -56,7 +56,6 @@ if (line.rfind("PROBE set ", 0) == 0) {   // PROBE set workers=K share=F: live v
         penv.pool = &pool;
         penv.ram_blob = [this](int64_t l, int64_t e) { return srcp->resident_blob(l, e); };
         if (const basalt::kernels::cpu::ExpertLayout& lay = basalt::kernels::cpu::expert_layout(); lay.native) penv.fmt = lay.fmt;
-        penv.peer_device = peer.valid() ? peer.device() : -1;
         penv.n_layers = g.n_layers;
         penv.n_expert = g.n_expert;
         basalt::program::probe_rates(penv, stdout, perr);
@@ -64,19 +63,13 @@ if (line.rfind("PROBE set ", 0) == 0) {   // PROBE set workers=K share=F: live v
 }
 
 void QfnRuntime::sleep_command(bool down, std::string& verr) {
-    // A peer card's tier goes too.  SLEEP then drops the RAM copy's registration with the driver (a process
-    // checkpoint would map the copy into every context again on restore); WAKE registers it again while
-    // both caches refill from the ranges already back.  A tier or a registration that cannot come back
-    // fails WAKE: the server then starts the engine again.
-    std::string perr, reply, uerr;
+    // SLEEP drops the RAM copy's registration with the driver (a process checkpoint would map the copy into every
+    // context again on restore); WAKE registers it again while the cache refills from the ranges already back.  A
+    // registration that cannot come back fails WAKE: the server then starts the engine again.
+    std::string reply, uerr;
     const auto tp = Clock::now();
     const bool repin = !down && src.complement_unpinned();
-    std::function<bool(const void*, uint64_t)> ready;
-    if (repin) {
-        src.repin_start(4);
-        ready = [this](const void* p, uint64_t n) { return src.repin_wait(p, n); };
-    }
-    const bool peer_ok = !peer.valid() || (down ? peer.sleep(perr) : peer.wake(perr, ready));
+    if (repin) src.repin_start(4);
     vram_command(down ? "VRAM " + std::to_string(1ll << 30) : std::string("VRAM"), verr, true, &reply);
     if (repin) {
         if (!src.repin_finish(uerr) && verr.empty()) verr = "WAKE: " + uerr;
@@ -90,17 +83,6 @@ void QfnRuntime::sleep_command(bool down, std::string& verr) {
                               std::chrono::duration<double, std::milli>(Clock::now() - tu).count());
         else
             basalt::log::info("basalt serve", "SLEEP: the RAM copy stays registered (%s)", uerr.c_str());
-    }
-    if (!down && peer.valid() && peer_ok && !peer.wake_wait(perr)) {
-        if (verr.empty()) verr = "WAKE: the peer card's tier could not come back (" + perr + ")";
-    } else if (!down && !peer_ok) {
-        if (verr.empty()) verr = "WAKE: the peer card's tier could not come back (" + perr + ")";
-    } else if (!peer_ok) {
-        basalt::log::warn("basalt serve", "SLEEP: the peer tier stays as it is (%s)", perr.c_str());
-    } else if (peer.valid()) {
-        basalt::log::info("basalt serve", "%s: the peer tier %s; %.0f ms with the main cache",
-                          line.c_str(), down ? "gave its VRAM back" : "is back",
-                          std::chrono::duration<double, std::milli>(Clock::now() - tp).count());
     }
     if (verr.empty()) std::fputs(reply.c_str(), stdout);
 }

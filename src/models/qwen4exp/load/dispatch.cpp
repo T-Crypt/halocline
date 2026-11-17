@@ -14,7 +14,6 @@ int dispatch(Context& context) {
     auto& g = *context.g;
     auto& K = *context.K;
     auto& profile = *context.profile;
-    auto& peer_hot_share = *context.peer_hot_share;
     auto& profile_loaded = *context.profile_loaded;
     auto& pf_borrow = *context.pf_borrow;
     auto& wt = *context.wt;
@@ -40,8 +39,6 @@ int dispatch(Context& context) {
     auto& arena_src = *context.arena_src;
     auto& srcp = *context.srcp;
     auto& xcache = *context.xcache;
-    auto& peer = *context.peer;
-    auto& xpeers = *context.xpeers;
     auto& drive = *context.drive;
     auto& host_res = *context.host_res;
     auto& res_put = context.res_put;
@@ -57,7 +54,7 @@ int dispatch(Context& context) {
     // reads those from the SSD).  Called once the tiers are final.
     basalt::program::ExpertSpill tier_spill;   // the experts only the file holds, once the tiers are final
     auto report_expert_tiers = [&]() {
-        uint64_t b_vram = 0, b_peer = 0, b_ram = 0, b_top = 0, b_file = 0;
+        uint64_t b_vram = 0, b_ram = 0, b_top = 0, b_file = 0;
         int64_t n_file = 0;
         const bool ram_ok = srcp == &src && src.complement_ready();
         // the arena holds every expert in RAM (opening it fails when it cannot), so nothing it serves is file-backed
@@ -67,10 +64,7 @@ int dispatch(Context& context) {
             for (int64_t e = 0; e < g.n_expert; ++e) {
                 const size_t i = (size_t) (l * g.n_expert + e);
                 bool on_gpu = (i < host_res.size() && host_res[i] >= 0);
-                bool on_peer = peer.valid() && peer.has(l, e);
-                for (const auto& xpe : xpeers) on_peer = on_peer || (xpe->valid() && xpe->has(l, e));
                 if (on_gpu) b_vram += blob;
-                else if (on_peer) b_peer += blob;
                 else if (arena_ok) b_ram += blob;
                 else if (ram_ok && src.has_resident(l, e)) (src.resident_in_top_up(l, e) ? b_top : b_ram) += blob;
                 else {
@@ -80,7 +74,7 @@ int dispatch(Context& context) {
             }
         }
         tier_spill = {n_file, g.n_layers * g.n_expert, b_file};
-        const double total = (double) (b_vram + b_peer + b_ram + b_top + b_file);
+        const double total = (double) (b_vram + b_ram + b_top + b_file);
         if (total <= 0.0) return;
         basalt::core::draft_cum_cpu_mb() = (float) ((double) (b_ram + b_top) / (double) (g.n_layers * g.n_expert) / 1e6);
         constexpr double kGiB = 1073741824.0;
@@ -88,13 +82,12 @@ int dispatch(Context& context) {
         // RAM is the loaded copy (the bytes the loader reports); the top-up added after the load is shown beside it
         char top[48] = "";
         if (b_top > 0) std::snprintf(top, sizeof top, " + %.1f GiB topped up", (double) b_top / kGiB);
-        basalt::log::info("basalt generate", "experts live in VRAM %.1f GiB (%.0f%%), peer GPU %.1f GiB (%.0f%%), RAM "
+        basalt::log::info("basalt generate", "experts live in VRAM %.1f GiB (%.0f%%), RAM "
                              "%.1f GiB%s (%.0f%%), file (SSD) %.1f GiB (%.0f%%); %.1f GiB in all",
-                     (double) b_vram / kGiB, pct(b_vram), (double) b_peer / kGiB, pct(b_peer), (double) b_ram / kGiB, top,
+                     (double) b_vram / kGiB, pct(b_vram), (double) b_ram / kGiB, top,
                      pct(b_ram + b_top), (double) b_file / kGiB, pct(b_file), total / kGiB);
         std::string levers = ", or a smaller quant";
         if (!o.resident_cpu_experts) levers += ", --resident-experts";
-        if (o.peer_device < 1) levers += ", --gpu 0,1";
         if (o.batch > 1) levers += ", fewer --parallel slots";
         basalt::program::warn_spill(tier_spill, levers);
     };
@@ -110,7 +103,6 @@ int dispatch(Context& context) {
             .g = g,
             .K = K,
             .profile = profile,
-            .peer_hot_share = peer_hot_share,
             .profile_loaded = profile_loaded,
             .pf_borrow = pf_borrow,
             .wt = wt,
@@ -135,8 +127,6 @@ int dispatch(Context& context) {
             .src = src,
             .srcp = srcp,
             .xcache = xcache,
-            .peer = peer,
-            .xpeers = xpeers,
             .drive = drive,
             .host_res = host_res,
             .res_put = res_put,

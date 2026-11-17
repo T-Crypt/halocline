@@ -11,7 +11,6 @@
 #include "basalt/core/on_device.hpp"
 
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/platform/file.hpp"
 #include "basalt/platform/memory.hpp"
 #include "basalt/kernels/bf16_gemv.hpp"

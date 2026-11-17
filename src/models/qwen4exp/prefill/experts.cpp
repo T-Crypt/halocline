@@ -3,7 +3,6 @@
 #include "basalt/models/qwen4exp/decode/mtp.hpp"
 #include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
 #include "basalt/prefill/moe_fp4.hpp"
-#include "basalt/core/peer_experts.hpp"
 
 namespace basalt::prefill {
 using namespace detail;

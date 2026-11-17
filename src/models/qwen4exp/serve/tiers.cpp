@@ -7,12 +7,11 @@ namespace basalt::models::qwen4exp::serve {
 // Seeds the adaptive tier's usage counts from the routing of the prompt just read, so the first adaptation rounds
 // of a request already move the experts the new topic uses toward the GPUs.  The earlier usage decays to kSeedKeep and
 // the prompt adds its routed-entry counts scaled to kSeedTokens tokens of usage.  Resident experts are always seeded;
-// of the rest only the kSeedTop with the most prompt entries are (a peer-held one weighs kSeedPeerWeight, since it
-// costs less to leave where it is than a CPU one).
+// of the rest only the kSeedTop with the most prompt entries are.
 void seed_usage_from_prompt(std::vector<float>& usage, const std::vector<uint32_t>& hist, int64_t tokens,
-                            const std::vector<int32_t>& host_res, int64_t n_expert, const basalt::core::PeerExperts& peer) {
+                            const std::vector<int32_t>& host_res) {
     constexpr double kSeedTokens = 64.0;
-    constexpr float kSeedKeep = 0.3f, kSeedPeerWeight = 0.35f;
+    constexpr float kSeedKeep = 0.3f;
     constexpr size_t kSeedTop = 32;
     if (tokens <= 0 || usage.empty() || hist.size() != usage.size() || host_res.size() != usage.size()) return;
     std::vector<uint8_t> allow(hist.size(), 1);
@@ -20,8 +19,7 @@ void seed_usage_from_prompt(std::vector<float>& usage, const std::vector<uint32_
     for (size_t i = 0; i < hist.size(); ++i) {
         if (hist[i] == 0 || host_res[i] >= 0) continue;
         allow[i] = 0;
-        const bool on_peer = peer.valid() && peer.has((int64_t) i / n_expert, (int64_t) i % n_expert);
-        rank.emplace_back((float) hist[i] * (on_peer ? kSeedPeerWeight : 1.0f), i);
+        rank.emplace_back((float) hist[i], i);
     }
     const size_t k = std::min(rank.size(), kSeedTop);
     std::partial_sort(rank.begin(), rank.begin() + (ptrdiff_t) k, rank.end(),
@@ -73,42 +71,7 @@ void QfnRuntime::res_upload() {
         res_put(d_res);
 }
 
-// the peer tiers take the next most-routed CPU misses: each passes over what the primary (r0) or another tier
-// holds or takes in this round; with one tier r0 is its whole view
-bool QfnRuntime::adapt_peers(const std::vector<int32_t>& r0, std::string& perr) {
-    const int swaps_each = o.peer_adapt_swaps >= 0 ? o.peer_adapt_swaps : o.adapt_swaps;
-    if (xpeers.empty()) return peer.adapt(drive.d.usage.data(), r0.data(), swaps_each, perr);
-    const size_t nt = 1 + xpeers.size();
-    auto tier = [&](size_t i) -> basalt::core::PeerExperts& { return i == 0 ? peer : *xpeers[i - 1]; };
-    for (size_t t = 0; t < nt; ++t) {
-        if (!tier(t).valid()) continue;
-        std::vector<int32_t> seen = r0;
-        for (size_t u = 0; u < nt; ++u) {
-            if (u == t || !tier(u).valid()) continue;
-            const std::vector<int32_t>& ru = tier(u).residency();
-            for (size_t i = 0; i < seen.size() && i < ru.size(); ++i)
-                if (ru[i] >= 0) seen[i] = 0;
-            for (size_t i : tier(u).incoming())
-                if (i < seen.size()) seen[i] = 0;
-        }
-        if (!tier(t).adapt(drive.d.usage.data(), seen.data(), swaps_each, perr)) return false;
-    }
-    return true;
-}
-
 void QfnRuntime::apply_pending(bool wait, bool exchanges) {
-    if (peer.valid()) {
-        if (!wait) peer.apply_pending(wait);
-        else if (peer_landing) { peer.apply_pending(true); peer_landing = false; }
-        else if (peer.has_pending()) { peer.issue_pending(true); peer_landing = true; }
-    }
-    for (size_t q = 0; q < xpeers.size(); ++q) {
-        basalt::core::PeerExperts& x = *xpeers[q];
-        if (!x.valid()) continue;
-        if (!wait) x.apply_pending(wait);
-        else if (xlanding[q]) { x.apply_pending(true); xlanding[q] = 0; }
-        else if (x.has_pending()) { x.issue_pending(true); xlanding[q] = 1; }
-    }
     if (pending.empty()) return;
     if (wait) cudaEventSynchronize(adapt_ev);
     else if (cudaEventQuery(adapt_ev) != cudaSuccess) return;
@@ -121,13 +84,6 @@ void QfnRuntime::apply_pending(bool wait, bool exchanges) {
     pending_spare.clear();
     pending.clear();
     res_upload();
-    // a promoted expert is CUDA0's now: its peer slot takes the expert CUDA0 gave up (in RAM since the commit)
-    for (const auto& p : promoted) {
-        std::string perr;
-        if (!peer.reassign(p[0], p[1], p[0], p[2], srcp->blob(p[0], p[2]), perr))
-            basalt::log::warn("basalt serve", "%s", perr.c_str());
-    }
-    promoted.clear();
 }
 
 void QfnRuntime::rank_swaps(std::vector<Swap>& swaps, bool across) {
@@ -135,9 +91,7 @@ void QfnRuntime::rank_swaps(std::vector<Swap>& swaps, bool across) {
     if (across) {
         // one ranking over every layer: a layer that routes more experts than its slots hold takes the slots of
         // the least-routed experts of any layer, so the slots follow the request's layers; with every layer's
-        // residents to choose from, a missing expert is a candidate at a lower count.  An expert the peer tier
-        // holds ranks lower by the promotion margin, as in the per-layer rounds, and the resident it replaces
-        // takes its peer slot.
+        // residents to choose from, a missing expert is a candidate at a lower count.
         struct Ent { float u; int32_t rank, layer, e; };
         std::vector<Ent> cand, vict;
         for (int64_t l = 0; l < g.n_layers; ++l) {
@@ -147,7 +101,7 @@ void QfnRuntime::rank_swaps(std::vector<Swap>& swaps, bool across) {
                 const int32_t rk = prof_rank[(size_t) (l * g.n_expert + e)];
                 if (r[e] >= 0) vict.push_back({u[e], rk, (int32_t) l, e});
                 else if (u[e] >= 1.5f)
-                    cand.push_back({peer.valid() && peer.has(l, e) ? u[e] - promote_margin : u[e], rk, (int32_t) l, e});
+                    cand.push_back({u[e], rk, (int32_t) l, e});
             }
         }
         if (cand.empty() || vict.empty()) return;
@@ -172,20 +126,9 @@ void QfnRuntime::rank_swaps(std::vector<Swap>& swaps, bool across) {
         vict.clear();
         const float* u = drive.d.usage.data() + l * g.n_expert;
         const int32_t* r = host_res.data() + l * g.n_expert;
-        float margin = promote_margin;
-        if (promote_load > 0.0f && peer.valid()) {
-            float all = 0.0f, on = 0.0f;
-            for (int32_t e = 0; e < (int32_t) g.n_expert; ++e) {
-                all += u[e];
-                if (r[e] < 0 && peer.has(l, e)) on += u[e];
-            }
-            if (all > 0.0f && on * 10.0f > promote_load * all) margin = 0.0f;
-        }
         for (int32_t e = 0; e < (int32_t) g.n_expert; ++e) {
             if (r[e] < 0) {
-                const bool on_peer = peer.valid() && peer.has(l, e);
-                if (u[e] >= 2.0f)
-                    cand.emplace_back(on_peer ? u[e] - margin : u[e], e);
+                if (u[e] >= 2.0f) cand.emplace_back(u[e], e);
             }
             else vict.emplace_back(u[e], e);
         }
@@ -216,7 +159,7 @@ void QfnRuntime::rank_once(std::vector<Swap>& swaps, size_t room) {
             const size_t i = (size_t) (l * g.n_expert + e);
             if (r[e] >= 0) {
                 if (!taken[i] && u[e] < 1.5f - once_bar) vict.push_back({u[e], prof_rank[i], (int32_t) l, e});
-            } else if (u[e] >= once_bar && u[e] < 1.5f && !(peer.valid() && peer.has(l, e))) {
+            } else if (u[e] >= once_bar && u[e] < 1.5f) {
                 cand.push_back({u[e], prof_rank[i], (int32_t) l, e});
             }
         }
@@ -267,22 +210,12 @@ bool QfnRuntime::adapt() {
         host_res[out] = basalt::core::kNotResident;   // evicted now: the CPU computes it meanwhile
         srcp->prefetch(s.layer, s.out);   // a file-backed arena released its pages: read them back ahead
         pending.emplace_back((int32_t) in, slot);      // resident once the copy has landed
-        if (peer.valid() && peer.has(s.layer, s.in)) promoted.push_back({s.layer, s.in, s.out});
     }
     if (!swaps.empty()) cudaEventRecord(adapt_ev, adapt_stream);
     (void) main_live;
     // the routing counted since the start (each count adds up to 1 / (1 - --adapt-decay) over its decays: the
     // sum is proportional to the routing itself) - only with --expert-profile-save, else `heat` is empty
     for (size_t i = 0; i < heat.size(); ++i) heat[i] += (double) drive.d.usage[i];
-    if (peer.valid()) {                   // multi-GPU: the peer tiers take the next most-routed CPU misses
-        std::vector<int32_t> r0 = host_res;
-        for (const auto& [i, slot] : pending) r0[(size_t) i] = slot;   // swapped into the primary already
-        std::string perr;
-        if (!adapt_peers(r0, perr)) {
-            basalt::log::error("basalt serve", "%s", perr.c_str());
-            return false;
-        }
-    }
     for (float& v : drive.d.usage) v *= o.adapt_decay;
     return true;
 }
@@ -303,8 +236,7 @@ bool QfnRuntime::xq_round(std::vector<Swap>* ranked) {
     if (ranked != nullptr) swaps.swap(*ranked);
     else rank_swaps(swaps, xq_across);
     const size_t n_ranked = swaps.size();
-    // the base share goes first, then the peer takes its own from the rest, then a saturated pipeline's extra
-    // swaps take what the peer left: a large round never takes the peer's candidates
+    // the base share goes first, then a saturated pipeline's extra swaps
     const size_t base = (size_t) o.adapt_swaps;
     const size_t cap = xq_saturated ? base * (size_t) kSatBoost : base;
     xq_saturated = n_ranked >= base * (size_t) kSatRatio;
@@ -314,28 +246,10 @@ bool QfnRuntime::xq_round(std::vector<Swap>* ranked) {
     xq.clear();
     size_t n_noplace = 0;
     const auto& lay = basalt::kernels::cpu::expert_layout();
-    std::set<size_t> taken;   // the round's victims
-    for (const Swap& s : swaps) taken.insert((size_t) s.lout * g.n_expert + s.out);
-    auto plan = [&](Swap s) -> bool {
-        // an expert only the peer holds is copied from its VRAM; it needs a RAM place for the one it replaces
-        const bool p2p = peer_excl && peer.has(s.layer, s.in) && !src.has_resident(s.layer, s.in);
-        if (p2p && src.has_resident(s.layer, s.out)) {
-            // a lent slot's expert keeps its RAM place, which the incoming one would not have: the layer's
-            // least-routed expert without one goes instead, if that is still a gain
-            const float* u = drive.d.usage.data() + (size_t) s.layer * g.n_expert;
-            int32_t best = -1;
-            for (int32_t e = 0; e < (int32_t) g.n_expert; ++e) {
-                const size_t k = (size_t) s.layer * g.n_expert + e;
-                if (host_res[k] < 0 || src.has_resident(s.layer, e) || taken.count(k)) continue;
-                if (best < 0 || u[e] < u[best]) best = e;
-            }
-            if (best < 0 || u[s.in] - promote_margin < u[best] + 1.5f) return true;
-            taken.insert((size_t) s.layer * g.n_expert + best);
-            s.out = best;
-        }
+    auto plan = [&](const Swap& s) -> bool {
         const int32_t slot = host_res[(size_t) s.lout * g.n_expert + s.out];
         if (slot < 0) return true;
-        const bool xchg = src.complement_ready() && (p2p || src.has_resident(s.layer, s.in)) &&
+        const bool xchg = src.complement_ready() && src.has_resident(s.layer, s.in) &&
                           !src.has_resident(s.lout, s.out);
         uint64_t off = 0;
         if (xchg) {
@@ -348,37 +262,15 @@ bool QfnRuntime::xq_round(std::vector<Swap>* ranked) {
                 return false;
             }
         }
-        if (p2p) peer.hold(s.layer, s.in);
-        xq.push_back({s.layer, s.in, s.out, s.lout, slot, off, xchg,
-                      peer.valid() && peer.has(s.layer, s.in), p2p});
+        xq.push_back({s.layer, s.in, s.out, s.lout, slot, off, xchg});
         return true;
     };
     const size_t n_base = std::min(swaps.size(), base);
     for (size_t i = 0; i < n_base; ++i)
         if (!plan(swaps[i])) return false;
     for (size_t i = 0; i < heat.size(); ++i) heat[i] += (double) drive.d.usage[i];
-    std::vector<size_t> peer_takes;
-    if (peer.valid()) {   // the peer tiers take the next most-routed CPU misses (not the ones moving to CUDA0)
-        std::vector<int32_t> r0 = host_res;
-        for (const XSwap& x : xq) r0[(size_t) x.layer * g.n_expert + x.in] = x.slot;
-        std::string perr;
-        if (!adapt_peers(r0, perr)) {
-            basalt::log::error("basalt serve", "%s", perr.c_str());
-            return false;
-        }
-        if (swaps.size() > n_base) {
-            peer_takes = peer.incoming();
-            for (const auto& xpe : xpeers)
-                if (xpe->valid())
-                    for (size_t i : xpe->incoming()) peer_takes.push_back(i);
-        }
-        std::sort(peer_takes.begin(), peer_takes.end());
-    }
-    for (size_t i = n_base; i < swaps.size(); ++i) {
-        if (std::binary_search(peer_takes.begin(), peer_takes.end(),
-                               (size_t) swaps[i].layer * g.n_expert + swaps[i].in)) continue;
+    for (size_t i = n_base; i < swaps.size(); ++i)
         if (!plan(swaps[i])) return false;
-    }
     xq_swapped += (int64_t) xq.size();
     xq_noplace += (int64_t) n_noplace;
     if (!xq.empty()) {
@@ -410,30 +302,15 @@ bool QfnRuntime::xq_advance(bool wait) {
             res_upload();
             ver.dm_fence(adapt_stream);
         }
-        bool deferred = false, p2p = false;
-        for (const XSwap& x : xq) {   // stream order keeps each behind its slot's eviction copy
-            std::string perr;
-            if (x.p2p) {
-                if (!peer.copy_to(x.layer, x.in, xcache.device_slot(x.slot), adapt_stream, perr)) {
-                    basalt::log::error("basalt serve", "%s", perr.c_str());
-                    return false;
-                }
-                p2p = true;
-                continue;
-            }
-            deferred = true;
-        }
-        if (p2p) cudaEventRecord(p2p_ev, adapt_stream);
+        const bool deferred = !xq.empty();   // stream order keeps each copy behind its slot's eviction copy
         const uint32_t* pw = nullptr;   // this round's landed words and number
         xq_words = xq_pin != nullptr && ver.landed_ok();
         if (xq_words) {
             ++xq_no;
             uint32_t* w = xq_pin + (size_t) (xq_no % kXqPinRounds) * (size_t) (g.n_layers + 1);
-            // a layer without an incoming RAM copy is in now (its copies out of the peer are ahead), the others
-            // once their own copies are
+            // a layer without an incoming copy is in now, the others once their own copies are
             for (int64_t l = 0; l < g.n_layers; ++l) w[l] = xq_no;
-            for (const XSwap& x : xq)
-                if (!x.p2p) w[x.layer] = xq_no - 1;
+            for (const XSwap& x : xq) w[x.layer] = xq_no - 1;
             w[g.n_layers] = xq_no;
             if (cudaMemcpyAsync(ver.landed_words(), w, (size_t) g.n_layers * 4, cudaMemcpyHostToDevice, adapt_stream) !=
                 cudaSuccess) {
@@ -446,8 +323,7 @@ bool QfnRuntime::xq_advance(bool wait) {
             auto copies = [&, pw] {
                 const auto& lay2 = basalt::kernels::cpu::expert_layout();
                 std::vector<uint32_t> ord;   // layer order: a layer's word goes up right after its own copies
-                for (uint32_t i = 0; i < (uint32_t) xq.size(); ++i)
-                    if (!xq[i].p2p) ord.push_back(i);
+                for (uint32_t i = 0; i < (uint32_t) xq.size(); ++i) ord.push_back(i);
                 std::stable_sort(ord.begin(), ord.end(), [&](uint32_t a, uint32_t b) { return xq[a].layer < xq[b].layer; });
                 for (size_t k = 0; k < ord.size(); ++k) {
                     const XSwap& x = xq[ord[k]];
@@ -466,7 +342,7 @@ bool QfnRuntime::xq_advance(bool wait) {
             };
             // a copy from pageable RAM holds the calling thread until the copy runs, and a window launched ahead of it
             // waits for that thread to serve its rings: such a round's copies are queued here, before the window
-            if (std::all_of(xq.begin(), xq.end(), [&](const XSwap& x) { return x.p2p || srcp->pinned(x.layer, x.in); }))
+            if (std::all_of(xq.begin(), xq.end(), [&](const XSwap& x) { return srcp->pinned(x.layer, x.in); }))
                 ver.set_post_launch(std::move(copies));
             else
                 copies();
@@ -478,11 +354,9 @@ bool QfnRuntime::xq_advance(bool wait) {
     }
     // with the landed words the incoming experts are resident from the next window on while their copies land:
     // its gate/up launches wait for them, and what needs them done waits in xq_settle
-    if (nowait && std::any_of(xq.begin(), xq.end(), [](const XSwap& x) { return x.p2p; }))
-        cudaEventSynchronize(p2p_ev);   // a promotion's peer slot is refilled below
     for (const XSwap& x : xq) {
         host_res[(size_t) x.layer * g.n_expert + x.in] = x.slot;
-        if (x.xchg && !x.p2p) src.spare_release(x.layer, x.in);
+        if (x.xchg) src.spare_release(x.layer, x.in);
         if (nowait) xq_released.emplace_back(x.layer, x.in);
         else srcp->release(x.layer, x.in);
     }
@@ -495,12 +369,6 @@ bool QfnRuntime::xq_advance(bool wait) {
         xq_unsettled = true;
     } else {
         res_upload();
-    }
-    for (const XSwap& x : xq) {   // a promoted expert's peer slot takes the one CUDA0 gave up, from any layer
-        if (!x.promo) continue;
-        std::string perr;
-        if (!peer.reassign(x.layer, x.in, x.lout, x.out, srcp->blob(x.lout, x.out), perr))
-            basalt::log::warn("basalt serve", "%s", perr.c_str());
     }
     xq.clear();
     xq_stage = 0;
@@ -537,10 +405,6 @@ int QfnRuntime::init_tiers() {
     adapt_ev = nullptr;
     cudaEventCreateWithFlags(&adapt_ev, cudaEventDisableTiming);
 
-    // the peer's swaps land a window after their copies are queued, so no window waits for a copy
-    peer_landing = false;
-    xlanding = std::vector<uint8_t>(xpeers.size(), 0);
-
     // the profile's rank of each pair: of equally routed experts the better-ranked one comes in and the worse-ranked
     // one leaves first
     prof_rank = std::vector<int32_t>((size_t) (g.n_layers * g.n_expert), (int32_t) profile.size());
@@ -550,7 +414,7 @@ int QfnRuntime::init_tiers() {
             prof_rank[(size_t) (pl * g.n_expert + pe)] = (int32_t) i;
     }
 
-    // The resident RAM mode on one GPU, with or without the peer: a round's swaps move in three steps at window
+    // The resident RAM mode: a round's swaps move in three steps at window
     // boundaries, with no host copy and no blocking copy on the decode path.  (1) The evicted experts' slots are
     // copied by DMA into free places of the RAM copy (they stay resident meanwhile).  (2) Those places become
     // theirs, the CPU computes them, and the incoming experts are copied into the slots.  (3) The incoming experts
@@ -559,14 +423,11 @@ int QfnRuntime::init_tiers() {
     // does not, and where an expert runs depends only on the window count, as with the plain rounds.
     adapt_fast = true;
     // Its rounds come every --adapt-every windows, so the counts decay less per round than the plain default
-    // (--adapt-decay when given, else 0.85): the routing counts stay large enough for the thresholds and the peer
-    // margin.
+    // (--adapt-decay when given, else 0.85): the routing counts stay large enough for the thresholds.
     fast_decay = o.adapt_decay_set ? o.adapt_decay : 0.85f;   // PROBE adapt sets it
 
-    peer_excl = o.peer_exclusive && peer.valid() && src.complement_ready();
-    // the rounds rank over all layers when at most one peer tier holds experts (not exclusively) and every layer's
-    // blobs are one size (a slot then takes any layer's expert)
-    xq_across = xpeers.empty() && !peer_excl;
+    // the rounds rank over all layers when every layer's blobs are one size (a slot then takes any layer's expert)
+    xq_across = true;
     for (int64_t l = 1; xq_across && l < g.n_layers; ++l)
         xq_across = basalt::kernels::cpu::expert_layout().blob_bytes(l) == basalt::kernels::cpu::expert_layout().blob_bytes(0);
 
@@ -584,8 +445,6 @@ int QfnRuntime::init_tiers() {
         cudaGetLastError();
         xq_pin = nullptr;
     }
-    p2p_ev = nullptr;   // the copies out of the peer's slots, which a promotion's reassign refills
-    cudaEventCreateWithFlags(&p2p_ev, cudaEventDisableTiming);
     // a round made resident before its copies were done: the bookkeeping that waits for them (the next round or
     // a drain), and the RAM pages of its experts
     xq_unsettled = false;

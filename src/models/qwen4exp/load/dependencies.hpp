@@ -30,7 +30,6 @@
 #include "basalt/platform/process.hpp"
 #include "basalt/platform/system.hpp"
 #include "basalt/core/on_device.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/models/qwen4exp/decode/layer.hpp"
 #include "basalt/models/qwen4exp/decode/layout.hpp"
 #include "basalt/models/qwen4exp/decode/session.hpp"

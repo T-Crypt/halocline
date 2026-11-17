@@ -23,7 +23,6 @@ struct Context {
     int64_t* K = nullptr;
     std::set<std::string>* skip = nullptr;
     std::vector<std::pair<int32_t, int32_t>>* profile = nullptr;
-    bool* peer_hot_share = nullptr;
     std::vector<std::pair<int32_t, int32_t>>* profile_loaded = nullptr;
     const bool* pf_borrow = nullptr;
     const int64_t* kWindowMib = nullptr;
@@ -68,9 +67,6 @@ struct Context {
     basalt::core::ExpertCache* xcache = nullptr;
     const int64_t* kv_tail_slots = nullptr;
     uint64_t* cache_fill_bytes = nullptr;
-    std::function<uint64_t()> peer_expert_room;
-    basalt::core::PeerExperts* peer = nullptr;
-    std::vector<std::unique_ptr<basalt::core::PeerExperts>>* xpeers = nullptr;
     Drive* drive = nullptr;
     std::FILE ** routing = nullptr;
     basalt::core::SessionGraphs* gr = nullptr;
@@ -102,12 +98,9 @@ struct Context {
     int64_t* auto_lend_pct = nullptr;
     const int64_t* kMaxAutoChunk = nullptr;
     int64_t* auto_ceiling = nullptr;
-    std::function<bool(bool)> open_peer;
     const bool* adapt_fast_on = nullptr;
     int64_t* lend_from = nullptr;
     basalt::kernels::cpu::ExpertPool* pool = nullptr;
-    std::vector<std::pair<int32_t, int32_t>>* peer_only = nullptr;
-    uint64_t* peer_only_bytes = nullptr;
     std::function<int64_t()> read_cap;
     int64_t* spec_pos = nullptr;
 };

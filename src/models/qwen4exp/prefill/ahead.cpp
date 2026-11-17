@@ -4,7 +4,6 @@
 #include "basalt/models/qwen4exp/decode/layout.hpp"
 #include "basalt/kernels/cpu/expert_layout.hpp"
 #include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include <algorithm>
 #include <utility>
 #include <vector>

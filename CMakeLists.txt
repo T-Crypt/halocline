@@ -366,7 +366,7 @@ set_source_files_properties(src/kernels/cuda/native_mmvq.cu src/kernels/cuda/nat
 # library is the honest shape of the dependency graph: core knows about devices and weights, kernels know
 # about arithmetic, and this one knows the ORDER the arithmetic happens in.
 # ---- tiers: the storage and transfer tier shared by the models (VRAM slots, RAM and file source, peer card) ----
-add_library(tiers STATIC src/core/expert_source.cpp src/core/expert_cache.cpp src/core/peer_experts.cpp src/core/conversation_store.cpp src/core/conversation_memory.cpp)
+add_library(tiers STATIC src/core/expert_source.cpp src/core/expert_cache.cpp src/core/conversation_store.cpp src/core/conversation_memory.cpp)
 target_include_directories(tiers PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(tiers PUBLIC core kernels kernels_cpu ${_gpu_runtime_target})
 if(BASALT_MODEL_QWEN4EXP)
@@ -820,13 +820,6 @@ target_include_directories(dec_gdn_parity PRIVATE ${_gpu_include_directories})
 target_link_libraries(dec_gdn_parity PRIVATE model_qwen4exp_kernels ${_gpu_runtime_target})
 basalt_gpu_test(NAME dec_gdn_parity COMMAND dec_gdn_parity)
 set_tests_properties(dec_gdn_parity PROPERTIES SKIP_RETURN_CODE 77)
-# the peer table update by kernel and the counter zeroing against the span copy and memset they replace, bitwise
-# (GPU, synthetic, no model; --bench times each behind a burst of expert copies on another stream)
-add_executable(dm_table_put_parity tests/models/qwen4exp/kernels/dm_table_put_parity.cpp)
-target_include_directories(dm_table_put_parity PRIVATE ${_gpu_include_directories})
-target_link_libraries(dm_table_put_parity PRIVATE model_qwen4exp_kernels ${_gpu_runtime_target})
-basalt_gpu_test(NAME dm_table_put_parity COMMAND dm_table_put_parity)
-set_tests_properties(dm_table_put_parity PROPERTIES SKIP_RETURN_CODE 77)
 # the route tail skip against a plain CPU rule: which entries it drops over random windows, tables and ranks (GPU, synthetic,
 # no model; --bench times the window kernel)
 add_executable(route_tail_skip_parity tests/models/qwen4exp/kernels/route_tail_skip_parity.cpp)

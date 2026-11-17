@@ -4,7 +4,6 @@
 #include "basalt/models/qwen4exp/decode/native_head.hpp"
 #include "basalt/core/on_device.hpp"
 #include "basalt/platform/compiler.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/kernels/pdl.hpp"
 #include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
 #include "basalt/log.hpp"

@@ -34,7 +34,6 @@ struct Context {
     basalt::core::ModelGeometry& g;
     int64_t& K;
     std::vector<std::pair<int32_t, int32_t>>& profile;
-    bool& peer_hot_share;
     std::vector<std::pair<int32_t, int32_t>>& profile_loaded;
     const bool& pf_borrow;
     basalt::core::WeightTable& wt;
@@ -59,8 +58,6 @@ struct Context {
     basalt::core::FileExpertSource& src;
     basalt::core::ExpertSource*& srcp;
     basalt::core::ExpertCache& xcache;
-    basalt::core::PeerExperts& peer;
-    std::vector<std::unique_ptr<basalt::core::PeerExperts>>& xpeers;
     engine_local::Drive& drive;
     std::vector<int32_t>& host_res;
     std::function<cudaError_t(int32_t*)> res_put;

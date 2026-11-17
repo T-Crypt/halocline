@@ -80,7 +80,6 @@ int QfnRuntime::capture_windows() {
     ple_table.rearm_keepalive();   // a long load must not lapse the SSD keep-alive window before the first request
     // the tiers' placement at READY, which PROBE adapt puts back
     res_at_start = host_res;
-    peer_at_start = peer.valid() ? peer.residency() : std::vector<int32_t>();
     prof_rank_start = prof_rank;
     // the elastic KV's ceiling with everything loaded; the server's copy follows it from here
     kv_ceiling_note();

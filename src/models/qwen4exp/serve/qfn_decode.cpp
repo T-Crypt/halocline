@@ -23,14 +23,12 @@ FILE* tk_log_file() {
 
 QfnRequest::DecSnap QfnRequest::dec_snap() {
     return DecSnap{runtime_.ver.ms_wait, runtime_.ver.ms_pool, runtime_.ver.ms_host, runtime_.drive.d.ms_plan, runtime_.drive.d.ms_actq, runtime_.drive.d.ms_jobs,
-                   runtime_.drive.d.ms_run, runtime_.drive.d.peer != nullptr ? runtime_.drive.d.peer->ms_wait : 0.0,
-                   runtime_.drive.d.multi_misses, runtime_.drive.d.multi_entries, runtime_.drive.d.cache_hits, runtime_.drive.d.pcie_experts,
-                   runtime_.drive.d.peer_entries};
+                   runtime_.drive.d.ms_run,
+                   runtime_.drive.d.multi_misses, runtime_.drive.d.multi_entries, runtime_.drive.d.cache_hits, runtime_.drive.d.pcie_experts};
 }
 
 Flow QfnRequest::decode_begin() {
     if (runtime_.mtp_on && !runtime_.mtp.use_main(runtime_.err)) { std::printf("ERR %s\n", runtime_.err.c_str()); return Flow::error; }   // the windows between prompt chunks swapped it
-    if (!runtime_.peer_due_apply(runtime_.err)) { std::printf("ERR %s\n", runtime_.err.c_str()); return Flow::error; }
     return Flow::proceed;
 }
 
@@ -39,7 +37,7 @@ void QfnRequest::seed_tiers() {
         std::vector<uint32_t> hist;
         int64_t hist_tokens = 0;
         const bool seeded = !runtime_.drive.d.usage.empty() && runtime_.sp.route_hist_take(hist, hist_tokens) && (!in_slot || solo_req);
-        if (seeded) seed_usage_from_prompt(runtime_.drive.d.usage, hist, hist_tokens, runtime_.host_res, runtime_.g.n_expert, runtime_.peer);
+        if (seeded) seed_usage_from_prompt(runtime_.drive.d.usage, hist, hist_tokens, runtime_.host_res);
     }
 }
 
@@ -121,8 +119,7 @@ inline int QfnRequest::before_window(int T, int64_t) {
         // ran on the GPU or the CPU (they round differently) would depend on the copy's timing
         basalt::core::decode_gaps().mark(17);
         // an adaptive round's swaps land before the second window after it (a fixed window, so reproducible),
-        // applied beside the draft before it (apply_thr) when their copies are done; what that moved to the
-        // peer lands one window later
+        // applied beside the draft before it (apply_thr) when their copies are done
         if (apply_thr.joinable()) apply_thr.join();
         if (copy_live && copy_done) {   // the RAM copies are done: their bookkeeping, between windows
             basalt::core::decode_events().tag(1u << 3);

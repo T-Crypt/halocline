@@ -1,7 +1,6 @@
 // src/core/expert_source.cpp - the adapter.  See the header for the three clauses of the contract.
 #include "basalt/core/expert_source.hpp"
 #include "basalt/core/load_progress.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/kernels/cpu/expert_layout.hpp"
 
 #include "basalt/core/pinned.hpp"
@@ -436,10 +435,9 @@ bool FileExpertSource::read_blobs(const std::pair<int32_t, int32_t>* pairs, int6
     std::string direct_err;
     if (!file.open(path_, direct_err, readers)) return mapped_read();
     for (int i = 0; i < readers; ++i) {
-        // Portable: the fill writes the peer card's slots straight from these buffers.  A small pinned allocation
-        // can be carved from a shared block at less than the read alignment, so each buffer has one alignment of
-        // slack and starts at the next aligned address inside it.
-        if (cudaHostAlloc((void**) &stages[i].alloc, (size_t) (stage_bytes + alignment), cudaHostAllocPortable) !=
+        // A small pinned allocation can be carved from a shared block at less than the read alignment, so each
+        // buffer has one alignment of slack and starts at the next aligned address inside it.
+        if (cudaHostAlloc((void**) &stages[i].alloc, (size_t) (stage_bytes + alignment), cudaHostAllocDefault) !=
             cudaSuccess) {
             stages[i].alloc = nullptr;
             (void) cudaGetLastError();

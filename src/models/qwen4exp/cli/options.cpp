@@ -116,14 +116,6 @@ std::optional<int> validate_generation_options(const Options& o, int min_vram_re
                              "everything is loaded; the smallest safe value is %d", o.vram_reserve_mib, min_vram_reserve_mib);
         return 2;
     }
-    if (o.peer_exclusive && (o.peer_device < 1 || !o.resident_cpu_experts || !o.serve)) {
-        basalt::log::error("basalt generate", "--peer-exclusive needs a second GPU (--gpu 0,1), --resident-experts and --serve");
-        return 2;
-    }
-    if (o.peer_exclusive && o.peer_devices.size() > 1) {
-        basalt::log::error("basalt generate", "--peer-exclusive runs with one expert tier card (--gpu 0,1)");
-        return 2;
-    }
     return std::nullopt;
 }
 

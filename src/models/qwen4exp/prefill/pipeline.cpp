@@ -3,7 +3,6 @@
 #include "basalt/models/qwen4exp/prefill/prefill.hpp"
 #include "basalt/models/qwen4exp/decode/mtp.hpp"
 #include "basalt/core/host_plan.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include <string>
 
 namespace basalt::prefill {

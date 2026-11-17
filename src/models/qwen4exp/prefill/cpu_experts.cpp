@@ -6,7 +6,6 @@
 #include "basalt/models/qwen4exp/geometry.hpp"
 #include "basalt/kernels/cpu/pool.hpp"
 #include "basalt/prefill/moe_fp4.hpp"
-#include "basalt/core/peer_experts.hpp"
 #include "basalt/log.hpp"
 #include <algorithm>
 #include <chrono>

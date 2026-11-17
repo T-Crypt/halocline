@@ -19,7 +19,7 @@ def main():
         return 77
     base = [str(Path(args.engine).resolve()), "--model", str(Path(args.model).resolve()),
             "--gpu", "0", "--max-context", "4096", "--kv", "int8", "--expert-cache", args.expert_cache,
-            "--adapt-swaps", "0", "--peer-adapt-swaps", "0"]
+            "--adapt-swaps", "0"]
     prompts = ("1", "1,2")
     refs = {}
     with tempfile.TemporaryDirectory(prefix="basalt-generate-prompt-") as temp:

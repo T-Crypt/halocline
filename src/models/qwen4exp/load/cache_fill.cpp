@@ -6,7 +6,6 @@ namespace basalt::models::qwen4exp::generate {
 int cache_fill(Context& context) {
     auto& o = *context.o;
     auto& err = *context.err;
-    auto& g = *context.g;
     auto& profile = *context.profile;
     auto& model_bytes = *context.model_bytes;
     auto& expert_total_bytes = *context.expert_total_bytes;
@@ -22,34 +21,8 @@ int cache_fill(Context& context) {
     int64_t prefilled = 0;
     uint64_t cache_fill_bytes = 0;   // what the GPU cache took from the profile (counted by its load phase)
     // The model's bytes against what the tiers will hold, from the same quantities the loader uses: the primary card
-    // keeps its weights and the cache just sized, the peer card its free memory less its buffers and reserve, and the
-    // RAM copy the room past the headroom.  With the file-backed modes the rest is read from the SSD (the default
+    // keeps its weights and the cache just sized, and the RAM copy the room past the headroom.  With the file-backed modes the rest is read from the SSD (the default
     // arena mode was checked against the RAM above).
-    // what the peer card can hold of experts: its free memory less its buffers and reserve, capped by --peer-slots
-    auto peer_expert_room = [&]() -> uint64_t {
-        uint64_t room = 0;
-        if (o.peer_device < 1) return 0;
-        int cur = 0, count = 0;
-        if (cudaGetDevice(&cur) != cudaSuccess || cudaGetDeviceCount(&count) != cudaSuccess) {
-            (void) cudaGetLastError();
-            return 0;
-        }
-        std::vector<int> seen;   // each card once; its tiers share its free memory
-        for (int dev : o.peer_devices) {
-            if (dev >= count || std::find(seen.begin(), seen.end(), dev) != seen.end()) continue;
-            seen.push_back(dev);
-            const uint64_t tiers = (uint64_t) std::count(o.peer_devices.begin(), o.peer_devices.end(), dev);
-            size_t pfree = 0, ptotal = 0;
-            if (cudaSetDevice(dev) == cudaSuccess && cudaMemGetInfo(&pfree, &ptotal) == cudaSuccess) {
-                const uint64_t reserve = ((uint64_t) std::max(o.peer_reserve_mib, 128) << 20) +
-                                         tiers * basalt::core::PeerExperts::device_overhead_bytes(g.n_embd, g.n_ff);
-                room += (uint64_t) pfree > reserve ? (uint64_t) pfree - reserve : 0;
-            }
-        }
-        (void) cudaSetDevice(cur);
-        (void) cudaGetLastError();
-        return room;
-    };
     if (model_bytes > 0 && o.mmap_experts) {
         const auto free_ram = basalt::core::conversation_available_memory();
         if (free_ram) {
@@ -71,17 +44,13 @@ int cache_fill(Context& context) {
                 ram = ram > margin ? ram - margin : 0;
                 if (o.resident_budget > 0) ram = std::min(ram, o.resident_budget);
             }
-            // the peer tier holds experts too: what its card has free beyond its buffers and the reserve it leaves
-            uint64_t peer_vram = peer_expert_room();
-            peer_vram = std::min(peer_vram, outside);
-            outside -= peer_vram;
-            if (model_bytes > vram + peer_vram + ram) {
+            if (model_bytes > vram + ram) {
                 ram = std::min(ram, outside);
-                if (model_bytes > vram + peer_vram + ram)
+                if (model_bytes > vram + ram)
                     basalt::log::warn("basalt", "model %.1f GiB, free VRAM + RAM %.1f GiB: the rest is read from "
                                          "the SSD while generating (slow)",
                                  (double) model_bytes / 1073741824.0,
-                                 (double) (vram + peer_vram + ram) / 1073741824.0);
+                                 (double) (vram + ram) / 1073741824.0);
             }
         }
     }
@@ -144,7 +113,6 @@ int cache_fill(Context& context) {
 
 
     context.cache_fill_bytes = &cache_fill_bytes;
-    context.peer_expert_room = peer_expert_room;
     return token_path(context);
 }
 
