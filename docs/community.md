@@ -7,8 +7,8 @@ halo-bench --community --model PACK.basalt --submitter YOUR_NAME
 ```
 
 The preset is fixed: three decode fixtures (`conv`, `struct`, `prose`), a 16K and a 64K prompt, each measured cold in
-its own engine process. Nothing on the command line can change it, because a row with different flags would not compare
-with the others. `halo-bench --help` prints the fixture contents and how to regenerate them.
+its own engine process. The bench refuses a flag that would change it, because a row with different flags would not
+compare with the others. `halo-bench --help` prints the fixture contents and how to regenerate them.
 
 ## What the preset needs
 
@@ -16,25 +16,26 @@ One Ada card. Halocline builds sm_89 code only: RTX 4090, 4080, 4070 Ti, 4070, t
 workstation cards, and the L4, L40 and L40S servers. Ampere, Turing, Hopper and Blackwell cards have no code in the
 binary, and the bench refuses them before it starts. A MIG slice is not one card and is not supported.
 
-Linux x86-64 and a driver new enough for CUDA 12. Nothing else: the bench checks the card's compute capability, its
-VRAM, the power limit the driver enforces and the PCIe link, and the row records them.
+Linux x86-64 and a driver new enough for CUDA 12. There is nothing else to install. The bench reads the card's compute
+capability, its VRAM, the power limit the driver enforces and the PCIe link, and the row records them.
 
-The only supported weights today are Unsloth's Qwen3.8-Flash-Next **UD-IQ4_XS v3.1**, converted by this repository:
+The only supported weights today are Unsloth's Qwen3.8-Flash-Next UD-IQ4_XS v3.1, converted by this repository:
 
 | What | Size | Where |
 |---|---|---|
 | Unsloth's GGUF, 4 shards | 93,672,359,738 bytes | [unsloth/Qwen3.8-Flash-Next-GGUF](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF) |
 | the pack it converts to | 90.1 GiB | built by `tools/convert/convert.py`; the commands are in the [README](../README.md#build-and-run) |
 
-Budget about 190 GiB of disk for the GGUF and the pack, 64 GiB of RAM, and the time the conversion and the first load
-take (235 s and 88 s on the reference machine, in the README's eval tree; the second load reads the pack).
+The GGUF and the pack need about 190 GiB of disk, and a run needs 64 GiB of RAM. On the reference machine the
+conversion took 235 s and the first load 88 s; every load after that reads the pack.
 
 Qwen3.8-27B from Unsloth's UD-Q4_K_XL is the second supported weight. Its GGUF converter path is not written yet, so
 no 27B row can exist until it is.
 
 ## The cards
 
-Vendor figures, not measured here. The measured column is what the reference run in this repository reports.
+VRAM, SM count, bandwidth and power are vendor figures. The last column is what this repository's reference run
+measured about the expert pool.
 
 | Card | VRAM | SMs | Bandwidth GB/s | Power W | Experts |
 |---|---|---|---|---|---|
@@ -51,9 +52,10 @@ Vendor figures, not measured here. The measured column is what the reference run
 | RTX 4070 SUPER | 12 | 56 | 504 | 220 | part of the pool moves to pinned RAM |
 | RTX 4070 | 12 | 46 | 504 | 200 | part of the pool moves to pinned RAM |
 
-A card below 24 GiB still runs: the engine places as many experts as fit in VRAM and keeps the rest in page-locked host
-RAM, so decode reads them over PCIe and the row is slower for a reason the notes should state. The bench refuses a run
-only when experts would have to be read from the SSD, because those numbers depend on the disk.
+A card below 24 GiB still runs. The engine places as many experts as fit in VRAM and keeps the rest in page-locked host
+RAM, so decode reads part of the weights over PCIe and runs slower than a card that holds the whole pool. A row from
+such a card should say so in `notes`. The bench refuses a run only when experts would have to be read from the SSD,
+because those numbers depend on the disk.
 
 ## Running it
 
@@ -71,7 +73,11 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 The bench starts its own engine three times, once for the decode fixtures and once per prompt depth, so every number is
 a cold measurement. It prints the row, adds it to `docs/community/benchmarks.json`, then prints the hardware it measured
-before the engine started. On the reference 4090 the whole preset takes about ten minutes.
+before the engine started. On the reference 4090 the whole preset takes about six minutes.
+
+Run it on an idle machine. Each engine start pins about 47 GiB of experts in host RAM, and prefill falls when the host is
+short of free memory: two runs of this preset an hour apart on the reference 4090 measured 1,958 and 5,070 t/s for the
+same 64K prompt. The row records one number, so state in `notes` when the machine was busy.
 
 `halo-bench --hardware` prints the host figures alone, with no model and no engine start. Use it to check a new machine
 before a run.
@@ -95,11 +101,11 @@ before a run.
 
 ## Comparing rows
 
-Two rows compare when `model`, `quant` and `kv` match. The preset fixes the rest. Rows of different cards are the point
-of the table: the same weights, the same protocol, different silicon.
+Two rows compare when `model`, `quant` and `kv` match. The preset fixes the rest. Rows from different cards are what
+the table is for: the same weights and the same protocol on different hardware.
 
-The 12 GiB and 16 GiB cards keep part of the expert pool in host RAM. Their decode rate is lower than the bytes they
-would read on a card that holds everything, and their rows are not a statement about the engine's kernel speed.
+The 12 GiB and 16 GiB cards keep part of the expert pool in host RAM, and decode reads it over PCIe. Their rates say
+more about that link than about the engine's kernels, and `notes` should say the pool did not fit.
 
 `docs/community/benchmarks-basalt.json` is Basalt's own table, frozen. Those runs are Blackwell cards with NVFP4 and
 IQ3_S packs on an engine that is not this one; they are kept for the record and are not comparable with any row in this
@@ -107,9 +113,8 @@ file.
 
 ## Submitting
 
-1. Run the command above. Check the row it printed: the card name, VRAM and power limit are read from the driver, so
-   they are what they are; add `notes` (200 characters) if something about the run needs saying, such as experts in host
-   RAM or a shared machine.
+1. Run the command above. The card name, VRAM and power limit come from the driver, so do not edit them. Add `notes`
+   (200 characters) when the run needs a caveat, such as experts in host RAM or a shared machine.
 2. `python3 tools/check_benchmarks.py docs/community/benchmarks.json` must pass. It enforces the file's format, the
    field types and one row per setup.
 3. Commit the file and open a pull request with the row. There is no CI on this repository: the maintainer runs the same

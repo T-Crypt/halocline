@@ -1,4 +1,43 @@
 {
   "preset": "halo-bench --community",
-  "runs": []
+  "runs": [
+    {
+      "submitter": "T-Crypt",
+      "date": "2026-11-17",
+      "commit": "8abe5308d3",
+      "preset": "community-1",
+      "model": "Qwen3.8-Flash-Next",
+      "gpus": [
+        {
+          "name": "RTX 4090",
+          "vram_gib": 24,
+          "power_w": 350,
+          "cuda_cores": 16384,
+          "compute_cap": "8.9",
+          "pcie": "4.0 x16",
+          "h2d_gbps": 23.9
+        }
+      ],
+      "ram_gib": 62,
+      "cpu": "Intel Core i9-14900K, 24 cores",
+      "ram_gbps": 76.6,
+      "os": "Linux",
+      "driver": "615.78.08",
+      "quant": "IQ4_XS",
+      "kv": "int8",
+      "prefill_16k_tps": 5322.4,
+      "prefill_64k_tps": 5069.8,
+      "decode_tps": 212.1,
+      "decode_conv_tps": 134.9,
+      "decode_struct_tps": 257.2,
+      "decode_prose_tps": 137.1,
+      "accept_conv_pct": 70.7,
+      "accept_struct_pct": 97.2,
+      "accept_prose_pct": 66.3,
+      "draft_len_conv": 2.0,
+      "draft_len_struct": 7.0,
+      "draft_len_prose": 1.8,
+      "engine_args": "--gpu 0 --max-context 66661 --kv int8"
+    }
+  ]
 }
