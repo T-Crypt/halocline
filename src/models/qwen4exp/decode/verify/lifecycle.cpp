@@ -156,12 +156,8 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
         err = "verify: geometry differs from the artifact's";
         return false;
     }
-    if (le_ < 0) le_ = g.n_layers;
-    if (lb_ < 0 || lb_ >= le_ || le_ > g.n_layers || (lb_ > 0 && hand_in_ == nullptr) ||
-        (le_ < g.n_layers && hand_out_ == nullptr)) {
-        err = "verify: the stage's layer range or its hand-off buffers are wrong";
-        return false;
-    }
+    lb_ = 0;
+    le_ = g.n_layers;
     const WeightRef* wo = wt.find("output.weight");
     if (wo == nullptr) { err = "verify: output.weight is missing"; return false; }
     n_vocab_ = wo->ne1;
@@ -281,7 +277,7 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
     cudaMemset(arena_, 0, count.used);
     prof_on_ = diagnostics().profile;
     if (prof_on_) decode_gaps().host_on = true;
-    if (next_ == nullptr && exp_flag("host_ev", 0) != 0) decode_events().enable(4000);
+    if (exp_flag("host_ev", 0) != 0) decode_events().enable(4000);
     if (prof_on_) {
         const size_t np = (size_t) g.n_layers * kProfPer + 8;
         if (cudaMalloc((void**) &prof_, np * 8) != cudaSuccess) { prof_on_ = false; prof_ = nullptr; cudaGetLastError(); }

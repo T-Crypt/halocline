@@ -55,25 +55,14 @@ void Verifier::stage_inputs(int T, const int32_t* tokens, int64_t pos0) {
     staged_ = true;
 }
 
-// One window through every stage: all of them launch first (a later stage's graph waits on the hand-off flag its
-// predecessor's graph raises), then the host serves each stage's rings in turn.
+// One window: launched, then the host serves its rings.
 bool Verifier::run(int T, const int32_t* tokens, int64_t pos0, PoolMultiFn pool, void* user, int32_t* out,
                    std::string& err) {
     const std::function<void()> served = std::move(served_hook_);
     served_hook_ = nullptr;
-    for (Verifier* v = this; v != nullptr; v = v->next_)
-        if (v->lb_ > 0 && v->h_flag_ != nullptr) *(volatile uint32_t*) (v->h_flag_ + 12) = 0;
-    std::atomic_thread_fence(std::memory_order_seq_cst);
-    for (Verifier* v = this; v != nullptr; v = v->next_)
-        if (!v->run_begin(T, tokens, pos0, err)) return false;
-    void* u = user;
-    for (Verifier* v = this; v != nullptr; v = v->next_) {
-        if (!v->run_serve(pool, u, err)) return false;
-        if (v->next_ == nullptr && served) served();
-        if (!v->run_end(v->next_ == nullptr ? out : nullptr, err)) return false;
-        u = v->next_user_;
-    }
-    return true;
+    if (!run_begin(T, tokens, pos0, err) || !run_serve(pool, user, err)) return false;
+    if (served) served();
+    return run_end(out, err);
 }
 
 // The window's staging and launch, and the flags that need no host service.
@@ -95,7 +84,7 @@ bool Verifier::run_begin(int T, const int32_t* tokens, int64_t pos0, std::string
     decode_events().record(DecodeEvents::kRunEntry, cs_, 1);
     if (!staged_) stage_inputs(T, tokens, pos0);
     staged_ = false;
-    const bool do_ple = ss.ple.ready() && ple_stage();
+    const bool do_ple = ss.ple.ready();
     fl_.ple_rows.resize((size_t) kVerifyMaxT * PLE_N_HEADS);
     uint32_t* const ple_rows = fl_.ple_rows.data();
     if (do_ple) {
@@ -119,24 +108,20 @@ bool Verifier::run_begin(int T, const int32_t* tokens, int64_t pos0, std::string
     const Clock::time_point tl = Clock::now();
     DecodeEvents& dev = decode_events();
     dev.stamp(5);
-    if (next_ == nullptr && dev.on) { dev.next_window(); dev.record(DecodeEvents::kVerifyPre, cs_); }
+    if (dev.on) { dev.next_window(); dev.record(DecodeEvents::kVerifyPre, cs_); }
     if (ar_on() && h_plan_err_ != nullptr) *(volatile uint32_t*) h_plan_err_ = 0;
     // an async commit still running: the window's first node waits for it once the commit's begin kernel has run (the
     // device then knows the epoch); if that does not happen within moments, the window follows the commit on the device
     if (!finisher_on() || (commit_pending_ && !commit_begun()))
         order_after_commit(true);
     if (after != nullptr) cudaStreamWaitEvent(cs_, after, 0);   // behind another verifier's work on the same state
-    if (wait_ev_ != nullptr) {
-        cudaStreamWaitEvent(cs_, wait_ev_, 0);
-        wait_ev_ = nullptr;
-    }
     *(volatile int32_t*) h_head_from_ = head_sampling_ ? std::clamp(head_from_, 0, T) : T;
     head_from_ = 0;
     std::atomic_thread_fence(std::memory_order_seq_cst);
     set_head_keep(head_keep());
     if (!hs_launch(T, err)) return false;
     const cudaError_t le = cudaGraphLaunch(ar_off_ ? exec_nr_[T] : exec_[T], cs_);
-    if (next_ == nullptr) dev.record(DecodeEvents::kVerifyPost, cs_);
+    dev.record(DecodeEvents::kVerifyPost, cs_);
     ms_launch += ms_since(tl);
     if (le != cudaSuccess) { err = std::string("verify: launch: ") + cudaGetErrorString(le); return false; }
     lz_pending_ = false;   // the window applies the lazy layers (lazy_on) before their GDN kernels

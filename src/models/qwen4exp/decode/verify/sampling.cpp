@@ -19,8 +19,6 @@ namespace basalt::core {
 using namespace verify_detail;
 
 bool Verifier::set_logit_bias(const std::vector<float>& bias, std::string& err) {
-    if (next_ && !next_->set_logit_bias(bias, err)) return false;
-    if (next_) return true;   // an earlier stage: the head, and so the sampling, is on the last one
     const OnDevice on_device(device_);
     if (!bias.empty() && bias.size() != (size_t) n_vocab_) {
         err = "logit_bias: the vocabulary size does not match";
@@ -94,7 +92,6 @@ bool Verifier::exact_head_rows(int T, std::string& err) {
 }
 
 bool Verifier::reserve_wide_sampler(std::string& err) {
-    if (next_ != nullptr) return next_->reserve_wide_sampler(err);   // a layer split: the head is on the last stage
     const OnDevice on_device(device_);
     if (basalt::kernels::sampler_wide_reserve((int) n_vocab_, cs_)) return true;
     err = "the sampler has no VRAM for a list longer than 64 entries (top_k 0 or above 64): about " +
@@ -103,7 +100,6 @@ bool Verifier::reserve_wide_sampler(std::string& err) {
 }
 
 bool Verifier::resample_row(int t, int64_t pos0, const std::vector<float>& bias, int32_t& token, std::string& err) {
-    if (next_ != nullptr) return next_->resample_row(t, pos0, bias, token, err);   // a layer split: the head is on the last stage
     const OnDevice on_device(device_);
     if (head_logits_ == nullptr || t < 0 || bias.size() != (size_t) n_vocab_) { err = "resample_row: no such row or a bad bias"; return false; }
     if (!head_exact_again()) { err = "resample_row: the exact head failed"; return false; }   // the mask reads every row
@@ -138,7 +134,6 @@ bool Verifier::resample_row(int t, int64_t pos0, const std::vector<float>& bias,
 
 bool Verifier::row_logprobs(int t0, int n, const int32_t* picks, int top, float* host) {
     using basalt::kernels::kLogprobStride;
-    if (next_ != nullptr) return next_->row_logprobs(t0, n, picks, top, host);   // a layer split: the head is on the last stage
     if (head_logits_ == nullptr || host == nullptr || picks == nullptr || t0 < 0 || n <= 0 || n_vocab_ <= 0) return false;
     const OnDevice on_device(device_);
     if (head_screened_ && !head_exact_again()) return false;
@@ -160,7 +155,6 @@ bool Verifier::row_logprobs(int t0, int n, const int32_t* picks, int top, float*
 }
 
 bool Verifier::copy_logits(int t, float* host) const {
-    if (next_ != nullptr) return next_->copy_logits(t, host);   // a layer split: the head is on the last stage
     if (head_logits_ == nullptr || host == nullptr || t < 0 || n_vocab_ <= 0) return false;
     if (head_screened_ && (!head_exact_again() || cudaStreamSynchronize(cs_) != cudaSuccess)) return false;
     return cudaMemcpy(host, head_logits_ + (size_t) t * (size_t) n_vocab_, (size_t) n_vocab_ * sizeof(float),

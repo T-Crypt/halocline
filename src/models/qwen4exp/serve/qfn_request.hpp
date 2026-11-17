@@ -47,8 +47,7 @@ public:
     private:
         QfnRequest& r_;
     };
-    bool run_window(int T, int e0, int& TB);
-    bool take_held(int T);
+    bool run_window(int T, int e0);
     bool window_failed() const { return runtime_.drive.d.failed; }
     const char* window_error() const {
         return runtime_.drive.d.failed && runtime_.drive.d.fail ? runtime_.drive.d.fail : runtime_.err.c_str();
@@ -62,14 +61,14 @@ public:
     bool row_logprobs(int row0, int n, const int32_t* picks, int top, float* out) {
         return cv->row_logprobs(row0, n, picks, top, out);
     }
-    bool after_accept(int T, int& a, int e0, bool from_sfx, bool held_run, bool paired, bool& hold);
+    bool after_accept(int T, int& a, int e0, bool from_sfx);
     void note_draft_probs(bool from_sfx);
     void stamp_before_commit() { basalt::core::decode_events().stamp(9); }
     bool commit(int keep, std::string& e, int phase) { return cv->commit(keep, e, phase); }
     void on_token(int32_t tok) { if (runtime_.o.suffix_draft > 0) runtime_.sfx->append(tok); }
     void count_round() { ++runtime_.rounds; }
     template <class After>
-    bool draft_next(int T, int a, int e0, int TB, bool from_sfx, bool hold, bool will_draft, After& after_launch);
+    bool draft_next(int T, int a, int e0, bool from_sfx, bool will_draft, After& after_launch);
     bool draft_fatal() const { return draft_failed; }
     void window_timing(int T, int a, bool from_sfx, Clock::time_point round0, Clock::time_point tw0,
                        Clock::time_point tw1, Clock::time_point tw2);
@@ -88,13 +87,10 @@ public:
 
 private:
     QfnRuntime& runtime_;
-    bool try_pair{};
     bool do_adapt{};
     bool adapt_ok{true};
     bool adapt_early{};
     std::atomic<int> adapt_go{0};
-    void* user_c{};
-    void* user_o{};
     FILE* draft_log{};
     FILE* tk_log{};
     float wprob[16]{};
@@ -135,16 +131,7 @@ private:
     int64_t sfx_drafts{};
     int64_t sfx_ok{};
     basalt::core::Verifier* cv{};
-    basalt::core::Verifier* ov{};
-    struct HeldWindow { bool on = false; int T = 0; std::vector<int32_t> win, out; };
-    HeldWindow held{};
-    std::vector<int32_t> win_b{};
     int n_chain{};
-    double full_ema{};
-    bool pair_hint{};
-    bool pair_req{};
-    int64_t pair_runs{};
-    int64_t pair_holds{};
     bool dec_timing{};
     struct DecSnap {
         double wait, pool, host, plan, actq, jobs, run, peer_wait;

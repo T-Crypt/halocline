@@ -161,14 +161,13 @@ public:
     /// Rows t0..t0+n of the last window's head: picks[t]'s log probability and the row's `top` likeliest tokens,
     /// kernels::kLogprobStride floats a row to `host` (basalt/kernels/logprobs.hpp). Valid after run().
     bool row_logprobs(int t0, int n, const int32_t* picks, int top, float* host);
-    int64_t vocab() const { return next_ ? next_->vocab() : n_vocab_; }
+    int64_t vocab() const { return n_vocab_; }
     /// The sampling the verify window's head applies (temperature / top_p / top_k / seed).  Set per
     /// request; greedy by default.  The sampling itself runs OUTSIDE the captured graph - its
     /// parameters would otherwise be baked forever - so this can change between requests freely.
     void set_sampling(const basalt::kernels::SamplerParams& sp) {
         sampling_ = sp;   // row t of a window at pos0 draws Philox(seed, pos0 + t): see run()
         sampling_.logit_bias = logit_bias_host_.empty() ? nullptr : logit_bias_device_;
-        if (next_) next_->set_sampling(sp);
     }
     /// The sampler's buffers for a list longer than its top_k kernels keep (top_k 0, or above 64), on the stream the
     /// head samples on (the last stage's); false with `err` when the memory cannot be had.
@@ -195,39 +194,23 @@ public:
     void set_history(const int32_t* history, int history_len) {
         hist_d_ = history;
         hist_len_ = history_len;
-        if (next_) next_->set_history(history, history_len);
     }
     /// Off: `run` skips the request's head sampling and `out` is the recorded greedy pick.  For windows whose picks are
     /// discarded - a prompt read through windows commits every token - so they cost no sampler launch or sync and
     /// never read a history staged for another position.
-    void set_head_sampling(bool on) { head_sampling_ = on; if (next_) next_->set_head_sampling(on); }
+    void set_head_sampling(bool on) { head_sampling_ = on; }
     /// Skip exact head scoring below this row for the next window.
-    void set_head_from(int t) { head_from_ = t; if (next_) next_->set_head_from(t); }
+    void set_head_from(int t) { head_from_ = t; }
     /// On: a sampled window also leaves draft_prob(t), the probability row t's final distribution gives the window's
     /// token t + 1 (t < T - 1), for relaxed acceptance.  The picks are unchanged.  Off by default; set per request.
-    void set_draft_probe(bool on) { draft_probe_ = on; if (next_) next_->set_draft_probe(on); }
+    void set_draft_probe(bool on) { draft_probe_ = on; }
     /// Valid after a sampled run() with the probe on.
-    float draft_prob(int t) const { return next_ ? next_->draft_prob(t) : ((volatile float*) h_qp_)[t]; }
+    float draft_prob(int t) const { return ((volatile float*) h_qp_)[t]; }
     /// After a sampled run(): row t's kept list at [t * kTopIds, (t + 1) * kTopIds), best first, -1 after it.
     /// nullptr after a window that did not sample.
     static constexpr int kTopIds = 8;
-    const int32_t* top_ids() const { return next_ ? next_->top_ids() : (top_valid_ ? h_top_ : nullptr); }
+    const int32_t* top_ids() const { return top_valid_ ? h_top_ : nullptr; }
 
-    /// LAYER SPLIT (multi-GPU): this verifier runs layers [layer_begin, layer_end) of every window.  A stage that
-    /// does not start at layer 0 takes its residual from `handoff_in` instead of embedding the tokens; a stage that
-    /// does not end at the last layer writes its residual to `handoff_out` and has no head.  The hand-off holds,
-    /// per token, the residual R (hc x n_embd), the last layer's pending write bo (n_embd) and inject (hc): the next
-    /// stage folds that write into its first read exactly as the unsplit window does, so the split is bit-exact.
-    /// Both pointers must be device-visible (mapped pinned memory, portable when the stages are on two devices).
-    /// Set before `init`.  Default: the whole model, no hand-off.
-    void set_stage(int64_t layer_begin, int64_t layer_end, const float* handoff_in, float* handoff_out) {
-        lb_ = layer_begin; le_ = layer_end; hand_in_ = handoff_in; hand_out_ = handoff_out;
-    }
-    /// The next stage: `run` and `commit` continue into it (its pool calls get `next_user`); sampling settings
-    /// and `final_R` are the last stage's.
-    void set_next(Verifier* next, void* next_user) { next_ = next; next_user_ = next_user; }
-    /// floats per token in a hand-off buffer
-    static int64_t handoff_floats(const ModelGeometry& g) { return (int64_t) g.hc * g.n_embd + g.n_embd + g.hc; }
     /// The 8-bit copies of every layer's hyper-connection matrices (and the head's) on the current device, from the
     /// model file's table; called before the expert cache takes the free memory.  False with `err` when a matrix this
     /// device holds has no copy in the table or no VRAM for it.
@@ -330,17 +313,14 @@ public:
     /// default.  Set on the first stage, it reaches the last.
     void set_slot_sampling(int slot, const basalt::kernels::SamplerParams& sp) {
         if (slot >= 0 && slot < (int) slot_sp_.size()) slot_sp_[(size_t) slot] = sp;
-        if (next_) next_->set_slot_sampling(slot, sp);
     }
     /// The next batch window's penalty histories: one row of `len` int32 per window row (penalty_rows), on the last
     /// stage's device; a row of a slot with a penalty window is drawn with its tail.  Null: the window has no penalties.
     void set_batch_history(const int32_t* rows, int len) {
         bh_d_ = rows;
         bh_len_ = len;
-        if (next_) next_->set_batch_history(rows, len);
     }
     const int32_t* batch_out() const { return b_out_; }
-    bool last_stage() const { return g_ != nullptr && le_ == g_->n_layers; }
     /// commit() returns without waiting for its graph (a single-GPU session sets it): the next window follows it on
     /// the same stream and the drafter reads nothing it writes, so it overlaps the draft. Whoever reads or writes
     /// the session from another stream or the host afterwards (a new request, a checkpoint, a snapshot, the prompt
@@ -356,33 +336,9 @@ public:
     /// Captures every solo window width's graph and the commit for session `s` now.
     bool warm_session(SessionState* s, std::string& err);
 
-    // ---- PIPELINED WINDOWS (a layer split of two stages with two chains of verifiers over the same sessions, A and B).
-    // Window A runs; once its stage 0 is done, stage 0 commits A as if every row were kept (the state it reaches when the
-    // guess below holds) and starts window B, whose first token is the guess for A's next token, while stage 1 still runs
-    // A.  A held (every row accepted, and A's last pick is B's first token): stage 1 commits A and runs B (`pair_hold`).
-    // A missed: B's stage 0 drains and stage 0's state is put back as before that commit (`pair_miss`); the caller then
-    // commits A with its real count as for any window.  The head of each chain calls these.
-    /// Before init, on a chain's first stage: the verifier keeps a snapshot of its state in `snap` (`pair_snapshot_bytes`).
-    void set_pipelined(void* snap) { pair_snap_ = snap; }
-    /// The next window's graph on this verifier waits for `e` (then it forgets it): work on the same card it must not
-    /// overlap, such as the drafter's chain.
-    void set_wait_event(cudaEvent_t e) { wait_ev_ = e; }
-    static uint64_t pair_snapshot_bytes(const ModelGeometry& g, const SessionState& ss, int64_t lb, int64_t le);
-    /// `guess` runs once this window's stage 0 has served its last ring: it writes the next window's tokens to `tokb` and
-    /// returns their count, or 0 for no guess (then this is `run`).  `tb` gets that count.
-    bool run_pair(Verifier& b, int ta, const int32_t* toka, int64_t pa, const std::function<int(int32_t*)>& guess,
-                  int32_t* tokb, int& tb, PoolMultiFn pool, void* usera, void* userb, int32_t* outa, std::string& err);
-    bool pair_hold_commit(int ta, std::string& err);
-    bool pair_hold_begin(Verifier& b, int ta, int64_t pa, int tb, const int32_t* tokb, std::string& err);
-    /// The next window's first stage, served to its end (the card is then free for the drafter), and its last stage.
-    bool pair_hold_finish_first(Verifier& b, PoolMultiFn pool, void* userb, std::string& err);
-    bool pair_hold_finish(Verifier& b, PoolMultiFn pool, void* userb, int32_t* outb, std::string& err);
-    bool pair_miss(Verifier& b, PoolMultiFn pool, void* userb, std::string& err);
-
-    Verifier* next_stage() const { return next_; }
     /// Token t's residual after the last layer, (hc, n_embd) on the device, valid until the next `run`.
     const float* final_R(int t) const;
-    const float* final_R_all() const { return next_ ? next_->final_R_all() : R_; }
+    const float* final_R_all() const { return R_; }
 
     /// The GPU plan the pool writes each layer (VRAM hits + the PCIe share of the misses); give it to the
     /// dispatch (`ExpertDispatch::plan`) before the first `run`.
@@ -450,17 +406,6 @@ private:
         uint32_t spins = 0;
         std::chrono::steady_clock::time_point wait_t0, last_flush;
     } fl_;
-    // the pair's snapshot and optimistic commit
-    void* pair_snap_ = nullptr;
-    cudaEvent_t wait_ev_ = nullptr;
-    cudaEvent_t ev_opt_ = nullptr;         ///< recorded behind an optimistic commit
-    int64_t snap_pos0_ = 0;
-    int32_t snap_ple_[2] = {-1, -1};
-    bool pl_save(std::string& err);
-    bool pl_qsa_copy(bool save, std::string& err);
-    static constexpr int kPairRows = 4;     ///< indexer pooled rows a commit of one window can complete
-    bool pl_restore(std::string& err);
-    bool pl_commit_opt(int n_keep, std::string& err);
     bool pdl_rec_ = false;   // record_window may use programmatic dependent launch
     bool pdl_off_ = false;                 ///< ... a window failed to capture with it: the later ones go without
     // batch windows (see init_slots)
@@ -477,7 +422,6 @@ private:
     int bh_len_ = 0;
     int last_nseg_ = 0, last_seg_slot_[8] = {}, last_seg_len_[8] = {};   ///< its segments
     std::chrono::steady_clock::time_point commit_t0_;   ///< commit_slots_begin
-    std::vector<int> commit_next_keep_;                 ///< its counts, for the next stage
     uint64_t bkey(int S, int hbase) const {
         return batch_key(S, hbase) | (ar_off_ ? (1ull << 63) : 0ull);
     }
@@ -534,7 +478,8 @@ private:
     size_t lp_cap_ = 0;                  ///< its rows
     int device_ = -1;                    ///< the device `init` ran on: run/commit switch to it (layer split)
     std::atomic<bool> released_{false};   // release_gpu_waits ran (maybe on the watchdog thread): no more windows
-    bool all_resident_ = false;           ///< 100% of experts in [lb_, le_) resident in VRAM: zero-doorbell graph
+    bool all_resident_ = false;           ///< 100% of experts resident in VRAM: zero-doorbell graph
+    int64_t lb_ = 0, le_ = -1;           ///< the layers this verifier runs: every one (le_ is set to n_layers by init)
     /// The zero-doorbell graph plans from the device residency table alone, so it is right only while every expert of
     /// the stage is in VRAM.  A prompt loan, a VRAM shrink or an adaptive swap marks some -1: the windows then run the
     /// doorbell graph (exec_nr_ / the batch key's top bit).  refresh_ar() reads the host table before each window.
@@ -546,12 +491,6 @@ private:
     bool device_plan_ = false;   // resident-only layers planned on the device
     uint32_t* skip_ = nullptr;   // per group, the ring whose plan the device built (0: the host's)
     unsigned long long* slot_off_d_ = nullptr;   // the slot offsets on the device
-    int64_t lb_ = 0, le_ = -1;           ///< set_stage: the layers this verifier runs (-1: to the last)
-    const float* hand_in_ = nullptr;
-    float* hand_out_ = nullptr;
-    Verifier* next_ = nullptr;
-    void* next_user_ = nullptr;
-    bool ple_stage() const { return lb_ <= 1 && 1 < le_; }   ///< holds layer 1, where the PLE block runs
     void stage_inputs(int T, const int32_t* tokens, int64_t pos0);
     bool staged_ = false;
     bool capture_commit(std::string& err);

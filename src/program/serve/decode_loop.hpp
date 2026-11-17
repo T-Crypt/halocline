@@ -1,7 +1,7 @@
 // src/program/serve/decode_loop.hpp - the window loop of a request, one instance per model backend.
 //
 // `B` is the model's request class: every call on it is inline, so a window pays no indirect call.  `B::kSpeculates`
-// adds drafted windows, prompt lookup and pipelined windows; without it every window holds one token.
+// adds drafted windows and prompt lookup; without it every window holds one token.
 #pragma once
 
 #include "request.hpp"
@@ -55,7 +55,6 @@ Flow Request::decode_loop(B& b) {
             for (int i = 1; i < T; ++i) window[(size_t) i] = (int32_t) ids[(size_t) (p + i)];
         if (ppl != nullptr)
             for (int i = 0; i < T; ++i) window[(size_t) i] = ppl->token(p + i);
-        int TB = 0;
         const int room_verdict = b.before_window(T, p);   // 0 go on, 1 the reply ends here (kv_stop), 2 failed
         if (room_verdict == 1) break;
         if (room_verdict == 2) { std::printf("ERR %s\n", runtime_.err.c_str()); return Flow::error; }
@@ -71,10 +70,7 @@ Flow Request::decode_loop(B& b) {
         typename B::TierStep tier(b);
         tier.before_window(T, e0, from_sfx);
         const Clock::time_point tw0 = Clock::now();
-        const bool ran = b.run_window(T, e0, TB);
-        const bool paired = TB > 0;
-        bool held_run = false;
-        if constexpr (kSpec) held_run = b.take_held(T);
+        const bool ran = b.run_window(T, e0);
         if (!ran || b.window_failed()) {
             std::printf("ERR %s\n", b.window_error());
             return Flow::error;
@@ -126,9 +122,8 @@ Flow Request::decode_loop(B& b) {
                 outv[(size_t) t] = ppl->token(p + t + 1);   // as if every draft were accepted: x, the MTP
             }
         }
-        bool hold = false;
         if constexpr (kSpec) {
-            if (!b.after_accept(T, a, e0, from_sfx, held_run, paired, hold)) {
+            if (!b.after_accept(T, a, e0, from_sfx)) {
                 std::printf("ERR %s\n", runtime_.err.c_str());
                 return Flow::error;
             }
@@ -142,7 +137,7 @@ Flow Request::decode_loop(B& b) {
         const bool will_draft = !rr.ends && produced_n + rr.emit < max_new;
         if constexpr (kSpec) b.note_draft_probs(from_sfx);
         b.stamp_before_commit();
-        if (!hold && !b.commit(keep, runtime_.err, 2)) {
+        if (!b.commit(keep, runtime_.err, 2)) {
             std::printf("ERR %s\n", runtime_.err.c_str());
             return Flow::error;
         }
@@ -154,8 +149,8 @@ Flow Request::decode_loop(B& b) {
         std::string cerr;
         auto after_launch = [&] {
             after_ran = true;
-            commit_ok = hold ? true : b.commit(keep, cerr, 1);
-            if (!hold) tier.after_commit();
+            commit_ok = b.commit(keep, cerr, 1);
+            tier.after_commit();
             for (int i = e0; i <= a && produced_n < max_new && !eos; ++i) {
                 if (req_logprobs >= 0 && ppl == nullptr) std::printf("P%s\n", lp_fields[(size_t) i].c_str());
                 std::printf("T %d\n", (int) outv[(size_t) i]);
@@ -171,7 +166,7 @@ Flow Request::decode_loop(B& b) {
         const Clock::time_point tw2 = Clock::now();
         bool drafted = true;
         if constexpr (kSpec) {
-            drafted = b.draft_next(T, a, e0, TB, from_sfx, hold, will_draft, after_launch);
+            drafted = b.draft_next(T, a, e0, from_sfx, will_draft, after_launch);
             if (!drafted && b.draft_fatal()) return Flow::error;
         }
         if (!after_ran) after_launch();

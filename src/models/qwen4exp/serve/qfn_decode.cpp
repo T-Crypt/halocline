@@ -58,19 +58,8 @@ void QfnRequest::decode_state_begin() {
     sfx_windows = 0;
     sfx_drafts = 0;
     sfx_ok = 0;
-    // `cv` runs the windows; the pipelined pair paths (`ov`, `held`, `try_pair`) are unreachable on one card
     cv = &runtime_.ver;
-    ov = nullptr;
-
-    held.win.assign((size_t) runtime_.S, 0);
-    held.out.assign((size_t) runtime_.S, 0);
-    win_b = std::vector<int32_t>((size_t) runtime_.S, 0);
     n_chain = 0;                       // drafts the last chain produced
-    full_ema = 0.5;                 // how often windows are accepted whole
-    pair_hint = false;                // windows are accepted whole often enough to run the chain on for a guess
-    pair_req = false;
-    pair_runs = 0;
-    pair_holds = 0;
 }
 
 void QfnRequest::decode_stats_begin() {
@@ -109,14 +98,12 @@ void QfnRequest::decode_stats_begin() {
 
 inline int QfnRequest::draft_window() {
     int T = 1;
-        if (held.on) T = held.T;
-        else
         while (T < runtime_.S_mtp && basalt::core::draft_keep(dprob.data(), T - 1, cum_adapt.th())) ++T;
     return T;
 }
 
 inline void QfnRequest::lookup_window(int& T, bool& from_sfx, int& sfx_match) {
-        if (runtime_.o.suffix_draft > 0 && !first_window && ppl == nullptr && !held.on) {
+        if (runtime_.o.suffix_draft > 0 && !first_window && ppl == nullptr) {
             const int k = runtime_.sfx->propose(runtime_.S - 1, sbuf.data());
             sfx_match = runtime_.sfx->last_match();
             if (k > 0 && sbuf[0] == drafts[0]) {
@@ -128,8 +115,6 @@ inline void QfnRequest::lookup_window(int& T, bool& from_sfx, int& sfx_match) {
 
 inline void QfnRequest::fill_drafts(int T, bool from_sfx) {
         for (int i = 1; i < T; ++i) window[(size_t) i] = from_sfx ? sbuf[(size_t) i - 1] : drafts[(size_t) i - 1];
-        if (held.on)
-            for (int i = 0; i < T; ++i) window[(size_t) i] = held.win[(size_t) i];
 }
 
 inline int QfnRequest::before_window(int T, int64_t) {
@@ -212,10 +197,6 @@ inline void QfnRequest::spawn_adapt(bool early) {
         }
 
 inline void QfnRequest::tier_before(int T, int e0, bool from_sfx) {
-    // the guess: this window is accepted whole and the target's next token is the chain's draft T - 1; the next
-    // window then holds that draft and the ones the chain made after it
-        try_pair = pair_req && pair_hint && !held.on && !first_window && !from_sfx && e0 == 0 &&
-                              p + T + runtime_.S_mtp + 64 < runtime_.o.max_context;
         // the window's adaptive step, decided before it runs (the window changes none of its inputs)
         adapt_ok = true;
         do_adapt = !runtime_.drive.d.usage.empty() && ((runtime_.rounds + 1) % runtime_.o.adapt_every) == 0 &&
@@ -223,11 +204,11 @@ inline void QfnRequest::tier_before(int T, int e0, bool from_sfx) {
                                           : (runtime_.pending.empty() && !copy_live && !runtime_.src.exchanges_staged()));
     adapt_early = false;
     adapt_go.store(0, std::memory_order_relaxed);   // 1 go, 2 dropped (the window failed)
+    (void) T;
     (void) e0;
     (void) from_sfx;
-        // the plain rounds copy into the slots at once, so they start after the window; a paired window is held or not
-        // only once it has run
-        if (runtime_.adapt_fast && !held.on && !try_pair) cv->set_served_hook([this] { spawn_adapt(true); });
+        // the plain rounds copy into the slots at once, so they start after the window
+        if (runtime_.adapt_fast) cv->set_served_hook([this] { spawn_adapt(true); });
 }
 
 inline void QfnRequest::tier_after_commit() {
@@ -260,39 +241,13 @@ inline void QfnRequest::tier_finish() {
     if (adapt_thr.joinable()) adapt_thr.join();
 }
 
-inline bool QfnRequest::run_window(int T, int e0, int& TB) {
-        const std::function<int(int32_t*)> guess = [&](int32_t* wb) -> int {
-            n_chain = runtime_.mtp.draft_more(n_chain, drafts.data(), dprob.data());   // made beside this window's stage 0
-            if (n_chain <= T || !basalt::core::draft_keep(dprob.data(), T - 1, kPairTheta)) return 0;
-            int tb = 1;
-            while (tb < runtime_.S_mtp && T - 1 + tb < n_chain && basalt::core::draft_keep(dprob.data() + T, tb - 1, cum_adapt.th()))
-                ++tb;
-            if (tb < 2) return 0;
-            wb[0] = drafts[(size_t) T - 1];
-            for (int i = 1; i < tb; ++i) wb[i] = drafts[(size_t) T - 1 + (size_t) i];
-            return tb;
-        };
-        user_c = runtime_.win_pool_user;
-        user_o = runtime_.win_pool_user;
+inline bool QfnRequest::run_window(int T, int e0) {
         // the prompt rows the first window folds in send no pick: the head scores them only roughly (exact logits
         // are kept where something reads them: a scored chunk, the logit-hash diagnostic, and a sampled window's
         // kept lists, which the drafter notes as candidates)
         if (first_window && e0 > 0 && ppl == nullptr && !runtime_.logit_hash && req_temperature <= 0.0f)
             cv->set_head_from(e0);
-        const bool ran_ok = held.on ? true
-            : try_pair ? cv->run_pair(*ov, T, window.data(), p, guess, win_b.data(), TB, runtime_.win_pool_fn, user_c, user_o,
-                                      outv.data(), runtime_.err)
-                       : cv->run(T, window.data(), p, runtime_.win_pool_fn, user_c, outv.data(), runtime_.err);
-    return ran_ok;
-}
-
-inline bool QfnRequest::take_held(int T) {
-        const bool held_run = held.on;
-        if (held.on) {
-            for (int i = 0; i < T; ++i) outv[(size_t) i] = held.out[(size_t) i];
-            held.on = false;
-        }
-    return held_run;
+        return cv->run(T, window.data(), p, runtime_.win_pool_fn, runtime_.win_pool_user, outv.data(), runtime_.err);
 }
 
 inline void QfnRequest::relax_note_forced(int a) {
@@ -327,23 +282,8 @@ inline int QfnRequest::accept_drafts(int T) {
     return a;
 }
 
-inline bool QfnRequest::after_accept(int T, int& a, int e0, bool from_sfx, bool held_run, bool paired, bool& hold) {
-        // the guess held when the window was accepted whole, its last pick is the next window's first token, and
-        // the request goes on past it
-        if (!from_sfx && e0 == 0 && !held_run) full_ema = 0.9 * full_ema + (a == T - 1 ? 0.1 : 0.0);
-        if (paired) {
-            ++pair_runs;
-            int n_emit_h = 0;
-            bool eos_h = false;
-            for (int i = e0; i <= a && produced_n + n_emit_h < max_new && !eos_h; ++i) {
-                ++n_emit_h;
-                eos_h = std::find(runtime_.o.eos_ids.begin(), runtime_.o.eos_ids.end(), (int64_t) outv[(size_t) i]) != runtime_.o.eos_ids.end();
-            }
-            hold = a == T - 1 && outv[(size_t) a] == win_b[0] && !eos_h && produced_n + n_emit_h < max_new && !runtime_.halted();
-            if (!hold && !cv->pair_miss(*ov, runtime_.win_pool_fn, user_o, runtime_.err)) {
-                return false;
-            }
-        }
+inline bool QfnRequest::after_accept(int T, int& a, int e0, bool from_sfx) {
+        (void) e0;
         if (runtime_.logit_hash)   // the accepted rows' logits, per position (equality of the batch rows with these)
             for (int t = 0; t <= a; ++t) basalt::log::raw("LH -1 %lld %016llx\n", (long long) (p + t), (unsigned long long) runtime_.row_hash(t));
         if (from_sfx) { ++sfx_windows; sfx_drafts += T - 1; sfx_ok += a; }
@@ -394,45 +334,15 @@ inline void QfnRequest::note_draft_probs(bool from_sfx) {
 }
 
 template <class After>
-inline bool QfnRequest::draft_next(int T, int a, int e0, int TB, bool from_sfx, bool hold, bool will_draft, After& after_launch) {
+inline bool QfnRequest::draft_next(int T, int a, int e0, bool from_sfx, bool will_draft, After& after_launch) {
     basalt::core::decode_gaps().mark(5);
     if (!from_sfx && e0 == 0) cum_adapt.observe(dprob.data(), T - 1, a);
     runtime_.mtp.set_cum_th(cum_adapt.th());
     bool drafted = true;
     draft_failed = false;
-        if (hold) {
-            // the tokens go out; the next window's last stage runs behind this window's commit while its first
-            // stage finishes, and the drafter (on the first card) takes this window's rows once that card is
-            // free
-            ++pair_holds;
-            if (!cv->pair_hold_commit(T, runtime_.err)) {
-                std::printf("ERR %s\n", runtime_.err.c_str());
-                draft_failed = true;
-                return false;
-            }
-            after_launch();
-            const float* staged = nullptr;
-            drafted = runtime_.mtp.stage_rows(cv->final_R_all(), T, &staged, runtime_.err);   // before the last card is busy again
-            if (!drafted || !cv->pair_hold_begin(*ov, T, p, TB, win_b.data(), runtime_.err) ||
-                !cv->pair_hold_finish_first(*ov, runtime_.win_pool_fn, user_o, runtime_.err) ||
-                !(drafted = runtime_.mtp.prefill(staged, outv.data(), T, p, runtime_.err))) {
-                std::printf("ERR %s\n", runtime_.err.c_str());
-                draft_failed = true;
-                return false;
-            }
-            if (!cv->pair_hold_finish(*ov, runtime_.win_pool_fn, user_o, held.out.data(), runtime_.err) || runtime_.drive.d.failed) {
-                std::printf("ERR %s\n", runtime_.drive.d.failed && runtime_.drive.d.fail ? runtime_.drive.d.fail : runtime_.err.c_str());
-                draft_failed = true;
-                return false;
-            }
-            held.on = true;
-            held.T = TB;
-            for (int i = 0; i < TB; ++i) held.win[(size_t) i] = win_b[(size_t) i];
-            std::swap(cv, ov);
-        } else if (will_draft && runtime_.mtp_on) {
+        if (will_draft && runtime_.mtp_on) {
             runtime_.mtp.set_launch_hook(after_launch);
-            pair_hint = pair_req && full_ema >= kPairFull;
-            runtime_.mtp.set_cum_th(pair_hint ? cum_adapt.th() * kPairChainScale : cum_adapt.th());
+            runtime_.mtp.set_cum_th(cum_adapt.th());
             runtime_.mtp.set_host_th(cum_adapt.th());
             if (const int32_t* top = cv->top_ids())
                 runtime_.mtp.note_candidates(top, (a + 1) * basalt::core::Verifier::kTopIds);

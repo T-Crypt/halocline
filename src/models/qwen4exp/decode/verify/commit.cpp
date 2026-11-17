@@ -51,7 +51,7 @@ basalt::kernels::GdnCommitLayers Verifier::commit_gdn_args() const {
 }
 
 bool Verifier::finisher_on() const {
-    return g_commit_async && next_ == nullptr && lb_ == 0 && le_ >= g_->n_layers && commit_ctl_ != nullptr &&
+    return g_commit_async && commit_ctl_ != nullptr &&
            fin_blocks_ > 0;
 }
 
@@ -131,7 +131,7 @@ bool Verifier::capture_commit(std::string& err) {
                 q.max_cells = (int) st.max_cells;
             }
             if (ok) native_qsa_indexer_commit_layers(qa, s, rope_scaling(), cm_);
-            if (ok && ss.ple.ready() && ple_stage()) copy_indexed(ss.ple.hist, hist_snap_, HS, commit_ + 1, HS, cm_);
+            if (ok && ss.ple.ready()) copy_indexed(ss.ple.hist, hist_snap_, HS, commit_ + 1, HS, cm_);
             if (ok) gdn_commit_layers_dyn(ga, commit_ctl_, cm_, kCommitBlocks);
         }
         if (prof_on_) gpu_stamp(prof_, (int) (g.n_layers * kProfPer + 4), cm_);
@@ -183,7 +183,7 @@ bool Verifier::commit(int n_keep, std::string& err, int parts) {
         // h_pend_), and the drafter (its own stream) reads only this window's final rows and its own K/V.  h_commit_ is
         // next written after the next window's results are read, i.e. after this graph has run.  Everything else waits
         // on commit_done_ (wait_commit).
-        if (!g_commit_async || next_ != nullptr) {
+        if (!g_commit_async) {
             const cudaError_t se = cudaStreamSynchronize(cm_);
             if (se != cudaSuccess) { err = std::string("verify: commit: ") + cudaGetErrorString(se); return false; }
         } else {
@@ -195,13 +195,13 @@ bool Verifier::commit(int n_keep, std::string& err, int parts) {
         }
         decode_gaps().mark(4);
     }
-    if ((parts & 2) && ple_stage())   // stages that share one session must advance it once
+    if (parts & 2)
         for (int t = 0; t < n_keep; ++t) {
             ss_->ple_prev[0] = ss_->ple_prev[1];
             ss_->ple_prev[1] = last_tokens_[t];
         }
     ms_commit += ms_since(t0);
-    return next_ == nullptr || next_->commit(n_keep, err, parts);
+    return true;
 }
 
 bool Verifier::wait_commit(std::string& err) {
@@ -212,8 +212,7 @@ bool Verifier::wait_commit(std::string& err) {
         const cudaError_t se = cudaEventSynchronize(commit_done_);
         if (se != cudaSuccess) { err = std::string("verify: commit: ") + cudaGetErrorString(se); return false; }
     }
-    if (gs_live_ && !gs_move(false, err)) return false;
-    return next_ == nullptr || next_->wait_commit(err);
+    return !gs_live_ || gs_move(false, err);
 }
 
 }  // namespace basalt::core

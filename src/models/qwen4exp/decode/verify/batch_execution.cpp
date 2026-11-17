@@ -58,7 +58,7 @@ bool Verifier::stage_batch(const int* slots, const int* lens, int S, int hbase, 
     const int64_t CB = 2 + max_t_;
     const uint64_t gdn_floats = (uint64_t) g.ssm_state_size * g.ssm_v_heads * g.ssm_state_size +
                                 (uint64_t) g.ssm_conv_channels * (g.ssm_d_conv - 1);
-    const bool do_ple = ss_->ple.ready() && ple_stage();
+    const bool do_ple = ss_->ple.ready();
     uint32_t ple_rows[kVerifyMaxT * PLE_N_HEADS];   // (not `rows`: that is the slots of the window's rows)
     int32_t* const pk = h_pos_ + (size_t) max_t_ * g.n_head;
     int32_t* const pi = pk + (size_t) max_t_ * g.n_head_kv;
@@ -152,7 +152,6 @@ bool Verifier::run_slot_segs(const int* rows, const int* lens, int S, const int3
                              PoolMultiFn pool, void* user, int32_t* out, std::string& err) {
     using namespace basalt::kernels;
     const OnDevice on_device(device_);
-    const ModelGeometry& g = *g_;
     if (gs_live_ && !gs_move(false, err)) return false;
     gs_split_ = false;
     if (!stage_batch(rows, lens, S, 0, tokens, pos, err)) return false;
@@ -230,7 +229,6 @@ bool Verifier::run_slot_segs(const int* rows, const int* lens, int S, const int3
     if (!ar_plan_intact(err)) return false;
     if (prof_on_) collect_profile();
     ++windows;
-    if (le_ < g.n_layers) return next_ == nullptr || next_->run_slot_segs(rows, lens, S, tokens, pos, pool, next_user_, out, err);
     if (!sample_rows(R, err)) return false;
     for (int t = 0; t < R; ++t) out[t] = ((volatile int32_t*) h_out_)[t];
     progress_at("decode");
@@ -266,8 +264,7 @@ bool Verifier::commit_slots_begin(const int* n_keep, std::string& err) {
     const cudaError_t le = cudaGraphLaunch(commit_bm_[last_t_], cs_);
     if (le != cudaSuccess) { err = std::string("verify: batch commit launch: ") + cudaGetErrorString(le); return false; }
     // (the PLE history the commit leaves is known from the tokens: it advances now, the graph runs beside the caller)
-    if (ple_stage())
-        for (int sg = 0, r0 = 0; sg < last_nseg_; r0 += last_seg_len_[sg], ++sg) {
+    for (int sg = 0, r0 = 0; sg < last_nseg_; r0 += last_seg_len_[sg], ++sg) {
             SessionState& sx = *slots_[(size_t) last_seg_slot_[sg]];
             const int k = n_keep != nullptr ? n_keep[sg] : last_seg_len_[sg];
             for (int j = 0; j < k; ++j) {
@@ -275,7 +272,6 @@ bool Verifier::commit_slots_begin(const int* n_keep, std::string& err) {
                 sx.ple_prev[1] = last_tokens_[r0 + j];
             }
         }
-    commit_next_keep_.assign(n_keep != nullptr ? n_keep : nullptr, n_keep != nullptr ? n_keep + last_nseg_ : nullptr);
     return true;
 }
 
@@ -284,7 +280,7 @@ bool Verifier::commit_slots_end(std::string& err) {
     const cudaError_t se = cudaStreamSynchronize(cs_);
     if (se != cudaSuccess) { err = std::string("verify: batch commit: ") + cudaGetErrorString(se); return false; }
     ms_commit += ms_since(commit_t0_);
-    return next_ == nullptr || next_->commit_slots(commit_next_keep_.empty() ? nullptr : commit_next_keep_.data(), err);
+    return true;
 }
 
 bool Verifier::sample_rows(int S, std::string& err) {
@@ -326,8 +322,8 @@ bool Verifier::batch_launch(int base, int S, const int32_t* tokens, const int64_
     if (le != cudaSuccess) { err = std::string("verify: batch launch: ") + cudaGetErrorString(le); return false; }
     (void) cudaStreamQuery(cs_);
     if (ar_on()) ar_handoff();
-    if (ple_stage())   // the host's side of the commit (the hash's last two tokens)
-        for (int t = 0; t < S; ++t) {
+    // the host's side of the commit (the hash's last two tokens)
+    for (int t = 0; t < S; ++t) {
             SessionState& sx = *slots_[(size_t) rows[t]];
             sx.ple_prev[0] = sx.ple_prev[1];
             sx.ple_prev[1] = tokens[t];
@@ -398,10 +394,8 @@ int Verifier::batch_poll(PoolMultiFn pool, void* user, std::string& err) {
     if (q != cudaSuccess) { err = std::string("verify batch: ") + cudaGetErrorString(q); b_running_ = false; return -1; }
     if (!window_intact(err) || !ar_plan_intact(err)) { b_running_ = false; return -1; }
     if (prof_on_) collect_profile();
-    if (last_stage()) {
-        if (!sample_rows(S, err)) { b_running_ = false; return -1; }
-        for (int t = 0; t < S; ++t) b_out_[t] = ((volatile int32_t*) h_out_)[t];
-    }
+    if (!sample_rows(S, err)) { b_running_ = false; return -1; }
+    for (int t = 0; t < S; ++t) b_out_[t] = ((volatile int32_t*) h_out_)[t];
     ++windows;
     b_running_ = false;
     progress_beat();

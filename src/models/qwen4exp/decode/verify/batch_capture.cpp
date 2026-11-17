@@ -114,7 +114,7 @@ bool Verifier::capture_commit_batch(int R, std::string& err) {
             }
             if (ok) native_qsa_indexer_commit_seg(qc, s, rope_scaling(), cs_);
         }
-        if (ok && ss_->ple.ready() && ple_stage()) ple_hist_scatter(d_ple_slots_, hist_snap_, segb_, HS, R, cs_);
+        if (ok && ss_->ple.ready()) ple_hist_scatter(d_ple_slots_, hist_snap_, segb_, HS, R, cs_);
     } catch (const std::exception& e) {
         err = std::string("verify batch commit: ") + e.what();
         ok = false;

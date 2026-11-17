@@ -456,7 +456,7 @@ public:
     }
     void upload_history(int) {}
     void mark_before_run() {}
-    bool run_window(int T, int e0, int&) {
+    bool run_window(int T, int e0) {
         basalt::model::DecodeRequest d;
         d.tokens = window.data();
         d.n_tokens = T;
@@ -471,7 +471,6 @@ public:
         if (!r.ok()) error_ = r.message;
         return r.ok();
     }
-    bool take_held(int) { return false; }
     bool window_failed() const { return false; }
     const char* window_error() const { return error_.c_str(); }
     void relax_note_forced(int) {}
@@ -489,10 +488,7 @@ public:
     bool row_logprobs(int row0, int n, const int32_t* picks, int top, float* out) {
         return rt_.session().row_logprobs(row0, n, picks, top, out).ok();
     }
-    bool after_accept(int, int&, int, bool, bool, bool, bool& hold) {
-        hold = false;
-        return true;
-    }
+    bool after_accept(int, int&, int, bool) { return true; }
     void note_draft_probs(bool from_sfx) {
         if (from_sfx) window_conf_.clear();
         else window_conf_.assign(conf_.begin(), conf_.begin() + n_draft_);
@@ -509,7 +505,7 @@ public:
     void count_round() {}
     // The next window's drafts start before this window's tokens go out, which run in their shadow.
     template <class After>
-    bool draft_next(int T, int a, int, int, bool, bool, bool will_draft, After& after_launch) {
+    bool draft_next(int T, int a, int, bool, bool will_draft, After& after_launch) {
         n_draft_ = 0;
         if (!will_draft || max_window() < 2) return true;
         const int n = drafts_ahead(T, max_window());
