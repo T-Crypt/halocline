@@ -65,11 +65,7 @@ bool Verifier::release_gpu_waits(int timeout_ms) {
         *(volatile uint32_t*) (h_flag_ + 12) = UINT32_MAX;   // the hand-off a later stage's graph waits for
     }
     basalt::kernels::wait_abort_release();   // the bounded device waits (mid chain, commit finisher) fall through
-    if (dm_ != nullptr) {   // the peer window stops at its next ring; CUDA0's waits on it pass
-        *(volatile uint32_t*) (dm_->h_w + 0) = UINT32_MAX;
-        *(volatile uint32_t*) (dm_->h_w + 16) = UINT32_MAX;
-        dm_->tag_dirty = true;
-    }
+    if (dm_ != nullptr) *(volatile uint32_t*) dm_->h_stop = UINT32_MAX;   // the glue launches' landed wait ends
     std::atomic_thread_fence(std::memory_order_seq_cst);
     _mm_sfence();
     const OnDevice on_device(device_);

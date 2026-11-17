@@ -21,7 +21,9 @@ caller decides whether they were meant to go.
 
 The same per kernel: `funcs` prints `<hash> <object> <function>` for every `Function :` block of every object, the
 hash over that block's text alone, with the whole anonymous-namespace tag (`_GLOBAL__N__<8 hex>_<file>_<8 hex>`, whose
-last part may follow the file's content) replaced by a fixed one, in the name and in the body. Use it when a step
+last part may follow the file's content) replaced by a fixed one, in the name and in the body, and every run of
+whitespace collapsed to one space (cuobjdump pads its columns to the widest text in the object, so removing a kernel
+re-pads the ones left; gates/*.funcs.txt before 2b8 were hashed without this). Use it when a step
 removes kernels from an object: the object's hash then changes, while every kernel left in it must not.
 `compare-funcs` reports functions only in OLD, only in NEW and in both with different hashes, and exits 1 on any
 difference in a function both have.
@@ -71,7 +73,7 @@ def func_hashes(path):
             name, body = ANON_FULL.sub("_ANON_", m.group(1)), []
             continue
         if name is not None:
-            body.append(ANON_FULL.sub("_ANON_", line) + "\n")
+            body.append(" ".join(ANON_FULL.sub("_ANON_", line).split()) + "\n")
     flush()
     return out
 

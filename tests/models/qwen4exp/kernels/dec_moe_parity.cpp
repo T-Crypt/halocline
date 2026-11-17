@@ -8,14 +8,11 @@
 // Per layer (default: one of each gate/up + down format pair):
 //   route       dec_moe_route's plan, kinds, q8_1 rows (vs quantize_q8_1_rows) and mapped publications
 //   tail        route + native_expert_grouped + dec_moe_combine vs the old chain (grouped into hit rows, the mapped
-//               CPU/peer rows copied, hit add, native_moe_combine_multi)
-//   peers       two further peers: the route's kinds, every ring and doorbell (one launch, split, glue) vs a CPU
-//               reference, and the combine reading their rows as it reads the first peer's
-//   staged      (no peers) the share of CPU misses copied from host RAM into staging: the route's, the ring's, the
+//               CPU rows copied, hit add, native_moe_combine_multi)
+//   staged      the share of CPU misses copied from host RAM into staging: the route's, the ring's, the
 //               glue's and the stage kernel's kinds vs a CPU reference of the split, the staged lists and bytes, and the
 //               tail against the same window with those experts resident in VRAM
-// All bitwise.  --bench adds: the VRAM share's grouped call (us, GB/s of expert bytes), and per ring on CUDA0 the
-// route + wait with and without peer entries, alone and behind the VRAM call (what CUDA0 waits for the peer), and the
+// All bitwise.  --bench adds: the VRAM share's grouped call (us, GB/s of expert bytes), the combine's launches, and the
 // staged share's copy (us, GB/s over the link).
 #include "basalt/artifact/gguf_reader.hpp"
 #include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
@@ -297,15 +294,12 @@ int main(int argc, char** argv) {
 
         // ---- route + tail on CUDA0, T = 1, 3, 8
         int32_t* d_res0 = dmal<int32_t>(NE);
-        int32_t* d_res1 = dmal<int32_t>(NE);
-        std::vector<int32_t> res0(NE), res1(NE);
+        std::vector<int32_t> res0(NE);
         for (int e = 0; e < NE; ++e) {
             const int r = (int) (rng() % 8);
             res0[e] = r < 6 ? e % NX : -1;            // the slot = the blob
-            res1[e] = r == 6 ? e % NX : -1;
         }
         ck(cudaMemcpy(d_res0, res0.data(), NE * 4, cudaMemcpyHostToDevice), "res");
-        ck(cudaMemcpy(d_res1, res1.data(), NE * 4, cudaMemcpyHostToDevice), "res");
         K::DmPlan* d_plan = dmal<K::DmPlan>(1);
         void* d_xq2 = dmal<uint8_t>((size_t) MT * H / 32 * 36);
         int32_t* d_ids = dmal<int32_t>(K::kDmCap);
@@ -322,9 +316,8 @@ int main(int argc, char** argv) {
         K::DmRing* h_rings = hmap<K::DmRing>(RINGS);
         float* h_x = hmap<float>((size_t) RINGS * MT * H);
         uint8_t* h_xq = hmap<uint8_t>((size_t) RINGS * MT * H / 32 * 36);
-        uint32_t* h_words = hmap<uint32_t>(64);   // [0] host seq [16] peer seq [32] peer done [48] host flag
+        uint32_t* h_words = hmap<uint32_t>(64);   // [0] host seq [48] host flag
         float* h_cpu = hmap<float>((size_t) K::kDmCap * H);
-        float* h_peer = hmap<float>((size_t) K::kDmCap * H);
         float* h_ymiss = hmap<float>((size_t) K::kDmCap * H);
         const size_t xq_stride = (size_t) MT * H / 32 * 36;
         for (int T : {1, 3, 8}) {
@@ -338,32 +331,29 @@ int main(int argc, char** argv) {
                 }
                 for (int j = 0; j < KK; ++j) ids[t * KK + j] = pick[j];
             }
-            std::vector<float> w(n), sh((size_t) T * H), cpu((size_t) n * H), peer((size_t) n * H);
+            std::vector<float> w(n), sh((size_t) T * H), cpu((size_t) n * H);
             for (auto& v : w) v = std::fabs(nd(rng)) * 0.1f;
             for (auto& v : sh) v = nd(rng);
             for (auto& v : cpu) v = nd(rng);
-            for (auto& v : peer) v = nd(rng);
             ck(cudaMemcpy(d_ids, ids.data(), n * 4, cudaMemcpyHostToDevice), "ids");
             ck(cudaMemcpy(d_w, w.data(), n * 4, cudaMemcpyHostToDevice), "w");
             ck(cudaMemcpy(d_sh, sh.data(), sh.size() * 4, cudaMemcpyHostToDevice), "sh");
             std::memcpy(h_cpu, cpu.data(), cpu.size() * 4);
-            std::memcpy(h_peer, peer.data(), peer.size() * 4);
             std::memset(h_words, 0, 256);
             K::DmRouteArgs ra;
             ra.ids = d_ids; ra.x = dv[0].x; ra.n_tok = T; ra.k = (int) KK; ra.n_embd = (int) H; ra.n_expert = (int) NE;
-            ra.layer = l; ra.res0 = d_res0; ra.res1 = d_res1; ra.cache_base = dv[0].blob; ra.slot_off = nullptr;
+            ra.layer = l; ra.res0 = d_res0; ra.cache_base = dv[0].blob; ra.slot_off = nullptr;
             ra.blob = (long long) L.bytes; ra.plan = d_plan; ra.xq = d_xq2; ra.ring_m = h_rings + 5;
             ra.x_m = h_x + (size_t) 5 * MT * H; ra.xq_m = h_xq + 5 * xq_stride; ra.host_seq_m = h_words;
-            ra.peer_seq_m = h_words + 16; ra.ring = 6; ra.ctr = d_ctr;
+            ra.ring = 6; ra.ctr = d_ctr;
             K::dec_moe_route(ra, s0);
             ck(cudaStreamSynchronize(s0), "route");
             // reference: kinds, groups, xq
             std::vector<int32_t> kind(n);
-            int nc = 0, np = 0;
+            int nc = 0;
             for (int i = 0; i < n; ++i) {
-                kind[i] = res0[ids[i]] >= 0 ? 0 : res1[ids[i]] >= 0 ? 2 : -1;
+                kind[i] = res0[ids[i]] >= 0 ? 0 : -1;
                 nc += kind[i] < 0;
-                np += kind[i] == 2;
             }
             K::DmPlan P;
             ck(cudaMemcpy(&P, d_plan, sizeof P, cudaMemcpyDeviceToHost), "plan");
@@ -378,27 +368,23 @@ int main(int argc, char** argv) {
                 }
             for (int i = 0; i < n; ++i) bad += (kind[i] == 0) != (seen[i] == 1) || P.kind[i] != kind[i] ||
                                                h_rings[5].kind[i] != kind[i] || h_rings[5].ids[i] != ids[i];
-            bad += P.counts[2] != np || P.counts[3] != nc || h_rings[5].n_peer != np || h_rings[5].n_cpu != nc ||
-                   h_rings[5].n_tok != T || h_words[0] != 6 || (h_words[16] & 0xffffu) != 6 ||
-                   ((h_words[16] >> 16) & 0xffu) != (uint32_t) T || ((h_words[16] >> 28) & 1u) != (np > 0 ? 1u : 0u);
+            bad += P.counts[2] != nc || h_rings[5].n_cpu != nc || h_rings[5].n_tok != T || h_words[0] != 6;
             const auto q1 = down((const uint8_t*) dv[0].xq, (size_t) T * H / 32 * 36);
             const auto q2 = down((const uint8_t*) d_xq2, (size_t) T * H / 32 * 36);
             bad += std::memcmp(q1.data(), q2.data(), q1.size()) != 0;
-            if (np > 0) bad += std::memcmp(q1.data(), h_xq + 5 * xq_stride, q1.size()) != 0;
             if (nc > 0) bad += std::memcmp(x.data(), h_x + (size_t) 5 * MT * H, (size_t) T * H * 4) != 0;
             char what[64];
-            std::snprintf(what, sizeof what, "route T=%d (%d cpu, %d peer)", T, nc, np);
+            std::snprintf(what, sizeof what, "route T=%d (%d cpu)", T, nc);
             report(what, l, bad, (size_t) n);
             {   // the split route (mode 1 then mode 2) leaves every byte the one launch left
                 const std::vector<uint8_t> ring0((const uint8_t*) (h_rings + 5), (const uint8_t*) (h_rings + 6));
                 const std::vector<uint8_t> xm0((const uint8_t*) (h_x + (size_t) 5 * MT * H),
                                                (const uint8_t*) (h_x + (size_t) 5 * MT * H + (size_t) T * H));
-                const std::vector<uint8_t> xqm0(h_xq + 5 * xq_stride, h_xq + 5 * xq_stride + q1.size());
-                const uint32_t w0 = h_words[0], w16 = h_words[16];
+                const uint32_t w0 = h_words[0];
                 h_rings[5] = K::DmRing{};
                 std::memset(h_x + (size_t) 5 * MT * H, 0, (size_t) T * H * 4);
                 std::memset(h_xq + 5 * xq_stride, 0, q1.size());
-                h_words[0] = h_words[16] = 0;
+                h_words[0] = 0;
                 ck(cudaMemsetAsync(d_plan, 0xee, sizeof(K::DmPlan), s0), "memset");
                 ck(cudaMemsetAsync(d_xq2, 0xee, q1.size(), s0), "memset");
                 void* d_pub = dmal<uint8_t>(xq_stride);
@@ -417,8 +403,7 @@ int main(int argc, char** argv) {
                 bad2 += std::memcmp(q3.data(), q2.data(), q2.size()) != 0;
                 bad2 += std::memcmp(ring0.data(), h_rings + 5, ring0.size()) != 0;
                 if (nc > 0) bad2 += std::memcmp(xm0.data(), h_x + (size_t) 5 * MT * H, xm0.size()) != 0;
-                if (np > 0) bad2 += std::memcmp(xqm0.data(), h_xq + 5 * xq_stride, xqm0.size()) != 0;
-                bad2 += h_words[0] != w0 || h_words[16] != w16;
+                bad2 += h_words[0] != w0;
                 cudaFree(d_pub);
                 std::snprintf(what, sizeof what, "split route T=%d", T);
                 report(what, l, bad2, (size_t) 6);
@@ -428,14 +413,13 @@ int main(int argc, char** argv) {
             ck(cudaMemsetAsync(d_parts, 0xff, (size_t) K::kDmCap * H * 4, s0), "memset");
             K::native_expert_grouped(L, d_plan->ptr, d_plan->start, d_plan->counts, d_plan->dst, d_plan->tok, n, n,
                                      d_xq2, dv[0].scr, d_parts, s0);
-            h_words[32] = 6;
             h_words[48] = 6;
-            K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, d_sh, d_bo, H, KK, T, h_words + 32, h_words + 48, 6, s0);
-            // old: the mapped rows (CPU and peer rows, zeros at hits), copied with the hit rows zeroed, the hits
-            // added, then the native combine
+            K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, d_sh, d_bo, H, KK, T, h_words + 48, 6, s0);
+            // old: the mapped rows (CPU rows, zeros at hits), copied with the hit rows zeroed, the hits added, then
+            // the native combine
             for (int i = 0; i < n; ++i)
                 std::memcpy(h_ymiss + (size_t) i * H, kind[i] == 0 ? std::vector<float>(H, 0.f).data()
-                                                      : (kind[i] == 2 ? peer.data() : cpu.data()) + (size_t) i * H, H * 4);
+                                                      : cpu.data() + (size_t) i * H, H * 4);
             float* d_parts2 = d_hit + 0;   // reuse: hit rows go to d_hit, parts2 is a second buffer below
             float* d_p2 = dmal<float>((size_t) K::kDmCap * H);
             ck(cudaMemsetAsync(d_hit, 0, (size_t) K::kDmCap * H * 4, s0), "memset");
@@ -453,14 +437,13 @@ int main(int argc, char** argv) {
             cudaFree(d_p2);
             if (bench) {   // the combine alone, tiers landed 
                 const double uc = time_us(s0, 200, [&] {
-                    K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, d_sh, d_bo, H, KK, T, h_words + 32,
-                                       h_words + 48, 6, s0);
+                    K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, d_sh, d_bo, H, KK, T, h_words + 48, 6, s0);
                 });
-                std::printf("  bench: combine T=%d (%d peer, %d cpu rows of %d): %.2f us per launch\n", T, np, nc, n, uc);
+                std::printf("  bench: combine T=%d (%d cpu rows of %d): %.2f us per launch\n", T, nc, n, uc);
             }
             {   // the combine without its own wait (verify's call; DEC_GLUE & 4 takes the four-column kernel)
                 float* d_bo3 = dmal<float>((size_t) MT * H);
-                K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, d_sh, d_bo3, H, KK, T, nullptr, nullptr, 6, s0);
+                K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, d_sh, d_bo3, H, KK, T, nullptr, 6, s0);
                 ck(cudaStreamSynchronize(s0), "combine");
                 const auto c3 = down(d_bo3, (size_t) T * H);
                 size_t nd3 = 0;
@@ -469,44 +452,25 @@ int main(int argc, char** argv) {
                 report(what, l, nd3, a.size());
                 if (bench) {
                     const double uc = time_us(s0, 200, [&] {
-                        K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, d_sh, d_bo3, H, KK, T, nullptr, nullptr, 6, s0);
+                        K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, d_sh, d_bo3, H, KK, T, nullptr, 6, s0);
                     });
-                    std::printf("  bench: combine, no wait T=%d (%d peer, %d cpu rows of %d): %.2f us per launch\n", T, np,
-                                nc, n, uc);
+                    std::printf("  bench: combine, no wait T=%d (%d cpu rows of %d): %.2f us per launch\n", T, nc, n, uc);
                 }
                 cudaFree(d_bo3);
             }
             // the combine waiting for the CPU pool's word itself (verify's call without --wait-stats, no wait launch):
-            // the same sums with the words there from the start, and with the peer's rows and then the pool's word
-            // landing while it waits; the peer rows it read hold the tag word again, cpu_seen holds the ring
+            // the same sums with the word there from the start, and with the pool's word landing while it waits;
+            // cpu_seen holds the ring
             for (int late = 0; late < 2; ++late) {
                 float* d_bo4 = dmal<float>((size_t) MT * H);
                 unsigned* d_seen = dmal<unsigned>(1);
                 const unsigned prev = 5;
                 ck(cudaMemcpy(d_seen, &prev, 4, cudaMemcpyHostToDevice), "seen");
-                const uint32_t tagw = K::dec_moe_tag_word();
-                for (int i = 0; i < n; ++i)
-                    if (kind[i] == 2)
-                        for (int c = 0; c < (int) H; ++c)
-                            if (late) std::memcpy(h_peer + (size_t) i * H + c, &tagw, 4);
-                *(volatile uint32_t*) (h_words + 32) = late ? 5u : 6u;
                 *(volatile uint32_t*) (h_words + 48) = late ? 5u : 6u;
                 std::atomic_thread_fence(std::memory_order_seq_cst);
-                K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, d_sh, d_bo4, H, KK, T, nullptr, nullptr, 6, s0, false,
-                                   h_words + 32, h_words + 48, d_seen);
-                if (late) {   // the peer's rows land, then the pool's word
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-                    // each dword stored exactly once, in order, as a peer's copy lands. Not memcpy: glibc's vector copy
-                    // stores some head and tail vectors twice, and a second store can overwrite the tag word the kernel
-                    // has already put back after reading the first one (16-dword "not restored" counts, sums correct)
-                    for (int i = 0; i < n; ++i) {
-                        if (kind[i] != 2) continue;
-                        volatile uint32_t* d = reinterpret_cast<volatile uint32_t*>(h_peer + (size_t) i * H);
-                        const uint32_t* sp = reinterpret_cast<const uint32_t*>(peer.data() + (size_t) i * H);
-                        for (int c = 0; c < (int) H; ++c) d[c] = sp[c];
-                    }
-                    std::atomic_thread_fence(std::memory_order_seq_cst);
-                    *(volatile uint32_t*) (h_words + 32) = 6u;
+                K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, d_sh, d_bo4, H, KK, T, nullptr, 6, s0, false, h_words + 48,
+                                   d_seen);
+                if (late) {   // the pool's word lands
                     std::this_thread::sleep_for(std::chrono::milliseconds(2));
                     *(volatile uint32_t*) (h_words + 48) = 6u;
                 }
@@ -518,48 +482,32 @@ int main(int argc, char** argv) {
                 unsigned seen = 0;
                 ck(cudaMemcpy(&seen, d_seen, 4, cudaMemcpyDeviceToHost), "seen");
                 nd4 += seen != 6u;
-                size_t nd_tag = 0;
-                for (int i = 0; i < n; ++i) {
-                    if (kind[i] != 2) continue;
-                    float* r = h_peer + (size_t) i * H;
-                    for (int c = 0; c < (int) H; ++c) {
-                        uint32_t u;
-                        std::memcpy(&u, r + c, 4);
-                        nd_tag += u != tagw;
-                    }
-                    std::memcpy(r, peer.data() + (size_t) i * H, H * 4);   // for the cases below
-                }
-                nd4 += nd_tag;
                 if (nd4 != 0)
-                    std::printf("  combine, own wait%s T=%d: %zu output values differ, cpu_seen %u, %zu peer dwords "
-                                "not restored to the tag\n", late ? " (landing late)" : "", T, nd_out, seen, nd_tag);
+                    std::printf("  combine, own wait%s T=%d: %zu output values differ, cpu_seen %u\n",
+                                late ? " (landing late)" : "", T, nd_out, seen);
                 std::snprintf(what, sizeof what, "combine, own wait%s T=%d", late ? " (landing late)" : "", T);
                 report(what, l, nd4, a.size());
-                if (bench && !late) {   // one launch at a time: each puts back the tag words the next would wait on
+                if (bench && !late) {
                     cudaEvent_t b0, b1;
                     cudaEventCreate(&b0);
                     cudaEventCreate(&b1);
                     float best = 1e30f;
                     for (int rep = 0; rep < 25; ++rep) {
-                        for (int i = 0; i < n; ++i)
-                            if (kind[i] == 2) std::memcpy(h_peer + (size_t) i * H, peer.data() + (size_t) i * H, H * 4);
                         ck(cudaMemcpy(d_seen, &prev, 4, cudaMemcpyHostToDevice), "seen");
                         std::atomic_thread_fence(std::memory_order_seq_cst);
                         cudaEventRecord(b0, s0);
-                        K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, d_sh, d_bo4, H, KK, T, nullptr, nullptr, 6, s0,
-                                           false, h_words + 32, h_words + 48, d_seen);
+                        K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, d_sh, d_bo4, H, KK, T, nullptr, 6, s0, false,
+                                           h_words + 48, d_seen);
                         cudaEventRecord(b1, s0);
                         cudaEventSynchronize(b1);
                         float ms = 0.f;
                         cudaEventElapsedTime(&ms, b0, b1);
                         if (rep > 4) best = std::min(best, ms);
                     }
-                    std::printf("  bench: combine, own wait T=%d (%d peer, %d cpu rows of %d): %.2f us per launch\n", T, np,
-                                nc, n, 1e3 * best);
+                    std::printf("  bench: combine, own wait T=%d (%d cpu rows of %d): %.2f us per launch\n", T, nc, n,
+                                1e3 * best);
                     cudaEventDestroy(b0);
                     cudaEventDestroy(b1);
-                    for (int i = 0; i < n; ++i)
-                        if (kind[i] == 2) std::memcpy(h_peer + (size_t) i * H, peer.data() + (size_t) i * H, H * 4);
                 }
                 cudaFree(d_bo4);
                 cudaFree(d_seen);
@@ -580,28 +528,25 @@ int main(int argc, char** argv) {
                 unsigned* d_seen = dmal<unsigned>(1);
                 ck(cudaMemcpy(d_g, g.data(), (size_t) T * 4, cudaMemcpyHostToDevice), "g");
                 ck(cudaMemcpy(d_shg, shg.data(), shg.size() * 4, cudaMemcpyHostToDevice), "shg");
-                for (int var = 0; var < 3; ++var) {   // 0: no wait, 1: its own wait, 2: every block waits (peer_done)
+                for (int var = 0; var < 3; ++var) {   // 0: no wait, 1: its own wait, 2: every block waits (host flag)
                     for (int gated = 0; gated < 2; ++gated) {
                         const unsigned prev = 5;
                         ck(cudaMemcpy(d_seen, &prev, 4, cudaMemcpyHostToDevice), "seen");
-                        *(volatile uint32_t*) (h_words + 32) = 6u;
                         *(volatile uint32_t*) (h_words + 48) = 6u;
                         std::atomic_thread_fence(std::memory_order_seq_cst);
                         float* const out = gated ? d_b1 : d_b0;
                         const float* const shr = gated ? d_sh : d_shg;
                         const float* const gp = gated ? d_g : nullptr;
                         if (var == 0)
-                            K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, shr, out, H, KK, T, nullptr, nullptr, 6,
-                                               s0, false, nullptr, nullptr, nullptr, gp);
+                            K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, shr, out, H, KK, T, nullptr, 6, s0, false, nullptr,
+                                               nullptr, gp);
                         else if (var == 1)
-                            K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, shr, out, H, KK, T, nullptr, nullptr, 6,
-                                               s0, false, h_words + 32, h_words + 48, d_seen, gp);
+                            K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, shr, out, H, KK, T, nullptr, 6, s0, false,
+                                               h_words + 48, d_seen, gp);
                         else
-                            K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, shr, out, H, KK, T, h_words + 32,
-                                               h_words + 48, 6, s0, false, nullptr, nullptr, nullptr, gp);
+                            K::dec_moe_combine(d_parts, h_cpu, d_plan, d_w, shr, out, H, KK, T, h_words + 48, 6, s0, false,
+                                               nullptr, nullptr, gp);
                         ck(cudaStreamSynchronize(s0), "gated combine");
-                        for (int i = 0; i < n; ++i)   // the own-wait variant leaves the tag word in the peer rows it read
-                            if (kind[i] == 2) std::memcpy(h_peer + (size_t) i * H, peer.data() + (size_t) i * H, H * 4);
                     }
                     const auto c0 = down(d_b0, (size_t) T * H), c1 = down(d_b1, (size_t) T * H);
                     size_t ndg = 0;
@@ -654,11 +599,10 @@ int main(int argc, char** argv) {
                     const std::vector<uint8_t> xm0((const uint8_t*) (h_x + (size_t) 5 * MT * H),
                                                    (const uint8_t*) (h_x + (size_t) 5 * MT * H + (size_t) T * H));
                     const size_t nq = (size_t) T * H / 32 * 36;
-                    const std::vector<uint8_t> xqm0(h_xq + 5 * xq_stride, h_xq + 5 * xq_stride + nq);
                     h_rings[5] = K::DmRing{};
                     std::memset(h_x + (size_t) 5 * MT * H, 0, (size_t) T * H * 4);
                     std::memset(h_xq + 5 * xq_stride, 0, nq);
-                    h_words[0] = h_words[16] = 0;
+                    h_words[0] = 0;
                     ck(cudaMemsetAsync(d_plan, 0xee, sizeof(K::DmPlan), s0), "memset");
                     ck(cudaMemsetAsync(d_p4, 0, (size_t) K::kDmCap * H * 4, s0), "memset");
                     K::DmGlueArgs gr = ga;
@@ -673,8 +617,7 @@ int main(int argc, char** argv) {
                     for (int i = 0; i < n; ++i) bad4 += P.kind[i] != P3.kind[i];
                     bad4 += std::memcmp(ring0.data(), h_rings + 5, ring0.size()) != 0;
                     if (nc > 0) bad4 += std::memcmp(xm0.data(), h_x + (size_t) 5 * MT * H, xm0.size()) != 0;
-                    if (np > 0) bad4 += std::memcmp(xqm0.data(), h_xq + 5 * xq_stride, nq) != 0;
-                    bad4 += h_words[0] != 6 || (h_words[16] & 0xffffu) != 6;
+                    bad4 += h_words[0] != 6;
                     std::snprintf(what, sizeof what, "glue ring T=%d", T);
                     report(what, l, bad4, (size_t) n);
                     const auto c4 = down(d_p4, (size_t) n * H);
@@ -686,7 +629,7 @@ int main(int argc, char** argv) {
                         std::memset(h_xq + 5 * xq_stride, 0, nq);
                         std::memset(h_x + (size_t) 5 * MT * H, 0, (size_t) T * H * 4);
                         h_rings[5] = K::DmRing{};
-                        h_words[0] = h_words[16] = 0;
+                        h_words[0] = 0;
                         unsigned int* d_pc = dmal<unsigned int>(3);
                         const unsigned int counts[3] = {81, 1, 1};
                         ck(cudaMemcpy(d_pc, counts, 12, cudaMemcpyHostToDevice), "counts");
@@ -711,8 +654,7 @@ int main(int argc, char** argv) {
                             const float* row = h_x + (size_t) 5 * MT * H + (size_t) t * H;
                             bad5 += std::memcmp(row, x.data() + (size_t) t * H, H * 4) != 0;
                         }
-                        bad5 += h_words[0] != 6 || (h_words[16] & 0xffffu) != 6 || ((h_words[16] >> 16) & 0xffu) != (uint32_t) T ||
-                                ((h_words[16] >> 28) & 1u) != (np > 0 ? 1u : 0u);
+                        bad5 += h_words[0] != 6;
                         std::snprintf(what, sizeof what, "glue ring, counted T=%d", T);
                         report(what, l, bad5, (size_t) n);
                         const auto c5 = down(d_p4, (size_t) n * H);
@@ -805,7 +747,7 @@ int main(int argc, char** argv) {
                 std::printf("  glue: skipped (DEC_GU2=2 not set or formats)\n");
             }
 
-            // the staged share (no peers): the last stage_k[m] of a layer's m distinct CPU misses go to CUDA0, their blobs
+            // the staged share: the last stage_k[m] of a layer's m distinct CPU misses go to CUDA0, their blobs
             // copied from host RAM into staging (dec_moe_stage) and computed by its grouped kernel.  The route's, the
             // ring's, the glue's and the stage kernel's kinds against a CPU reference, the staged lists and bytes, and
             // the tail against the same window with those experts resident in VRAM (the same bits)
@@ -854,8 +796,7 @@ int main(int argc, char** argv) {
                 }
                 uint32_t* sw = hmap<uint32_t>(64);
                 K::DmRouteArgs rs = ra;
-                rs.res1 = nullptr;
-                rs.host_seq_m = sw; rs.peer_seq_m = sw + 16;
+                rs.host_seq_m = sw;
                 rs.stage_src = d_src; rs.stage_k = d_kt;
                 ck(cudaMemsetAsync(d_plan, 0xee, sizeof(K::DmPlan), s0), "memset");
                 std::memset((void*) (h_rings + 5), 0, sizeof(K::DmRing));
@@ -866,7 +807,7 @@ int main(int argc, char** argv) {
                 ck(cudaMemcpy(&S, d_plan, sizeof S, cudaMemcpyDeviceToHost), "plan");
                 size_t bst = 0;
                 for (int i = 0; i < n; ++i) bst += S.kind[i] != rk[i] || h_rings[5].kind[i] != rk[i];
-                bst += h_rings[5].n_cpu != rnc || S.counts[3] != rnc || S.scounts[0] != (int) staged.size();
+                bst += h_rings[5].n_cpu != rnc || S.counts[2] != rnc || S.scounts[0] != (int) staged.size();
                 const auto stg = down(d_stg, (size_t) K::kDmStageMax * stride);
                 std::vector<int> sseen(n, 0);
                 int nse = 0;
@@ -902,9 +843,9 @@ int main(int argc, char** argv) {
                 float* d_ba = dmal<float>((size_t) MT * H);
                 float* d_bb = dmal<float>((size_t) MT * H);
                 K::DmRouteArgs rr = ra;
-                rr.res0 = d_res2; rr.res1 = nullptr; rr.plan = d_plan2;
+                rr.res0 = d_res2; rr.plan = d_plan2;
                 rr.ring_m = h_rings + 7; rr.x_m = h_x + (size_t) 7 * MT * H; rr.xq_m = h_xq + 7 * xq_stride;
-                rr.host_seq_m = sw + 32; rr.peer_seq_m = sw + 48;
+                rr.host_seq_m = sw + 32;
                 K::dec_moe_route(rr, s0);
                 ck(cudaMemsetAsync(d_pa, 0xff, (size_t) K::kDmCap * H * 4, s0), "memset");
                 ck(cudaMemsetAsync(d_pb, 0xff, (size_t) K::kDmCap * H * 4, s0), "memset");
@@ -914,11 +855,9 @@ int main(int argc, char** argv) {
                                          n, d_xq2, dv[0].scr, d_pa, s0, 4);
                 K::native_expert_grouped(L, d_plan2->ptr, d_plan2->start, d_plan2->counts, d_plan2->dst, d_plan2->tok, n,
                                          n, d_xq2, dv[0].scr, d_pb, s0);
-                h_words[32] = 6;
                 h_words[48] = 6;
-                K::dec_moe_combine(d_pa, h_peer, h_cpu, d_plan, d_w, d_sh, d_ba, H, KK, T, h_words + 32, h_words + 48, 6, s0);
-                K::dec_moe_combine(d_pb, h_peer, h_cpu, d_plan2, d_w, d_sh, d_bb, H, KK, T, h_words + 32, h_words + 48, 6,
-                                   s0);
+                K::dec_moe_combine(d_pa, h_cpu, d_plan, d_w, d_sh, d_ba, H, KK, T, h_words + 48, 6, s0);
+                K::dec_moe_combine(d_pb, h_cpu, d_plan2, d_w, d_sh, d_bb, H, KK, T, h_words + 48, 6, s0);
                 ck(cudaStreamSynchronize(s0), "staged tail");
                 std::vector<int> srows;
                 for (int i = 0; i < n; ++i) if (rk[i] == 1) srows.push_back(i);
@@ -981,150 +920,6 @@ int main(int argc, char** argv) {
                 cudaFreeHost(h_sb);
                 cudaFreeHost(sw);
                 ck(cudaMemcpy(d_plan, &P, sizeof P, cudaMemcpyHostToDevice), "plan back");
-            }
-
-            // further peers: CPU-held experts split between two more tiers (some held by several: the first tier
-            // that holds one takes it); the route in one launch, split in two and inside the glue launch, against a
-            // CPU reference; the combine reading their rows as it reads the first peer's
-            {
-                // CUDA0 keeps every other expert it held, so the peers see enough entries
-                std::vector<int32_t> rr0(NE, -1), rx0(NE, -1), rx1(NE, -1);
-                for (int e = 0; e < NE; ++e) {
-                    if (res0[e] >= 0 && e % 2 == 0) rr0[e] = res0[e];
-                    if (rr0[e] < 0 && res1[e] < 0 && e % 3 != 2) (e % 3 == 0 ? rx0 : rx1)[e] = e % NX;
-                    if (e % 6 == 0) rx1[e] = e % NX;                      // x0 holds it too: x0's
-                    if (res1[e] >= 0 && e % 2 == 0) rx0[e] = e % NX;      // the first peer holds it too: its
-                }
-                int32_t* d_rr0 = dmal<int32_t>(NE);
-                int32_t* d_rx0 = dmal<int32_t>(NE);
-                int32_t* d_rx1 = dmal<int32_t>(NE);
-                ck(cudaMemcpy(d_rr0, rr0.data(), NE * 4, cudaMemcpyHostToDevice), "rr0");
-                ck(cudaMemcpy(d_rx0, rx0.data(), NE * 4, cudaMemcpyHostToDevice), "rx0");
-                ck(cudaMemcpy(d_rx1, rx1.data(), NE * 4, cudaMemcpyHostToDevice), "rx1");
-                K::DmRing* xr = hmap<K::DmRing>(2);
-                uint32_t* xw = hmap<uint32_t>(32);   // [0] the first further peer's doorbell, [16] the second's
-                K::DmRouteArgs rx = ra;
-                rx.ring_m = h_rings + 6; rx.x_m = h_x + (size_t) 6 * MT * H; rx.xq_m = h_xq + 6 * xq_stride;
-                rx.ring = 7; rx.n_x = 2; rx.res0 = d_rr0;
-                rx.xres[0] = d_rx0; rx.xres[1] = d_rx1;
-                rx.xring_m[0] = xr; rx.xring_m[1] = xr + 1;
-                rx.xseq_m[0] = xw; rx.xseq_m[1] = xw + 16;
-                std::vector<int32_t> xk(n);
-                int xc = 0, xp0 = 0, xn[2] = {0, 0};
-                for (int i = 0; i < n; ++i) {
-                    const int e = ids[i];
-                    xk[i] = rr0[e] >= 0 ? 0 : res1[e] >= 0 ? 2 : rx0[e] >= 0 ? 3 : rx1[e] >= 0 ? 4 : -1;
-                    xc += xk[i] < 0;
-                    xp0 += xk[i] == 2;
-                    if (xk[i] >= 3) ++xn[xk[i] - 3];
-                }
-                const int xall = xp0 + xn[0] + xn[1];
-                auto rings_ok = [&](const K::DmPlan& Q, bool plan_kinds) {
-                    size_t b = 0;
-                    for (int i = 0; i < n; ++i) {
-                        b += h_rings[6].kind[i] != xk[i] || h_rings[6].ids[i] != ids[i];
-                        if (plan_kinds) b += Q.kind[i] != xk[i];
-                        for (int q = 0; q < 2; ++q)
-                            b += xr[q].ids[i] != ids[i] || xr[q].kind[i] != (xk[i] == 3 + q ? 2 : xk[i] >= 0 ? 0 : -1);
-                    }
-                    if (plan_kinds) b += Q.counts[2] != xall || Q.counts[3] != xc;
-                    b += h_rings[6].n_peer != xp0 || h_rings[6].n_cpu != xc || h_rings[6].n_tok != T;
-                    for (int q = 0; q < 2; ++q) {
-                        const uint32_t w = xw[16 * q];
-                        b += xr[q].n_peer != xn[q] || xr[q].n_tok != T || (w & 0xffffu) != 7 ||
-                             ((w >> 16) & 0xffu) != (uint32_t) T || ((w >> 28) & 1u) != (xn[q] > 0 ? 1u : 0u);
-                    }
-                    b += h_words[0] != 7 || (h_words[16] & 0xffffu) != 7 || ((h_words[16] >> 28) & 1u) != (xp0 > 0 ? 1u : 0u);
-                    return b;
-                };
-                auto clear_rings = [&] {
-                    std::memset((void*) (h_rings + 6), 0, sizeof(K::DmRing));
-                    std::memset((void*) xr, 0, 2 * sizeof(K::DmRing));
-                    h_words[0] = h_words[16] = 0;
-                    xw[0] = xw[16] = 0;
-                };
-                clear_rings();
-                K::dec_moe_route(rx, s0);
-                ck(cudaStreamSynchronize(s0), "route, further peers");
-                K::DmPlan PX;
-                ck(cudaMemcpy(&PX, d_plan, sizeof PX, cudaMemcpyDeviceToHost), "plan");
-                size_t bx = rings_ok(PX, true);
-                if (xall > 0) bx += std::memcmp(down((const uint8_t*) d_xq2, (size_t) T * H / 32 * 36).data(),
-                                                h_xq + 6 * xq_stride, (size_t) T * H / 32 * 36) != 0;
-                std::snprintf(what, sizeof what, "route, peers T=%d (%d+%d+%d)", T, xp0, xn[0], xn[1]);
-                report(what, l, bx, (size_t) n);
-                const std::vector<uint8_t> rbytes((const uint8_t*) (h_rings + 6), (const uint8_t*) (h_rings + 7));
-                const std::vector<uint8_t> xbytes((const uint8_t*) xr, (const uint8_t*) (xr + 2));
-                {   // split: mode 1 then mode 2 leave the same rings and words
-                    clear_rings();
-                    void* d_pub = dmal<uint8_t>(xq_stride);
-                    K::DmRouteArgs r1 = rx, r2 = rx;
-                    r1.mode = 1; r2.mode = 2; r2.xq_pub = d_pub;
-                    K::dec_moe_route(r1, s0);
-                    K::dec_moe_route(r2, s0);
-                    ck(cudaStreamSynchronize(s0), "split route, further peers");
-                    size_t b2 = rings_ok(PX, false);
-                    b2 += std::memcmp(rbytes.data(), h_rings + 6, rbytes.size()) != 0;
-                    b2 += std::memcmp(xbytes.data(), xr, xbytes.size()) != 0;
-                    cudaFree(d_pub);
-                    std::snprintf(what, sizeof what, "split route, peers T=%d", T);
-                    report(what, l, b2, (size_t) n);
-                }
-                if (K::dec_moe_glue_ok(L)) {   // the ring's work inside the gate/up launch
-                    std::vector<unsigned long long> pt(NE);
-                    for (int e = 0; e < NE; ++e)
-                        pt[e] = rr0[e] >= 0 ? (unsigned long long) (dv[0].blob + (size_t) rr0[e] * L.bytes) : 0ull;
-                    unsigned long long* d_pt = dmal<unsigned long long>(NE);
-                    ck(cudaMemcpy(d_pt, pt.data(), NE * 8, cudaMemcpyHostToDevice), "ptab");
-                    float* d_p4 = dmal<float>((size_t) K::kDmCap * H);
-                    clear_rings();
-                    ck(cudaMemsetAsync(d_plan, 0xee, sizeof(K::DmPlan), s0), "memset");
-                    K::DmGlueArgs gx;
-                    gx.ids = d_ids; gx.ptab = d_pt; gx.n_tok = T; gx.k = (int) KK; gx.n_expert = (int) NE;
-                    gx.plan = d_plan; gx.xq = d_xq2;
-                    gx.ring_on = true; gx.ring = rx; gx.ring.mode = 2; gx.ring.kinds = true;
-                    K::dec_moe_glue(L, gx, dv[0].scr, d_p4, n, s0);
-                    ck(cudaStreamSynchronize(s0), "glue ring, further peers");
-                    K::DmPlan PG;
-                    ck(cudaMemcpy(&PG, d_plan, sizeof PG, cudaMemcpyDeviceToHost), "plan");
-                    size_t b3 = rings_ok(PG, true);
-                    b3 += std::memcmp(xbytes.data(), xr, xbytes.size()) != 0;
-                    std::snprintf(what, sizeof what, "glue ring, peers T=%d", T);
-                    report(what, l, b3, (size_t) n);
-                    cudaFree(d_pt); cudaFree(d_p4);
-                    ck(cudaMemcpy(d_plan, &PX, sizeof PX, cudaMemcpyHostToDevice), "plan back");
-                }
-                // the combine: further peers' rows read from the peers' rows as the first peer's (kinds 3, 4 as 2)
-                ck(cudaMemsetAsync(d_parts, 0xff, (size_t) K::kDmCap * H * 4, s0), "memset");
-                K::native_expert_grouped(L, d_plan->ptr, d_plan->start, d_plan->counts, d_plan->dst, d_plan->tok, n, n,
-                                         d_xq2, dv[0].scr, d_parts, s0);
-                float* d_ba = dmal<float>((size_t) MT * H);
-                float* d_bb = dmal<float>((size_t) MT * H);
-                K::DmPlan PO = PX;
-                for (int i = 0; i < n; ++i) if (PO.kind[i] >= 3) PO.kind[i] = 2;
-                K::DmPlan* d_po = dmal<K::DmPlan>(1);
-                ck(cudaMemcpy(d_po, &PO, sizeof PO, cudaMemcpyHostToDevice), "plan, one peer");
-                size_t b4 = 0;
-                for (int tagged = 0; tagged < 2; ++tagged) {
-                    const volatile uint32_t* td = tagged ? h_words + 32 : nullptr;
-                    h_words[32] = 7;
-                    std::memcpy(h_peer, peer.data(), peer.size() * 4);
-                    K::dec_moe_combine(d_parts, h_peer, h_cpu, d_plan, d_w, d_sh, d_ba, H, KK, T, nullptr, nullptr, 7, s0,
-                                       tagged != 0, td);
-                    ck(cudaStreamSynchronize(s0), "combine, further peers");
-                    std::memcpy(h_peer, peer.data(), peer.size() * 4);
-                    K::dec_moe_combine(d_parts, h_peer, h_cpu, d_po, d_w, d_sh, d_bb, H, KK, T, nullptr, nullptr, 7, s0,
-                                       tagged != 0, td);
-                    ck(cudaStreamSynchronize(s0), "combine, one peer");
-                    const auto ca = down(d_ba, (size_t) T * H), cb = down(d_bb, (size_t) T * H);
-                    for (size_t i = 0; i < ca.size(); ++i) b4 += std::memcmp(&ca[i], &cb[i], 4) != 0;
-                }
-                std::memcpy(h_peer, peer.data(), peer.size() * 4);
-                std::snprintf(what, sizeof what, "combine, peers T=%d", T);
-                report(what, l, b4, (size_t) 2 * T * H);
-                cudaFree(d_ba); cudaFree(d_bb); cudaFree(d_po); cudaFree(d_rr0); cudaFree(d_rx0); cudaFree(d_rx1);
-                cudaFreeHost(xr); cudaFreeHost(xw);
-                ck(cudaMemcpy(d_plan, &P, sizeof P, cudaMemcpyHostToDevice), "plan back");   // the checks below read it
             }
 
             // the fused VRAM call vs native_expert_grouped (d_parts2 holds the grouped rows)

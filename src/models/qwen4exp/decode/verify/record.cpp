@@ -14,7 +14,7 @@ using namespace verify_detail;
 // The decode window's overlap structure (all always on): in windows of 2+ tokens the shared expert's side kernels run
 // at the greatest stream priority, so their blocks are scheduled ahead of the routed experts' queued blocks; in windows
 // of 1-2 tokens a GDN layer's z projection is forked at that priority beside the qkv projection; the MoE route is
-// split (CUDA0's plan and q8_1 rows on the main stream, the ring for the peer card and the CPU pool on a stream of its
+// split (CUDA0's plan and q8_1 rows on the main stream, the ring for the CPU pool on a stream of its
 // own) with the hc read's router items writing the FFN input's q8_1 rows and the gate/up launch building CUDA0's plan
 // itself; the combine runs as the wait kernel's programmatic dependent.  A QSA layer's K, V and the indexer key/query
 // run on branches of their own beside the query projection; its block scores skip a window whose selections are all

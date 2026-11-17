@@ -59,8 +59,7 @@ bool Verifier::dm_init(std::string& err) {
               mapped((size_t) d->rings * sizeof(DmRing), (void**) &d->h_ring, (void**) &d->m_ring) &&
               mapped((size_t) d->rings * d->x_stride * 4, (void**) &d->h_x, (void**) &d->m_x) &&
               mapped((size_t) d->rings * d->xq_stride, (void**) &d->h_xq, (void**) &d->m_xq) &&
-              mapped(256, (void**) &d->h_w, (void**) &d->m_w) &&
-              mapped((size_t) (T * K * N) * 4, (void**) &d->h_rows, (void**) &d->m_rows) &&
+              mapped(64, (void**) &d->h_stop, (void**) &d->m_stop) &&
               cudaMalloc(&d->vscr, dec_moe_vram_scratch_bytes((int) lay.fmt[0].n_ff)) == cudaSuccess &&
               cudaMalloc((void**) &d->vsync, (kDmCap + 1) * 4) == cudaSuccess &&
               cudaMemset(d->vsync, 0, (kDmCap + 1) * 4) == cudaSuccess &&
@@ -87,7 +86,6 @@ bool Verifier::dm_init(std::string& err) {
     if (ok && (route_tail_skip_ > 0 || route_prior_ > 0.0f))
         ok = cudaMalloc((void**) &d->route_counts, 8 * 8) == cudaSuccess && cudaMemset(d->route_counts, 0, 8 * 8) == cudaSuccess;
     if (!ok) { err = "verify: device-planned MoE buffers"; return false; }
-    d->rows_words = (size_t) (T * K * N);
     d->tags = d->wstat == nullptr;
     d->shadow0.assign((size_t) LE, INT32_MIN);
     d->pin_stride = (size_t) LE * 12;   // [res0 | ptab0] per slot
@@ -178,7 +176,7 @@ void Verifier::dm_free() {
     if (d->stage_host) cudaFreeHost(d->stage_host);
     if (d->pin) cudaFreeHost(d->pin);
     if (d->landed_pin) cudaFreeHost(d->landed_pin);
-    for (void* h : {(void*) d->h_ring, (void*) d->h_x, (void*) d->h_xq, (void*) d->h_w, (void*) d->h_rows})
+    for (void* h : {(void*) d->h_ring, (void*) d->h_x, (void*) d->h_xq, (void*) d->h_stop})
         if (h) cudaFreeHost(h);
     delete d;
     dm_ = nullptr;

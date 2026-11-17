@@ -1,6 +1,6 @@
-// tests/kernels/dm_route_ada_parity.cpp - dec_moe_route's two kernels for a card without peers on compute capability 8.9
+// tests/kernels/dm_route_ada_parity.cpp - dec_moe_route's two kernels on compute capability 8.9
 // (dec_moe.cuh) against dm_route_kernel's modes 1 and 2, bit for bit on the plan, the q8_1 rows, the ring's header, its
-// x and rows and both doorbells: T 1..8, entries from all CPU to all VRAM, repeated ids and ids past the table, with and
+// x and rows and the doorbell: T 1..8, entries from all CPU to all VRAM, repeated ids and ids past the table, with and
 // without per-slot offsets and the ring's rows.  Then, in graphs of 48 layers at the engine's share of VRAM entries, the
 // time per launch of each kernel and the time from the kernel before the ring to its doorbell.
 //
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
         a.res0 = d_res; a.cache_base = reinterpret_cast<const uint8_t*>(0x100000000000ull);
         a.slot_off = offs ? d_off : nullptr; a.blob = 1ll << 20;
         a.plan = d_plan; a.xq = d_xq; a.ring_m = m_ring + r; a.x_m = m_xm + (size_t) r * MT * H;
-        a.xq_m = m_xqm + (size_t) r * MT * XQ_ROW; a.rows = rows; a.host_seq_m = m_w; a.peer_seq_m = m_w + 16;
+        a.xq_m = m_xqm + (size_t) r * MT * XQ_ROW; a.rows = rows; a.host_seq_m = m_w;
         a.ring = (uint32_t) r + 1; a.ctr = d_ctr; a.mode = mode; a.xq_pub = d_xq_pub;
         return a;
     };

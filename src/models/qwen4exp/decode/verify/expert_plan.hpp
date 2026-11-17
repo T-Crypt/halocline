@@ -36,17 +36,13 @@ struct DecMoe {
     uint32_t* landed_pin = nullptr;        // pinned: the need copies' sources, a ring of kPinSlots
     int landed_i = 0;
     int64_t wstat_windows = 0, wstat_t = 0;
-    // mapped: per ring header, FFN input and q8_1 rows; [0] the peer's ring, [16] its done ring, [32] its abort
-    // record (kDmDiagWords); the peer's rows
+    // mapped: per ring header, FFN input and q8_1 rows; the stop word (UINT32_MAX: a released window, which ends the
+    // glue launches' landed wait)
     basalt::kernels::DmRing* h_ring = nullptr; basalt::kernels::DmRing* m_ring = nullptr;
     float* h_x = nullptr; float* m_x = nullptr;
     uint8_t* h_xq = nullptr; uint8_t* m_xq = nullptr;
-    uint32_t* h_w = nullptr; uint32_t* m_w = nullptr;
-    float* h_rows = nullptr; float* m_rows = nullptr;
-    bool tag = false;       ///< the combine polls the peer's rows (each dword not yet written holds the tag word)
+    uint32_t* h_stop = nullptr; uint32_t* m_stop = nullptr;
     bool tags = false;      ///< the combine waits for the CPU pool's word itself: no wait launch (without --wait-stats)
-    size_t rows_words = 0;
-    bool tag_dirty = false; ///< a released window may have left written rows behind
     size_t x_stride = 0, xq_stride = 0;      ///< per ring, floats / bytes
     // the staged share: every expert's host-RAM address (device alias) or 0, its host copy and
     // the source's places it was read at, the staged count per count of distinct CPU misses, the copy's own stream

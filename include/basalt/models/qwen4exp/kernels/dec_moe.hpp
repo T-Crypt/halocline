@@ -1,14 +1,13 @@
 // include/basalt/models/qwen4exp/kernels/dec_moe.hpp - the verify window's MoE tail without host handshakes (DEC_MOE=1).
 //
-// Per layer: one route kernel on CUDA0 sorts the routed entries into its three tiers from device residency tables
-// (CUDA0's VRAM tier, the peer card, the CPU pool), builds CUDA0's grouped plan, quantizes the FFN input, publishes
-// what the other tiers need to mapped host memory and rings both. The peer card runs one persistent kernel per
-// window that polls those rings, computes its entries and writes their rows back to mapped memory; the CPU pool is
-// served by the host loop as before. CUDA0 computes its own entries right away and waits on a tier only when the
-// layer has entries there; the combine reads every row from where its tier left it.
+// Per layer: one route kernel on CUDA0 sorts the routed entries into its tiers from the device residency table
+// (CUDA0's VRAM tier, the staged share, the CPU pool), builds CUDA0's grouped plan, quantizes the FFN input, publishes
+// what the CPU pool needs to mapped host memory and rings the host's doorbell. The CPU pool is served by the host
+// loop as before. CUDA0 computes its own entries right away and waits on the pool only when the layer has entries
+// there; the combine reads every row from where its tier left it.
 //
 // Every row is computed by the same arithmetic as the grouped kernels it replaces (native_expert_grouped), so a
-// tier gives the same bits as before; only the PCIe share is gone (those entries go to the CPU pool).
+// tier gives the same bits as before.
 #pragma once
 
 #include "basalt/kernels/iq_kernels.hpp"
@@ -20,23 +19,21 @@
 namespace basalt::kernels {
 
 constexpr int kDmCap = 128;          ///< entries per window: kVerifyMaxT tokens x top-10 fit
-constexpr int kDmMaxX = 2;           ///< peer cards past the first, each with its own ring, doorbell and done word
 
 /// One ring (layer) as the route kernel publishes it to mapped memory.
 struct DmRing {
-    int32_t n_tok = 0, layer = 0, n_vram = 0, n_peer = 0, n_cpu = 0, pad[3] = {};
+    int32_t n_tok = 0, layer = 0, n_vram = 0, n_cpu = 0, pad[4] = {};
     int32_t ids[kDmCap] = {};
-    int32_t kind[kDmCap] = {};       ///< 0: CUDA0's VRAM tier, 2: the peer card, 3 + q: further peer q, -1: the CPU
-                                     ///< pool; a further peer's own ring holds its entries as 2 and every other GPU's as 0
+    int32_t kind[kDmCap] = {};       ///< 0: CUDA0's VRAM tier, 1: the staged share, -1: the CPU pool
 };
 
 /// CUDA0's grouped plan (native_expert_grouped's lists) and every entry's tier, on the device.
 struct DmPlan {
-    int32_t counts[4];               ///< [0] VRAM groups, [1] VRAM entries, [2] every peer's entries, [3] CPU entries
+    int32_t counts[3];               ///< [0] VRAM groups, [1] VRAM entries, [2] CPU entries
     int32_t start[kDmCap + 1];
     int32_t dst[kDmCap];
     int32_t tok[kDmCap];
-    int32_t kind[kDmCap];            ///< 0 CUDA0's VRAM tier, 1 the staged share, 2 + the peers, -1 the CPU pool
+    int32_t kind[kDmCap];            ///< 0 CUDA0's VRAM tier, 1 the staged share, -1 the CPU pool
     unsigned long long ptr[kDmCap];
     /// the staged share (kind 1): CPU misses CUDA0 copies from host RAM into staging and computes; its own lists
     int32_t scounts[2];              ///< [0] groups, [1] entries
@@ -54,7 +51,6 @@ struct DmRouteArgs {
     const float* x = nullptr;        ///< device: n_tok * n_embd FFN input
     int n_tok = 0, k = 0, n_embd = 0, n_expert = 0, layer = 0;
     const int32_t* res0 = nullptr;   ///< this layer's CUDA0 residency row (slot or -1)
-    const int32_t* res1 = nullptr;   ///< this layer's peer residency row (slot or -1); null: no peer
     const uint8_t* cache_base = nullptr;
     const unsigned long long* slot_off = nullptr;   ///< per-slot offsets (null: slot * blob)
     long long blob = 0;
@@ -62,10 +58,9 @@ struct DmRouteArgs {
     void* xq = nullptr;              ///< device: n_tok q8_1 rows (block_q8_1, n_embd / 32 per row)
     DmRing* ring_m = nullptr;        ///< mapped: this ring's header
     float* x_m = nullptr;            ///< mapped: this ring's FFN input (written when the CPU has entries)
-    void* xq_m = nullptr;            ///< mapped: this ring's q8_1 rows (written when the peer has entries, or `rows`)
-    bool rows = false;               ///< publish the q8_1 rows in every ring (the peer's warm-up predicts from them)
-    uint32_t* host_seq_m = nullptr;  ///< mapped doorbells: the ring is stored once everything above has landed
-    uint32_t* peer_seq_m = nullptr;
+    void* xq_m = nullptr;            ///< mapped: this ring's q8_1 rows (written with `rows`)
+    bool rows = false;               ///< publish the q8_1 rows in every ring (the CPU pool's warm-up predicts from them)
+    uint32_t* host_seq_m = nullptr;  ///< mapped doorbell: the ring is stored once everything above has landed
     uint32_t ring = 0;
     unsigned int* ctr = nullptr;     ///< device: arrival counter, monotonic across launches
     unsigned int ctr_base = 0;       ///< arrivals before this launch (ring - 1) * blocks
@@ -76,21 +71,14 @@ struct DmRouteArgs {
     const uint16_t* sh_gw = nullptr; ///< device: the shared expert's BF16 gate row (n_embd), or null
     float* sh_part = nullptr;        ///< device: its gate's partial sums, n_embd / 256 per token in order
     unsigned long long* stats = nullptr;   ///< DM_WAIT_STATS (kDmStatWords, device) or null: the doorbell's time
-    int peer_cap = 0;                ///< PEER_CAP: the peer's groups past this many go to the CPU pool (0: no cap)
-    bool kinds = false;              ///< mode 2: also every entry's tier into plan->kind and counts[2], counts[3]
-    /// further peers: their residency rows (an entry no tier before holds goes to the first that does), their rings
-    /// (written like ring_m) and their doorbells (rung like peer_seq_m)
-    int n_x = 0;
-    const int32_t* xres[kDmMaxX] = {};
-    DmRing* xring_m[kDmMaxX] = {};
-    uint32_t* xseq_m[kDmMaxX] = {};
+    bool kinds = false;              ///< mode 2: also every entry's tier into plan->kind and counts[2]
     /// DEC_GLUE & 2 after a read that counts its progress (HcFusedArgs::pub_ctr, three device words): the ring's block
     /// starts before the read ends, copies every token's FFN input rows once pub_ctr[2] is set, the q8_1 rows once
-    /// pub_ctr[0] holds pub_target, routes once pub_ctr[1] is set and rings the peers and the host; it zeroes the words
+    /// pub_ctr[0] holds pub_target, routes once pub_ctr[1] is set and rings the host; it zeroes the words
     /// for the layer's next window
     unsigned int* pub_ctr = nullptr;
     unsigned int pub_target = 0;
-    /// the staged share (a card without peers): this layer's [n_expert] host-RAM blob address (device alias) or 0,
+    /// the staged share: this layer's [n_expert] host-RAM blob address (device alias) or 0,
     /// and per count of the layer's distinct CPU misses the staged ones (kDmCap + 1 entries, device); null: none
     const unsigned long long* stage_src = nullptr;
     const int32_t* stage_k = nullptr;
@@ -98,7 +86,7 @@ struct DmRouteArgs {
 /// Blocks dec_moe_route launches for `n_tok` rows (the arrival counter advances by this much).
 int dec_moe_route_blocks(int n_tok, int n_embd);
 void dec_moe_route(const DmRouteArgs& a, void* stream);
-/// On compute capability 8.9, modes 1 and 2 without a peer, staged share or shared gate take two leaner kernels once
+/// On compute capability 8.9, modes 1 and 2 without a staged share or shared gate take two leaner kernels once
 /// enabled: the same plan, rows, ring and doorbells, except that the ring's q8_1 rows (`rows`) may land after its doorbell.
 /// `--exp dm_route_ada=0` keeps the one kernel.
 void dec_moe_route_ada_enable(bool on);
@@ -138,13 +126,8 @@ bool dec_moe_glue_ok(const NativeExpertLayout& L);
 /// `scratch` / `out` / `cap` as native_expert_grouped's (entries cap, rows into out at the entry's index).
 void dec_moe_glue(const NativeExpertLayout& L, const DmGlueArgs& a, void* scratch, float* out, int cap, void* stream);
 
-/// Router rows the warm-up's predictor covers.
+/// Router rows the CPU pool's warm-up predictor covers.
 constexpr int kDmPredExperts = 512;
-/// A down wait inside a ring that does not end within this long aborts the window (so does a corrupt ring, or the host's
-/// release while a ring runs): the kernel writes its record to diag_m, raises done_m past every ring (CUDA0's waits
-/// pass) and exits.
-constexpr unsigned long long kDmWaitLimitNs = 200ull * 1000 * 1000;
-constexpr int kDmDiagWords = 16;
 /// Whether the persistent kernels cover this layer's expert formats (`up_type`: the up rows' type, -1 for gu_type's).
 bool dec_moe_formats_ok(int gu_type, int d_type, int64_t n_embd, int64_t n_ff, int up_type = -1);
 /// Entries one dec_moe_table_put launch carries in its arguments.
@@ -165,25 +148,23 @@ bool dec_moe_zero_words(unsigned int* p, int n, void* stream);
 /// loads it through the copy engine and would wait behind any refill copies queued by then.
 bool dec_moe_table_load(void* stream);
 
-/// DM_WAIT_STATS: per layer, the times of the doorbell, CUDA0's own work done and each tier landed (CUDA0's
-/// clock), summed per peer-entry count and per layer.  Words: [0, 4) the layer's times; kDmStatBucket + 8 b + j for
-/// layers with min(peer entries, 15) == b: j 0 layers, 1 the tiers landed after CUDA0's work, 2 ns waited, 3 ns from
-/// the doorbell to the peer's rows, 4 ns from the doorbell to CUDA0's work done, 5 with CPU entries, 6 / 7 ns the peer /
-/// the CPU pool landed after CUDA0's work; kDmStatLayer + kDmStatPerLayer l + j for layer l: j 0 peer entries, 1
-/// layers, 2 ns waited, 3 / 4 ns the CPU pool / the peer landed after CUDA0's work, 5 ns from the doorbell to CUDA0's
-/// work done, 6 ns from the doorbell to the peer's rows, 7 layers with peer entries; then per CPU-entry count.
-constexpr int kDmStatBucket = 8, kDmStatLayer = kDmStatBucket + 16 * 8, kDmStatLayers = 64, kDmStatPerLayer = 8;
-constexpr int kDmStatCpu = kDmStatLayer + kDmStatPerLayer * kDmStatLayers;   ///< + 2 min(CPU entries, 7): layers, ns to landed
-constexpr int kDmStatWords = kDmStatCpu + 16;
-/// One line per peer-entry count and two per-layer lines from the counters (host copy).
+/// DM_WAIT_STATS: per layer, the times of the doorbell, CUDA0's own work done and the CPU pool landed (CUDA0's clock),
+/// summed per CPU-entry count and per layer.  Words: [0, 8) the layer's times; kDmStatCpu + kDmStatPerCpu b + j for
+/// layers with min(CPU entries, kDmStatCpuMax) == b: j 0 layers, 1 the pool landed after CUDA0's work, 2 ns waited,
+/// 3 ns from the doorbell to the pool's rows, 4 ns from the doorbell to CUDA0's work done; kDmStatLayer +
+/// kDmStatPerLayer l + j for layer l: j 0 CPU entries, 1 layers, 2 ns waited, 3 ns the pool landed after CUDA0's work,
+/// 4 ns from the doorbell to CUDA0's work done.
+constexpr int kDmStatCpu = 8, kDmStatPerCpu = 5, kDmStatCpuMax = 15;
+constexpr int kDmStatLayer = kDmStatCpu + kDmStatPerCpu * (kDmStatCpuMax + 1), kDmStatLayers = 64, kDmStatPerLayer = 5;
+constexpr int kDmStatWords = kDmStatLayer + kDmStatPerLayer * kDmStatLayers;
+/// One line per CPU-entry count and per-layer lines from the counters (host copy).
 std::string dec_moe_stats_text(const unsigned long long* w, double windows);
 
-/// CUDA0's spin until the tiers this layer uses have landed (the combine waits by itself; this one is for profiles).
-/// `trigger`: the next launch (a programmatic dependent) may start while this one waits.  `skip_peer`: the peer's
-/// rows are polled by the combine (its tag_done), so only the CPU pool's word is waited for.
-void dec_moe_wait(const DmPlan* plan, const volatile uint32_t* peer_done_m, const volatile uint32_t* host_flag_m,
-                  uint32_t ring, void* stream, unsigned long long* stats = nullptr, int layer = 0, bool trigger = false,
-                  bool skip_peer = false);
+/// CUDA0's spin until the CPU pool's rows of this layer have landed (host_flag_m >= ring, when the layer has CPU
+/// entries; the combine waits by itself, this one is for profiles).  `trigger`: the next launch (a programmatic
+/// dependent) may start while this one waits.
+void dec_moe_wait(const DmPlan* plan, const volatile uint32_t* host_flag_m, uint32_t ring, void* stream,
+                  unsigned long long* stats = nullptr, int layer = 0, bool trigger = false);
 
 /// CUDA0's VRAM share of the plan in one launch (gate/up, SwiGLU, down; native_expert_grouped's rows bit for bit):
 /// entry e's row into row plan->dst[e] of `out`.  `sync`: kDmCap + 1 zeroed device words, left zeroed.
@@ -194,24 +175,19 @@ size_t dec_moe_vram_scratch_bytes(int n_ff);
 void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* xq, void* scratch, float* out,
                   unsigned int* sync, void* stream, int kind = 0, int cap = kDmCap);
 
-/// The layer's FFN output: entry i's row from its tier (CUDA0's `parts`, the peer's or the CPU pool's mapped rows,
-/// entry i at row i of each), summed with the router weights in native_moe_combine_multi's order, plus `shared`.
-/// With peer_done_m, every block first waits for the tiers the plan uses (peer_done_m / host_flag_m >= ring); null:
-/// dec_moe_wait ran before it.  Built with native_moe.cu's math.  `dep` (DEC_GLUE & 4, null words): a
-/// programmatic dependent of a dec_moe_wait launched with `trigger`.  `tag_done` (null words, dep): the peer's rows carry their own arrival, a row dword still holding dec_moe_tag_word() is not yet
-/// written; the combine polls them (tag_done >= ring ends the poll for a released window) and restores the word after
-/// reading, so dec_moe_wait runs with `skip_peer`.  `cpu_done` (with tag_done, not dep): no dec_moe_wait runs before
-/// the combine; when the layer has CPU entries one of its threads waits for cpu_done >= ring and passes the ring on
-/// through `cpu_seen` (one device word, zeroed once: it steps through each window's rings in order, holding the ring
-/// with its top bit set while that thread waits) to the others; a layer with peer entries and no CPU entries holds the
-/// ring with bit 30 set until that thread's own peer rows are in.
+/// The layer's FFN output: entry i's row from its tier (CUDA0's `parts` or the CPU pool's mapped rows, entry i at row
+/// i of each), summed with the router weights in native_moe_combine_multi's order, plus `shared`.  With host_flag_m,
+/// every block first waits for the CPU pool's word (host_flag_m >= ring) when the plan has CPU entries; null:
+/// dec_moe_wait ran before it, or `cpu_done` is set.  Built with native_moe.cu's math.  `dep` (DEC_GLUE & 4, null
+/// words): a programmatic dependent of a dec_moe_wait launched with `trigger`.  `cpu_done` (not dep): no dec_moe_wait
+/// runs before the combine; when the layer has CPU entries one of its threads waits for cpu_done >= ring and passes the
+/// ring on through `cpu_seen` (one device word, zeroed once: it steps through each window's rings in order, holding the
+/// ring with its top bit set while that thread waits) to the others.
 /// `shared_gate` ([n_tok], or null): `shared` is the shared expert before its per-token gate, and the combine applies
 /// it as shared_expert_multi does (one IEEE product per value) before the add.
-constexpr uint32_t dec_moe_tag_word() { return 0x7fa5a5a5u; }
-void dec_moe_combine(const float* parts, const float* peer_rows_m, const float* cpu_rows_m, const DmPlan* plan,
-                     const float* weights, const float* shared, float* output, int64_t n_embd, int64_t k, int n_tok,
-                     const volatile uint32_t* peer_done_m, const volatile uint32_t* host_flag_m, uint32_t ring,
-                     void* stream, bool dep = false, const volatile uint32_t* tag_done = nullptr,
+void dec_moe_combine(const float* parts, const float* cpu_rows_m, const DmPlan* plan, const float* weights,
+                     const float* shared, float* output, int64_t n_embd, int64_t k, int n_tok,
+                     const volatile uint32_t* host_flag_m, uint32_t ring, void* stream, bool dep = false,
                      const volatile uint32_t* cpu_done = nullptr, unsigned int* cpu_seen = nullptr,
                      const float* shared_gate = nullptr);
 

@@ -111,7 +111,7 @@ bool Verifier::WindowRecorder::post(int64_t l) {
             if (v_.dm_->landed_pin != nullptr) {
                 ga.landed = v_.dm_->landed + (l - v_.lb_);
                 ga.landed_need = v_.dm_->landed + v_.dm_->rings;
-                ga.landed_stop = v_.dm_->m_w + 60;
+                ga.landed_stop = v_.dm_->m_stop;
             }
             dec_moe_glue(L, ga, v_.hit_scratch_, parts_out, (int) cap, cs);
         } else if (v_.dm_->vram >= 0) {
@@ -179,19 +179,15 @@ bool Verifier::WindowRecorder::post(int64_t l) {
     }
     if (dm) l2_ahead(l);
     if (dm) {
-        // the combine polls the peer's rows itself, its done word ending the poll.  Without --wait-stats it also
-        // waits for the CPU pool's word itself, with no wait launch before it.
-        const bool dm_tag = v_.dm_->tags || (v_.dm_->tag && v_.dm_->wstat == nullptr);
-        const volatile uint32_t* tag_done = !dm_tag ? nullptr : v_.dm_->m_w + 16;
+        // without --wait-stats the combine waits for the CPU pool's word itself, with no wait launch before it
         if (!v_.dm_->tags) {
             PdlScope pw(false);
-            dec_moe_wait(v_.dm_->plan, v_.dm_->m_w + 16, v_.m_flag_, ring, cs, v_.dm_->wstat, (int) l, true, dm_tag);
+            dec_moe_wait(v_.dm_->plan, v_.m_flag_, ring, cs, v_.dm_->wstat, (int) l, true);
         }   // true: the combine is the wait's programmatic dependent
         stamp(l, 23);
         try {
-            dec_moe_combine(v_.parts_, v_.dm_->m_rows, v_.m_ymiss_, v_.dm_->plan, v_.w_, v_.shared_, v_.bo_, N, K, n, nullptr, nullptr,
-                            ring, cs, !v_.dm_->tags, tag_done, v_.dm_->tags ? v_.m_flag_ : nullptr, v_.dm_->cseen,
-                            sh_read ? v_.sh_g_ : nullptr);
+            dec_moe_combine(v_.parts_, v_.m_ymiss_, v_.dm_->plan, v_.w_, v_.shared_, v_.bo_, N, K, n, nullptr, ring, cs,
+                            !v_.dm_->tags, v_.dm_->tags ? v_.m_flag_ : nullptr, v_.dm_->cseen, sh_read ? v_.sh_g_ : nullptr);
         } catch (const std::exception& e) { err = "verify combine: " + std::string(e.what()); return false; }
     } else if (n > 1) {   // one launch for the window's rows
         try {

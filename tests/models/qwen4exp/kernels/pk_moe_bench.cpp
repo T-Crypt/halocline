@@ -200,10 +200,9 @@ int main(int argc, char** argv) {
     float* out_pk = dalloc<float>((size_t) TM * N);
     void* scratch = dalloc<uint8_t>(std::max(K::native_expert_scratch_bytes(K::kDmCap, FF), K::pk_moe_scratch_bytes(FF)) + 4096);
     K::DmPlan* plan = dalloc<K::DmPlan>(1);
-    uint32_t *m_w = nullptr, *m_flag = nullptr;
-    ck(cudaHostAlloc((void**) &m_w, 256, cudaHostAllocMapped), "hostalloc");
+    uint32_t* m_flag = nullptr;
     ck(cudaHostAlloc((void**) &m_flag, 256, cudaHostAllocMapped), "hostalloc");
-    std::memset(m_w, 0, 256); std::memset(m_flag, 0, 256);
+    std::memset(m_flag, 0, 256);
     float* m_rows = dalloc<float>(1);
     unsigned int* sync = dalloc<unsigned int>(K::kPkSyncWords);
     // shared expert
@@ -259,10 +258,9 @@ int main(int argc, char** argv) {
         ck(cudaStreamWaitEvent(cs, ev_join, 0), "wait");
         if (with_wait) {
             K::PdlScope ps(false);
-            K::dec_moe_wait(plan, m_w + 16, m_flag, (uint32_t) (l + 1), cs, nullptr, l, true);
+            K::dec_moe_wait(plan, m_flag, (uint32_t) (l + 1), cs, nullptr, l, true);
         }
-        K::dec_moe_combine(parts, m_rows, m_rows, plan, wts, shared, out_ref, N, KT, T, nullptr, nullptr, (uint32_t) (l + 1), cs,
-                           with_wait);
+        K::dec_moe_combine(parts, m_rows, plan, wts, shared, out_ref, N, KT, T, nullptr, (uint32_t) (l + 1), cs, with_wait);
     };
     unsigned long long* d_trace = dalloc<unsigned long long>(K::PK_T_SLOTS);
     bool tracing = false;

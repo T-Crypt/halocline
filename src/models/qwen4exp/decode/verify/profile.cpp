@@ -51,7 +51,7 @@ std::string Verifier::profile_report() {
     if (dg.host_on) {
         static const char* hn[32] = {"peer/copy sync", "profile read", "host sample", "run tail", "commit", "emit",
                                      "draft stage", "draft launch", "draft wait", "draft sync", "draft prof read",
-                                     "run entry", "stage+ple", "dm_sync", "peer launch", "graph launch",
+                                     "run entry", "stage+ple", "dm_sync", "dm_begin", "graph launch",
                                      "adapt join", "observe", "apply_pending", "window/penalty", "adapt thread", "", "", "", "", "", "", "", "commit GPU",
                                      "commit>draft", "verify>commit", ""};
         out += " | host ms/window:";

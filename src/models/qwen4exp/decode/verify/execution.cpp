@@ -98,7 +98,7 @@ bool Verifier::run_begin(int T, const int32_t* tokens, int64_t pos0, std::string
     }
     std::atomic_thread_fence(std::memory_order_seq_cst);
     gm.mark(12);
-    if (dm_ != nullptr) {   // this window's residency, then the peer window ahead of CUDA0's
+    if (dm_ != nullptr) {   // this window's residency and words
         if (!dm_begin(err, &gm)) return false;
     }
     ms_host += ms_since(t0);

@@ -307,10 +307,9 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
         const int64_t r = l - v_.lb_;
         ra.ring_m = v_.dm_->m_ring + r; ra.x_m = v_.dm_->m_x + (size_t) r * v_.dm_->x_stride;
         ra.xq_m = v_.dm_->m_xq + (size_t) r * v_.dm_->xq_stride;
-        ra.host_seq_m = v_.m_seq_; ra.peer_seq_m = v_.dm_->m_w;
+        ra.host_seq_m = v_.m_seq_;
         ra.ring = (uint32_t) (r + 1); ra.ctr = v_.dm_->ctr;
         ra.stats = v_.dm_->wstat;
-        ra.peer_cap = 0;
         ra.rows = v_.dm_->warm != nullptr;
         if (v_.dm_->stage_src != nullptr && v_.batch_rec_) {   // batch windows: many rows, many misses
             ra.stage_src = v_.dm_->stage_src + l * g.n_expert;
