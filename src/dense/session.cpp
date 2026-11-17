@@ -63,7 +63,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     const size_t cells = (size_t) m.o.max_context * g.n_kv * g.head_dim;
     // with K/V streaming each layer keeps its first `near` cells here and the rest in page-locked host memory
     const int64_t near_cells = resident_cells(m.o.max_context, m.o.kv_resident);
-    const bool int8 = m.o.kv == KvFormat::Int8, k8v4f = m.o.kv == KvFormat::K8V4;
+    const bool int8 = m.o.kv == KvFormat::Int8, k8v4f = m.o.kv == KvFormat::K8V4, q4f = m.o.kv == KvFormat::Q4;
     const size_t n_near = (size_t) near_cells * g.n_kv * g.head_dim, n_far = cells - n_near;
     uint8_t* host = nullptr;
     if (n_far > 0 && m.n_attn > 0) {
@@ -95,6 +95,7 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     for (int i = 0; i < m.n_attn; ++i) {
         kernels::KvInt8 q8;
         kernels::KvK8V4 k4;
+        kernels::KvQ4 q4;
         st.far_kv.emplace_back();
         if (n_far > 0) far_view(st.far_kv.back());
         if (int8) {
@@ -119,12 +120,23 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
                 err = m.o.arch + ": the K8V4 cache does not fit the session's arena";
                 return false;
             }
+        } else if (q4f) {     // both halves as q4_0 blocks, the scales inside them, cell for cell
+            const size_t blocks = (size_t) near_cells * g.n_kv * (size_t) kernels::kv_q4_head_bytes(g.head_dim);
+            q4.k = st.arena.take<uint8_t>(blocks);
+            q4.v = st.arena.take<uint8_t>(blocks);
+            st.kc.push_back(nullptr);
+            st.vc.push_back(nullptr);
+            if (!q4.v) {
+                err = m.o.arch + ": the Q4 cache does not fit the session's arena";
+                return false;
+            }
         } else {
             st.kc.push_back(st.arena.take<uint16_t>(n_near));
             st.vc.push_back(st.arena.take<uint16_t>(n_near));
         }
         st.kq.push_back(q8);
         st.k8v4.push_back(k4);
+        st.q4.push_back(q4);
     }
     if (mtp) {
         st.mtp_cap = mtp_ring_cap(m.o.max_context, m.o.mtp_window);
@@ -546,9 +558,9 @@ public:
         return {};
     }
 
-    // a layer's cells: fp16 K and V (format 1), int8 codes with fp16 scales per 64 values (format 2), or K that int8
-    // form with V in rotated q4_0 blocks (format 3, kv_q4_layout.hpp); the MTP drafter's own layer comes last, in the
-    // format its flags picked (fp16 or int8)
+    // a layer's cells: fp16 K and V (format 1), int8 codes with fp16 scales per 64 values (format 2), K that int8
+    // form with V in rotated q4_0 blocks (format 3, kv_q4_layout.hpp), or both in those blocks (format 4); the MTP
+    // drafter's own layer comes last, in the format its flags picked (fp16 or int8)
     size_t row_bytes(bool int8) const { return (size_t) g_.n_kv * g_.head_dim * (int8 ? 1 : 2); }
     size_t v4_row_bytes() const { return (size_t) g_.n_kv * (size_t) kernels::kv_q4_head_bytes(g_.head_dim); }
     // the conversation's attention layers
@@ -558,7 +570,8 @@ public:
     size_t cells_bytes(int64_t positions) const override {
         const size_t main = m_.o.kv == KvFormat::Int8   ? 2 * (row_bytes(true) + row_bytes(true) / 32)
                             : m_.o.kv == KvFormat::K8V4 ? row_bytes(true) + row_bytes(true) / 32 + v4_row_bytes()
-                                                       : 2 * row_bytes(false);
+                            : m_.o.kv == KvFormat::Q4   ? 2 * v4_row_bytes()
+                                                        : 2 * row_bytes(false);
         const size_t mtp = m_.o.mtp_format == KvFormat::Int8 ? 2 * (row_bytes(true) + row_bytes(true) / 32) : 2 * row_bytes(false);
         return (size_t) positions * kv_layers() * main + (drafter_ ? (size_t) (st_.mtp_cap > 0 ? st_.mtp_cap : positions) * mtp : 0);
     }
@@ -607,6 +620,12 @@ public:
                 const kernels::KvK8V4& q = ls.k8v4[j];
                 ok = down(q.k, nullptr, krows, k.k, krows) && down(q.ks, nullptr, krows / 32, k.k_scale, krows / 32) &&
                      down(q.vq, nullptr, vrows, k.v, vrows);
+            } else if (fmt == KvFormat::Q4) {
+                // both halves are whole q4_0 blocks with their scales inside them; like K8V4 it is never streamed, so
+                // every byte is read from the card
+                const size_t rows = (size_t) positions * v4_row_bytes();
+                const kernels::KvQ4& q = ls.q4[j];
+                ok = down(q.k, nullptr, rows, k.k, rows) && down(q.v, nullptr, rows, k.v, rows);
             } else {
                 const size_t rows = (size_t) positions * row_bytes(false);
                 const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(false);
@@ -655,6 +674,10 @@ public:
                 const kernels::KvK8V4& q = ls.k8v4[j];
                 ok = up(q.k, nullptr, krows, k.k, krows) && up(q.ks, nullptr, krows / 32, k.k_scale, krows / 32) &&
                      up(q.vq, nullptr, vrows, k.v, vrows);
+            } else if (fmt == KvFormat::Q4) {
+                const size_t rows = (size_t) positions * v4_row_bytes();
+                const kernels::KvQ4& q = ls.q4[j];
+                ok = up(q.k, nullptr, rows, k.k, rows) && up(q.v, nullptr, rows, k.v, rows);
             } else {
                 const size_t rows = (size_t) positions * row_bytes(false);
                 const size_t split = (size_t) std::min<int64_t>(f.at, positions) * row_bytes(false);
@@ -714,7 +737,10 @@ public:
     }
 
     std::string info_words() const override {
-        const char* kvname = m_.o.kv == KvFormat::Int8 ? "int8" : m_.o.kv == KvFormat::K8V4 ? "k8v4" : "fp16";
+        const char* kvname = m_.o.kv == KvFormat::Int8   ? "int8"
+                             : m_.o.kv == KvFormat::K8V4 ? "k8v4"
+                             : m_.o.kv == KvFormat::Q4   ? "q4_0"
+                                                         : "fp16";
         const std::string kv = std::string("kv=") + kvname;
         // a dense model has no routed experts, so none can sit on the SSD (the community check reads this)
         // host_weight_bytes: model weights held in host RAM, none for the dense stack (the community check refuses a row if

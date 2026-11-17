@@ -289,14 +289,16 @@ bool decode_drafter(Model& m, std::string& err) {
 
 }  // namespace
 
-// a cell of one attention layer, K and V: fp16, int8 codes with their fp16 scales, or K that int8 form and V in
-// rotated q4_0 blocks (kv_q4_layout.hpp: an fp16 scale and 16 code bytes per 32 values)
+// a cell of one attention layer, K and V: fp16, int8 codes with their fp16 scales, K that int8 form and V in rotated
+// q4_0 blocks, or both in those blocks (kv_q4_layout.hpp: an fp16 scale and 16 code bytes per 32 values)
 uint64_t kv_cell_bytes(const Geometry& g, KvFormat fmt) {
     const uint64_t k8 = (uint64_t) g.n_kv * ((uint64_t) g.head_dim + (uint64_t) (g.head_dim / 64) * 2);
+    const uint64_t v4 = (uint64_t) g.n_kv * kernels::kv_q4_head_bytes(g.head_dim);
     switch (fmt) {
         case KvFormat::Fp16: return (uint64_t) g.n_kv * g.head_dim * 2 * 2;
         case KvFormat::Int8: return 2 * k8;
-        case KvFormat::K8V4: return k8 + (uint64_t) g.n_kv * kernels::kv_q4_head_bytes(g.head_dim);
+        case KvFormat::K8V4: return k8 + v4;
+        case KvFormat::Q4: return 2 * v4;
     }
     return 0;
 }
@@ -508,6 +510,12 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
         m->mmproj->release();
         halo::log::info("halo dense", "image encoder: %.2f GiB staged in page-locked RAM, on the card per request",
                           (double) m->encoder->weights_bytes() / 1073741824.0);
+    }
+    // the 4-bit caches have no streamed form, and the stage below is carved in fp16's rows: refuse both here, not only at
+    // the flags, so a forced option cannot carve a layout the kernels never read
+    if ((o.kv == KvFormat::K8V4 || o.kv == KvFormat::Q4) && o.kv_resident > 0 && o.kv_resident < o.max_context) {
+        err = o.arch + ": " + (o.kv == KvFormat::Q4 ? "q4_0" : "k8v4") + " has no streamed form (--kv-resident)";
+        return nullptr;
     }
     if (!m->dec_arena.reserve(window_bytes(g, o.drafter == Drafter::Block ? w.dflash : BlockDrafter{}, o.max_context))) {
         err = o.arch + ": out of device memory for the decode scratch";

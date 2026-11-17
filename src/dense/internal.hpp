@@ -171,6 +171,7 @@ struct SessionState {
     std::vector<uint16_t*> kc, vc;               // per attention layer: [cell][n_kv][head_dim] fp16 (null with int8)
     std::vector<kernels::KvInt8> kq;             // per attention layer: the int8 cache ({} with fp16)
     std::vector<kernels::KvK8V4> k8v4;           // per attention layer: the K8V4 cache ({} with the other formats)
+    std::vector<kernels::KvQ4> q4;               // per attention layer: the rotated 4-bit cache ({} with the others)
     // per attention layer, with K/V streaming: the cells from Options::kv_resident on, in page-locked host memory
     // (device-mapped); {} without.  kc/vc/kq then hold only the first kv_resident cells
     std::vector<kernels::KvFar> far_kv;
