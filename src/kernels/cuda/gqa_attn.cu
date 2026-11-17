@@ -923,17 +923,25 @@ constexpr int K8V4_STAGE = 2 * I8_TILE + I8BC * (HD / 64) * 2 + I8BC * V4NG * 2;
 constexpr int Q4_STAGE = 2 * I8_TILE + I8BC * V4NG * 2 + I8BC * V4NG * 2;
 
 template <int W, bool K4> constexpr int v4_smem() { return W * 16 * HD + 2 * (K4 ? Q4_STAGE : K8V4_STAGE); }
+static_assert(v4_smem<8, false>() <= 101376, "K8V4 prompt attention: the 8-warp shape must fit sm_89's 99 KiB opt-in");
+static_assert(v4_smem<4, true>() <= 101376 && v4_smem<8, true>() > 101376, "Q4 prompt attention: 4 warps only");
 
 // 16 dims of a q4_0 row as the int8 kernel's swizzled tile piece: dims 16 c .. 16 c + 15 are in block c / 2 at
 // (c & 1) * 16, stored as the code less 8 (exact, -8 .. 7), and zero past the tile's last valid cell
-__device__ __forceinline__ void q4_piece(const uint8_t* blocks, int c, int8_t* dst, bool ok) {
+//
+// `abs_scale`: a q4_0 scale is signed (d = the largest-magnitude value over -8), but V's P V folds the scale into the
+// probabilities and re-quantizes them to u8, which needs a scale >= 0. With it set, a block with d < 0 has its codes
+// negated here, (code - 8) * d = (8 - code) * |d|, exact and within s8 (-7 .. 8), and the tile keeps |d| (issue_tile).
+// K's scales multiply an int32 dot product in fp32, so K keeps its signed scale and plain codes.
+__device__ __forceinline__ void q4_piece(const uint8_t* blocks, int c, int8_t* dst, bool ok, bool abs_scale) {
     const KvQ4Block* blk = reinterpret_cast<const KvQ4Block*>(blocks) + (c >> 1);
     int codes[16];
     kv_q4_codes8(blk->qs, (c & 1) * 16, codes);
     kv_q4_codes8(blk->qs, (c & 1) * 16 + 8, codes + 8);
+    const bool neg = abs_scale && (blk->d & 0x8000u) != 0;
     union { int32_t word[4]; int8_t byte[16]; } pack;
 #pragma unroll
-    for (int e = 0; e < 16; ++e) pack.byte[e] = (int8_t) (codes[e] - 8);
+    for (int e = 0; e < 16; ++e) pack.byte[e] = (int8_t) (neg ? 8 - codes[e] : codes[e] - 8);
 #pragma unroll
     for (int e = 0; e < 4; ++e) *reinterpret_cast<int*>(dst + 4 * e) = ok ? pack.word[e] : 0;
 }
@@ -1009,10 +1017,11 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
             int64_t cell = (int64_t) kb * I8BC + (ok ? key : 0);
             const int64_t row = cell * n_kv + kvh;
             const int dst = key * HD + ((c ^ (key & 7)) << 4);
-            if constexpr (K4) q4_piece(q4.k + row * (int64_t) kv_q4_head_bytes(HD), c, k_s + dst, ok);
+            if constexpr (K4) q4_piece(q4.k + row * (int64_t) kv_q4_head_bytes(HD), c, k_s + dst, ok, false);
             else cp16(k_s + dst, k8v4.k + row * HD + c * 16, ok);
-            if constexpr (K4) q4_piece(q4.v + row * (int64_t) kv_q4_head_bytes(HD), c, v_s + dst, ok);
-            else q4_piece(k8v4.vq + row * (int64_t) kv_q4_head_bytes(HD), c, v_s + dst, ok);
+            // V's codes carry their block's sign (q4_piece's `abs_scale`): the P V folds the scale into u8 probabilities
+            if constexpr (K4) q4_piece(q4.v + row * (int64_t) kv_q4_head_bytes(HD), c, v_s + dst, ok, true);
+            else q4_piece(k8v4.vq + row * (int64_t) kv_q4_head_bytes(HD), c, v_s + dst, ok, true);
         }
         for (int i = tid; i < I8BC * KSG; i += Threads) {
             const int key = i / KSG, g = i % KSG;
@@ -1034,7 +1043,7 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
             const KvQ4Block* blk =
                 reinterpret_cast<const KvQ4Block*>(K4 ? q4.v + row * (int64_t) kv_q4_head_bytes(HD)
                                                      : k8v4.vq + row * (int64_t) kv_q4_head_bytes(HD)) + b;
-            vs_s[i] = ok ? blk->d : (uint16_t) 0;
+            vs_s[i] = ok ? (uint16_t) (blk->d & 0x7FFFu) : (uint16_t) 0;   // |d|: the codes carry the sign (issue_tile)
         }
         asm volatile("cp.async.commit_group;\n" ::: "memory");
     };
@@ -1306,8 +1315,10 @@ void launch_prompt_i8(const IO* q, int n_head, int n_kv, int pos0, int T, IO* ou
     }
 }
 
-// The block caches' prompt launch: the int8 kernel's plan, at 4 warps (the 8-warp shape's shared memory does not fit
-// with eight scales a cell), with the same split scratch and merge.
+// The block caches' prompt launch: the int8 kernel's plan, the same split scratch and merge. K8V4 takes the int8 plan's
+// shapes (4 warps unsplit, or 8 warps split or not): its 8-warp shape is 101,376 B of shared memory, exactly sm_89's
+// per-block opt-in maximum (with the 1 KiB the driver reserves, the SM's 102,400), one block an SM like int8's 8-warp
+// kernel. Q4 runs 4 warps always: its eight K scales a cell put the 8-warp shape 1 KiB past that maximum.
 template <int W, bool Split, bool K4, class IO = float>
 void launch_prompt_v4(const IO* q, int n_head, int n_kv, int pos0, int T, IO* out, KvK8V4 k8v4, KvQ4 q4, int splits,
                       float* scratch, cudaStream_t st) {
@@ -1455,6 +1466,12 @@ size_t gqa_prompt_split_floats(int64_t T, int n_head, int splits) {
     return (size_t) splits * T * n_head * (HD + 2);   // the splits' rows, then their (max, sum) pairs
 }
 
+void gqa_prompt_plan_query(int n_head, int64_t T, int64_t cells, size_t split_floats, int* warps, int* splits) {
+    const I8Plan p = plan_prompt_i8(n_head, T, cells, split_floats);
+    if (warps) *warps = p.warps;
+    if (splits) *splits = p.splits;
+}
+
 void gqa_prompt_attn_bf16(const uint16_t* q, int n_head, int n_kv, int64_t pos0, int64_t T, uint16_t* out, void* stream,
                           KvInt8 q8, float* split_scratch, size_t split_floats, KvFar far_kv, KvK8V4 k8v4, KvQ4 q4) {
     if (T <= 0) return;
@@ -1471,8 +1488,9 @@ void gqa_prompt_attn_bf16(const uint16_t* q, int n_head, int n_kv, int64_t pos0,
         if (p.splits == 1) launch_prompt_v4<4, false, true>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, q4, 1, nullptr, st);
         else launch_prompt_v4<4, true, true>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, q4, p.splits, split_scratch, st);
     } else if (k8v4.k) {
-        if (p.splits == 1) launch_prompt_v4<4, false, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, q4, 1, nullptr, st);
-        else launch_prompt_v4<4, true, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, q4, p.splits, split_scratch, st);
+        if (p.warps == 4) launch_prompt_v4<4, false, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, q4, 1, nullptr, st);
+        else if (p.splits == 1) launch_prompt_v4<8, false, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, q4, 1, nullptr, st);
+        else launch_prompt_v4<8, true, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, k8v4, q4, p.splits, split_scratch, st);
     } else if (p.warps == 4) launch_prompt_i8<4, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, q8, 1, nullptr, st, far_kv);
     else if (p.splits == 1) launch_prompt_i8<8, false>(qb, n_head, n_kv, (int) pos0, (int) T, ob, q8, 1, nullptr, st, far_kv);
     else launch_prompt_i8<8, true>(qb, n_head, n_kv, (int) pos0, (int) T, ob, q8, p.splits, split_scratch, st, far_kv);
@@ -1496,8 +1514,9 @@ void gqa_prompt_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
         else launch_prompt_v4<4, true, true>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, q4, p.splits, split_scratch, st);
     } else if (k8v4.k) {
         const I8Plan p = plan_prompt_i8(n_head, T, pos0 + T, split_scratch ? split_floats : 0);
-        if (p.splits == 1) launch_prompt_v4<4, false, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, q4, 1, nullptr, st);
-        else launch_prompt_v4<4, true, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, q4, p.splits, split_scratch, st);
+        if (p.warps == 4) launch_prompt_v4<4, false, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, q4, 1, nullptr, st);
+        else if (p.splits == 1) launch_prompt_v4<8, false, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, q4, 1, nullptr, st);
+        else launch_prompt_v4<8, true, false>(q, n_head, n_kv, (int) pos0, (int) T, out, k8v4, q4, p.splits, split_scratch, st);
     } else if (q8.k) {
         const I8Plan p = plan_prompt_i8(n_head, T, pos0 + T, split_scratch ? split_floats : 0);
         if (p.warps == 4) launch_prompt_i8<4, false>(q, n_head, n_kv, (int) pos0, (int) T, out, q8, 1, nullptr, st, far_kv);

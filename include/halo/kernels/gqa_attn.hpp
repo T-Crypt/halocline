@@ -108,6 +108,8 @@ void gqa_window_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
 /// The device whose SM count plans the int8 prompt attention's launch (its key splits, so its rounding); -1 (the default):
 /// the current one.  A card that reads some of the main card's layers plans as the main card, so its rows are the main card's.
 void gqa_prompt_plan_device(int device);
+/// The int8 / K8V4 prompt launch's plan for these sizes (block warps, key splits): what gqa_prompt_attn would run.
+void gqa_prompt_plan_query(int n_head, int64_t T, int64_t cells, size_t split_floats, int* warps, int* splits);
 /// Scratch floats gqa_prompt_attn needs to split a T-row chunk's cells `splits` ways (an int8 cache).
 size_t gqa_prompt_split_floats(int64_t T, int n_head, int splits);
 /// `split_scratch` (optional, `split_floats` floats): lets an int8-cache launch split its cells over more blocks.
