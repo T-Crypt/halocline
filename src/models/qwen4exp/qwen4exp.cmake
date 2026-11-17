@@ -109,7 +109,6 @@ add_library(model_qwen4exp_prefill STATIC src/models/qwen4exp/prefill/gemm.cu sr
   src/models/qwen4exp/prefill/layout.cpp
   src/models/qwen4exp/prefill/projection.cpp
   src/models/qwen4exp/prefill/draft_kv.cpp
-  src/models/qwen4exp/prefill/peer.cpp
   src/models/qwen4exp/prefill/pipeline.cpp
   src/models/qwen4exp/prefill/statistics.cpp
   src/models/qwen4exp/prefill/run.cpp
@@ -128,7 +127,6 @@ add_library(model_qwen4exp_prefill STATIC src/models/qwen4exp/prefill/gemm.cu sr
   src/models/qwen4exp/prefill/expert_mmq.cpp
   src/models/qwen4exp/prefill/expert_fp4.cpp
   src/models/qwen4exp/prefill/expert_fp16.cpp
-  src/models/qwen4exp/prefill/peer_experts.cpp
   src/models/qwen4exp/prefill/expert_stream.cpp
   src/models/qwen4exp/prefill/combine.cpp
   src/models/qwen4exp/prefill/handoff.cpp)

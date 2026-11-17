@@ -13,15 +13,6 @@
 namespace basalt::prefill {
 using namespace detail;
 
-const uint8_t* Prefill::Run::Chunk::Experts::Group::other_card(int32_t e) {
-    // --peer-exclusive: an expert only the peer holds has no host copy.  It is copied from the peer's
-    // memory into a staging slot.  The blob on the other card, or null.
-    if (m.host_res && m.cache && m.host_res[(size_t) l * m.g->n_expert + e] >= 0) return nullptr;
-    if (m.ring_peer && m.ring_peer->exclusive() && m.ring_peer->has(l, e))
-        return m.ring_peer->slot_ptr(l, e);
-    return nullptr;
-}
-
 // Stage ahead: the copy stream moves blobs host -> device while the compute stream works.
 bool Prefill::Run::Chunk::Experts::Group::start_staging() {
     stage_of.assign(order.size(), -1);
@@ -32,7 +23,6 @@ bool Prefill::Run::Chunk::Experts::Group::start_staging() {
         for (size_t j = 0; j < order.size(); ++j) {
             const int32_t e = order[j];
             if (m.host_res && m.cache && m.host_res[(size_t) l * m.g->n_expert + e] >= 0) continue;
-            if (other_card(e) != nullptr) continue;
             if (m.src->pinned(l, e)) continue;
             job_of[j] = (int) js.size();
             const uint8_t* b = m.src->blob(l, e);
@@ -56,17 +46,10 @@ bool Prefill::Run::Chunk::Experts::Group::stage_one(size_t j) {
     const int sl = stage_next;
     stage_next = (stage_next + 1) % STAGE;
     const auto th = Clock::now();
-    const uint8_t* via = other_card(e);
-    const bool pinned = via == nullptr && m.src->pinned(l, e);
+    const bool pinned = m.src->pinned(l, e);
     const uint8_t* b = pinned ? m.src->blob(l, e) : nullptr;
     if (pinned && !b) { err = "prefill: expert source has no blob"; return false; }
-    if (via != nullptr) {
-        if (m.stage_live[sl]) cudaStreamWaitEvent(m.copy, m.used[m.used_of[sl]], 0);
-        if (peer_async) m.peer_stage.copy(m.stage_dev[sl], via, (size_t) lay.blob_bytes(l), m.copy);
-        else cudaMemcpyPeerAsync(m.stage_dev[sl], m.device, via, remote_device,
-                                 (size_t) lay.blob_bytes(l), m.copy);
-        ++owner.stats_.experts_dma;
-    } else if (pinned) {
+    if (pinned) {
         // DMA straight from the page-locked arena: the copy stream only waits for the slot
         if (m.stage_live[sl]) cudaStreamWaitEvent(m.copy, m.used[m.used_of[sl]], 0);
         cudaMemcpyAsync(m.stage_dev[sl], b, (size_t) lay.blob_bytes(l), cudaMemcpyHostToDevice, m.copy);
@@ -101,7 +84,8 @@ bool Prefill::Run::Chunk::Experts::Group::walk() {
             if (stage_of[j] < 0) {
                 ++owner.stats_.experts_resident;
                 const int32_t rs = m.host_res ? m.host_res[(size_t) l * m.g->n_expert + e] : -1;
-                const uint8_t* bd = rs >= 0 && m.cache ? m.cache->device_slot(rs) : m.ring_peer->slot_ptr(l, e);
+                const uint8_t* bd = rs >= 0 && m.cache ? m.cache->device_slot(rs) : nullptr;
+                if (bd == nullptr) { err = "prefill: an expert is neither resident nor staged"; return false; }
                 if (!compute(j, bd, -1)) return false;
             } else {
                 cudaStreamWaitEvent(m.cs, m.copied[stage_of[j]], 0);
@@ -139,7 +123,7 @@ bool Prefill::Run::Chunk::Experts::Group::walk() {
                 const bool r0 = m.host_res && m.cache && m.host_res[(size_t) l * m.g->n_expert + e] >= 0;
                 const uint8_t* bp = r0 ? m.cache->device_slot(m.host_res[(size_t) l * m.g->n_expert + e])
                                        : nullptr;
-                if (bp == nullptr) { err = "prefill: an expert is neither resident, streamed nor on the peer"; return false; }
+                if (bp == nullptr) { err = "prefill: an expert is neither resident nor streamed"; return false; }
                 ++owner.stats_.experts_resident;
                 if (!compute(j, bp, -1)) return false;
                 if (group_gather && gg_nslots == 0) give_back(consumed);

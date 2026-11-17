@@ -9,7 +9,6 @@ int dispatch(Context& context) {
     auto& ppl_base = *context.ppl_base;
     auto& ppl_out = *context.ppl_out;
     auto& model_file = *context.model_file;
-    auto& peer_streamed_share = *context.peer_streamed_share;
     auto& no_spec = *context.no_spec;
     auto& err = *context.err;
     auto& g = *context.g;
@@ -106,7 +105,6 @@ int dispatch(Context& context) {
             .ppl_base = ppl_base,
             .ppl_out = ppl_out,
             .model_file = model_file,
-            .peer_streamed_share = peer_streamed_share,
             .no_spec = no_spec,
             .err = err,
             .g = g,

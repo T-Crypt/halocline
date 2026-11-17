@@ -42,7 +42,6 @@ void Prefill::Run::Chunk::Experts::Group::prepare_products() {
     } else {
         gather_rows16(m.mixed_h, m.src_dev, m.Xs, T * K, N, m.cs);
     }
-    // multi-GPU: the peer's share, enqueued before the primary's own experts so both cards work at once
 }
 
 void Prefill::Run::Chunk::Experts::Group::flush() {

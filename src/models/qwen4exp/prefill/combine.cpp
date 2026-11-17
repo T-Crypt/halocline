@@ -16,7 +16,6 @@ bool Prefill::Run::Chunk::Experts::finish() {
         owner.stats_.experts_cpu += n_cpu;
         owner.stats_.cpu_share = m.cpu_share_now;
     }
-    if (peer_now && !ppc->share->join(m.cs, err)) return false;   // multi-GPU: the peer's rows are in Dm
     if (!(l == 0 && ple_on)) copy_ahead(l + 1);   // layer 1's upload of its PLE rows goes first
     moe_combine(m.Dm, m.slot_dev, m.w, m.shared, m.sg, m.bo, T, m.cs);
     return true;

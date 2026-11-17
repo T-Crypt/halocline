@@ -2,19 +2,29 @@
 
 #include "common.hpp"
 #include "staging.hpp"
-#include "peer.hpp"
+#include "layout.hpp"
 #include "basalt/models/qwen4exp/prefill/prefill.hpp"
 #include "basalt/models/qwen4exp/decode/mtp.hpp"
+#include "basalt/core/on_device.hpp"
+#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "basalt/models/qwen4exp/geometry.hpp"
+#include "basalt/models/qwen4exp/decode/layer.hpp"
+#include "basalt/models/qwen4exp/decode/native_head.hpp"
+#include "basalt/models/qwen4exp/prefill/gemm.hpp"
+#include "basalt/prefill/moe_mmq.hpp"
+#include "basalt/prefill/moe_fp4.hpp"
+#include "basalt/log.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <memory>
+#include <utility>
+#include <vector>
 #include "basalt/models/qwen4exp/decode/layout.hpp"
 #include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
 #include "basalt/models/qwen4exp/kernels/qsa.hpp"
 #include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
 #include "basalt/core/peer_experts.hpp"
-#include <algorithm>
-#include <vector>
-#include <memory>
 #include <future>
 
 namespace basalt::prefill {
@@ -126,10 +136,6 @@ struct Prefill::Impl {
     // the chunk's token ids on the device, for one batched embedding gather
     int32_t* tok_dev = nullptr;
     std::vector<int32_t> tok_host;
-    std::unique_ptr<PeerPrefill> pp;         // multi-GPU: the peer GPU's expert share (set_peer)
-    bool peer_share = true;                  // set_peer_share
-    core::PeerExperts* ring_peer = nullptr;  // --peer-exclusive: experts held only there are copied from its memory
-    PeerStage peer_stage;                    // the asynchronous host-staged copy of those experts
     // row-cache warm-up of the prompt's later parts (set_ple_warm)
     struct PleWarm {
         std::vector<int64_t> tok;            // tokens[from - 2, to)

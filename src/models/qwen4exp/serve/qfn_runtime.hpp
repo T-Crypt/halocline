@@ -29,7 +29,6 @@ struct Context {
     std::string& ppl_base;
     std::string& ppl_out;
     basalt::core::ModelFile& model_file;
-    const bool& peer_streamed_share;
     const bool& no_spec;
     std::string& err;
     basalt::core::ModelGeometry& g;

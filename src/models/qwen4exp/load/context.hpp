@@ -16,8 +16,6 @@ struct Context {
     basalt::core::ModelFile* model_file = nullptr;
     const basalt::core::PackFiles* pack_files = nullptr;
     const basalt::core::ExpertFiles* expert_files = nullptr;
-    const bool* peer_streamed_share = nullptr;
-    std::function<void ()> set_stream_all_min;
     const bool* no_spec = nullptr;
     basalt::kernels::RopeScaling* rope_cfg = nullptr;
     std::string* err = nullptr;
@@ -67,7 +65,6 @@ struct Context {
     std::optional<basalt::kernels::cpu::ExpertPool>* pool_store = nullptr;
     uint64_t* auto_resident_bytes = nullptr;
     const basalt::core::FileCache* file_cache = nullptr;
-    std::function<uint64_t()> peer_prompt_bytes;
     basalt::core::ExpertCache* xcache = nullptr;
     const int64_t* kv_tail_slots = nullptr;
     uint64_t* cache_fill_bytes = nullptr;

@@ -13,7 +13,6 @@ int cache_fill(Context& context) {
     auto& cuda0_fixed_bytes = *context.cuda0_fixed_bytes;
     auto& src = *context.src;
     auto& srcp = *context.srcp;
-    auto& peer_prompt_bytes = context.peer_prompt_bytes;
     auto& xcache = *context.xcache;
 
     // ---- fill the tier from the profile.  This is the only place the plan is applied, and it runs
@@ -43,7 +42,6 @@ int cache_fill(Context& context) {
             size_t pfree = 0, ptotal = 0;
             if (cudaSetDevice(dev) == cudaSuccess && cudaMemGetInfo(&pfree, &ptotal) == cudaSuccess) {
                 const uint64_t reserve = ((uint64_t) std::max(o.peer_reserve_mib, 128) << 20) +
-                                         (dev == o.peer_device ? peer_prompt_bytes() : 0) +
                                          tiers * basalt::core::PeerExperts::device_overhead_bytes(g.n_embd, g.n_ff);
                 room += (uint64_t) pfree > reserve ? (uint64_t) pfree - reserve : 0;
             }

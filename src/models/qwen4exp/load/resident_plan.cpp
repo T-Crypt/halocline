@@ -6,7 +6,6 @@ namespace basalt::models::qwen4exp::generate {
 
 int resident_plan(Context& context) {
     auto& o = *context.o;
-    auto& set_stream_all_min = context.set_stream_all_min;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& profile = *context.profile;
@@ -15,7 +14,6 @@ int resident_plan(Context& context) {
     auto& srcp = *context.srcp;
     auto& pool_store = *context.pool_store;
     auto& auto_resident_bytes = *context.auto_resident_bytes;
-    auto& peer_prompt_bytes = context.peer_prompt_bytes;
     auto& xcache = *context.xcache;
     auto& kv_tail_slots = *context.kv_tail_slots;
     auto& cache_fill_bytes = *context.cache_fill_bytes;
@@ -77,7 +75,7 @@ int resident_plan(Context& context) {
         // the GDN mixer split loads the peer's key heads after its tier is filled
         int d0 = 0;
         cudaGetDevice(&d0);
-        const int peer_reserve = o.peer_reserve_mib + (int) ((peer_prompt_bytes() + (1 << 20) - 1) >> 20);
+        const int peer_reserve = o.peer_reserve_mib;
         if (o.peer_devices.size() <= 1) {
             if (!peer.open(o.peer_device, profile, xcache, *srcp, g.n_layers, g.n_expert, g.n_embd, g.n_ff, peer_reserve, o.peer_slots,
                            err, exclusive)) {
@@ -109,8 +107,7 @@ int resident_plan(Context& context) {
                 const basalt::core::OnDevice on(dev);
                 cudaMemGetInfo(&fb, &tb);
             }
-            const uint64_t reserve = ((uint64_t) std::max(o.peer_reserve_mib, 128) << 20) +
-                                     (dev == o.peer_device ? (uint64_t) peer_prompt_bytes() : 0);
+            const uint64_t reserve = (uint64_t) std::max(o.peer_reserve_mib, 128) << 20;
             const uint64_t share = (uint64_t) std::count(o.peer_devices.begin(), o.peer_devices.end(), dev);
             rooms[i].bytes = fb > reserve ? ((uint64_t) fb - reserve) / share : 0;
             rooms[i].gbps = o.peer_gbps[i];
@@ -242,10 +239,8 @@ int resident_plan(Context& context) {
         }
         const bp::AutoPlan plan = bp::choose_auto(in);
         auto_resident_bytes = plan.resident_bytes;
-        if (plan.peer_exclusive_src == bp::AutoSource::Auto && plan.peer_exclusive != o.peer_exclusive) {
+        if (plan.peer_exclusive_src == bp::AutoSource::Auto && plan.peer_exclusive != o.peer_exclusive)
             o.peer_exclusive = plan.peer_exclusive;
-            set_stream_all_min();
-        }
         const cpu::PoolAffinity affinity = plan.pool_affinity == bp::AutoAffinity::All    ? cpu::PoolAffinity::All
                                            : plan.pool_affinity == bp::AutoAffinity::PCores ? cpu::PoolAffinity::PCores
                                                                                             : cpu::PoolAffinity::Auto;

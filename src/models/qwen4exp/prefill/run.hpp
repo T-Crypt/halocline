@@ -42,8 +42,6 @@ struct Prefill::Run {
     core::SessionState& ss = *m.ss;
     const Clock::time_point t_start = Clock::now();
     const int64_t LB = owner.stage_lb_, LE = owner.stage_le_;
-    // the card the ring's other-card copies come from (--peer-exclusive's peer)
-    const int remote_device = m.ring_peer ? m.ring_peer->device() : -1;
     basalt::kernels::QsaShapes s = basalt::kernels::qsa_real_shapes();
     const uint64_t gdn_floats = (uint64_t) g.ssm_state_size * g.ssm_v_heads * g.ssm_state_size +
                                 (uint64_t) g.ssm_conv_channels * (g.ssm_d_conv - 1);
@@ -91,7 +89,6 @@ struct Prefill::Run::Chunk {
     decltype(Run::t_start)& t_start = run.t_start;
     decltype(Run::LB)& LB = run.LB;
     decltype(Run::LE)& LE = run.LE;
-    decltype(Run::remote_device)& remote_device = run.remote_device;
     decltype(Run::s)& s = run.s;
     decltype(Run::gdn_floats)& gdn_floats = run.gdn_floats;
     decltype(Run::prev)& prev = run.prev;
@@ -118,12 +115,7 @@ struct Prefill::Run::Chunk {
     // `used` event recorded), so the copy stream never waits on an event that is not queued yet
     const basalt::kernels::cpu::ExpertLayout& lay0 = basalt::kernels::cpu::expert_layout();
     const bool stream_all = m.ring > STAGE && T >= stream_all_min() && m.src != nullptr;
-    // the peer takes the rows of a chunk only up to its buffers' size; a streamed chunk only up
-    // to T_fp4, and then on the FP4 kernels (PeerPrefill::T_fp4)
-    PeerPrefill* const ppc =
-        m.pp && m.peer_share && (T <= m.pp->T_max || (stream_all && T <= m.pp->T_fp4)) ? m.pp.get() : nullptr;
-    const bool peer_fp4 = ppc && stream_all && ppc->T_fp4 > 0;
-    struct StreamEntry { int32_t l, e; const uint8_t* blob; int job; const uint8_t* pdev; };
+    struct StreamEntry { int32_t l, e; const uint8_t* blob; int job; };
     std::vector<StreamEntry> seq;
     std::vector<size_t> seq_start;
     size_t consumed = 0;
@@ -145,7 +137,6 @@ struct Prefill::Run::Chunk {
         ~IssuerJoin() { if (t->joinable()) { stop->store(true); t->join(); } }
     } issuer_join{&a_stop, &issuer};
     const bool threaded_issue = stream_all;
-    bool peer_async = false;
     const int ahead_n = !stream_all && m.host_res != nullptr && m.cache != nullptr && m.src != nullptr &&
                                 m.guess_cap >= T * K
                             ? (m.ring - STAGE) / 2 : 0;

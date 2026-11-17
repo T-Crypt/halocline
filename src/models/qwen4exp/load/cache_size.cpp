@@ -5,7 +5,6 @@ namespace basalt::models::qwen4exp::generate {
 
 int cache_size(Context& context) {
     auto& o = *context.o;
-    auto& peer_streamed_share = *context.peer_streamed_share;
     auto& err = *context.err;
     auto& g = *context.g;
     auto& K = *context.K;
@@ -30,11 +29,6 @@ int cache_size(Context& context) {
         basalt::log::error("basalt generate", "%s", err.c_str());
         return 1;
     }
-    // what the peer's prompt buffers take on its card: they are allocated after its tier is filled, so the tier leaves them free
-    auto peer_prompt_bytes = [&]() -> uint64_t {
-        return o.serve && o.peer_device >= 1 && !o.no_peer_prefill
-                   ? basalt::prefill::Prefill::peer_bytes(o.prefill_chunk, peer_streamed_share) : 0;
-    };
     basalt::core::ExpertCache xcache;
     // THE HEAD BEFORE THE CACHE: the native head and the logits are allocated above, before the expert arena
     // Profiled slots are padded; sizing and allocation must charge the same stride.
@@ -316,7 +310,6 @@ int cache_size(Context& context) {
         }
     }
 
-    context.peer_prompt_bytes = peer_prompt_bytes;
     context.xcache = &xcache;
     context.kv_tail_slots = &kv_tail_slots;
     return cache_fill(context);

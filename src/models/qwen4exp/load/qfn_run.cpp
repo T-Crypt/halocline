@@ -59,20 +59,8 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     }
     const basalt::core::PackFiles pack_files = basalt::core::PackFiles::from(srcs);
     const basalt::core::ExpertFiles expert_files = basalt::core::ExpertFiles::from(srcs);
-    // the peer card takes expert rows of a long prompt chunk only when it is as fast as the main one: a slower card costs the
-    // chunk more than the experts it saves the main card's link, so it keeps to the short chunks it helps
-    const bool peer_streamed_share = chosen_cards.size() >= 2 && basalt::program::cards_alike(chosen_cards[0], chosen_cards[1]);
     basalt::core::PeerExperts::set_min_scratch((size_t) basalt::kernels::moe_hit_grouped_scratch_bytes(basalt::kernels::cpu::MAXT * 10, basalt::kernels::cpu::H, basalt::kernels::cpu::FF));
     basalt::core::set_peer_portable(o.peer_device >= 1);   // multi-GPU: the Portable flag on mapped host buffers only with a peer device (before any allocation)
-    // Chunks below this take the routed-only path with the peer card computing its experts' rows; from it on
-    // every expert streams through the ring.  The routed-only path costs ~0.3 ms per token, streaming ~0.12 ms
-    // plus the time to move the experts the primary lacks over its link; with --peer-exclusive that includes the
-    // peer-only experts, staged through the host, so streaming loses until later.
-    auto set_stream_all_min = [&]() {
-        if (o.serve && o.peer_device >= 1 && !o.no_peer_prefill && peer_streamed_share)
-            basalt::prefill::Prefill::set_stream_all_min(o.peer_exclusive ? 4096 : 2560);
-    };
-    set_stream_all_min();
     if (o.serve && o.conversation_cache_disk_mib > 0 && o.conversation_cache_dir.empty()) {
         basalt::log::error("basalt", "--conversation-cache-disk-mib needs --conversation-cache-dir");
         return 2;
@@ -209,8 +197,6 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     context.model_file = &model_file;
     context.pack_files = &pack_files;
     context.expert_files = &expert_files;
-    context.peer_streamed_share = &peer_streamed_share;
-    context.set_stream_all_min = set_stream_all_min;
     context.no_spec = &no_spec;
     context.rope_cfg = &rope_cfg;
     context.err = &err;

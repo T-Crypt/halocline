@@ -22,7 +22,6 @@ bool Prefill::Run::Chunk::Experts::Group::execute() {
     if (!group()) return false;
     if (!cpu_start()) return false;
     prepare_products();
-    if (!peer_experts()) return false;
     if (!start_staging()) return false;
     return walk();
 }
