@@ -80,9 +80,7 @@ Flow QfnRequest::read_to(int64_t to) {
         std::printf("ERR refilling a lent slot failed: %s\n", runtime_.err.c_str());
         return Flow::error;
     }
-    const SplitPlan split = split_plan(at, to, win ? "a windowed read" : resumed_chunk > 0 ? "a resumed chunked read" : nullptr);
-    const int64_t split_c = split.chunk;
-    if (!win && !lend(to - at, runtime_.err, split_c, split.head)) {
+    if (!win && !lend(to - at, runtime_.err)) {
         std::printf("ERR lending the prompt path its slots failed: %s\n", runtime_.err.c_str());
         return Flow::error;
     }
@@ -96,7 +94,7 @@ Flow QfnRequest::read_to(int64_t to) {
     if (win && !ov_window()) { std::printf("ERR %s\n", runtime_.err.c_str()); return Flow::error; }
     runtime_.ov_post_done = false;
     runtime_.ov_post = [&, to]() -> bool {
-        if (part_checkpoint(to) && !runtime_.checkpoint_at(to, nullptr, false, source_at(to))) return false;
+        if (part_checkpoint(to) && !runtime_.checkpoint_at(to, false, source_at(to))) return false;
         // the lent slots get their experts back here, beside the windows; the table follows on the main thread
         for (PfPart& p : runtime_.pf_parts) {
             if (p.lent.empty()) continue;
@@ -108,15 +106,7 @@ Flow QfnRequest::read_to(int64_t to) {
         return true;
     };
     runtime_.pp_part_ckpt = part_checkpoint(to) ? to : -1;
-    bool split_ran = true;
-    bool sp_ok = win ? (rto <= at || read_windows(at, rto, runtime_.err))
-               : split_c > 0 ? read_split(at, to, split, split_ran, runtime_.err)
-                             : read_part(at, to, runtime_.err);
-    if (!sp_ok && !split_ran) {   // the split could not start: the main card reads the part
-        basalt::log::warn("basalt serve", "%s; read on CUDA0", runtime_.err.c_str());
-        runtime_.err.clear();
-        sp_ok = read_part(at, to, runtime_.err);
-    }
+    const bool sp_ok = win ? (rto <= at || read_windows(at, rto, runtime_.err)) : read_part(at, to, runtime_.err);
     runtime_.pp_part_ckpt = -1;
     if (sp_ok && win && !ov_window()) { std::printf("ERR %s\n", runtime_.err.c_str()); return Flow::error; }
     if (!sp_ok) {
@@ -137,7 +127,7 @@ Flow QfnRequest::read_to(int64_t to) {
     at = to;
     resumed_chunk = 0;   // the later parts are planned as the read they continue planned them
     runtime_.ov_post = nullptr;
-    if (part_checkpoint(to) && !runtime_.ov_post_done && !runtime_.checkpoint_at(to, nullptr, !in_slot && !runtime_.batch_on(), source_at(to))) {
+    if (part_checkpoint(to) && !runtime_.ov_post_done && !runtime_.checkpoint_at(to, !in_slot && !runtime_.batch_on(), source_at(to))) {
         std::printf("ERR saving a conversation checkpoint failed%s\n", runtime_.ckpt_why.c_str());
         return Flow::error;
     }

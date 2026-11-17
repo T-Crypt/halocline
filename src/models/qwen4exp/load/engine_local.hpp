@@ -39,14 +39,6 @@ namespace basalt::models::qwen4exp::engine_local {
 // Spare RAM places for a saturated adaptation round.
 inline constexpr int kSatBoost = 4;
 
-/// One candidate split price: the plan's cost, the prompt chunk and the head chunk it was measured with, and when the
-/// part is not priced (chunk 0) why not.
-struct SplitPricing {
-    basalt::program::PsPrice price;
-    int64_t chunk = 0, head = 0;
-    std::string why;
-};
-
 /// The largest multiple of 256 in [0, ceiling] that `ok` accepts.  `ok` is monotone: false once too large.
 template <class Ok>
 int64_t biggest_chunk(int64_t ceiling, Ok&& ok) {
@@ -129,35 +121,6 @@ struct SlotDelete {
     void operator()(basalt::core::SessionState* p) const { if (own) delete p; }
 };
 using SlotSession = std::unique_ptr<basalt::core::SessionState, SlotDelete>;
-
-/// One stage of a prompt-time layer split over the expert tier cards: for a long prompt the main card reads layers
-/// [0, b1) of every chunk and hands the chunk on, each tier card's stage reads the next block of layers of it while the
-/// cards before read the next chunks, and the main card reads the last chunk's later layers itself once the stages have
-/// given their layers' state back.  A stage's dense weights (an image in pinned RAM), session and prompt buffers live in
-/// its tier's last slots, lent for the prompt and refilled after it, so outside a prompt the tier is as before.
-struct PromptStage {
-    int dev = -1;
-    size_t tier_at = 0;                   ///< its tier among the expert tiers (0: the first)
-    basalt::core::PeerExperts* tier = nullptr;
-    double mem_gbps = 0, link_gbps = 0;   ///< its card's memory bandwidth and probed host->device link
-    int64_t lo = 0, hi = 0;               ///< its weights cover layers [lo, hi); a read runs a range inside them
-    int64_t l0 = 0, l1 = 0;               ///< the layers of the read in progress
-    std::set<std::string> skip;           ///< the tensors outside its layers
-    uint64_t pool = 0;                    ///< its arena's bytes
-    basalt::core::WeightTable wt;         ///< its rows point into the lent slots, where the image is copied
-    basalt::core::NativeDense dense;      ///< its native projections' rows (in the image) and their scratch
-    uint8_t* image = nullptr;             ///< pinned: the weights' bytes, the arena then the native blocks
-    uint64_t arena_bytes = 0, image_bytes = 0;
-    basalt::core::SessionState ss;        ///< carved per prompt in the lent slots
-    basalt::prefill::Prefill sp;
-    cudaStream_t stream = nullptr;
-    basalt::core::StagedCopy state_in, state_back;   ///< its layers' state from the main session and back to it
-    std::vector<int32_t> res;             ///< its layers' experts in the tier's slots (n_layers x n_expert, -1 elsewhere)
-    std::vector<std::pair<int32_t, int32_t>> lent;
-    int64_t lent_slots = 0;
-    uint8_t* buf = nullptr;               ///< the read's prompt buffers, `buf_bytes` long, below its session
-    uint64_t buf_bytes = 0;
-};
 
 void drive_pool(void* user, const float* x_f, const int32_t* ids, const float* weights, int64_t n_embd, int64_t k,
                 float* out);

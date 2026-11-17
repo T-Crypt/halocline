@@ -12,7 +12,6 @@ int dispatch(Context& context) {
     auto& peer_streamed_share = *context.peer_streamed_share;
     auto& no_spec = *context.no_spec;
     auto& err = *context.err;
-    auto& main_link_gbps = *context.main_link_gbps;
     auto& g = *context.g;
     auto& K = *context.K;
     auto& profile = *context.profile;
@@ -53,16 +52,7 @@ int dispatch(Context& context) {
     auto& auto_lend_pct = *context.auto_lend_pct;
     auto& auto_ceiling = *context.auto_ceiling;
     auto& pool = *context.pool;
-    auto& pstages = *context.pstages;
     auto& read_cap = context.read_cap;
-    auto& kSplitRefCells = *context.kSplitRefCells;
-    auto& split_hand_rows = *context.split_hand_rows;
-    auto& split_chunk_cap = *context.split_chunk_cap;
-    auto& split_peer_rows = *context.split_peer_rows;
-    auto& split_price = context.split_price;
-    auto& split_layers_text = context.split_layers_text;
-    auto& split_stages_text = context.split_stages_text;
-    auto& split_stages = *context.split_stages;
 
     // Where the routed experts live, fastest tier first, and a warning when any of them is only in the file (decode
     // reads those from the SSD).  Called once the tiers are final.
@@ -119,7 +109,6 @@ int dispatch(Context& context) {
             .peer_streamed_share = peer_streamed_share,
             .no_spec = no_spec,
             .err = err,
-            .main_link_gbps = main_link_gbps,
             .g = g,
             .K = K,
             .profile = profile,
@@ -159,16 +148,7 @@ int dispatch(Context& context) {
             .auto_lend_pct = auto_lend_pct,
             .auto_ceiling = auto_ceiling,
             .pool = pool,
-            .pstages = pstages,
             .read_cap = read_cap,
-            .kSplitRefCells = kSplitRefCells,
-            .split_hand_rows = split_hand_rows,
-            .split_chunk_cap = split_chunk_cap,
-            .split_peer_rows = split_peer_rows,
-            .split_price = split_price,
-            .split_layers_text = split_layers_text,
-            .split_stages_text = split_stages_text,
-            .split_stages = split_stages,
             .tier_spill = tier_spill,
             .report_expert_tiers = report_expert_tiers,
         };

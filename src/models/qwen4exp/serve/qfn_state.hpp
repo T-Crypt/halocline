@@ -104,7 +104,6 @@ namespace basalt::models::qwen4exp::serve {
 namespace serve_loans = basalt::models::qwen4exp::serve;
 using engine_local::Drive;
 using engine_local::JobRunner;
-using engine_local::PromptStage;
 using engine_local::biggest_chunk;
 using engine_local::drive_pool_multi;
 using engine_local::kSatBoost;
@@ -203,10 +202,6 @@ private:
     static constexpr int64_t kReadAlone = 16384;
     bool any_loan{};
     static constexpr int64_t kStepChunks[] = {6144, 4096, 3072, 2048, 1536, 1024, 512};
-    int64_t split_chunk_max{};
-    bool split_ready{};
-    std::vector<uint32_t> split_hist{};   // the routed entries the stages counted in the last split read
-    int64_t split_hist_tokens{};
     // the penalty-history buffer: one row per verify-window row (`penalty_rows`), each the last `penalty_last_n`
     // tokens that row's pick follows, -1 padded in front.  Allocated once at the cap for the widest window; a
     // request without penalties gets a null buffer and takes the byte-for-byte neutral path (no upload, no buffer
@@ -341,11 +336,10 @@ private:
     int64_t part_slots(const PfPart& p, int64_t c);
     uint64_t part_bytes(const PfPart& p, int32_t first);
     int init_prompt_paths();
-    bool split_region(PromptStage& st, int64_t cells, int64_t chunk, int64_t l0, int64_t l1, uint8_t*& w_at, uint8_t*& s_at, uint8_t*& b_at);
     bool capture_admit(uint64_t need, uint64_t floor) override;
     bool park_current(size_t held, int64_t kept) override;
     bool gpu_sync_ok();
-    bool checkpoint_at(int64_t L, std::vector<ConvCheckpoint>* parts = nullptr, bool defer = false,
+    bool checkpoint_at(int64_t L, bool defer = false,
                        ConvCheckpoint::Source source = ConvCheckpoint::kPeriodic);
     void res_upload();
     bool adapt_peers(const std::vector<int32_t>& r0, std::string& perr);

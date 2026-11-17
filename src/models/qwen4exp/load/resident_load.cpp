@@ -150,7 +150,16 @@ int resident_load(Context& context) {
     }
     // the peer's swaps keep their experts in RAM or on a GPU, never only in the file
     if (o.peer_exclusive && peer.valid() && srcp == &src && src.complement_ready()) peer.set_exclusive(&src);
-    return prompt_split(context);
+    // ---- the peer's experts: the ranked pairs the primary does not hold.  Without --peer-exclusive they are copies of
+    // experts the RAM complement holds, so with the complement built they are read from it, not from the file.
+    if (o.peer_device >= 1 && !peer.valid() && !context.open_peer(false)) return 1;
+    // the largest chunk a read alone takes now (the loan's chunk follows the slots left: see relend)
+    auto read_cap = [&]() -> int64_t {
+        return o.prefill_auto_fit ? std::min<int64_t>(o.prefill_chunk, kMaxAutoChunk) : o.prefill_chunk;
+    };
+    context.drive->d.peer = peer.valid() ? &peer : nullptr;
+    context.read_cap = read_cap;
+    return dispatch(context);
 }
 
 }

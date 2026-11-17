@@ -29,7 +29,6 @@ struct Prefill::Run {
         : owner(owner), tokens(tokens), n(n), pos0(pos0), err(err) {}
     bool execute();
     bool finish();
-    const uint8_t* remote_blob(int64_t l, int32_t e);
     int64_t chunk_len(int64_t at) { return std::min(at == 0 && head > 0 ? head : m.T, n - at); }
     bool ple_gather(int64_t c0, int buf, std::string& e);
 
@@ -43,18 +42,15 @@ struct Prefill::Run {
     core::SessionState& ss = *m.ss;
     const Clock::time_point t_start = Clock::now();
     const int64_t LB = owner.stage_lb_, LE = owner.stage_le_;
-    // the card the ring's other-card copies come from (--peer-exclusive's peer, or set_ring_remote's card)
-    const int remote_device = m.ring_peer ? m.ring_peer->device() : m.remote_dev;
+    // the card the ring's other-card copies come from (--peer-exclusive's peer)
+    const int remote_device = m.ring_peer ? m.ring_peer->device() : -1;
     basalt::kernels::QsaShapes s = basalt::kernels::qsa_real_shapes();
     const uint64_t gdn_floats = (uint64_t) g.ssm_state_size * g.ssm_v_heads * g.ssm_state_size +
                                 (uint64_t) g.ssm_conv_channels * (g.ssm_d_conv - 1);
     int32_t prev[2] = {ss.ple_prev[0], ss.ple_prev[1]};
-    // the first stage embeds the tokens; a later one reads the previous stage's rows (handed on, or in its own buffers)
-    const bool rows_in_place = owner.rows_in_place_;
-    const bool first_stage = owner.hand_in_ == nullptr && !rows_in_place;
-    const bool single_chunk = first_stage ? n <= m.T : owner.single_chunk_;
+    const bool single_chunk = n <= m.T;
     // the first chunk may be shorter (head_chunk_); the rest are m.T long
-    const int64_t head = first_stage && n > m.T ? std::min(owner.head_chunk_, m.T) : 0;
+    const int64_t head = n > m.T ? std::min(owner.head_chunk_, m.T) : 0;
     const cudaStream_t cs = (cudaStream_t) m.cs;
     const bool ple_on = ss.ple.ready() && LB <= 1 && 1 < LE;
     // the PLE block batched over the chunk: a BF16 or GGUF-native key (else token by token)
@@ -82,7 +78,6 @@ struct Prefill::Run::Chunk {
     bool shared_expert(const core::LayerView& v, const core::WeightRef* wgi, const core::WeightRef* wsg,
                        const core::WeightRef* wsu, const core::WeightRef* wsd);
     int finish();
-    const uint8_t* remote_blob(int64_t l, int32_t e) { return run.remote_blob(l, e); }
     void copy_ahead(int64_t L);
     // the consumer's side: entry k's copy is on the copy stream (the thread issued it), then k is given back
     void wait_issued(size_t k) {
@@ -100,8 +95,6 @@ struct Prefill::Run::Chunk {
     decltype(Run::s)& s = run.s;
     decltype(Run::gdn_floats)& gdn_floats = run.gdn_floats;
     decltype(Run::prev)& prev = run.prev;
-    decltype(Run::rows_in_place)& rows_in_place = run.rows_in_place;
-    decltype(Run::first_stage)& first_stage = run.first_stage;
     decltype(Run::single_chunk)& single_chunk = run.single_chunk;
     decltype(Run::head)& head = run.head;
     decltype(Run::cs)& cs = run.cs;

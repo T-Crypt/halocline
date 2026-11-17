@@ -295,7 +295,7 @@ int resident_plan(Context& context) {
     context.pool = &pool;
     context.peer_only = &peer_only;
     context.peer_only_bytes = &peer_only_bytes;
-    return split_plan(context);
+    return resident_load(context);
 }
 
 }

@@ -15,18 +15,10 @@ namespace basalt::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::inputs() {
-    // ---- embeddings, broadcast to the four streams - or, in a later stage of a layer split, the rows the
-    // previous stage handed on
-    if (owner.hand_in_ != nullptr) {
-        if (cudaMemcpyAsync(m.R, owner.hand_in_ + (size_t) c0 * D, (size_t) T * D * 4, cudaMemcpyHostToDevice, m.cs) !=
-            cudaSuccess) {
-            err = "prefill: the layer split's hand-off upload failed";
-            return false;
-        }
-    }
+    // ---- embeddings, broadcast to the four streams
     // the whole chunk's rows in one gather (the same per-element arithmetic as the per-token path, so the
     // same bits); a chunk with picture rows, or a token outside the table, takes the per-token path
-    bool batched = first_stage && m.tok_dev != nullptr;
+    bool batched = m.tok_dev != nullptr;
     const core::NativeEmbed* nemb = core::native_embed();
     const core::WeightRef* wemb = nemb ? nullptr : m.wt->find("token_embd.weight");
     if (batched && nemb == nullptr &&
@@ -57,7 +49,7 @@ bool Prefill::Run::Chunk::inputs() {
                                                   (uint64_t) (wemb->ne0 / wemb->group_elems), m.emb, m.cs);
         }
     }
-    for (int64_t t = 0; first_stage && !batched && t < T; ++t) {
+    for (int64_t t = 0; !batched && t < T; ++t) {
         const float* row = owner.embd_rows ? owner.embd_rows[p0 + t] : nullptr;
         if (row) {
             if (cudaMemcpyAsync(m.emb + t * N, row, (size_t) N * 4, cudaMemcpyHostToDevice, m.cs) != cudaSuccess) {
@@ -68,7 +60,7 @@ bool Prefill::Run::Chunk::inputs() {
             return false;
         }
     }
-    if (first_stage) gr_broadcast(m.emb, m.R, T, m.cs);
+    gr_broadcast(m.emb, m.R, T, m.cs);
     // ---- the PLE rows of the whole chunk, one batched SSD request on a thread (see ple_gather).  A later chunk's
     // were read ahead during the previous chunk; the first chunk's are read beside layer 0 - they are needed from
     // layer 1 on, and gathering them here first would leave the GPU idle for the whole read

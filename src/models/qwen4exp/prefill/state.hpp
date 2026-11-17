@@ -122,20 +122,13 @@ struct Prefill::Impl {
     // KV streaming: one layer's whole K/V, staged from the host copy per layer and chunk (identity layout)
     basalt::kernels::KvHostPools stage;
     int32_t* ident_table = nullptr;
-    // layer split: the device, and the hand-off to the next stage (two pinned chunk buffers, used in turn)
     int device = -1;
-    float* hand[2] = {};
-    int64_t hand_rows = 0;                   // the rows each hand-off buffer holds
     // the chunk's token ids on the device, for one batched embedding gather
     int32_t* tok_dev = nullptr;
     std::vector<int32_t> tok_host;
     std::unique_ptr<PeerPrefill> pp;         // multi-GPU: the peer GPU's expert share (set_peer)
     bool peer_share = true;                  // set_peer_share
     core::PeerExperts* ring_peer = nullptr;  // --peer-exclusive: experts held only there are copied from its memory
-    // set_ring_remote: another card's cache, read for the experts without a pinned host copy
-    const int32_t* remote_res = nullptr;
-    const core::ExpertCache* remote_cache = nullptr;
-    int remote_dev = -1;
     PeerStage peer_stage;                    // the asynchronous host-staged copy of those experts
     // row-cache warm-up of the prompt's later parts (set_ple_warm)
     struct PleWarm {

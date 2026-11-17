@@ -31,10 +31,6 @@ bool Prefill::Run::Chunk::start_stream() {
                     seq.push_back({(int32_t) l, e, nullptr, -1, m.ring_peer->slot_ptr(l, e)});
                     continue;
                 }
-                if (const uint8_t* rp = remote_blob(l, e)) {   // no pinned host copy: from the other card's cache
-                    seq.push_back({(int32_t) l, e, nullptr, -1, rp});
-                    continue;
-                }
                 {
                     b = m.src->blob(l, e);
                     if (!b) { err = "prefill: expert source has no blob"; return false; }

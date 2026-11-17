@@ -159,7 +159,6 @@ add_library(model_qwen4exp STATIC src/models/qwen4exp/adapter.cpp src/models/qwe
   src/models/qwen4exp/load/token_path.cpp
   src/models/qwen4exp/load/resident_plan.cpp
   src/models/qwen4exp/load/resident_load.cpp
-  src/models/qwen4exp/load/prompt_split.cpp
   src/models/qwen4exp/load/dispatch.cpp
   src/models/qwen4exp/load/prefill.cpp
   src/models/qwen4exp/load/decode.cpp
@@ -176,7 +175,6 @@ add_library(model_qwen4exp STATIC src/models/qwen4exp/adapter.cpp src/models/qwe
   src/models/qwen4exp/serve/memory.cpp
   src/models/qwen4exp/serve/prompt.cpp
   src/models/qwen4exp/serve/prompt_read.cpp
-  src/models/qwen4exp/serve/prompt_split.cpp
   src/models/qwen4exp/serve/prompt_windows.cpp
   src/models/qwen4exp/serve/qfn_decode.cpp
   src/models/qwen4exp/serve/slots.cpp

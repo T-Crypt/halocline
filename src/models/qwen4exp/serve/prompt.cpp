@@ -24,21 +24,6 @@ int QfnRuntime::init_prompt_paths() {   // 0: ready; 1: failed (err set); 2: fai
     return 0;
 }
 
-// ---- the prompt-time split's stages on the tier cards.  A stage's place, from the end of its tier's slots: the
-// weights, the session (for the whole context here; for its prompt's cells and layers at each read), then the
-// prompt buffers.  The layout is made over live slots and writes nothing until a read lends them.
-bool QfnRuntime::split_region(PromptStage& st, int64_t cells, int64_t chunk, int64_t l0, int64_t l1, uint8_t*& w_at, uint8_t*& s_at, uint8_t*& b_at) {
-    const basalt::core::ExpertCache& pc = st.tier->cache();
-    uint8_t* base = const_cast<uint8_t*>(pc.device_slot(0));
-    auto down = [](uint8_t* p) { return (uint8_t*) ((uintptr_t) p & ~(uintptr_t) 255); };
-    w_at = down(base + pc.bytes() - st.image_bytes);
-    s_at = down(w_at - basalt::core::prompt_session_bytes(g, cells, l0, l1));
-    basalt::core::prompt_session_carve(g, cells, K, s_at, st.ss, l0, l1);
-    b_at = down(s_at - basalt::prefill::Prefill::bytes_needed(g, st.ss, chunk));
-    // the loan leaves the tier a tenth of its slots, as the main card's
-    return b_at >= base + pc.bytes() / 10;
-}
-
 // the batched path's slots are lent just before its first run and given back (refilled) before a window
 // reads - so the windows always see the whole expert cache - or once the prompt is read
 // Every participant gives its loan back here: the rows it lent are refilled into the same slots from the
@@ -460,89 +445,8 @@ int QfnRuntime::init_prompt() {
             basalt::log::warn("basalt serve", "%s - the prompt path stays on the primary GPU", err.c_str());
             err.clear();
         }
-        split_peer_rows = sp.peer_routed_rows_max();
     }
 
-    // its buffers' and the hand-off buffers' size; a larger chunk reads on CUDA0
-    split_chunk_max = read_cap();
-    split_ready = split_stages >= 2 && !pstages.empty();
-    // the longest chunk every stage's lent slots hold beside its weights and session: the prompt buffers of a chunk grow
-    // with the expert format, so a card may take only a shorter chunk than the main card reads
-    if (split_ready && split_chunk_max >= 4096) {
-        const int64_t cells = std::min<int64_t>(o.max_context, kSplitRefCells);
-        int64_t fit = 0;
-        for (const int64_t c : {split_chunk_max, int64_t{24576}, int64_t{16384}, int64_t{12288}, int64_t{8192}, int64_t{6144},
-                                int64_t{4096}}) {
-            if (c > split_chunk_max) continue;
-            bool all = true;
-            for (const auto& stp : pstages) {
-                uint8_t *w_at = nullptr, *s_at = nullptr, *b_at = nullptr;
-                all = all && split_region(*stp, cells, c, stp->lo, stp->hi, w_at, s_at, b_at);
-            }
-            if (all) { fit = c; break; }
-        }
-        if (fit > 0 && fit < split_chunk_max) {
-            basalt::log::info("basalt serve", "prompt split: chunks of at most %lld tokens fit the tier cards' slots",
-                              (long long) fit);
-            split_chunk_max = fit;
-        }
-        split_chunk_cap = split_chunk_max;
-    }
-    for (size_t j = 0; split_ready && j < pstages.size(); ++j) {
-        PromptStage& st = *pstages[j];
-        const basalt::core::OnDevice on(st.dev);
-        size_t fb0 = 0, tb0 = 0;
-        cudaMemGetInfo(&fb0, &tb0);
-        uint8_t *w_at = nullptr, *s_at = nullptr, *b_at = nullptr;
-        // (a read of the longest prompt the start priced must fit; a longer one checks its own fit)
-        bool ok = split_chunk_max >= 1024 &&
-                  split_region(st, std::min<int64_t>(o.max_context, kSplitRefCells), split_chunk_max, st.lo, st.hi,
-                               w_at, s_at, b_at);
-        ok = ok && cudaStreamCreateWithFlags(&st.stream, cudaStreamNonBlocking) == cudaSuccess &&
-             st.state_in.init(0, st.dev, 8u << 20, err) && st.state_back.init(st.dev, 0, 8u << 20, err);
-        if (ok) {
-            st.res.assign((size_t) (g.n_layers * g.n_expert), basalt::core::kNotResident);
-            st.sp.set_stage(st.lo, -1, nullptr);
-            ok = st.sp.init(st.wt, g, st.ss, srcp, &st.tier->cache(), st.res.data(), split_chunk_max,
-                            (void*) st.stream, err, b_at, (uint64_t) (s_at - b_at));
-        }
-        // a stage that may hand its chunks on (every card but the one that reads the last layers) holds two pinned
-        // buffers of the stage's chunk, as the main card does
-        ok = ok && (j == 0 || st.sp.reserve_hand_off(split_chunk_max, err));
-        // a read's kernels and small buffers load on the card outside the lent slots: a card without room for them
-        // beside its stage declines here, before a read could fail on them
-        constexpr size_t kStageFreeMin = 256ull << 20;
-        size_t fb = 0, tb = 0;
-        if (ok && cudaMemGetInfo(&fb, &tb) == cudaSuccess && fb < kStageFreeMin) {
-            ok = false;
-            err = std::to_string(fb >> 20) + " MiB free beside its stage, a read needs " +
-                  std::to_string(kStageFreeMin >> 20) + "; --peer-reserve-mib";
-        }
-        if (ok) {
-            st.sp.set_ring_remote(host_res.data(), &xcache, 0);
-            basalt::log::info("basalt serve", "prompt split: CUDA%d can take layers %lld-%lld of a long prompt (chunks up "
-                                 "to %lld tokens, links %.1f/%.1f GB/s); %zu MiB free on it (%zu before)", st.dev,
-                              (long long) st.lo, (long long) st.hi - 1, (long long) split_chunk_max,
-                              main_link_gbps, st.link_gbps, fb >> 20, fb0 >> 20);
-        } else {
-            basalt::log::warn("basalt serve", "prompt split: off (CUDA%d: %s)", st.dev,
-                              err.empty() ? "too few tier slots" : err.c_str());
-            err.clear();
-            (void) cudaGetLastError();
-            split_ready = false;
-        }
-    }
-    // the main card hands its chunks on through two pinned buffers of the stage's chunk
-    if (split_ready) split_hand_rows = split_chunk_max;
-    if (split_ready && !sp.reserve_hand_off(split_chunk_max, err)) {
-        basalt::log::warn("basalt serve", "prompt split: off (%s)", err.c_str());
-        err.clear();
-        split_ready = false;
-    }
-    split_hist_tokens = 0;
-    if (split_ready && pstages.size() >= 2)
-        basalt::log::info("basalt serve", "prompt split: up to %d stages over CUDA0 and %zu tier cards", split_stages,
-                          pstages.size());
     return 0;
 }
 

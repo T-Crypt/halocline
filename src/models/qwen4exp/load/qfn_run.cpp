@@ -62,14 +62,6 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     // the peer card takes expert rows of a long prompt chunk only when it is as fast as the main one: a slower card costs the
     // chunk more than the experts it saves the main card's link, so it keeps to the short chunks it helps
     const bool peer_streamed_share = chosen_cards.size() >= 2 && basalt::program::cards_alike(chosen_cards[0], chosen_cards[1]);
-    // the prompt-time layer split over the expert tier cards (PromptStage), and the most stages it may use, the main
-    // card's included: every card on two cards or on three or more alike ones, none on three or more unlike cards
-    // until measured on such a set.  With --batch a read splits only while no slot decodes.
-    bool split_want = o.serve && o.peer_device >= 1;
-    bool split_alike = true;
-    for (size_t i = 1; i < chosen_cards.size(); ++i)
-        split_alike = split_alike && basalt::program::cards_alike(chosen_cards[0], chosen_cards[i]);
-    const int split_cap = o.peer_devices.size() <= 1 ? 2 : split_alike ? (int) o.peer_devices.size() + 1 : 1;
     basalt::core::PeerExperts::set_min_scratch((size_t) basalt::kernels::moe_hit_grouped_scratch_bytes(basalt::kernels::cpu::MAXT * 10, basalt::kernels::cpu::H, basalt::kernels::cpu::FF));
     basalt::core::set_peer_portable(o.peer_device >= 1);   // multi-GPU: the Portable flag on mapped host buffers only with a peer device (before any allocation)
     // Chunks below this take the routed-only path with the peer card computing its experts' rows; from it on
@@ -191,12 +183,10 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     // The PCIe share of the missed experts.  The GPU's SMs read that share over the link (the copy kernel), so on a
     // slower link it must shrink or the window waits for it.  The real H2D bandwidth is probed once; from 20 GB/s up
     // the default stays.
-    double main_link_gbps = 0;   // the probed host->device bandwidth (the prompt-time split's price reads it)
     if (o.pcie_frac < 0.0) {
         const double base = 0.55;
         std::string bursts;
         const double bw = probe_pcie_h2d_gbps(&bursts);
-        main_link_gbps = bw;
         if (bw > 0.0) {
             o.pcie_frac = pcie_frac_for_gbps(bw, base);
             basalt::log::info("basalt generate", "PCIe probe: %.1f GB/s host->device (best of %s) -> pcie_frac %.2f "
@@ -220,13 +210,10 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     context.pack_files = &pack_files;
     context.expert_files = &expert_files;
     context.peer_streamed_share = &peer_streamed_share;
-    context.split_want = &split_want;
-    context.split_cap = &split_cap;
     context.set_stream_all_min = set_stream_all_min;
     context.no_spec = &no_spec;
     context.rope_cfg = &rope_cfg;
     context.err = &err;
-    context.main_link_gbps = &main_link_gbps;
     return basalt::models::qwen4exp::generate::model(context);
 }
 

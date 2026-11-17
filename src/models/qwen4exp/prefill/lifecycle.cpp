@@ -38,7 +38,6 @@ void Prefill::release() {
         if (impl_->used[i]) cudaEventDestroy(impl_->used[i]);
     }
     for (int b = 0; b < 2; ++b) {
-        if (impl_->hand[b]) cudaFreeHost(impl_->hand[b]);
         if (impl_->ple_copied[b]) cudaEventDestroy(impl_->ple_copied[b]);
         if (impl_->ple_emb_host[b] && impl_->ple_pageable[b].empty()) cudaFreeHost(impl_->ple_emb_host[b]);
     }
@@ -65,17 +64,8 @@ bool Prefill::init(const core::WeightTable& wt, const core::ModelGeometry& g, co
         err = "prefill: geometry differs from the artifact's"; return false;
     }
     cudaGetDevice(&m.device);
-    if (stage_le_ < 0) stage_le_ = g.n_layers;
-    if (stage_lb_ < 0 || stage_lb_ >= stage_le_ || stage_le_ > g.n_layers || (stage_le_ < g.n_layers) != (next_ != nullptr)) {
-        err = "prefill: the stage's layer range is wrong";
-        return false;
-    }
-    for (int b = 0; next_ != nullptr && b < 2; ++b)
-        if (!m.hand[b] && core::host_alloc((void**) &m.hand[b], (size_t) chunk * D * 4, cudaHostAllocPortable) != cudaSuccess) {
-            err = "prefill: the layer split's hand-off buffers";
-            return false;
-        }
-    if (next_ != nullptr) m.hand_rows = std::max(m.hand_rows, chunk);
+    stage_lb_ = 0;
+    stage_le_ = g.n_layers;
     if (m.tok_dev == nullptr) {
         if (const cudaError_t e = cudaMalloc((void**) &m.tok_dev, (size_t) chunk * sizeof(int32_t)); e != cudaSuccess) {
             err = std::string("prefill: the token id buffer (") + cudaGetErrorString(e) + ")";

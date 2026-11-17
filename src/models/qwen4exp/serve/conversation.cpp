@@ -162,9 +162,9 @@ bool QfnRuntime::gpu_sync_ok() {
     return false;
 }
 
-// a checkpoint of the state after `cur[0, L)`, taken for `source`; false only when the copy itself failed.  `parts`: the state
-// saved at L (the prompt split's mid-prompt checkpoint, one part); without, it is read now (everything is at L)
-bool QfnRuntime::checkpoint_at(int64_t L, std::vector<ConvCheckpoint>* parts, bool defer, ConvCheckpoint::Source source) {
+// a checkpoint of the state after `cur[0, L)`, taken for `source`; false only when the copy itself failed.  The state is read now
+// (everything is at L)
+bool QfnRuntime::checkpoint_at(int64_t L, bool defer, ConvCheckpoint::Source source) {
     ckpt_why.clear();
     ckd_finish();
     if (o.prompt_cache <= 0 || L < 1) return true;
@@ -173,14 +173,7 @@ bool QfnRuntime::checkpoint_at(int64_t L, std::vector<ConvCheckpoint>* parts, bo
     c.source = source;
     c.ids.assign(cur.begin(), cur.begin() + L);
     c.imgs = imgs_below(req_imgs, L);
-    if (parts != nullptr) {   // the prompt split's assembled state at L
-        if (parts->size() != 1) return false;
-        c.state_a = std::move((*parts)[0].state_a);
-        c.state_b = std::move((*parts)[0].state_b);
-        c.state_c = std::move((*parts)[0].state_c);
-        c.state_d = std::move((*parts)[0].state_d);
-        c.state_e = std::move((*parts)[0].state_e);
-    } else {
+    {
         if (!gpu_sync_ok()) return false;
         std::string ce;
         if (defer) {

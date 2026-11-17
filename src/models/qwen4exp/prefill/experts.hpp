@@ -29,7 +29,6 @@ struct Prefill::Run::Chunk::Experts {
     void wait_issued(size_t k) { chunk.wait_issued(k); }
     void give_back(size_t upto) { chunk.give_back(upto); }
     void copy_ahead(int64_t L) { chunk.copy_ahead(L); }
-    const uint8_t* remote_blob(int64_t l, int32_t e) { return chunk.remote_blob(l,e); }
     Chunk& chunk;
     decltype(Chunk::run)& run = chunk.run;
     decltype(Chunk::m)& m = chunk.m;
@@ -42,8 +41,6 @@ struct Prefill::Run::Chunk::Experts {
     decltype(Chunk::s)& s = chunk.s;
     decltype(Chunk::gdn_floats)& gdn_floats = chunk.gdn_floats;
     decltype(Chunk::prev)& prev = chunk.prev;
-    decltype(Chunk::rows_in_place)& rows_in_place = chunk.rows_in_place;
-    decltype(Chunk::first_stage)& first_stage = chunk.first_stage;
     decltype(Chunk::single_chunk)& single_chunk = chunk.single_chunk;
     decltype(Chunk::head)& head = chunk.head;
     decltype(Chunk::cs)& cs = chunk.cs;
@@ -131,7 +128,6 @@ struct Prefill::Run::Chunk::Experts::Group {
     bool walk();
     void wait_issued(size_t k) { experts.wait_issued(k); }
     void give_back(size_t upto) { experts.give_back(upto); }
-    const uint8_t* remote_blob(int64_t l, int32_t e) { return experts.remote_blob(l,e); }
     Experts& experts;
     decltype(Experts::run)& run = experts.run;
     decltype(Experts::m)& m = experts.m;
@@ -144,8 +140,6 @@ struct Prefill::Run::Chunk::Experts::Group {
     decltype(Experts::s)& s = experts.s;
     decltype(Experts::gdn_floats)& gdn_floats = experts.gdn_floats;
     decltype(Experts::prev)& prev = experts.prev;
-    decltype(Experts::rows_in_place)& rows_in_place = experts.rows_in_place;
-    decltype(Experts::first_stage)& first_stage = experts.first_stage;
     decltype(Experts::single_chunk)& single_chunk = experts.single_chunk;
     decltype(Experts::head)& head = experts.head;
     decltype(Experts::cs)& cs = experts.cs;
@@ -208,7 +202,7 @@ struct Prefill::Run::Chunk::Experts::Group {
     int32_t* slot_h = grp_mapped ? m.grp_host + m.grp_tk : m.slot_host.data();
     int32_t* src_h = grp_mapped ? m.grp_host + 2 * m.grp_tk : m.src_host.data();
     const bool cpu_maybe = owner.cpu_pool_ != nullptr && !stream_all && m.src != nullptr && lay.native &&
-                           owner.next_ == nullptr && owner.stage_lb_ == 0;
+                           owner.stage_lb_ == 0;
     const bool pre_mmq = mmq_plan().any && mmq_plan().layer[(size_t) l];
     std::vector<char> on_peer;
     int64_t rows_local = T * K, rows_peer = 0;

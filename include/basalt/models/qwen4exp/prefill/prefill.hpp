@@ -60,8 +60,7 @@ public:
     Prefill& operator=(const Prefill&) = delete;
 
     /// Frees every buffer, stream and event `init` made (as the destructor does) and starts over empty, so `init` can
-    /// run again - with a smaller chunk when the first one did not fit.  The stage range (`set_stage`) and the
-    /// callbacks stay.  The device `init` ran on must be current.
+    /// run again - with a smaller chunk when the first one did not fit.  The callbacks stay.  The device `init` ran on must be current.
     void reset();
 
     /// `host_res`: the static residency table (n_layers x n_expert, slot or -1) or null; `cache` its slots.
@@ -138,10 +137,6 @@ public:
     /// --peer-exclusive: experts only `peer` holds have no host copy; the prompt path copies them from its memory
     /// through host staging into the ring.  Independent of set_peer.
     void set_ring_peer(core::PeerExperts* peer);
-    /// A stage on another card than the main one: an expert with no pinned host copy that the cache on `device` holds
-    /// (`res`: n_layers x n_expert slot or -1, read at every chunk) is copied from that card through host staging into
-    /// the ring.  Null `res`: none.
-    void set_ring_remote(const int32_t* res, const core::ExpertCache* cache, int device);
     /// Off: the peer card's share (set_peer) is skipped, every expert of a chunk stays on this card - while the peer
     /// card runs a stage of the same prompt.
     void set_peer_share(bool on);
@@ -164,66 +159,26 @@ public:
 
     /// Called on the host before each layer of a chunk with the layers done so far, the layer count, the chunk's
     /// length and first position.  No device work is added; the MoE layers' routing readback keeps the host in step
-    /// with the GPU.  Not called under a layer split.
+    /// with the GPU.
     std::function<void(int64_t layers_done, int64_t n_layers, int64_t T, int64_t pos0)> on_layer;
 
-    /// Layer split: called by every stage when it has read a chunk, with the position reached, while its own state
-    /// is still at that chunk's end (its stream synchronized; the last stage calls it just before `on_chunk`).  An
-    /// earlier stage is a chunk or more ahead of the last one by the time `on_chunk` runs, so this is where a
-    /// mid-prompt checkpoint takes each stage's part.  Runs on that stage's thread, with its device current.
-    std::function<bool(int64_t done, std::string& err)> on_stage_chunk;
 
     /// Checked before every chunk: true stops the prompt early (`run` returns false with err "cancelled").
     std::function<bool()> should_stop;
-    /// Layer split, a first stage with `set_keep_last`: checked at each chunk's end (the position reached) before the
-    /// chunk is handed on; true keeps that chunk as the last one and ends the run there.
-    std::function<bool(int64_t done)> keep_here;
 
     /// The vision path: HOST rows (n_embd floats) indexed by absolute position, read in place of the token
     /// embedding where non-null (an image's <|image_pad|> cells).  Null (default): every position embeds its token.
     const float* const* embd_rows = nullptr;
 
-    /// LAYER SPLIT (multi-GPU): this prompt path runs layers [layer_begin, layer_end) (-1: to the last) on the
-    /// device `init` runs on.  A stage that does not start at layer 0 reads each chunk's residual rows from the
-    /// previous stage instead of embedding the tokens; a stage that does not end at the last layer copies its rows
-    /// to pinned host buffers (two, allocated by `init`) and runs `next` on them - on a thread, so the next stage
-    /// reads chunk c while this one reads chunk c + 1.  `on_chunk` belongs on the last stage.  Set before `init`, or
-    /// between runs (a successor set after `init` needs `reserve_hand_off` first).
-    void set_stage(int64_t layer_begin, int64_t layer_end, Prefill* next);
-    /// The two pinned hand-off buffers for chunks of up to `rows` tokens, for a successor set after `init`.
-    bool reserve_hand_off(int64_t rows, std::string& err);
-    /// Layer split: the first stage keeps a run's last chunk - it reads that chunk's layers and neither hands it on nor
-    /// reports it - for its card to read the later layers too (`continue_in_place`) once the later stages are done.
-    void set_keep_last(bool on) { keep_last_ = on; }
-    /// The next run reads the rows this stage's own buffers hold (the chunk it kept), not tokens or a hand-off.
-    void continue_in_place() { rows_in_place_ = true; hand_in_ = nullptr; }
-    /// A later stage: the hand-off buffer it read its last chunk from (pinned host, the stage before's), or null.
-    const float* hand_in() const { return hand_in_; }
-    /// A stage that hands chunks on: its hand-off buffer `b` (0 or 1, pinned host, null before any), and the rows of
-    /// the full residual width each holds.  A run writes a chunk's rows at the start of one of them.
-    float* hand_buffer(int b) const;
-    int64_t hand_rows() const;
 
 
 private:
     struct Run;
-    // Stage-1 pipeline: intermediate stages return after handing their chunk to
-    // the direct successor. The public run() drains the chain once at prompt end.
     bool run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::string& err);
-    bool drain_pipeline(std::string& err);
 
     kernels::cpu::ExpertPool* cpu_pool_ = nullptr;
-    int64_t stage_lb_ = 0, stage_le_ = -1;
+    int64_t stage_lb_ = 0, stage_le_ = -1;   ///< the layers this prompt path runs: every one (set by init)
     int64_t head_chunk_ = 0;
-    Prefill* next_ = nullptr;
-    bool single_chunk_ = false;         ///< a later stage: the prompt is one chunk (set by the stage before)
-    const float* hand_in_ = nullptr;    ///< the previous stage's rows of the chunk being read (host, pinned)
-    bool rows_in_place_ = false;        ///< the next run's rows are in this stage's own buffers (continue_in_place)
-    bool keep_last_ = false;            ///< set_keep_last
-
-    std::string next_err_;
-    std::future<bool> next_run_;
-    int hand_buf_ = 0;
 
     bool carve(std::size_t T, void* alloc);   // the device buffers of a chunk (src/models/qwen4exp/prefill/layout.hpp's Alloc)
     void release();                          // the destructor's cleanup (also `reset`'s)

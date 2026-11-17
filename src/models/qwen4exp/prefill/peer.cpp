@@ -23,26 +23,8 @@ void Prefill::set_ring_peer(core::PeerExperts* peer) {
     impl_->ring_peer = peer != nullptr && peer->valid() ? peer : nullptr;
 }
 
-void Prefill::set_ring_remote(const int32_t* res, const core::ExpertCache* cache, int device) {
-    const bool on = res != nullptr && cache != nullptr && device >= 0;
-    impl_->remote_res = on ? res : nullptr;
-    impl_->remote_cache = on ? cache : nullptr;
-    impl_->remote_dev = on ? device : -1;
-}
-
 void Prefill::set_peer_share(bool on) { impl_->peer_share = on; }
 int64_t Prefill::peer_routed_rows_max() const { return impl_->pp ? impl_->pp->T_max : 0; }
-
-void Prefill::set_stage(int64_t layer_begin, int64_t layer_end, Prefill* next) {
-    if (layer_end < 0 && impl_->g != nullptr) layer_end = impl_->g->n_layers;   // after init: resolved here
-    stage_lb_ = layer_begin;
-    stage_le_ = layer_end;
-    next_ = next;
-    if (layer_begin == 0) {   // the first stage reads its tokens, not rows a stage before it left
-        hand_in_ = nullptr;
-        rows_in_place_ = false;
-    }
-}
 
 // The peer card's prompt buffers for chunks of up to `Tp` tokens in groups of `G` rows: the shared transport's
 // dimensions, and (`tf` > 0) the FP4 share's own buffers, each from `take(bytes)`, in one place so that the tier's reserve

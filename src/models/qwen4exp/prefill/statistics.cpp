@@ -30,7 +30,6 @@ void Prefill::route_hist_reset() {
         m.hist_tokens = 0;
         m.hist_on = m.hist != nullptr;
     }
-    if (next_ != nullptr) next_->route_hist_reset();
 }
 
 bool Prefill::route_hist_take(std::vector<uint32_t>& out, int64_t& tokens) {
@@ -46,7 +45,6 @@ bool Prefill::route_hist_take(std::vector<uint32_t>& out, int64_t& tokens) {
         for (size_t i = 0; i < h.size(); ++i) out[i] += h[i];
         tokens = std::max(tokens, m.hist_tokens);
     }
-    if (next_ != nullptr) next_->route_hist_take(out, tokens);
     return true;
 }
 

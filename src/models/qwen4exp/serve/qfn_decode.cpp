@@ -39,10 +39,6 @@ void QfnRequest::seed_tiers() {
         std::vector<uint32_t> hist;
         int64_t hist_tokens = 0;
         const bool seeded = !runtime_.drive.d.usage.empty() && runtime_.sp.route_hist_take(hist, hist_tokens) && (!in_slot || solo_req);
-        // a split read counted its stages' layers there
-        if (seeded && runtime_.split_hist.size() == hist.size())
-            for (size_t i = 0; i < hist.size(); ++i) hist[i] += runtime_.split_hist[i];
-        runtime_.split_hist.clear();
         if (seeded) seed_usage_from_prompt(runtime_.drive.d.usage, hist, hist_tokens, runtime_.host_res, runtime_.g.n_expert, runtime_.peer);
     }
 }

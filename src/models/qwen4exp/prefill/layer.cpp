@@ -13,7 +13,7 @@ using namespace detail;
 
 bool Prefill::Run::Chunk::layer(int64_t l) {
     core::progress_beat();   // the serve watchdog: a prompt chunk of 8192 tokens is still moving
-    if (owner.on_layer && LB == 0 && owner.next_ == nullptr) owner.on_layer(l, g.n_layers, T, p0);
+    if (owner.on_layer && LB == 0) owner.on_layer(l, g.n_layers, T, p0);
     core::progress_at("reading the prompt (batched): layer", l, p0);   // a stall names layer and chunk
     const core::LayerView v(*m.wt, l);
     if (l == std::max<int64_t>(LB, 1) && !ple_land()) return false;   // the PLE rows, read from layer 1 on

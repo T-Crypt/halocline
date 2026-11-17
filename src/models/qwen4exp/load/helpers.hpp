@@ -17,7 +17,6 @@ namespace engine_local = basalt::models::qwen4exp::engine_local;
 namespace serve_loans = basalt::models::qwen4exp::serve;
 using engine_local::Drive;
 using engine_local::JobRunner;
-using engine_local::PromptStage;
 using engine_local::SlotDelete;
 using engine_local::SlotSession;
 using engine_local::drive_pool;
@@ -32,7 +31,6 @@ std::string vram_free_note();
 bool for_each_index_name(const basalt::core::FileRange& index, const std::function<void(const std::string&)>& f);
 int argmax(const std::vector<float>& v);
 double probe_pcie_h2d_gbps(std::string* samples = nullptr);
-double probe_h2d_together_gbps(const std::vector<int>& devs);
 double pcie_frac_for_gbps(double gbps, double base);
 
 // The resident RAM mode and the adaptive tier.  A swap copies `in` (held in RAM) into the slot of `out` (held only

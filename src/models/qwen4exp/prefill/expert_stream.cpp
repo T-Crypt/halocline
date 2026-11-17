@@ -13,21 +13,13 @@
 namespace basalt::prefill {
 using namespace detail;
 
-// set_ring_remote: an expert with no pinned host copy that the other card's cache holds (its blob there), or null
-const uint8_t* Prefill::Run::remote_blob(int64_t l, int32_t e) {
-    if (m.remote_res == nullptr || m.src == nullptr || m.src->pinned(l, e)) return nullptr;
-    const int32_t s = m.remote_res[(size_t) l * m.g->n_expert + e];
-    return s >= 0 ? m.remote_cache->device_slot(s) : nullptr;
-}
-
 const uint8_t* Prefill::Run::Chunk::Experts::Group::other_card(int32_t e) {
     // --peer-exclusive: an expert only the peer holds has no host copy.  It is copied from the peer's
-    // memory into a staging slot; so is one set_ring_remote's card holds without a pinned host copy.
-    // The blob on the other card, or null.
+    // memory into a staging slot.  The blob on the other card, or null.
     if (m.host_res && m.cache && m.host_res[(size_t) l * m.g->n_expert + e] >= 0) return nullptr;
     if (m.ring_peer && m.ring_peer->exclusive() && m.ring_peer->has(l, e))
         return m.ring_peer->slot_ptr(l, e);
-    return remote_blob(l, e);
+    return nullptr;
 }
 
 // Stage ahead: the copy stream moves blobs host -> device while the compute stream works.

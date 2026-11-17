@@ -32,7 +32,6 @@ struct Context {
     const bool& peer_streamed_share;
     const bool& no_spec;
     std::string& err;
-    double& main_link_gbps;
     basalt::core::ModelGeometry& g;
     int64_t& K;
     std::vector<std::pair<int32_t, int32_t>>& profile;
@@ -72,16 +71,7 @@ struct Context {
     int64_t& auto_lend_pct;
     int64_t& auto_ceiling;
     basalt::kernels::cpu::ExpertPool& pool;
-    std::vector<std::unique_ptr<engine_local::PromptStage>>& pstages;
     std::function<int64_t()> read_cap;
-    const int64_t& kSplitRefCells;
-    int64_t& split_hand_rows;
-    int64_t& split_chunk_cap;
-    int64_t& split_peer_rows;
-    std::function<engine_local::SplitPricing(int64_t, int64_t, int64_t, int)> split_price;
-    std::function<std::string(int, const std::vector<int>&)> split_layers_text;
-    std::function<std::string(const PsPrice&)> split_stages_text;
-    int& split_stages;
     basalt::program::ExpertSpill& tier_spill;
     std::function<void()> report_expert_tiers;
 };
