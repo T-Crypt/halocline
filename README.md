@@ -115,7 +115,7 @@ one extra draft step.
 
 ## How a change gets in
 
-Every commit in this history passed these gates, and its logs and hash files are in the repo:
+Every engine commit in this history passed these gates, and its logs and hash files are in the repo:
 
 1. A clean build for sm_89 (728 targets).
 2. SASS hashes per object and per function (`gates/`): kernels whose source did not change come out byte-identical, and
