@@ -1,17 +1,19 @@
 """Do two engine builds produce the same greedy tokens?
 
-    python3 tools/greedy_identity.py REF_BIN NEW_BIN --model FILE.basalt [--fixtures DIR] [--tokens N] [-- ENGINE ARGS...]
+    python3 tools/greedy_identity.py REF_BIN NEW_BIN --model FILE.halo [--fixtures DIR] [--tokens N] [-- ENGINE ARGS...]
 
 Each binary runs as `--serve` with BASE plus any flags after `--` (which replace BASE values). The bench fixtures'
 prompts (conv, struct, prose: comma-separated token ids per line) run at temperature 0 and every token is compared.
-Adaptive swaps and the PCIe share are off so placement cannot drift; pin the main card's tier too (`-- --expert-cache
-N`) when the builds' VRAM use differs, since auto-sized tiers change rounding.
+On a sparse pack adaptive expert swaps are off so placement cannot drift, and the main card's tier is pinned with
+`-- --expert-cache N` when the builds' VRAM use differs, since auto-sized tiers change rounding. A dense pack has no
+experts and no tier flags, so it pins nothing there.
 
 Prints "GREEDY IDENTICAL" (exit 0) or "GREEDY DIFFERS" with the first difference (exit 1); exit 2 when an engine fails.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import tempfile
@@ -19,11 +21,28 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+from model_file import ModelFile  # noqa: E402
 
 PROMPTS = ("conv", "struct", "prose")
 # flags after `--` replace these
 BASE = ["--spec", "7", "--max-context", "8192"]
-PINNED = ["--adapt-swaps", "0"]
+SPARSE_PINNED = ["--adapt-swaps", "0"]   # the sparse path's adaptive expert swaps move experts between builds
+DENSE_ARCH = "qwen35"
+
+
+def arch_of(model: str) -> str:
+    """The pack's architecture id, from its meta section."""
+    return str(json.loads(ModelFile(model).read("meta")).get("arch", ""))
+
+
+def pinned_flags(model: str) -> list[str]:
+    """The placement flags for this pack. A dense pack has no experts, and --adapt-swaps is an unknown flag to it."""
+    return [] if arch_of(model) == DENSE_ARCH else SPARSE_PINNED
+
+
+def engine_args(model: str, extra: list[str]) -> list[str]:
+    """One side's engine arguments: BASE with the pinned flags and `extra` replacing the same flags."""
+    return set_args(["--model", model, *BASE], pinned_flags(model) + extra)
 
 
 def set_args(args: list[str], extra: list[str]) -> list[str]:
@@ -105,7 +124,11 @@ def main() -> int:
             print(f"greedy_identity: {path} is missing", file=sys.stderr)
             return 2
         prompts.append(path.read_text().strip())
-    args = set_args(["--model", a.model, *BASE], PINNED + extra)
+    try:
+        args = engine_args(a.model, extra)
+    except (KeyError, OSError, ValueError) as e:
+        print(f"greedy_identity: cannot read {a.model}: {e}", file=sys.stderr)
+        return 2
 
     logs = Path(tempfile.mkdtemp(prefix="greedy-identity-"))
     results = {}
