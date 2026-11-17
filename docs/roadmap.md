@@ -101,10 +101,12 @@ The work, in order:
    values tolerating per-token groups.
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
-3. **Choose the 262K profile by KLD at depth** (P0 item 3): UD-IQ4_XS + K8V4 (fits with ~1.6 GiB spare) against
-   UD-Q4_K_XL + 4-bit K and V (~0.5 GiB spare). Short-context KLD favours Q4_K_XL by 2.8x; the 4-bit KV error grows with
-   depth, so only the long-context gate decides. **If K8V4 or 4-bit KV wins at depth, it becomes the dense default and
-   this item stays open until the profile ships.**
+3. **The quant is UD-Q4_K_XL** (maintainer decision, 2026-11-17: 2.8 times lower KLD than UD-IQ4_XS outweighs context).
+   Its context by KV format, with ~4.6 GiB left for KV once the MTP KV is a ring: int8 ~142K, K8V4 ~184K, rotated 4-bit
+   K and V ~261K (262K after a small workspace trim). The long-context KLD gate (P0 item 3) at 64K, 137K and the format's
+   maximum picks the default: 262K on 4-bit K only if it holds KLD at depth, otherwise K8V4 at ~184K. **Whichever KV
+   format wins at depth becomes the dense default, and this item stays open until that profile ships.** Until then the
+   served profile is UD-Q4_K_XL, int8 KV, 122,880 tokens (the largest that fits with MTP and vision today).
 
 Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
 
