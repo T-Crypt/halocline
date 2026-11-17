@@ -780,6 +780,9 @@ if(NOT _iq_python STREQUAL "")
   # the sampling-distribution gate (tools/sampling_dist): against a fake OpenAI endpoint on loopback, host only
   halo_cpu_test(NAME sampling_dist_tests COMMAND ${_iq_python} -m unittest discover -s tools/sampling_dist -p "test_*.py"
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # tool-call breadth (tools/tool_calls): the labelled cases and the scorer, against a fake endpoint on loopback
+  halo_cpu_test(NAME tool_calls_tests COMMAND ${_iq_python} -m unittest discover -s tools/tool_calls -p "test_*.py"
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   # the v1 -> v2 file migration on a tiny file
   halo_cpu_test(NAME migration_tests COMMAND ${_iq_python} -m unittest discover -s tools/migrations -p "test_*.py"
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

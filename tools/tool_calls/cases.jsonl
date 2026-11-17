@@ -1,0 +1,24 @@
+{"id": "weather-now", "expect": "call", "prompt": "What's the weather in Reykjavik right now?", "tool": "get_weather", "args": ["city"]}
+{"id": "weather-unit", "expect": "call", "prompt": "Is it colder than 5 degrees Fahrenheit in Fairbanks at the moment?", "tool": "get_weather", "args": ["city"]}
+{"id": "search-news", "expect": "call", "prompt": "Find the latest release notes for the Linux kernel.", "tool": "web_search", "args": ["query"]}
+{"id": "search-price", "expect": "call", "prompt": "Look up today's price of a Raspberry Pi 5 online.", "tool": "web_search", "args": ["query"]}
+{"id": "calc-big", "expect": "call", "prompt": "Compute 918273645 * 564738291 exactly.", "tool": "calculator", "args": ["expression"]}
+{"id": "calc-expr", "expect": "call", "prompt": "Use the calculator: what is (2^31 - 1) / 7, to the last digit?", "tool": "calculator", "args": ["expression"]}
+{"id": "file-read", "expect": "call", "prompt": "Open src/main.rs in my project and tell me what the main function does.", "tool": "read_file", "args": ["path"]}
+{"id": "file-config", "expect": "call", "prompt": "What port does my app use? It's set in config/server.toml.", "tool": "read_file", "args": ["path"]}
+{"id": "email-send", "expect": "call", "prompt": "Email alex@example.com with the subject 'Standup' and tell them I'll be ten minutes late.", "tool": "send_email", "args": ["to", "subject", "body"]}
+{"id": "email-thanks", "expect": "call", "prompt": "Send a thank-you email to sam@example.com for the book recommendation; subject 'Thanks!'.", "tool": "send_email", "args": ["to", "subject", "body"]}
+{"id": "event-add", "expect": "call", "prompt": "Put 'Dentist' on my calendar for 2026-12-03 at 14:30, 45 minutes.", "tool": "create_event", "args": ["title", "start"]}
+{"id": "event-meet", "expect": "call", "prompt": "Schedule a meeting called 'Budget review' on 2026-12-10 at 09:00.", "tool": "create_event", "args": ["title", "start"]}
+{"id": "none-poem", "expect": "none", "prompt": "Write a haiku about autumn leaves."}
+{"id": "none-explain", "expect": "none", "prompt": "Explain what a hash table is in two sentences."}
+{"id": "none-small-math", "expect": "none", "prompt": "What is 7 plus 5?"}
+{"id": "none-weather-word", "expect": "none", "prompt": "Why do weather forecasts get less accurate further into the future?"}
+{"id": "none-email-draft", "expect": "none", "prompt": "Draft a polite email declining a meeting invitation. Just show me the text; don't send anything."}
+{"id": "none-file-concept", "expect": "none", "prompt": "What is the difference between a file and a directory?"}
+{"id": "none-search-known", "expect": "none", "prompt": "Who wrote 'Pride and Prejudice'?"}
+{"id": "none-greeting", "expect": "none", "prompt": "Hi! How are you today?"}
+{"id": "none-told-not", "expect": "none", "prompt": "Without using any tools, estimate how many seconds are in a week."}
+{"id": "none-calendar-advice", "expect": "none", "prompt": "Any tips for keeping a calendar organised?"}
+{"id": "none-translate", "expect": "none", "prompt": "Translate 'good morning' into Spanish and German."}
+{"id": "none-code", "expect": "none", "prompt": "Write a Python one-liner that reverses a string."}
