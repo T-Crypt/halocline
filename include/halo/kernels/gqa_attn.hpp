@@ -34,6 +34,17 @@ struct KvInt8 {
     uint16_t* vs = nullptr;
 };
 
+/// A K8V4 cache: K in the int8 cache's form (codes and fp16 scales per 64 values), V in rotated q4_0 blocks
+/// (halo/kernels/kv_q4_layout.hpp: head_dim / 32 blocks of 18 bytes a cell and KV head).  At head width 256 and 4 KV
+/// heads a cell is 1,632 B against int8's 2,112 and fp16's 4,096.  The caller rotates V before the cache write and
+/// rotates each head's attention output back afterwards (H is its own inverse; the sparse path ships the same shape),
+/// so the kernels here only read and write the layout.  `k` null: not this format.  Never streamed (KvFar).
+struct KvK8V4 {
+    int8_t* k = nullptr;
+    uint16_t* ks = nullptr;
+    uint8_t* vq = nullptr;   ///< [cell][n_kv][head_dim / 32] blocks of 18 bytes
+};
+
 /// A cache in two places: cells from `at` on are in these buffers instead (cell c at row c - at there, the same layout:
 /// fp16 `k`, `v`, or the int8 `q8`), cells below `at` in the main ones.  A cache streamed from page-locked host memory
 /// keeps its first `at` cells on the card and the rest here (device-mapped); a prompt chunk reads a VRAM copy of them.
@@ -56,7 +67,8 @@ size_t gqa_decode_scratch_floats(int64_t max_cells, int T, int n_head, int head_
 void gqa_decode_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_cache, int n_head, int n_kv,
                      int64_t pos0, int T, float* scratch, int64_t max_cells, float* out, void* stream,
                      const int32_t* pos_dev = nullptr, KvInt8 q8 = {}, const float* gate_q = nullptr,
-                     uint16_t* gated16 = nullptr, KvFar far_kv = {}, int64_t window = 0, int64_t cap = 0);
+                     uint16_t* gated16 = nullptr, KvFar far_kv = {}, KvK8V4 k8v4 = {}, int64_t window = 0,
+                     int64_t cap = 0);
 /// (gate_q, gated16: also each head's output times sigmoid of its gate, q_full [T][n_head][512]'s second half, as bf16
 /// rows [T][n_head * 256] into gated16 (bitwise attn_gate, then rounded); `out` may then be null.)
 /// One window of each of several sequences (a batch window's segments) in one launch: segment k's rows follow segment
@@ -70,6 +82,7 @@ struct GqaSeg {
     const int32_t* pos_dev = nullptr;
     KvInt8 q8 = {};
     KvFar far_kv = {};
+    KvK8V4 k8v4 = {};
 };
 void gqa_decode_attn_segs(const float* q, int n_head, int n_kv, const GqaSeg* segs, int n_seg, float* scratch,
                           int64_t max_cells, float* out, void* stream, const float* gate_q = nullptr,
@@ -87,9 +100,10 @@ size_t gqa_prompt_split_floats(int64_t T, int n_head, int splits);
 /// `split_scratch` (optional, `split_floats` floats): lets an int8-cache launch split its cells over more blocks.
 void gqa_prompt_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_cache, int n_head, int n_kv,
                      int64_t pos0, int64_t T, float* out, void* stream, KvInt8 q8 = {}, float* split_scratch = nullptr,
-                     size_t split_floats = 0, KvFar far_kv = {});
+                     size_t split_floats = 0, KvFar far_kv = {}, KvK8V4 k8v4 = {});
 /// The prompt chunk's form on an int8 cache: BF16 queries and BF16 output rows (the same arithmetic; the output rounded once).
 void gqa_prompt_attn_bf16(const uint16_t* q, int n_head, int n_kv, int64_t pos0, int64_t T, uint16_t* out, void* stream,
-                          KvInt8 q8, float* split_scratch = nullptr, size_t split_floats = 0, KvFar far_kv = {});
+                          KvInt8 q8, float* split_scratch = nullptr, size_t split_floats = 0, KvFar far_kv = {},
+                          KvK8V4 k8v4 = {});
 
 }  // namespace halo::kernels

@@ -99,6 +99,13 @@ The work, in order:
    (the output is rotated back once per head), so V costs one transform per row. Research: QuaRot (arXiv 2404.00456)
    for rotation before 4-bit KV; KIVI (2402.02750) and KVQuant (2401.18079) for keys needing per-channel treatment and
    values tolerating per-token groups.
+
+   *Status 2026-11-17 (W2, branch `d8-kv`): K8V4 is in the dense path (`--kv k8v4`, 1,632 B a cell), with the block and
+   the quantizer moved to shared code (`include/halo/kernels/kv_q4_layout.hpp`, `src/kernels/cuda/kv_q4_layout.cu`) so
+   the sparse and dense caches quantize through one function. The planner's own formula gives 164,094 cells with MTP and
+   vision on UD-Q4_K_XL, and 184,694 once the drafter's KV is the 32K ring of item 2 below - the ~184K this item quotes.
+   A pass over the format's bytes measured nothing yet: the KLD table, the long-context windows and decode and prefill
+   are open. Rotated 4-bit K and V is not started (the task's second phase).*
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
    **2026-11-17:** both levers landed as opt-in flags, the default unchanged: `--mtp-kv fp16|int8` (the drafter's cache

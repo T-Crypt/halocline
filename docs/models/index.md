@@ -12,7 +12,7 @@ Halocline runs the Qwen4 family only. Two paths exist:
 | Context | 262,144 | 262,144 |
 | Weights | Unsloth UD-IQ4_XS v3.1, converted to a pack | Unsloth UD-IQ4_XS or UD-Q4_K_XL, conversion pending |
 | Drafting | MTP drafter, `--spec 8` | the GGUF's MTP layer, in the plan |
-| `--kv` | int8 (measured best), fp16, k8v4, q4_0 | int8 or fp16, to be chosen |
+| `--kv` | int8 (measured best), fp16, k8v4, q4_0 | int8 (served), fp16, k8v4 |
 | Status | runs, gated, served through llama-swap | does not run yet |
 | Guide | [Flash-Next](qwen38-flash-next.md) | [Qwen3.8-27B](qwen38-27b.md) |
 | Precision | [Flash-Next](../precision/qwen38-flash-next.md) | [Qwen3.8-27B](../precision/qwen38-27b.md) |

@@ -110,10 +110,22 @@ struct Weights {
 /// Which drafter a model's sessions run.
 enum class Drafter { None, Mtp, Block };
 
-/// --mtp-kv's value: 1 fp16 (the default, also for an empty value), 2 the attention layers' int8 codes, -1 for neither.
-inline int mtp_kv_format(const std::string& v) {
-    if (v.empty() || v == "fp16") return 1;
-    return v == "int8" ? 2 : -1;
+/// How an attention layer stores K and V.  Fp16 is the unrounded reference; Int8 keeps int8 codes with an fp16 scale
+/// per 64 values; K8V4 keeps K in that int8 form and V in rotated q4_0 blocks (kv_q4_layout.hpp), which is a third of
+/// fp16's bytes per cell.  Each format is gated in the attention kernels; the fp16 and int8 arithmetic is not shared
+/// with the others.
+enum class KvFormat { Fp16, Int8, K8V4 };
+
+/// The number a conversation cache stores a format as: 1 fp16, 2 int8, 3 K8V4, for the main cache and the drafter alike.
+inline int kv_format_id(KvFormat fmt) { return fmt == KvFormat::Int8 ? 2 : fmt == KvFormat::K8V4 ? 3 : 1; }
+
+/// --mtp-kv's value: Fp16 (the default, also for an empty value) or Int8, the drafter's two formats. Anything else is
+/// refused, K8V4 included: its V blocks have a reader in the main cache's attention only, never in the drafter's.
+inline bool mtp_kv_format(const std::string& v, KvFormat& out) {
+    if (v.empty() || v == "fp16") out = KvFormat::Fp16;
+    else if (v == "int8") out = KvFormat::Int8;
+    else return false;
+    return true;
 }
 
 /// The cells a windowed drafter's ring holds: its window, plus the rows one pass writes before it reads them, and at
@@ -140,17 +152,17 @@ struct Options {
     int spec = 0;                       ///< rows a decode window may hold (0 or 1: one)
     bool draft = false;                 ///< run the pack's drafter
     Drafter drafter = Drafter::None;    ///< which one
-    /// The MTP drafter's own K/V: 1 fp16 (the default, as every pack has run), 2 the attention layers' int8 codes
-    /// (--mtp-kv int8: half the bytes, and the drafter's choice is only ever a draft). A third format, the main cache's
-    /// k8v4, would be 3 here: the format reaches the kernels as the same KvInt8 struct the main cache uses.
-    int mtp_format = 1;
+    /// The MTP drafter's own K/V: Fp16 (the default, as every pack has run) or Int8 (--mtp-kv int8: half the bytes, and
+    /// the drafter's choice is only ever a draft).  The format reaches the kernels as the same KvInt8 struct the main
+    /// cache uses; K8V4 is the main cache's alone (mtp_option_error refuses it for the drafter).
+    KvFormat mtp_format = KvFormat::Fp16;
     /// --mtp-window: cells of context the drafter's attention reads (0: every cell, the default). Above 0 the drafter's
     /// cells are kept in a ring of mtp_ring_cells(N), so the cache costs those cells rather than the context's.
     int64_t mtp_window = 0;
     uint64_t host_embedding_bytes = 0;  ///< the token embedding the adapter keeps in page-locked RAM (a row lookup per token)
     uint64_t gpu_weight_bytes = 0;      ///< the weights the adapter put on the main card (its "GiB on the GPU" load figure, no KV cache)
     bool vision = false;                ///< requests may carry images
-    bool kv_int8 = false;               ///< the attention layers' K/V as int8 codes with a scale per 64 values
+    KvFormat kv = KvFormat::Fp16;       ///< the attention layers' K/V storage
     /// K/V streaming: each attention layer keeps its first kv_resident cells on the card and the rest in page-locked RAM,
     /// read over the bus by every decode window and staged to the card for each prompt chunk (0, or at least max_context:
     /// all on the card)
@@ -159,23 +171,20 @@ struct Options {
     std::string arch;                   ///< the architecture name, for messages
 };
 
-/// The device bytes of `cells` cells of one attention layer's K and V in `format` (1 fp16, 2 int8 codes with a scale per
-/// 64 values), the layout of a cell's row in both caches.
-inline uint64_t kv_cell_bytes(const Geometry& g, int format) {
-    return format == 2 ? (uint64_t) g.n_kv * (g.head_dim + g.head_dim / 64 * 2) * 2
-                       : (uint64_t) g.n_kv * g.head_dim * 2 * 2;
-}
-
 /// Whether a stored drafter K/V is this session's: the same format and at least the matched rows, and not a ring (a ring
-/// keeps cell `pos` at `pos % cells`, which no linear image a store can cut at a position describes).
+/// keeps cell `pos` at `pos % cells`, which no linear image a store can cut at a position describes).  `format` is the
+/// number the cache stored (kv_format_id).
 inline bool mtp_image_matches(const Options& o, int format, int64_t cells, int64_t positions) {
     if (mtp_ring_cap(o.max_context, o.mtp_window) > 0) return false;
-    return format == o.mtp_format && cells >= positions;
+    return format == kv_format_id(o.mtp_format) && cells >= positions;
 }
 
 /// Why --mtp-kv/--mtp-window cannot run with these flags and the drafter the load picked (empty: they can).
 inline std::string mtp_option_error(bool mtp_kv_given, const std::string& mtp_kv, int64_t mtp_window, Drafter drafter) {
-    if (mtp_kv_given && mtp_kv_format(mtp_kv) < 0) return "--mtp-kv " + mtp_kv + ": fp16 (the default) or int8";
+    KvFormat fmt = KvFormat::Fp16;
+    if (mtp_kv_given && !mtp_kv_format(mtp_kv, fmt))
+        return mtp_kv == "k8v4" ? "--mtp-kv k8v4: the drafter keeps fp16 or int8; k8v4 is the main cache's format"
+                                : "--mtp-kv " + mtp_kv + ": fp16 (the default) or int8";
     if (mtp_window < 0 || mtp_window > ((int64_t) 1 << 40))
         return "--mtp-window " + std::to_string((long long) mtp_window) + ": 0 (every cell) or the cells the drafter reads";
     if ((mtp_kv_given || mtp_window > 0) && drafter != Drafter::Mtp)
@@ -197,15 +206,18 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
 std::unique_ptr<model::ModelSession> make_session(Model& m, std::string& err);
 /// The cells of each attention layer a session keeps on the card (kv_resident's rule).
 int64_t resident_cells(int64_t max_context, int64_t kv_resident);
+/// Device bytes one cell (one token, one attention layer) of `fmt` takes: K and V of every KV head, with the scales
+/// a format stores beside the codes. The planner and the cache carve both read this one number.
+uint64_t kv_cell_bytes(const Geometry& g, KvFormat fmt);
 /// Device bytes one session takes: its KV cells on the card, recurrent states and window rows, the logits and the drafter's state.
-uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, bool kv_int8 = false, int64_t kv_resident = 0,
-                       int mtp_format = 1, int64_t mtp_window = 0);
+uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0,
+                       KvFormat mtp_format = KvFormat::Fp16, int64_t mtp_window = 0);
 /// Device bytes one session's cells and recurrent state take in layer `il`.
-uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, bool kv_int8, int64_t kv_resident);
+uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, KvFormat kv, int64_t kv_resident);
 /// Page-locked host bytes one session's streamed K/V takes (0 without streaming).
-uint64_t session_host_bytes(const Geometry& g, int64_t max_context, bool kv_int8, int64_t kv_resident);
+uint64_t session_host_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident);
 /// Device bytes the model's shared scratch takes (with streaming, the VRAM copy a prompt chunk reads one layer's far cells from).
-uint64_t shared_bytes(const Geometry& g, int64_t max_context, bool kv_int8 = false, int64_t kv_resident = 0);
+uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0);
 /// Device bytes a session's block drafter keeps (its context ring and its window rows); 0 without one.
 uint64_t block_session_bytes(const Geometry& g, const BlockDrafter& bd);
 

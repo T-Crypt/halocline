@@ -195,10 +195,10 @@ if(BUILD_TESTING)
   target_link_libraries(qwen35_linear_types_test PRIVATE warnings)
   halo_cpu_test(NAME qwen35_linear_types_test COMMAND qwen35_linear_types_test)
   # the drafter's cache levers: their flag values, the ring's cells against the span a 16-row pass writes over, the
-  # planner's bytes per format, and the image check (host only: the header's arithmetic, no runtime)
+  # planner's bytes per format (the same kv_cell_bytes the planner calls), and the image check (host only)
   add_executable(qwen35_mtp_levers_test tests/models/qwen35/mtp_levers_test.cpp)
   target_include_directories(qwen35_mtp_levers_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_link_libraries(qwen35_mtp_levers_test PRIVATE warnings)
+  target_link_libraries(qwen35_mtp_levers_test PRIVATE dense ${_gpu_runtime_target})
   halo_cpu_test(NAME qwen35_mtp_levers_test COMMAND qwen35_mtp_levers_test)
   # the same levers end to end on a 27B pack: greedy tokens and row-0 logits are the default run's with --mtp-kv int8
   # and with --mtp-window 32768 over a prompt longer than the window; each arm prints its drafts' acceptance
@@ -311,6 +311,7 @@ add_library(kernels STATIC src/kernels/cuda/quantize_act.cu
                         src/kernels/cuda/gdn_prompt.cu
                         src/kernels/cuda/dense_ops.cu
                         src/kernels/cuda/gqa_attn.cu
+                        src/kernels/cuda/kv_q4_layout.cu
                         src/kernels/cuda/nvfp4_planes.cu
                         src/ngram/ple_reader.cpp)
 target_link_libraries(kernels PUBLIC core artifact)
@@ -703,6 +704,12 @@ add_executable(gqa_attn_parity tests/kernels/gqa_attn_parity.cpp)
 target_link_libraries(gqa_attn_parity PRIVATE kernels ${_gpu_runtime_target})
 halo_gpu_test(NAME gqa_attn_parity COMMAND gqa_attn_parity)
 set_tests_properties(gqa_attn_parity PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+# the K8V4 cache (K int8, V rotated q4_0) against a double-precision CPU reference: the write, the rotation, decode
+# and prompt attention, and the BF16 prompt form (GPU)
+add_executable(gqa_k8v4_parity tests/kernels/gqa_k8v4_parity.cpp)
+target_link_libraries(gqa_k8v4_parity PRIVATE kernels ${_gpu_runtime_target})
+halo_gpu_test(NAME gqa_k8v4_parity COMMAND gqa_k8v4_parity)
+set_tests_properties(gqa_k8v4_parity PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
 # a cache split in two places (K/V streaming): every attention kernel and the cache writes bitwise their one-buffer launches
 add_executable(gqa_far_parity tests/kernels/gqa_far_parity.cpp)
 target_link_libraries(gqa_far_parity PRIVATE kernels ${_gpu_runtime_target})
@@ -1383,6 +1390,16 @@ if(BUILD_TESTING)
   add_executable(bf16_bits_test tests/kernels/bf16_bits_test.cpp)
   target_include_directories(bf16_bits_test PRIVATE include)
   halo_cpu_test(NAME bf16_bits_test COMMAND bf16_bits_test)
+  # the q4_0 KV block's rule and its eight-code reader, the quantizer the sparse and the dense 4-bit caches share
+  # (header-only, CPU)
+  add_executable(kv_q4_layout_test tests/kernels/kv_q4_layout_test.cpp)
+  target_include_directories(kv_q4_layout_test PRIVATE include)
+  halo_cpu_test(NAME kv_q4_layout_test COMMAND kv_q4_layout_test)
+  # the dense planner's KV cell bytes and the 262K totals the engine printed, and D8's 184,320-cell K8V4 check
+  # (host arithmetic; it links the planner, no device call is made)
+  add_executable(dense_kv_planner_test tests/kernels/dense_kv_planner_test.cpp)
+  target_link_libraries(dense_kv_planner_test PRIVATE dense ${_gpu_runtime_target})
+  halo_cpu_test(NAME dense_kv_planner_test COMMAND dense_kv_planner_test)
 endif()
 
 add_library(kernels_cpu STATIC src/kernels/cpu/expert.cpp src/kernels/cpu/pool.cpp

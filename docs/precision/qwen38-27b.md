@@ -52,3 +52,27 @@ The dense path's goal is lower KLD and better output than NInfer and llama.cpp o
 - KLD near the baseline does not rank models, so the task suite in `docs/roadmap.md` runs beside it.
 
 The table is filled when D2 to D5 of the roadmap land. Until then this page is a plan, not a result.
+
+## KV formats and context (2026-11-17)
+
+The K8V4 cache is in the dense GQA path (`--kv k8v4`, `src/kernels/cuda/gqa_attn.cu` and `dense_ops.cu`): K stays the
+int8 form the dense path already had, V is stored in rotated q4_0 blocks (`include/halo/kernels/kv_q4_layout.hpp`, the
+quantizer and block the sparse path's `q4_0` cache ships). The rotation is applied at the cache write and each head's
+attention output is rotated back once, which is exact: a Hadamard transform commutes with attention over V.
+
+| Format | Bytes a cell (one attention layer) | Max context on UD-Q4_K_XL, MTP and vision | Notes |
+|---|---|---|---|
+| `fp16` | 4,096 | 71,188 | the reference format |
+| `int8` | 2,112 | 130,832 | the served profile (122,880) |
+| `k8v4` | 1,632 | 164,094 | 184,694 once the MTP drafter's KV is a 32K ring (D8 item 2) |
+
+Numbers from `tests/kernels/dense_kv_planner_test.cpp` with the planner's own formula and the 7,597 MiB UD-Q4_K_XL
+leaves free with vision packs (`evals/2026-11-17/halocline-dense-quality/fit/`). The 262,144-cell totals at int8
+(11,830 MiB) and fp16 (19,766 MiB) are unchanged by the new format and are pinned by the same test. A cell is 4 KV heads
+of 256 values plus the format's scales; K8V4 is 1,024 bytes of K codes, 32 bytes of K scales and 576 bytes of V blocks.
+
+No KLD has been scored for K8V4 on this model, and no decode or prefill number: those need the card. The gates it
+carries are the repo's usual ones (CONTRIBUTING §"What every change must include"): the CPU quantizer test
+(`kv_q4_layout_test`), the GPU parity test against a double-precision reference (`gqa_k8v4_parity`), and then the
+100-chunk KLD table and the long-context windows of P0 item 3.
+

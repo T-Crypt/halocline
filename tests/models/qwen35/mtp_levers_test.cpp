@@ -38,11 +38,17 @@ double mib(uint64_t bytes) { return (double) bytes / 1048576.0; }
 int main() {
     using namespace halo::dense;
     // --mtp-kv's values
-    check(mtp_kv_format("") == 1, "--mtp-kv unset is fp16");
-    check(mtp_kv_format("fp16") == 1, "--mtp-kv fp16");
-    check(mtp_kv_format("int8") == 2, "--mtp-kv int8");
-    check(mtp_kv_format("q4") == -1, "--mtp-kv q4 is refused");
-    check(mtp_kv_format("INT8") == -1, "--mtp-kv is case-sensitive");
+    KvFormat f = KvFormat::K8V4;
+    check(mtp_kv_format("", f) && f == KvFormat::Fp16, "--mtp-kv unset is fp16");
+    check(mtp_kv_format("fp16", f) && f == KvFormat::Fp16, "--mtp-kv fp16");
+    check(mtp_kv_format("int8", f) && f == KvFormat::Int8, "--mtp-kv int8");
+    check(!mtp_kv_format("q4", f), "--mtp-kv q4 is refused");
+    check(!mtp_kv_format("INT8", f), "--mtp-kv is case-sensitive");
+    check(!mtp_kv_format("k8v4", f), "--mtp-kv k8v4 is refused: the main cache's format");
+    // the conversation cache's numbers, for the main cache and the drafter alike (a store from either branch reads back
+    // under the same flags)
+    check(kv_format_id(KvFormat::Fp16) == 1 && kv_format_id(KvFormat::Int8) == 2 && kv_format_id(KvFormat::K8V4) == 3,
+          "a stored format is 1 fp16, 2 int8, 3 K8V4");
 
     // the levers against the drafter the load picks
     check(mtp_option_error(false, "", 0, Drafter::Mtp).empty(), "no levers on the MTP drafter");
@@ -51,6 +57,8 @@ int main() {
     check(mtp_option_error(false, "", 32768, Drafter::Mtp).empty(), "--mtp-window on the MTP drafter");
     check(mtp_option_error(true, "int8", 32768, Drafter::Mtp).empty(), "both levers together");
     check(has(mtp_option_error(true, "q4", 0, Drafter::Mtp), "--mtp-kv q4"), "a bad format names the flag and its values");
+    check(has(mtp_option_error(true, "k8v4", 0, Drafter::Mtp), "the main cache's format"),
+          "-mtp-kv k8v4 is refused by name: the drafter keeps fp16 or int8");
     check(has(mtp_option_error(false, "", -1, Drafter::Mtp), "--mtp-window -1"), "a negative window is refused");
     check(has(mtp_option_error(false, "", (int64_t) 1 << 41, Drafter::Mtp), "--mtp-window"),
           "a window past any context is refused");
@@ -87,12 +95,12 @@ int main() {
     Geometry g;
     g.n_kv = 4;
     g.head_dim = 256;
-    check(kv_cell_bytes(g, 1) == 4096, "an fp16 drafter cell is 4 * 256 * 2 * 2 bytes");
-    check(kv_cell_bytes(g, 2) == 2112, "an int8 drafter cell is 4 * (256 + 8) * 2 bytes");
-    check(mib(kv_cell_bytes(g, 1) * 262144) == 1024.0, "fp16 at 262144 cells: 1024 MiB");
-    check(mib(kv_cell_bytes(g, 2) * 262144) == 528.0, "int8 at 262144 cells: 528 MiB");
-    check(kv_cell_bytes(g, 1) * 32783 == 134279168, "fp16 at a 32768 window's ring: 134279168 B (128.05 MiB)");
-    check(kv_cell_bytes(g, 2) * 32783 == 69237696, "int8 at a 32768 window's ring: 69237696 B (66.03 MiB)");
+    check(kv_cell_bytes(g, KvFormat::Fp16) == 4096, "an fp16 drafter cell is 4 * 256 * 2 * 2 bytes");
+    check(kv_cell_bytes(g, KvFormat::Int8) == 2112, "an int8 drafter cell is 4 * (256 + 8) * 2 bytes");
+    check(mib(kv_cell_bytes(g, KvFormat::Fp16) * 262144) == 1024.0, "fp16 at 262144 cells: 1024 MiB");
+    check(mib(kv_cell_bytes(g, KvFormat::Int8) * 262144) == 528.0, "int8 at 262144 cells: 528 MiB");
+    check(kv_cell_bytes(g, KvFormat::Fp16) * 32783 == 134279168, "fp16 at a 32768 window's ring: 134279168 B (128.05 MiB)");
+    check(kv_cell_bytes(g, KvFormat::Int8) * 32783 == 69237696, "int8 at a 32768 window's ring: 69237696 B (66.03 MiB)");
 
     // the drafter's part of a conversation image: the same format, the matched rows, and no ring
     Options o;
@@ -100,7 +108,7 @@ int main() {
     check(mtp_image_matches(o, 1, 100, 100), "an fp16 image at its rows is this session's");
     check(!mtp_image_matches(o, 2, 100, 100), "an int8 image is not an fp16 session's");
     check(!mtp_image_matches(o, 1, 99, 100), "an image shorter than the match is refused");
-    o.mtp_format = 2;
+    o.mtp_format = KvFormat::Int8;
     check(mtp_image_matches(o, 2, 100, 100), "an int8 image is an int8 session's");
     check(!mtp_image_matches(o, 1, 100, 100), "an fp16 image is not an int8 session's");
     o.mtp_window = 32768;

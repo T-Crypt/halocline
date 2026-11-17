@@ -1,6 +1,7 @@
 // src/kernels/cuda/dense_ops.cu - see include/halo/kernels/dense_ops.hpp.
 #include "halo/kernels/dense_ops.hpp"
 #include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/kernels/pdl.hpp"
 #include "philox.cuh"
 
@@ -280,7 +281,8 @@ __global__ void __launch_bounds__(HDW) attn_qk_prepare_kernel(const In* q_full, 
                                                             const float* __restrict__ k_norm, float eps, RopeSpec rope,
                                                             const int32_t* pos, int n_head, int n_kv, QO* q_out,
                                                             __half* k_cache, __half* v_cache, int64_t cell0, int q_stride,
-                                                            int64_t cap, const int32_t* cell0_dev, KvInt8 q8, KvFar far_kv) {
+                                                            int64_t cap, const int32_t* cell0_dev, KvInt8 q8, KvFar far_kv,
+                                                            KvK8V4 k8v4) {
     pdl_launch_dependents();
     pdl_wait();
     __shared__ float red[HDW / 32];
@@ -317,9 +319,49 @@ __global__ void __launch_bounds__(HDW) attn_qk_prepare_kernel(const In* q_full, 
     if (fa) cell -= far_kv.at;
     const int64_t at = (cell * n_kv + head) * HDW + d;
     const float vv = ldf(v + (t * n_kv + head) * HDW + d);
-    if (!q8.k) {
+    if (!q8.k && !k8v4.k) {
         (fa ? (__half*) far_kv.k : k_cache)[at] = __float2half_rn(y);
         (fa ? (__half*) far_kv.v : v_cache)[at] = __float2half_rn(vv);
+        return;
+    }
+    if (k8v4.k) {
+        // K8V4: K is the int8 cache's cell (same codes, same scale, same rounding), V is one q4_0 block per warp
+        // (kv_q4_layout.hpp). V is rotated HERE, not by the caller: one block is one 256-wide row with a thread a dim,
+        // so the transform is in-block, and both callers of this kernel (fp32 and BF16 rows) get it without a second
+        // pass over V. The stages, their order and the 1/16 at the load are fwht256_cuda's, so the bits are that
+        // kernel's (the decode and prompt readers then rotate the attention output back, which the caller does).
+        if constexpr (HDW == 256) {
+            __syncthreads();   // the rope block above read xs; the transform takes it now
+            xs[d] = vv * (1.0f / 16.0f);
+            __syncthreads();
+            for (int h = 1; h < HDW; h <<= 1) {
+                const float a = xs[d], b = xs[d ^ h];
+                __syncthreads();
+                xs[d] = (d & h) == 0 ? a + b : b - a;
+                __syncthreads();
+            }
+        }
+        const float vr = HDW == 256 ? xs[d] : vv;
+        const KvK8V4& c = k8v4;
+        float ak = fabsf(y);
+#pragma unroll
+        for (int o = 16; o > 0; o >>= 1) ak = fmaxf(ak, __shfl_xor_sync(0xffffffffu, ak, o));
+        if ((d & 31) == 0) ks8[d >> 5] = ak;
+        __syncthreads();
+        const int w0 = (d >> 5) & ~1;
+        ak = fmaxf(ks8[w0], ks8[w0 + 1]);
+        const __half hk = __float2half_rn(ak / 127.0f);
+        const float sk = __half2float(hk);
+        const float qk = sk > 0.0f ? rintf(y / sk) : 0.0f;
+        c.k[at] = (int8_t) fmaxf(-127.0f, fminf(127.0f, qk));
+        if ((d & 63) == 0) c.ks[(cell * n_kv + head) * (HDW / 64) + d / 64] = __half_as_ushort(hk);
+        // V: warp d / 32 holds the 32 values of block d / 32 of this head; lane 0 stores the scale, < 16 the codes
+        uint8_t byte;
+        const uint16_t vb = kv_q4_group(vr, byte);
+        KvQ4Block* blk = reinterpret_cast<KvQ4Block*>(c.vq + ((cell * n_kv + head) * (int64_t) kv_q4_head_bytes(HDW))) +
+                          (d >> 5);
+        if ((d & 31) == 0) blk->d = vb;
+        if ((d & 16) == 0) blk->qs[d & 15] = byte;
         return;
     }
     if (fa) q8 = far_kv.q8;
@@ -627,10 +669,12 @@ RopeSpec rope_tables(const RopeSpec& rope) {
 void attn_qk_prepare(const float* q_full, const float* k, const float* v, const float* q_norm, const float* k_norm,
                      float eps, const RopeSpec& rope, const int32_t* pos, int64_t T, int n_head, int n_kv,
                      float* q_out, uint16_t* k_cache, uint16_t* v_cache, int64_t cell0, void* stream, int hd, bool gated,
-                     int64_t cap, const int32_t* cell0_dev, KvInt8 q8, KvFar far_kv) {
+                     int64_t cap, const int32_t* cell0_dev, KvInt8 q8, KvFar far_kv, KvK8V4 k8v4) {
     if (T <= 0) return;
-    if (rope.rot <= 0 || rope.rot > hd || rope.rot % 2 || (hd != 128 && hd != 256)) {
-        halo::log::error("halo", "attn_qk_prepare: a rotary width of %d in %d-wide heads", rope.rot, hd);
+    if (rope.rot <= 0 || rope.rot > hd || rope.rot % 2 || (hd != 128 && hd != 256) ||
+        (k8v4.k && (hd != 256 || far_kv.k || cap > 0))) {
+        halo::log::error("halo", "attn_qk_prepare: a rotary width of %d in %d-wide heads, or a K8V4 cache that is not "
+                          "256 wide, unstreamed and unringed", rope.rot, hd);
         std::exit(1);
     }
     const dim3 grid((unsigned) T, (unsigned) (n_head + n_kv));
@@ -638,19 +682,20 @@ void attn_qk_prepare(const float* q_full, const float* k, const float* v, const 
     const RopeSpec r = rope_tables(rope);
     if (hd == 256)
         launch_pdl(attn_qk_prepare_kernel<256>, grid, dim3(256), 0, (cudaStream_t) stream, q_full, k, v, q_norm, k_norm, eps, r,
-                   pos, n_head, n_kv, q_out, (__half*) k_cache, (__half*) v_cache, cell0, qs, cap, cell0_dev, q8, far_kv);
+                   pos, n_head, n_kv, q_out, (__half*) k_cache, (__half*) v_cache, cell0, qs, cap, cell0_dev, q8, far_kv, k8v4);
     else
         launch_pdl(attn_qk_prepare_kernel<128>, grid, dim3(128), 0, (cudaStream_t) stream, q_full, k, v, q_norm, k_norm, eps, r,
-                   pos, n_head, n_kv, q_out, (__half*) k_cache, (__half*) v_cache, cell0, qs, cap, cell0_dev, q8, far_kv);
+                   pos, n_head, n_kv, q_out, (__half*) k_cache, (__half*) v_cache, cell0, qs, cap, cell0_dev, q8, far_kv, k8v4);
     check("attn_qk_prepare");
 }
 
 void attn_qk_prepare_bf16(const uint16_t* q_full, const uint16_t* k, const uint16_t* v, const float* q_norm, const float* k_norm,
                           float eps, const RopeSpec& rope, const int32_t* pos, int64_t T, int n_head, int n_kv, uint16_t* q_out,
-                          int64_t cell0, void* stream, KvInt8 q8, uint16_t* k_cache, uint16_t* v_cache, KvFar far_kv, int64_t cap) {
+                          int64_t cell0, void* stream, KvInt8 q8, uint16_t* k_cache, uint16_t* v_cache, KvFar far_kv,
+                          KvK8V4 k8v4, int64_t cap) {
     if (T <= 0) return;
-    if (rope.rot <= 0 || rope.rot > 256 || rope.rot % 2) {
-        halo::log::error("halo", "attn_qk_prepare_bf16: a rotary width of %d", rope.rot);
+    if (rope.rot <= 0 || rope.rot > 256 || rope.rot % 2 || (k8v4.k && (far_kv.k || cap > 0))) {
+        halo::log::error("halo", "attn_qk_prepare_bf16: a rotary width of %d, or a streamed or ringed K8V4 cache", rope.rot);
         std::exit(1);
     }
     const dim3 grid((unsigned) T, (unsigned) (n_head + n_kv));
@@ -660,7 +705,7 @@ void attn_qk_prepare_bf16(const uint16_t* q_full, const uint16_t* k, const uint1
     const __nv_bfloat16* vv = reinterpret_cast<const __nv_bfloat16*>(v);
     launch_pdl(attn_qk_prepare_kernel<256, __nv_bfloat16, __nv_bfloat16>, grid, dim3(256), 0, (cudaStream_t) stream, qf, kk, vv,
                q_norm, k_norm, eps, r, pos, n_head, n_kv, reinterpret_cast<__nv_bfloat16*>(q_out), (__half*) k_cache, (__half*) v_cache, cell0, 512, cap,
-               (const int32_t*) nullptr, q8, far_kv);
+               (const int32_t*) nullptr, q8, far_kv, k8v4);
     check("attn_qk_prepare_bf16");
 }
 

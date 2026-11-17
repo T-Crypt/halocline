@@ -3,6 +3,7 @@
 
 #include "halo/kernels/gdn_prompt.hpp"
 #include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/kernels/logprobs.hpp"
 #include "halo/kernels/nvfp4_planes.hpp"
 #include "halo/prefill/fp4_dense.hpp"
@@ -288,36 +289,43 @@ bool decode_drafter(Model& m, std::string& err) {
 
 }  // namespace
 
-namespace {
-// a cell of one attention layer, K and V: fp16, or int8 codes with their fp16 scales
-uint64_t cell_bytes(const Geometry& g, bool kv_int8) { return kv_cell_bytes(g, kv_int8 ? 2 : 1); }
-}  // namespace
+// a cell of one attention layer, K and V: fp16, int8 codes with their fp16 scales, or K that int8 form and V in
+// rotated q4_0 blocks (kv_q4_layout.hpp: an fp16 scale and 16 code bytes per 32 values)
+uint64_t kv_cell_bytes(const Geometry& g, KvFormat fmt) {
+    const uint64_t k8 = (uint64_t) g.n_kv * ((uint64_t) g.head_dim + (uint64_t) (g.head_dim / 64) * 2);
+    switch (fmt) {
+        case KvFormat::Fp16: return (uint64_t) g.n_kv * g.head_dim * 2 * 2;
+        case KvFormat::Int8: return 2 * k8;
+        case KvFormat::K8V4: return k8 + (uint64_t) g.n_kv * kernels::kv_q4_head_bytes(g.head_dim);
+    }
+    return 0;
+}
 
 int64_t resident_cells(int64_t max_context, int64_t kv_resident) {
     return kv_resident > 0 && kv_resident < max_context ? kv_resident : max_context;
 }
 
-uint64_t shared_bytes(const Geometry& g, int64_t max_context, bool kv_int8, int64_t kv_resident) {
-    const uint64_t stage = g.attn_layers() > 0 ? (uint64_t) (max_context - resident_cells(max_context, kv_resident)) * cell_bytes(g, kv_int8) : 0;
+uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident) {
+    const uint64_t stage = g.attn_layers() > 0 ? (uint64_t) (max_context - resident_cells(max_context, kv_resident)) * kv_cell_bytes(g, kv) : 0;
     return window_bytes(g, BlockDrafter{}, max_context) + chunk_bytes(g) + stage + (512ull << 20);
 }
 
-uint64_t session_host_bytes(const Geometry& g, int64_t max_context, bool kv_int8, int64_t kv_resident) {
-    return (uint64_t) (max_context - resident_cells(max_context, kv_resident)) * g.attn_layers() * cell_bytes(g, kv_int8);
+uint64_t session_host_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident) {
+    return (uint64_t) (max_context - resident_cells(max_context, kv_resident)) * g.attn_layers() * kv_cell_bytes(g, kv);
 }
 
-uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, bool kv_int8, int64_t kv_resident) {
+uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, KvFormat kv, int64_t kv_resident) {
     if (g.kinds[(size_t) il] == Mixer::Gdn) {
         const uint64_t C = (uint64_t) g.conv_channels();
         return (2 * ((uint64_t) g.gdn_state * g.gdn_v_heads * g.gdn_state + C * 3) + kWindow * (2 * C + 2 * (uint64_t) g.gdn_v_heads)) * 4;
     }
-    return (uint64_t) resident_cells(max_context, kv_resident) * cell_bytes(g, kv_int8) + 4 * 256;
+    return (uint64_t) resident_cells(max_context, kv_resident) * kv_cell_bytes(g, kv) + 4 * 256;
 }
 
-uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, bool kv_int8, int64_t kv_resident, int mtp_format,
-                       int64_t mtp_window) {
+uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, KvFormat kv, int64_t kv_resident,
+                       KvFormat mtp_format, int64_t mtp_window) {
     uint64_t b = 64 * 256;
-    for (int il = 0; il < g.n_layers; ++il) b += session_layer_bytes(g, il, max_context, kv_int8, kv_resident);
+    for (int il = 0; il < g.n_layers; ++il) b += session_layer_bytes(g, il, max_context, kv, kv_resident);
     // the drafter's cells: its own layer's format, and with a window only the ring's
     const int64_t cap = mtp ? mtp_ring_cap(max_context, mtp_window) : 0;
     const uint64_t drafter =
@@ -578,7 +586,7 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
         // the prompt chunks' VRAM copy of one layer's far cells, laid out as a session's far buffers
         const size_t cells = (size_t) (o.max_context - kept) * g.n_kv * g.head_dim;
         void* p = nullptr;
-        if (cudaMalloc(&p, (size_t) (o.max_context - kept) * cell_bytes(g, o.kv_int8)) != cudaSuccess ||
+        if (cudaMalloc(&p, (size_t) (o.max_context - kept) * kv_cell_bytes(g, o.kv)) != cudaSuccess ||
             cudaStreamCreateWithFlags(&m->stage_side, cudaStreamNonBlocking) != cudaSuccess ||
             cudaEventCreateWithFlags(&m->stage_free, cudaEventDisableTiming) != cudaSuccess ||
             cudaEventCreateWithFlags(&m->stage_ready, cudaEventDisableTiming) != cudaSuccess) {
@@ -589,7 +597,7 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
         m->owned.push_back(p);
         kernels::KvFar& f = m->stage;
         f.at = kept;
-        if (o.kv_int8) {
+        if (o.kv == KvFormat::Int8) {
             f.q8.k = (int8_t*) p;
             f.q8.v = f.q8.k + cells;
             f.q8.ks = (uint16_t*) (f.q8.v + cells);

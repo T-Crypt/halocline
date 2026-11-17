@@ -170,6 +170,7 @@ struct SessionState {
     size_t gdn_floats = 0;                       // per layer
     std::vector<uint16_t*> kc, vc;               // per attention layer: [cell][n_kv][head_dim] fp16 (null with int8)
     std::vector<kernels::KvInt8> kq;             // per attention layer: the int8 cache ({} with fp16)
+    std::vector<kernels::KvK8V4> k8v4;           // per attention layer: the K8V4 cache ({} with the other formats)
     // per attention layer, with K/V streaming: the cells from Options::kv_resident on, in page-locked host memory
     // (device-mapped); {} without.  kc/vc/kq then hold only the first kv_resident cells
     std::vector<kernels::KvFar> far_kv;
@@ -184,7 +185,7 @@ struct SessionState {
     // the drafter (null without one): its KV, the last window's normed hidden rows, and the row waiting for the
     // token after it (cell tail_cell, -1 none)
     uint16_t *mtp_kc = nullptr, *mtp_vc = nullptr;
-    kernels::KvInt8 mtp_kq;                      // its int8 cache instead (Options::mtp_format 2), kc/vc null then
+    kernels::KvInt8 mtp_kq;                      // its int8 cache instead (Options::mtp_format Int8), kc/vc null then
     int64_t mtp_cap = 0;                         // cells its cache holds when the window keeps it in a ring (0: the context's)
     float *hid = nullptr, *tail = nullptr, *chain = nullptr;   // chain: [2][n_embd]
     float *dlogits = nullptr, *lp = nullptr;     // the drafter's head row and its picks [kWindow][kLogprobStride]
