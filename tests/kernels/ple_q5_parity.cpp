@@ -1,7 +1,7 @@
 // Real-artifact Q5_0 or Q8_0 PLE rows against ggml's reference dequantizer.
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/ggml/ggml.h"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/ggml/ggml.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "usage: ple_q5_parity <gguf-containing-ple>\n");
         return 2;
     }
-    basalt::GgufFile gguf(argv[1]);
+    halo::GgufFile gguf(argv[1]);
     const auto* tensor = gguf.find("per_layer_token_embd.weight");
     if (!tensor || (tensor->type != 6 && tensor->type != 8) || tensor->shape.size() != 2 || tensor->shape[0] != 160) {
         std::fprintf(stderr, "expected Q5_0 or Q8_0 PLE [160, N]\n");
@@ -22,9 +22,9 @@ int main(int argc, char** argv) {
     }
     const bool q8 = tensor->type == 8;
     const size_t row_bytes = q8 ? 170 : 110;
-    basalt::kernels::PleIoOptions options;
-    options.mode = basalt::kernels::PleIo::Mmap;
-    basalt::kernels::PleTable table;
+    halo::kernels::PleIoOptions options;
+    options.mode = halo::kernels::PleIo::Mmap;
+    halo::kernels::PleTable table;
     std::string err;
     if (!table.open(argv[1], err, options)) {
         std::fprintf(stderr, "%s\n", err.c_str());

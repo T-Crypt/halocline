@@ -2,13 +2,13 @@
 
 #include "common.hpp"
 #include "cpu_warm.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 
 // the MoE tail (dec_moe.hpp): planned on CUDA0 from device residency tables, the CPU pool served by the host loop
 // (only its own entries).
@@ -17,7 +17,7 @@ struct DecMoe {
     int32_t* res0 = nullptr;                 ///< CUDA0: [n_layers * n_expert] CUDA0 slot or -1 (host_res mirrored)
     std::vector<int32_t> shadow0;            ///< what res0 holds
     CpuWarm* warm = nullptr;                 ///< the CPU tier's warm-up (null: off)
-    basalt::kernels::DmPlan* plan = nullptr;
+    halo::kernels::DmPlan* plan = nullptr;
     unsigned int* ctr = nullptr;
     unsigned long long* slot_off = nullptr;  ///< CUDA0's per-slot offsets (null: slot * blob)
     int vram = -1;   // the VRAM share's kernels (dec_moe_vram's kind; -1 grouped)
@@ -37,7 +37,7 @@ struct DecMoe {
     int64_t wstat_windows = 0, wstat_t = 0;
     // mapped: per ring header, FFN input and q8_1 rows; the stop word (UINT32_MAX: a released window, which ends the
     // glue launches' landed wait)
-    basalt::kernels::DmRing* h_ring = nullptr; basalt::kernels::DmRing* m_ring = nullptr;
+    halo::kernels::DmRing* h_ring = nullptr; halo::kernels::DmRing* m_ring = nullptr;
     float* h_x = nullptr; float* m_x = nullptr;
     uint8_t* h_xq = nullptr; uint8_t* m_xq = nullptr;
     uint32_t* h_stop = nullptr; uint32_t* m_stop = nullptr;
@@ -62,4 +62,4 @@ struct DecMoe {
     static constexpr int kPinSlots = 8;
 };
 
-}  // namespace basalt::core
+}  // namespace halo::core

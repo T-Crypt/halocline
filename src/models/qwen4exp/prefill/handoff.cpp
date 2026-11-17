@@ -1,11 +1,11 @@
 #include "run.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
 #include <string>
 #include <future>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 int Prefill::Run::Chunk::finish() {
@@ -28,4 +28,4 @@ int Prefill::Run::Chunk::finish() {
     return 0;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

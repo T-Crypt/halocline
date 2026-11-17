@@ -8,7 +8,7 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
-namespace basalt::vision {
+namespace halo::vision {
 
 /// x[t] += patch bias + bilinear position embedding (48x48 table) for the patch at merge-order row t.
 void launch_embed_finish(float* x, const float* bias, const float* pos_table, int n, int gx, int gy, cudaStream_t s);
@@ -29,4 +29,4 @@ void launch_bias_gelu(const float* g, const float* bias, __nv_bfloat16* y, int n
 /// y[t][c] = g[t][c] + bias[c]
 void launch_bias_copy(const float* g, const float* bias, float* y, int n, int cols, cudaStream_t s);
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

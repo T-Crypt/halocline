@@ -7,17 +7,17 @@
 //   up   : mixed[d] = mean_c xn[c,d] * sigmoid(q_up[c*n_embd + d] . lo)
 //
 // Every token's values come from the same operations in the same order whatever the token count.
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int MT = kFusedGrMaxT;
@@ -251,14 +251,14 @@ bool hc8_gr_read_multi(const FusedGrArgs* a, int n_tok, int64_t n_embd, int64_t 
     const bool have = hc8_view(a[0].w_up, vu) && (!inj || hc8_view(a[0].w_inject, vi));
     if (!have) {
         if (vd.owned || vu.owned) {
-            basalt::log::error("basalt", "hc8_gr_read: a read's matrices are not all 8-bit copies");
+            halo::log::error("halo", "hc8_gr_read: a read's matrices are not all 8-bit copies");
             std::exit(1);
         }
         return false;
     }
     if (n_tok > MT || hc < 1 || hc > MAX_HC || vd.cols != D || vu.rows != D || vu.cols != vd.rows || vd.rows > MAX_LR ||
         (inj && (vi.rows != hc || vi.cols != D)) || n_embd % G8 != 0) {
-        basalt::log::error("basalt", "hc8_gr_read: unsupported geometry (%d tokens, n_embd %lld, hc %lld, lr %d)", n_tok,
+        halo::log::error("halo", "hc8_gr_read: unsupported geometry (%d tokens, n_embd %lld, hc %lld, lr %d)", n_tok,
                      (long long) n_embd, (long long) hc, vd.rows);
         std::exit(1);
     }
@@ -268,7 +268,7 @@ bool hc8_gr_read_multi(const FusedGrArgs* a, int n_tok, int64_t n_embd, int64_t 
         if (!x.R || !x.w_norm || !x.lo || !x.rs || !x.mixed || (inj && !x.inject_out) || x.apply != a[0].apply ||
             (x.apply && (!x.bo_prev || !x.inj_prev || !x.R_out)) || x.w_down != a[0].w_down || x.w_up != a[0].w_up ||
             x.w_inject != a[0].w_inject || x.w_norm != a[0].w_norm) {
-            basalt::log::error("basalt", "hc8_gr_read: invalid arguments for token %d", t);
+            halo::log::error("halo", "hc8_gr_read: invalid arguments for token %d", t);
             std::exit(1);
         }
         p.R[t] = x.R; p.R_out[t] = x.R_out; p.bo[t] = x.bo_prev; p.inj_prev[t] = x.inj_prev;
@@ -286,10 +286,10 @@ bool hc8_gr_read_multi(const FusedGrArgs* a, int n_tok, int64_t n_embd, int64_t 
     hc8_up_kernel<<<(unsigned) ((n_embd + UP_THREADS / 32 - 1) / (UP_THREADS / 32)), UP_THREADS, 0, st>>>(p);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "hc8_gr_read: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "hc8_gr_read: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     return true;
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

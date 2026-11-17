@@ -15,9 +15,9 @@
 // The per-expert gather and the grouped gather must give bitwise equal outputs.  An all-zero token stays exactly 0.
 // Then a microbench line: one layer at a 2048-token chunk (512 experts, top 10) - gathers plus products - in us and
 // TFLOP/s.  --no-bench.  Exit 77 without a CUDA device.
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cuda_runtime.h>
 
@@ -35,7 +35,7 @@
 #include <vector>
 
 namespace {
-namespace mmq = basalt::prefill::mmq;
+namespace mmq = halo::prefill::mmq;
 
 constexpr int N = 2560, FF = 640, K = 10, GROUP = 16;
 constexpr size_t GU_ROW = (size_t) N / 64 * 36, D_ROW = (size_t) FF / 64 * 36;

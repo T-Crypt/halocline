@@ -9,9 +9,9 @@
 //   5. unless --no-bench: us per call, TFLOP/s of the product and GB/s of the bytes moved, against the two steps.
 //
 //     build/prefill_hc_up_mix_test [--no-bench]
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 
 #include <cuda_runtime.h>
 
@@ -24,8 +24,8 @@
 #include <string>
 #include <vector>
 
-namespace P = basalt::prefill;
-namespace K = basalt::kernels;
+namespace P = halo::prefill;
+namespace K = halo::kernels;
 
 namespace {
 

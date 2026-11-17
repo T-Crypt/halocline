@@ -1,20 +1,20 @@
-// src/artifact/gguf_reader.cpp - the `basalt-gguf` CLI.  The reader itself is header-only in
-// include/basalt/artifact/gguf_reader.hpp; this file is just the entry point, so it cannot drift
+// src/artifact/gguf_reader.cpp - the `halo-gguf` CLI.  The reader itself is header-only in
+// include/halo/artifact/gguf_reader.hpp; this file is just the entry point, so it cannot drift
 // from the library it exercises.
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/model/adapter.hpp"
-#include "basalt/models/builtin.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/model/adapter.hpp"
+#include "halo/models/builtin.hpp"
 
 #ifndef GGUF_MAIN_DISABLED
 int main(int argc, char** argv) {
-    basalt::models::register_builtin_models();
+    halo::models::register_builtin_models();
     if (argc < 2) {
         std::printf("usage: gguf_reader <file.gguf> [--check]\n");
         return 2;
     }
     const bool check = (argc > 2 && std::string(argv[2]) == "--check");
     try {
-        basalt::GgufFile g(argv[1]);
+        halo::GgufFile g(argv[1]);
         std::printf("%s\n", argv[1]);
         std::printf("  version %u   tensors %zu   metadata %zu   data_start %llu   size %llu\n", g.version(),
                     g.tensors().size(), g.metadata().size(), (unsigned long long)g.data_start(),
@@ -32,14 +32,14 @@ int main(int argc, char** argv) {
             // Every tensor's byte size must land inside the gap to the next tensor's offset, since
             // GGUF aligns every tensor. This bracket test
             // validates block_geometry() against the file rather than asserting it.
-            std::vector<const basalt::TensorInfo*> ordered;
+            std::vector<const halo::TensorInfo*> ordered;
             for (const auto& t : g.tensors()) ordered.push_back(&t);
             std::sort(ordered.begin(), ordered.end(), [](auto a, auto b) { return a->offset < b->offset; });
             size_t bad = 0, unknown = 0;
             for (size_t i = 0; i < ordered.size(); ++i) {
                 const auto* t = ordered[i];
                 int el = 0, by = 0;
-                if (!basalt::block_geometry(t->type, el, by)) {
+                if (!halo::block_geometry(t->type, el, by)) {
                     ++unknown;
                     continue;
                 }
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
                 if (!(nb <= end && end < nb + 32)) ++bad;
             }
             std::printf("  geometry bracket: %zu out of range, %zu types unknown\n", bad, unknown);
-            const std::string err = basalt::model::check_architecture(g);
+            const std::string err = halo::model::check_architecture(g);
             std::printf("  architecture guard: %s\n", err.empty() ? "PASS" : ("FAIL - " + err).c_str());
             if (bad) return 1;
         }

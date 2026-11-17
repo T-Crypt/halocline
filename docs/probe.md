@@ -1,18 +1,21 @@
-# basalt-probe
+# halo-probe
 
-`bin/basalt-probe` starts the engine (as `basalt-bench` does), measures the machine's rates and the cold speed on three fixtures, and
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
+
+`bin/halo-probe` starts the engine (as `halo-bench` does), measures the machine's rates and the cold speed on three fixtures, and
 prints suggested values. It is manual: it changes and saves nothing.
 
 ```
-basalt-probe --model PACK.basalt -- ENGINE FLAGS...
+halo-probe --model PACK.basalt -- ENGINE FLAGS...
 ```
 
 | Option | Meaning |
 |---|---|
 | `--model FILE` | the model file |
-| `--engine BIN`, `--fixtures DIR`, `--logs DIR` | as for `basalt-bench` |
+| `--engine BIN`, `--fixtures DIR`, `--logs DIR` | as for `halo-bench` |
 | `--gpu A,B` or `auto` | the cards, as for the server; default GPU 0 |
-| `-- ARGS` | engine flags, as for `basalt-bench`; the report prints the flags it used. `--expert-profile-save FILE` is compared, never written |
+| `-- ARGS` | engine flags, as for `halo-bench`; the report prints the flags it used. `--expert-profile-save FILE` is compared, never written |
 
 ## What it does
 

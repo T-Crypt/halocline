@@ -1,12 +1,12 @@
 #include "common.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/kernels/pdl.hpp"
 #include <algorithm>
 #include <cmath>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // Whether the zero-doorbell graph is right for the next window: only while every expert of [lb_, le_) is in VRAM
@@ -21,7 +21,7 @@ void Verifier::refresh_ar() {
     const bool off = lo < 0;
     if (off == ar_off_) return;
     ar_off_ = off;
-    basalt::log::info("basalt verify", "layers [%lld, %lld) %s", (long long) lb_,
+    halo::log::info("halo verify", "layers [%lld, %lld) %s", (long long) lb_,
                  (long long) (le_ < 0 ? g_->n_layers : le_),
                  off ? "have experts out of VRAM: the doorbell graph runs the windows"
                      : "are 100% VRAM resident again: the zero-doorbell graph");
@@ -30,10 +30,10 @@ void Verifier::refresh_ar() {
 bool Verifier::capture(int T, std::string& err) {
     cudaGraphExec_t& exec_t = ar_off_ ? exec_nr_[T] : exec_[T];
     if (exec_t != nullptr) return true;
-    const bool pdl_try = basalt::kernels::pdl_requested() && !pdl_off_;
+    const bool pdl_try = halo::kernels::pdl_requested() && !pdl_off_;
     // a window that does not capture or instantiate with programmatic dependent launch is captured again without it
     auto retry_plain = [&](const std::string& why) {
-        basalt::log::warn("basalt verify", "the %d-token window failed with programmatic dependent launch (%s): capturing it without", T,
+        halo::log::warn("halo verify", "the %d-token window failed with programmatic dependent launch (%s): capturing it without", T,
                      why.c_str());
         (void) cudaGetLastError();
         pdl_off_ = true;
@@ -46,10 +46,10 @@ bool Verifier::capture(int T, std::string& err) {
     }
     std::string rerr;
     pdl_rec_ = pdl_try;
-    basalt::kernels::pdl_count() = 0;
+    halo::kernels::pdl_count() = 0;
     const bool ok = record_window(T, cs_, rerr);
     pdl_rec_ = false;
-    const long pdl_n = basalt::kernels::pdl_count();
+    const long pdl_n = halo::kernels::pdl_count();
     cudaGraph_t graph = nullptr;
     const cudaError_t ce = cudaStreamEndCapture(cs_, &graph);
     if (!ok) {
@@ -73,12 +73,12 @@ bool Verifier::capture(int T, std::string& err) {
     const cudaError_t ue = cudaGraphUpload(exec_t, cs_);
     const cudaError_t us = cudaStreamSynchronize(cs_);
     if (pdl_try)
-        basalt::log::info("basalt verify", "captured the %d-token window (upload %s, sync %s), %ld programmatic "
+        halo::log::info("halo verify", "captured the %d-token window (upload %s, sync %s), %ld programmatic "
                              "dependent launches", T, cudaGetErrorString(ue), cudaGetErrorString(us), pdl_n);
     else
-        basalt::log::info("basalt verify", "captured the %d-token window (upload %s, sync %s)", T,
+        halo::log::info("halo verify", "captured the %d-token window (upload %s, sync %s)", T,
                      cudaGetErrorString(ue), cudaGetErrorString(us));
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

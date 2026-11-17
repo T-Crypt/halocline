@@ -2,13 +2,13 @@
 // else, so a CPU test links no model and no runtime.
 #pragma once
 
-#include "basalt/model/adapter.hpp"
+#include "halo/model/adapter.hpp"
 #include "models/qwen4exp/meta.hpp"
 
 #include <memory>
 #include <string>
 
-namespace basalt::test {
+namespace halo::test {
 
 class MetaAdapter final : public model::ModelAdapter {
 public:
@@ -37,4 +37,4 @@ inline void register_meta_adapters() {
         model::register_adapter(std::make_unique<MetaAdapter>("qwen4exp", models::qwen4exp::validate_meta, models::qwen4exp::describe_meta));
 }
 
-}  // namespace basalt::test
+}  // namespace halo::test

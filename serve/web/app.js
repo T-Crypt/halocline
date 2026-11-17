@@ -20,7 +20,7 @@ const shortGpu = s => String(s || "").replace(/^NVIDIA\s+/i, "").replace(/^GeFor
 const shortCpu = s => String(s || "").replace(/\((R|TM)\)/gi, "").replace(/\s+\d+-Core Processor$/i, "")
   .replace(/\s+CPU\s+@.*$/i, "").replace(/\s+Processor$/i, "").replace(/\s+/g, " ").trim();
 
-let apiKey = sessionStorage.getItem("basalt.key") || "";
+let apiKey = sessionStorage.getItem("halo.key") || "";
 let M = null;          // the last /metrics reading, with .slots from /slots
 
 async function get(path) {
@@ -61,7 +61,7 @@ function sbChart(a, lo, hi, accent, limit) {
   const segs = lines(a, v => clamp(100 - (v - lo) / (hi - lo) * 100, 1, 99));
   return `<div class="sb-ch"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">`
     + `<stop offset="0" stop-color="rgba(${tint},.13)"/><stop offset="1" stop-color="rgba(${tint},.02)"/></linearGradient></defs>${baseLine}`
-    + (limit ? `<line x1="0" y1="1" x2="100" y2="1" stroke="var(--basalt-500)" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>` : "")
+    + (limit ? `<line x1="0" y1="1" x2="100" y2="1" stroke="var(--halo-500)" stroke-width="1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>` : "")
     + segs.map(p => area(p, `url(#${id})`) + poly(p, `stroke="${accent ? "var(--accent)" : "var(--fg-2)"}" stroke-width="1.5"`)).join("")
     + `</svg></div>`;
 }
@@ -177,7 +177,7 @@ function drawSide(hw, st, hist, eng, r) {
   const spill = eng.spill, ssd = spill ? (r && num(r.ssd_share) ? r.ssd_share : hit == null ? null : 0) : 0;
   const tiers = [["VRAM", "var(--fg)", hit == null ? null : hit * (1 - (peer || 0))]];
   if (peer != null) tiers.push(["Peer", "var(--fg-3)", peer]);
-  tiers.push(["CPU", "var(--basalt-500)", hit == null ? null : Math.max(0, (1 - hit) * (1 - (peer || 0)) - (ssd || 0))]);
+  tiers.push(["CPU", "var(--halo-500)", hit == null ? null : Math.max(0, (1 - hit) * (1 - (peer || 0)) - (ssd || 0))]);
   if (spill) tiers.push(["SSD", "var(--warn)", ssd]);
   $(".sb-exp").classList.toggle("spill", !!spill);
   text($("#exp-note"), spill ? "SSD in use" : resident ? "All in VRAM" : "Last request");
@@ -193,7 +193,7 @@ function drawWeights(eng) {
   const B = n => num(n) && n > 0 ? n : 0, G = n => `${(n / 1024 ** 3).toFixed(1)}`;
   const spillRam = B(eng.host_weight_bytes), ssd = eng.spill ? B(eng.spill.bytes) : 0, emb = B(eng.host_embedding_bytes), vis = B(eng.host_vision_bytes);
   const gpu = num(eng.gpu_weight_bytes) ? eng.gpu_weight_bytes : null, ram = spillRam + emb + vis, bad = spillRam > 0 || ssd > 0;
-  const tiers = [["VRAM", "var(--fg)", gpu || 0, gpu == null], ["RAM", "var(--basalt-500)", ram, false]];
+  const tiers = [["VRAM", "var(--fg)", gpu || 0, gpu == null], ["RAM", "var(--halo-500)", ram, false]];
   if (ssd > 0) tiers.push(["SSD", "var(--warn)", ssd, false]);
   const total = tiers.reduce((a, t) => a + t[2], 0) || 1;
   $(".sb-exp").classList.toggle("spill", bad);
@@ -272,10 +272,10 @@ $("#chips").addEventListener("click", e => {
 });
 
 /* ---- main card: Slots (Context for one slot) | Requests | Queue ---- */
-let tab = sessionStorage.getItem("basalt.tab") || "slots";
+let tab = sessionStorage.getItem("halo.tab") || "slots";
 $("#tabs").addEventListener("click", e => {
   const b = e.target.closest("button[data-t]"); if (!b) return;
-  tab = b.dataset.t; try { sessionStorage.setItem("basalt.tab", tab); } catch (err) { /* private mode */ }
+  tab = b.dataset.t; try { sessionStorage.setItem("halo.tab", tab); } catch (err) { /* private mode */ }
   draw();
 });
 const accept = s => s.drafts_offered > 20 ? Math.round(s.drafts_accepted / s.drafts_offered * 100) : null;
@@ -517,7 +517,7 @@ async function pollLog() {
   setTimeout(pollLog, 1000);
 }
 $("#auth").onsubmit = e => {
-  e.preventDefault(); apiKey = $("#key").value.trim(); sessionStorage.setItem("basalt.key", apiKey);
+  e.preventDefault(); apiKey = $("#key").value.trim(); sessionStorage.setItem("halo.key", apiKey);
 };
 
 $("#host").textContent = location.host;

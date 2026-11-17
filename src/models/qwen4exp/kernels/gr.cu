@@ -1,6 +1,6 @@
 // src/models/qwen4exp/kernels/gr.cu - the gated residual / hyper-connection, `gr_read` and `gr_write`.
 //
-// See include/basalt/models/qwen4exp/kernels/gr.hpp for the semantics and for why the weights are bf16.
+// See include/halo/models/qwen4exp/kernels/gr.hpp for the semantics and for why the weights are bf16.
 //
 // `gr_read` is a weighted RMSNorm, the down MMVF, SiLU, the up MMVF, the gate + mean and the inject MMVF; the
 // projections are the BF16 MMVF taking FP32 activations, and the norm, nonlinearity and combine live in
@@ -10,11 +10,11 @@
 // `w_down[k][i]` with i contiguous - the reference's (hc_lr, hc*n_embd) row-major.  `hc_attn_up.weight` is
 // [320, 10240] so it holds `w_up[i][k]` with k contiguous - the reference's (hc*n_embd, hc_lr) row-major.  Both index
 // with no permutation at all.
-#include "basalt/models/qwen4exp/kernels/gr.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
-#include "basalt/models/qwen4exp/kernels/native_gr_norm.hpp"
-#include "basalt/models/qwen4exp/kernels/native_gr_postops.hpp"
+#include "halo/models/qwen4exp/kernels/gr.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/native_gr_norm.hpp"
+#include "halo/models/qwen4exp/kernels/native_gr_postops.hpp"
 
 #include <cuda_runtime.h>
 
@@ -23,9 +23,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 
 size_t gr_workspace_init(const GrShapes& s, void* base, GrWorkspace& out) {
     const size_t hc_dim = (size_t) s.hc * (size_t) s.n_embd;
@@ -68,11 +68,11 @@ void gr_read(const float* R, const float* w_norm, const uint16_t* w_down, const 
              float* inject, void* stream) {
     if (s.n_embd <= 0 || s.hc <= 0 || s.hc_lr <= 0) return;
     if (ws.xn == nullptr || ws.gated == nullptr || ws.lo == nullptr) {
-        basalt::log::error("basalt", "gr_read: GrWorkspace is not initialised (see gr_workspace_init)");
+        halo::log::error("halo", "gr_read: GrWorkspace is not initialised (see gr_workspace_init)");
         std::exit(1);
     }
     if (ws.bytes < gr_workspace_bytes(s)) {
-        basalt::log::error("basalt", "gr_read: GrWorkspace is %zu bytes but this geometry needs %zu",
+        halo::log::error("halo", "gr_read: GrWorkspace is %zu bytes but this geometry needs %zu",
                      ws.bytes, gr_workspace_bytes(s));
         std::exit(1);
     }
@@ -82,7 +82,7 @@ void gr_read(const float* R, const float* w_norm, const uint16_t* w_down, const 
         fa.eps = eps; fa.lo = ws.lo; fa.rs = ws.gated; fa.inject_out = inject; fa.mixed = mixed;
         if (hc8_gr_read_multi(&fa, 1, s.n_embd, s.hc, stream)) {
             if (stream == nullptr && cudaDeviceSynchronize() != cudaSuccess) {
-                basalt::log::error("basalt", "gr_read: the 8-bit read failed");
+                halo::log::error("halo", "gr_read: the 8-bit read failed");
                 std::exit(1);
             }
             return;
@@ -105,13 +105,13 @@ void gr_read(const float* R, const float* w_norm, const uint16_t* w_down, const 
 
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "gr_read launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "gr_read launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) {
         const cudaError_t se = cudaDeviceSynchronize();
         if (se != cudaSuccess) {
-            basalt::log::error("basalt", "gr_read: %s", cudaGetErrorString(se));
+            halo::log::error("halo", "gr_read: %s", cudaGetErrorString(se));
             std::exit(1);
         }
     }
@@ -124,10 +124,10 @@ void gr_write(const float* R, const float* block_out, const float* inject, const
     if (stream == nullptr) {
         const cudaError_t e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
-            basalt::log::error("basalt", "gr_write: %s", cudaGetErrorString(e));
+            halo::log::error("halo", "gr_write: %s", cudaGetErrorString(e));
             std::exit(1);
         }
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

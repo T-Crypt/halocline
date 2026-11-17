@@ -36,7 +36,7 @@ from serve.util.text import stop_strings
 
 
 CONTROL_BODY_MAX = 64 << 10                 # the unused body of /load and /unload
-# What this server offers beyond the OpenAI, Anthropic and llama.cpp APIs, listed under /props "basalt"
+# What this server offers beyond the OpenAI, Anthropic and llama.cpp APIs, listed under /props "halo"
 CAPABILITIES = ["answer_now", "logprobs", "documents"]
 TURN_POLL_S = 0.5                           # how soon a request waiting for its turn notices its client left
 
@@ -354,7 +354,7 @@ def make_handler(target: Service | Router):
                 load = shown.load_progress()
                 self._json(200, {"status": "ok", "max_context": shown.engine.max_context, "model": shown.model,
                                  "images": shown.vision is not None, "api_key": bool(svc.api_key),
-                                 "loaded": shown.loaded(), "loading": shown.loading, "service": "basalt",
+                                 "loaded": shown.loaded(), "loading": shown.loading, "service": "halo",
                                  "percent": load.get("percent") if load else None, "swap": router.swap_status()})
             elif path == "/status":
                 if not self._authorized():                  # it shows the last answer's tail
@@ -571,9 +571,9 @@ def make_handler(target: Service | Router):
                 props["model_path"] = svc.engine.model_path
             version = getattr(svc.engine, "info", {}).get("version")
             if version:
-                props["build_info"] = "basalt " + str(version)
+                props["build_info"] = "halo " + str(version)
             # "video" only where a video can be read: image input on, a model that reads video, FFmpeg found
-            props["basalt"] = {"version": str(version) if version else None,
+            props["halo"] = {"version": str(version) if version else None,
                                "capabilities": list(CAPABILITIES) + (["video"] if svc.video_on() else [])}
             self._json(200, props)
 
@@ -878,7 +878,7 @@ def make_handler(target: Service | Router):
             req[GRAMMAR_KEY] = self.svc.grammar_for(tools, req.get("tool_choice"), req.get("tools"), response_format)
             self.svc.reasoning_budget(req)                         # a bad value is a 400 before streaming
             checked_sampling(req)                             # likewise a sampling value out of range
-            req[LOGPROBS_KEY] = checked_logprobs(req)         # Basalt's logprobs, as Chat Completions takes them
+            req[LOGPROBS_KEY] = checked_logprobs(req)         # Halocline's logprobs, as Chat Completions takes them
             stop_strings(req)                                 # likewise a bad stop
             self._open_live("msg_" + uuid.uuid4().hex[:24], req)
             self._take_turn(bool(req.get("stream")))

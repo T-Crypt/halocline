@@ -1,7 +1,7 @@
 #pragma once
 
-namespace basalt::program::cli {
+namespace halo::program::cli {
 
 void usage();
 
-}  // namespace basalt::program::cli
+}  // namespace halo::program::cli

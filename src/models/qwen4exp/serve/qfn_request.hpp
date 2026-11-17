@@ -1,11 +1,11 @@
 // src/models/qwen4exp/serve/qfn_request.hpp - a Flash-Next request: its state and its phases.
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "../../../program/serve/request.hpp"
 #include "qfn_state.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 class QfnRequest final : public Request {
 public:
@@ -28,8 +28,8 @@ public:
                    cudaMemcpyHostToDevice);
     }
     void mark_before_run() {
-        basalt::core::decode_gaps().mark(19);
-        basalt::core::decode_events().stamp(3);
+        halo::core::decode_gaps().mark(19);
+        halo::core::decode_events().stamp(3);
     }
     void spawn_adapt(bool early);
     void tier_before(int T, int e0, bool from_sfx);
@@ -63,7 +63,7 @@ public:
     }
     bool after_accept(int T, int& a, int e0, bool from_sfx);
     void note_draft_probs(bool from_sfx);
-    void stamp_before_commit() { basalt::core::decode_events().stamp(9); }
+    void stamp_before_commit() { halo::core::decode_events().stamp(9); }
     bool commit(int keep, std::string& e, int phase) { return cv->commit(keep, e, phase); }
     void on_token(int32_t tok) { if (runtime_.o.suffix_draft > 0) runtime_.sfx->append(tok); }
     void count_round() { ++runtime_.rounds; }
@@ -73,16 +73,16 @@ public:
     void window_timing(int T, int a, bool from_sfx, Clock::time_point round0, Clock::time_point tw0,
                        Clock::time_point tw1, Clock::time_point tw2);
     void mark_after_window() {
-        basalt::core::decode_events().stamp(1);
-        basalt::core::decode_gaps().mark(16);
+        halo::core::decode_events().stamp(1);
+        halo::core::decode_gaps().mark(16);
     }
     void observe_policy(bool from_sfx, int T, int a, int sfx_match, Clock::time_point round0) {
         runtime_.policy->observe(from_sfx, T, a, sfx_match,
                                  std::chrono::duration<double, std::milli>(Clock::now() - round0).count());
     }
-    void mark_loop_end() { basalt::core::decode_gaps().mark(17); }
+    void mark_loop_end() { halo::core::decode_gaps().mark(17); }
     void shed_low() { runtime_.shed_if_low(); }
-    void stamp_loop_end() { basalt::core::decode_events().stamp(2); }
+    void stamp_loop_end() { halo::core::decode_events().stamp(2); }
     void decode_end();
 
 private:
@@ -97,7 +97,7 @@ private:
     int wprob_n{};
     bool draft_failed{};
     using PfPart = QfnRuntime::PfPart;
-    basalt::core::SessionState* rview{};
+    halo::core::SessionState* rview{};
     int64_t kv_need{};
     struct KeepRouted {   // only this admission's fits, while slots decode
                 bool& on;
@@ -122,12 +122,12 @@ private:
     int64_t relaxed_kept{};
     std::vector<int32_t> drafts{};
     std::vector<float> dprob{};
-    basalt::core::DraftCumAdapt cum_adapt{};   // this request's draft threshold
+    halo::core::DraftCumAdapt cum_adapt{};   // this request's draft threshold
     std::vector<int32_t> sbuf{};
     int64_t sfx_windows{};
     int64_t sfx_drafts{};
     int64_t sfx_ok{};
-    basalt::core::Verifier* cv{};
+    halo::core::Verifier* cv{};
     int n_chain{};
     bool dec_timing{};
     struct DecSnap {
@@ -210,4 +210,4 @@ private:
     void prompt_parts_reset() override;
 };
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

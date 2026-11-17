@@ -23,7 +23,7 @@ import uuid
 from serve.api.logprobs import MAX_TOP as MAX_TOP_LOGPROBS, REQUEST_KEY as LOGPROBS_KEY
 from serve.frontend import IMAGE_PARTS, VIDEO_PARTS, Event, _late_system_to_user, _parts_of, effort_kwargs, stable_tool_order
 
-ENCRYPTED_PREFIX = "basalt.r1:"                   # our own reasoning replay strings; others' are ignored
+ENCRYPTED_PREFIX = "halo.r1:"                   # our own reasoning replay strings; others' are ignored
 HOSTED_TOOLS = ("web_search", "web_search_preview", "file_search", "computer_use_preview", "computer_use",
                 "code_interpreter", "image_generation", "local_shell", "mcp", "tool_search")
 
@@ -362,7 +362,7 @@ class Assembler:
         self.seq = 0
         self.item = None                             # the open output item
         self.lps: list[dict] = []                    # the answer tokens' logprobs not yet in a delta
-        # Basalt's: a reasoning item's and each call item's tokens, on the item as `logprobs`
+        # Halocline's: a reasoning item's and each call item's tokens, on the item as `logprobs`
         self.want_lp = req.get(LOGPROBS_KEY) is not None
         self.lps_reasoning: list[dict] = []
         self.lps_tools: dict[int, list[dict]] = {}

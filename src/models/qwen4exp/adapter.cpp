@@ -3,15 +3,15 @@
 #include "models/qwen4exp/adapter.hpp"
 #include "models/qwen4exp/meta.hpp"
 
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
 #include "unicode_flags.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
-#include "basalt/program/qwen_forms.hpp"
+#include "halo/models/qwen4exp/options.hpp"
+#include "halo/program/qwen_forms.hpp"
 
-namespace basalt::models::qwen4exp {
+namespace halo::models::qwen4exp {
 namespace {
 
 constexpr const char* kPrefix = "qwen4exp.";
@@ -73,4 +73,4 @@ public:
 
 std::unique_ptr<model::ModelAdapter> make_adapter() { return std::make_unique<Adapter>(); }
 
-}  // namespace basalt::models::qwen4exp
+}  // namespace halo::models::qwen4exp

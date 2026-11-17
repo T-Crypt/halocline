@@ -3,8 +3,8 @@
 // line (us per call, GB/s over the bytes read and written).
 //
 //     dequant_f16_parity [rows cols iters]
-#include "basalt/artifact/dequant.hpp"
-#include "basalt/kernels/dequant_bf16.hpp"
+#include "halo/artifact/dequant.hpp"
+#include "halo/kernels/dequant_bf16.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -24,10 +24,10 @@ struct Ty {
     void (*cpu)(const uint8_t*, float*);
 };
 
-void cpu_q8_0(const uint8_t* b, float* o) { basalt::dequantize_q8_0(b, o); }
-void cpu_iq4_xs(const uint8_t* b, float* o) { basalt::dequantize_iq4_xs(b, o); }
-void cpu_q5_k(const uint8_t* b, float* o) { basalt::dequantize_q5_K(b, o); }
-void cpu_q6_k(const uint8_t* b, float* o) { basalt::dequantize_q6_K(b, o); }
+void cpu_q8_0(const uint8_t* b, float* o) { halo::dequantize_q8_0(b, o); }
+void cpu_iq4_xs(const uint8_t* b, float* o) { halo::dequantize_iq4_xs(b, o); }
+void cpu_q5_k(const uint8_t* b, float* o) { halo::dequantize_q5_K(b, o); }
+void cpu_q6_k(const uint8_t* b, float* o) { halo::dequantize_q6_K(b, o); }
 
 }  // namespace
 
@@ -58,10 +58,10 @@ int main(int argc, char** argv) {
         cudaMalloc(&d_h2, (size_t) n * 2 + 16);
         cudaMalloc(&d_f, (size_t) n * 4);
         cudaMemcpy(d_b, blk.data(), blk.size(), cudaMemcpyHostToDevice);
-        basalt::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h, nullptr);
-        basalt::kernels::dequant_f32(t.type, d_b, 0, rows, cols, d_f, nullptr);
+        halo::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h, nullptr);
+        halo::kernels::dequant_f32(t.type, d_b, 0, rows, cols, d_f, nullptr);
         // the same output through the unaligned (scalar-store) instance
-        basalt::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h2 + 1, nullptr);
+        halo::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h2 + 1, nullptr);
         std::vector<uint16_t> h((size_t) n), h2((size_t) n);
         std::vector<float> f((size_t) n);
         cudaMemcpy(h.data(), d_h, (size_t) n * 2, cudaMemcpyDeviceToHost);
@@ -87,9 +87,9 @@ int main(int argc, char** argv) {
         cudaEvent_t e0, e1;
         cudaEventCreate(&e0);
         cudaEventCreate(&e1);
-        for (int i = 0; i < 5; ++i) basalt::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h, nullptr);
+        for (int i = 0; i < 5; ++i) halo::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h, nullptr);
         cudaEventRecord(e0);
-        for (int i = 0; i < iters; ++i) basalt::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h, nullptr);
+        for (int i = 0; i < iters; ++i) halo::kernels::dequant_f16(t.type, d_b, 0, rows, cols, d_h, nullptr);
         cudaEventRecord(e1);
         cudaEventSynchronize(e1);
         float ms = 0;

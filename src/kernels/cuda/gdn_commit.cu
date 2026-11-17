@@ -1,19 +1,19 @@
-// src/kernels/cuda/gdn_commit.cu - the plain GDN commit: see include/basalt/kernels/gdn_window.hpp.
-#include "basalt/kernels/gdn_commit.cuh"
+// src/kernels/cuda/gdn_commit.cu - the plain GDN commit: see include/halo/kernels/gdn_window.hpp.
+#include "halo/kernels/gdn_commit.cuh"
 
 #include <cuda_runtime.h>
 
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 using namespace gdn_dev;
 
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e)); std::exit(1); }
 }
 
 __global__ void gdn_conv_commit_kernel(float* __restrict__ hist, const float* __restrict__ qkv, int C,
@@ -45,4 +45,4 @@ void gdn_conv_commit(float* history, const float* qkv, int channels, const int32
     check("gdn_conv_commit");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

@@ -1,8 +1,8 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
-#include "basalt/program/expert_spill.hpp"
+#include "halo/program/expert_spill.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int dispatch(Context& context) {
     auto& o = *context.o;
@@ -52,7 +52,7 @@ int dispatch(Context& context) {
 
     // Where the routed experts live, fastest tier first, and a warning when any of them is only in the file (decode
     // reads those from the SSD).  Called once the tiers are final.
-    basalt::program::ExpertSpill tier_spill;   // the experts only the file holds, once the tiers are final
+    halo::program::ExpertSpill tier_spill;   // the experts only the file holds, once the tiers are final
     auto report_expert_tiers = [&]() {
         uint64_t b_vram = 0, b_ram = 0, b_top = 0, b_file = 0;
         int64_t n_file = 0;
@@ -60,7 +60,7 @@ int dispatch(Context& context) {
         // the arena holds every expert in RAM (opening it fails when it cannot), so nothing it serves is file-backed
         const bool arena_ok = srcp == &arena_src && arena_src.mapped();
         for (int64_t l = 0; l < g.n_layers; ++l) {
-            const uint64_t blob = basalt::kernels::cpu::expert_layout().blob_bytes(l);
+            const uint64_t blob = halo::kernels::cpu::expert_layout().blob_bytes(l);
             for (int64_t e = 0; e < g.n_expert; ++e) {
                 const size_t i = (size_t) (l * g.n_expert + e);
                 bool on_gpu = (i < host_res.size() && host_res[i] >= 0);
@@ -76,24 +76,24 @@ int dispatch(Context& context) {
         tier_spill = {n_file, g.n_layers * g.n_expert, b_file};
         const double total = (double) (b_vram + b_ram + b_top + b_file);
         if (total <= 0.0) return;
-        basalt::core::draft_cum_cpu_mb() = (float) ((double) (b_ram + b_top) / (double) (g.n_layers * g.n_expert) / 1e6);
+        halo::core::draft_cum_cpu_mb() = (float) ((double) (b_ram + b_top) / (double) (g.n_layers * g.n_expert) / 1e6);
         constexpr double kGiB = 1073741824.0;
         auto pct = [&](uint64_t b) { return 100.0 * (double) b / total; };
         // RAM is the loaded copy (the bytes the loader reports); the top-up added after the load is shown beside it
         char top[48] = "";
         if (b_top > 0) std::snprintf(top, sizeof top, " + %.1f GiB topped up", (double) b_top / kGiB);
-        basalt::log::info("basalt generate", "experts live in VRAM %.1f GiB (%.0f%%), RAM "
+        halo::log::info("halo generate", "experts live in VRAM %.1f GiB (%.0f%%), RAM "
                              "%.1f GiB%s (%.0f%%), file (SSD) %.1f GiB (%.0f%%); %.1f GiB in all",
                      (double) b_vram / kGiB, pct(b_vram), (double) b_ram / kGiB, top,
                      pct(b_ram + b_top), (double) b_file / kGiB, pct(b_file), total / kGiB);
         std::string levers = ", or a smaller quant";
         if (!o.resident_cpu_experts) levers += ", --resident-experts";
         if (o.batch > 1) levers += ", fewer --parallel slots";
-        basalt::program::warn_spill(tier_spill, levers);
+        halo::program::warn_spill(tier_spill, levers);
     };
     if (!o.serve) report_expert_tiers();
     if (o.serve) {
-        basalt::models::qwen4exp::serve::Context context{
+        halo::models::qwen4exp::serve::Context context{
             .o = o,
             .ppl_base = ppl_base,
             .ppl_out = ppl_out,
@@ -140,7 +140,7 @@ int dispatch(Context& context) {
             .tier_spill = tier_spill,
             .report_expert_tiers = report_expert_tiers,
         };
-        return basalt::models::qwen4exp::serve::run(context);
+        return halo::models::qwen4exp::serve::run(context);
     }
 
 

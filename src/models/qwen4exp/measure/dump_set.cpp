@@ -1,36 +1,36 @@
-// basalt/program/measure/dump_set.cpp - see dump_set.hpp.
+// halo/program/measure/dump_set.cpp - see dump_set.hpp.
 //
 // Lifted out of `main()` unchanged: same reads, same headers, same report lines, same log text.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "dump_set.hpp"
 
-#include "basalt/models/qwen4exp/decode/layout.hpp"     // ModelGeometry
-#include "basalt/models/qwen4exp/decode/session.hpp"    // SessionState
-#include "basalt/log.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"     // ModelGeometry
+#include "halo/models/qwen4exp/decode/session.hpp"    // SessionState
+#include "halo/log.hpp"
+#include "halo/models/qwen4exp/options.hpp"
 
 #include <cmath>
 #include <cstdio>
 #include <vector>
 
-namespace basalt::models::qwen4exp::measure {
+namespace halo::models::qwen4exp::measure {
 
 int write_host_dumps(const HostDumpContext& c, std::string& err) {
     const Options& o = *c.o;
-    const basalt::core::ModelGeometry& g = *c.g;
-    const basalt::core::SessionState& ss = *c.ss;
+    const halo::core::ModelGeometry& g = *c.g;
+    const halo::core::SessionState& ss = *c.ss;
     (void) err;
 
     if (!o.dump_mixed.empty()) {
         std::vector<float> mx((size_t) g.n_embd);
         if (cudaMemcpy(mx.data(), ss.block.mixed, mx.size() * sizeof(float), cudaMemcpyDeviceToHost) !=
             cudaSuccess) {
-            basalt::log::error("basalt generate", "reading mixed back failed");
+            halo::log::error("halo generate", "reading mixed back failed");
             return 1;
         }
         std::FILE* mf = std::fopen(o.dump_mixed.c_str(), "wb");
         if (mf == nullptr) {
-            basalt::log::error("basalt generate", "cannot write %s", o.dump_mixed.c_str());
+            halo::log::error("halo generate", "cannot write %s", o.dump_mixed.c_str());
             return 1;
         }
         std::fwrite(mx.data(), sizeof(float), mx.size(), mf);
@@ -45,12 +45,12 @@ int write_host_dumps(const HostDumpContext& c, std::string& err) {
     if (!o.dump_residual.empty()) {
         std::vector<float> R((size_t) g.hc * g.n_embd);
         if (cudaMemcpy(R.data(), ss.R, R.size() * sizeof(float), cudaMemcpyDeviceToHost) != cudaSuccess) {
-            basalt::log::error("basalt generate", "reading R back failed");
+            halo::log::error("halo generate", "reading R back failed");
             return 1;
         }
         std::FILE* rf = std::fopen(o.dump_residual.c_str(), "wb");
         if (rf == nullptr) {
-            basalt::log::error("basalt generate", "cannot write %s", o.dump_residual.c_str());
+            halo::log::error("halo generate", "cannot write %s", o.dump_residual.c_str());
             return 1;
         }
         const int32_t hdr[2] = {(int32_t) g.hc, (int32_t) g.n_embd};
@@ -70,4 +70,4 @@ int write_host_dumps(const HostDumpContext& c, std::string& err) {
     return 0;
 }
 
-}  // namespace basalt::models::qwen4exp::measure
+}  // namespace halo::models::qwen4exp::measure

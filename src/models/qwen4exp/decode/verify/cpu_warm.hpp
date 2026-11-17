@@ -1,15 +1,15 @@
 #pragma once
 
 #include "common.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/cpu/pool.hpp"
 #include <atomic>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 
 // The CPU tier's cache warm-up.  After layer l's doorbell the parked pool workers score layer l + 1's router on layer
 // l's FFN input (the ring's q8_1 rows; the router in 4-bit with one scale per 32 values, a prediction only: half the
@@ -39,4 +39,4 @@ void warm_job(void* ctx, int w, int W, const std::atomic<bool>& stop);
 bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<uint8_t>* q4, std::vector<float>* s4);
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

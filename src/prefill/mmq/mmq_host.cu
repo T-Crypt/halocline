@@ -8,10 +8,10 @@
 #include <cstdlib>
 #include <mutex>
 #include <vector>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 [[noreturn]] void ggml_cuda_error(const char * stmt, const char * func, const char * file, int line, const char * msg) {
-    basalt::log::error("basalt", "mmq: %s: %s\n  in %s at %s:%d", msg, stmt, func, file, line);
+    halo::log::error("halo", "mmq: %s: %s\n  in %s at %s:%d", msg, stmt, func, file, line);
     std::abort();
 }
 

@@ -2,8 +2,8 @@
 // reference over the same quantized codes and scales: the plain product, the Add epilogue and the SwiGLU product; a
 // token's row is the same bits at 1, 1000 and 1100 tokens (on 8.9 the product is the f16 kernel).  --bench: TFLOP/s at
 // the Qwen3.8-27B MLP shapes.  Exit 77 without a GPU.
-#include "basalt/kernels/nvfp4_planes.hpp"
-#include "basalt/prefill/fp4_dense.hpp"
+#include "halo/kernels/nvfp4_planes.hpp"
+#include "halo/prefill/fp4_dense.hpp"
 
 #include <cuda_runtime.h>
 
@@ -14,8 +14,8 @@
 #include <random>
 #include <vector>
 
-namespace fd = basalt::prefill::fp4_dense;
-namespace np = basalt::kernels::nvfp4p;
+namespace fd = halo::prefill::fp4_dense;
+namespace np = halo::kernels::nvfp4p;
 
 namespace {
 

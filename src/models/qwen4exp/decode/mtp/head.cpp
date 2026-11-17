@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -28,8 +28,8 @@ uint64_t MtpDrafter::bind_bytes(uint64_t head_row_bytes, int head_type, int64_t 
                     int64_t n_base = size / 4;
                     for (int64_t i = 1; i < size / 4; ++i)
                         if (ids[i] < ids[i - 1]) { n_base = i; break; }
-                    bytes += basalt::kernels::q5k_proxy_bytes(n_base + (int64_t) xr) +
-                             basalt::kernels::q5k_proxy_scratch_bytes(n_base + (int64_t) xr);
+                    bytes += halo::kernels::q5k_proxy_bytes(n_base + (int64_t) xr) +
+                             halo::kernels::q5k_proxy_scratch_bytes(n_base + (int64_t) xr);
                 }
             }
         }
@@ -48,9 +48,9 @@ void draft_head_hint(int64_t n_tokens, uint64_t bytes) {
         std::snprintf(b, sizeof(b), " and %.0f MiB is free", (double) free_b / 1048576.0);
         free_s = b;
     }
-    basalt::log::warn("basalt mtp", "the draft head over %lld tokens needs %.0f MiB of VRAM%s.",
+    halo::log::warn("halo mtp", "the draft head over %lld tokens needs %.0f MiB of VRAM%s.",
                  (long long) n_tokens, (double) bytes / 1048576.0, free_s.c_str());
-    basalt::log::info("basalt mtp", "hint: a smaller draft vocabulary (--draft-vocab when converting the model), "
+    halo::log::info("halo mtp", "hint: a smaller draft vocabulary (--draft-vocab when converting the model), "
                          "a smaller --max-context, or closing what else uses the GPU leaves it room.");
 }
 }  // namespace
@@ -120,8 +120,8 @@ bool MtpDrafter::bind(const WeightTable& wt, const NativeHead* head, const float
                 uint64_t need = map.size() * 4 + (uint64_t) n_xcap_ * 4;
                 if (!mapped) need += (uint64_t) (n_dvocab_ * row_bytes);
                 if (draft_proxy(head->type()))
-                    need += basalt::kernels::q5k_proxy_bytes(n_base + n_xcap_) +
-                            basalt::kernels::q5k_proxy_scratch_bytes(n_base + n_xcap_);
+                    need += halo::kernels::q5k_proxy_bytes(n_base + n_xcap_) +
+                            halo::kernels::q5k_proxy_scratch_bytes(n_base + n_xcap_);
                 draft_head_hint(n_dvocab_, need);
                 return false;
             }
@@ -129,34 +129,34 @@ bool MtpDrafter::bind(const WeightTable& wt, const NativeHead* head, const float
             if (mapped) {
                 cudaMemcpy(dvocab_, map.data(), map.size() * 4, cudaMemcpyHostToDevice);
                 vram_ += map.size() * 4;
-                basalt::log::info("basalt mtp", "draft head over %lld tokens (rows read from the main head)",
+                halo::log::info("halo mtp", "draft head over %lld tokens (rows read from the main head)",
                              (long long) n_dvocab_);
             } else {
                 // unused context rows read the first row's weights for the gather, then take their id -1
                 std::vector<int32_t> gmap = map;
                 for (int32_t& v : gmap) if (v < 0) v = ids[0];
                 cudaMemcpy(dvocab_, gmap.data(), gmap.size() * 4, cudaMemcpyHostToDevice);
-                basalt::kernels::gather_rows((const uint8_t*) head->weights(), row_bytes, dvocab_, n_dvocab_, dhead_,
+                halo::kernels::gather_rows((const uint8_t*) head->weights(), row_bytes, dvocab_, n_dvocab_, dhead_,
                                              nullptr);
                 cudaDeviceSynchronize();
                 cudaMemcpy(dvocab_, map.data(), map.size() * 4, cudaMemcpyHostToDevice);
                 vram_ += (uint64_t) (n_dvocab_ * row_bytes) + map.size() * 4 + (uint64_t) n_xcap_ * 4;
-                basalt::log::info("basalt mtp", "draft head over %lld tokens (%.1f MiB)", (long long) n_dvocab_,
+                halo::log::info("halo mtp", "draft head over %lld tokens (%.1f MiB)", (long long) n_dvocab_,
                              (double) (n_dvocab_ * row_bytes) / 1048576.0);
             }
             if (exp_flag("spec_log", 0) != 0) diag_map_ = map;
             n_tier1_ = n_base + n_xcap_;
             if (draft_proxy(head->type())) {   // the 2-bit copy of the leading rows: a fraction of the bytes
-                const size_t pb = basalt::kernels::q5k_proxy_bytes(n_tier1_);
-                const size_t sb = basalt::kernels::q5k_proxy_scratch_bytes(n_tier1_);
+                const size_t pb = halo::kernels::q5k_proxy_bytes(n_tier1_);
+                const size_t sb = halo::kernels::q5k_proxy_scratch_bytes(n_tier1_);
                 if (cudaMalloc((void**) &proxy_, pb) == cudaSuccess && cudaMalloc(&proxy_scratch_, sb) == cudaSuccess) {
                     cudaMemset(proxy_, 0, pb);
-                    if (head->type() == 13) basalt::kernels::q5k_proxy_pack(dhead_, 0, n_tier1_, proxy_, n_tier1_, nullptr);
+                    if (head->type() == 13) halo::kernels::q5k_proxy_pack(dhead_, 0, n_tier1_, proxy_, n_tier1_, nullptr);
                     else if (head->type() == GGML_Q8_0)   // the context rows (id -1 for now) are packed as they fill
-                        basalt::kernels::q80_proxy_pack(head->weights(), 0, n_tier1_, proxy_, n_tier1_, nullptr, dvocab_);
+                        halo::kernels::q80_proxy_pack(head->weights(), 0, n_tier1_, proxy_, n_tier1_, nullptr, dvocab_);
                     else if (mapped)
-                        basalt::kernels::q6k_proxy_pack(head->weights(), 0, n_tier1_, proxy_, n_tier1_, nullptr, dvocab_);
-                    else basalt::kernels::q6k_proxy_pack(dhead_, 0, n_tier1_, proxy_, n_tier1_, nullptr);
+                        halo::kernels::q6k_proxy_pack(head->weights(), 0, n_tier1_, proxy_, n_tier1_, nullptr, dvocab_);
+                    else halo::kernels::q6k_proxy_pack(dhead_, 0, n_tier1_, proxy_, n_tier1_, nullptr);
                     cudaDeviceSynchronize();
                     vram_ += pb + sb;
                 } else {
@@ -169,7 +169,7 @@ bool MtpDrafter::bind(const WeightTable& wt, const NativeHead* head, const float
                 in_sub_.assign((size_t) n_vocab_, 0);
                 for (int64_t i = 0; i < n_raw; ++i)
                     if (ids[i] >= 0 && ids[i] < n_vocab_) in_sub_[(size_t) ids[i]] = 1;
-                basalt::log::info("basalt mtp", "draft head context rows: %lld", (long long) n_xcap_);
+                halo::log::info("halo mtp", "draft head context rows: %lld", (long long) n_xcap_);
             }
             if (n_base < n_raw) {
                 tier2_.assign((size_t) n_vocab_, 0);
@@ -177,7 +177,7 @@ bool MtpDrafter::bind(const WeightTable& wt, const NativeHead* head, const float
                     if (ids[i] >= 0 && ids[i] < n_vocab_) tier2_[(size_t) ids[i]] = 1;
                 for (int64_t i = 0; i < n_base; ++i)
                     if (ids[i] >= 0 && ids[i] < n_vocab_) tier2_[(size_t) ids[i]] = 0;
-                basalt::log::info("basalt mtp", "draft head tiers: %lld base rows, %lld added rows read after an "
+                halo::log::info("halo mtp", "draft head tiers: %lld base rows, %lld added rows read after an "
                                      "added token", (long long) n_base, (long long) (n_raw - n_base));
             }
         }
@@ -188,7 +188,7 @@ bool MtpDrafter::bind(const WeightTable& wt, const NativeHead* head, const float
             diag_ = nullptr;
     }
     if (top_scratch_ == nullptr) {
-        const size_t b = basalt::kernels::q5k_head_top1_scratch_bytes();
+        const size_t b = halo::kernels::q5k_head_top1_scratch_bytes();
         if (cudaMalloc(&top_scratch_, b) != cudaSuccess) { err = "mtp: the draft head's argmax scratch does not fit"; return false; }
         cudaMemset(top_scratch_, 0, b);
         cudaDeviceSynchronize();

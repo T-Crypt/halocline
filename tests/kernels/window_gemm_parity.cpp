@@ -4,10 +4,10 @@
 // several matrices, an F8 matrix with a scale per row (the head's; its leading rows alone too, as the block drafter reads
 // them), and the fused packs against rms_norm_rows / attn_gate followed by pack.
 // --bench: us per call and GB/s of weights, the weights rotated through copies larger than L2.  Exit 77 without a GPU.
-#include "basalt/kernels/dense_ops.hpp"
-#include "basalt/kernels/nvfp4_planes.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/window_gemm.hpp"
+#include "halo/kernels/dense_ops.hpp"
+#include "halo/kernels/nvfp4_planes.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/window_gemm.hpp"
 
 #include <cuda_bf16.h>
 #include <cuda_fp8.h>
@@ -20,8 +20,8 @@
 #include <random>
 #include <vector>
 
-namespace wg = basalt::kernels::wgemm;
-namespace np = basalt::kernels::nvfp4p;
+namespace wg = halo::kernels::wgemm;
+namespace np = halo::kernels::nvfp4p;
 
 namespace {
 
@@ -404,7 +404,7 @@ void parity_packs() {
     void *a1, *a2;
     cudaMalloc(&a1, wg::act_bytes(K));
     cudaMalloc(&a2, wg::act_bytes(K));
-    basalt::kernels::rms_norm_rows(d_x, d_w, d_xn, R, K, 1e-6f, nullptr);
+    halo::kernels::rms_norm_rows(d_x, d_w, d_xn, R, K, 1e-6f, nullptr);
     wg::pack(d_xn, K, K, R, a1, nullptr);
     wg::norm_pack(d_x, d_w, 1e-6f, K, R, a2, d_xn2, nullptr);
     const auto b1 = down((const uint8_t*) a1, wg::act_bytes(K)), b2 = down((const uint8_t*) a2, wg::act_bytes(K));
@@ -416,7 +416,7 @@ void parity_packs() {
         std::vector<uint16_t> x16(x.size());
         for (size_t i = 0; i < x.size(); ++i) x16[i] = bf16_of(x[i]);
         uint16_t* d_x16 = up(x16);
-        basalt::kernels::rms_norm_rows(d_x16, d_w, d_xn, R, K, 1e-6f, nullptr);
+        halo::kernels::rms_norm_rows(d_x16, d_w, d_xn, R, K, 1e-6f, nullptr);
         wg::pack(d_xn, K, K, R, a1, nullptr);
         wg::norm_pack(d_x16, d_w, 1e-6f, K, R, a2, d_xn2, nullptr);
         const auto c1 = down((const uint8_t*) a1, wg::act_bytes(K)), c2 = down((const uint8_t*) a2, wg::act_bytes(K));
@@ -553,7 +553,7 @@ void bench_call(const char* name, wg::Format fmt, int64_t rows, int64_t K, bool 
         wg::workspace_need(c, p, t);
         std::printf("%-24s tiles %zu, slices %zu\n", name, t, p ? p / R / (swiglu ? 2 * rows : rows) : 1);
     }
-    basalt::kernels::PdlScope pdl(true);   // as a decode window launches them
+    halo::kernels::PdlScope pdl(true);   // as a decode window launches them
     cudaEvent_t e0, e1;
     cudaEventCreate(&e0);
     cudaEventCreate(&e1);

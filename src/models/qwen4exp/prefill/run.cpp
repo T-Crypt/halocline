@@ -1,12 +1,12 @@
 #include "run.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
 #include <algorithm>
 #include <string>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::string& err) {
@@ -68,4 +68,4 @@ bool Prefill::Run::Chunk::execute() {
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

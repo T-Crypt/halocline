@@ -1,13 +1,13 @@
-#include "basalt/core/expert_source.hpp"
-#include "basalt/core/ram_load.hpp"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/core/expert_source.hpp"
+#include "halo/core/ram_load.hpp"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/ggml/ggml.h"
-#include "basalt/platform/direct_file.hpp"
-#include "basalt/platform/memory.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/platform/direct_file.hpp"
+#include "halo/platform/memory.hpp"
+#include "halo/platform/system.hpp"
 
 #include <cuda_runtime.h>
 
@@ -41,7 +41,7 @@ struct TempDirectory {
 
     explicit TempDirectory(const fs::path& base = fs::temp_directory_path()) {
         const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-        path = base / ("basalt-file-source-test-" + std::to_string(stamp));
+        path = base / ("halo-file-source-test-" + std::to_string(stamp));
         fs::create_directories(path);
     }
 
@@ -72,25 +72,25 @@ void create_experts(const fs::path& dir, uint64_t bytes, const std::vector<std::
     }
 }
 
-void check_file_size_rejection(basalt::core::FileExpertSource& source, const fs::path& dir, int64_t layers,
+void check_file_size_rejection(halo::core::FileExpertSource& source, const fs::path& dir, int64_t layers,
                                int64_t experts, uint64_t expected_bytes) {
     std::string err;
     source.close();
     fs::resize_file(dir / "experts.bin", expected_bytes - 1);
-    require(!source.open(basalt::core::FileRange((dir / "experts.bin").string()), layers, experts, err),
+    require(!source.open(halo::core::FileRange((dir / "experts.bin").string()), layers, experts, err),
             "a truncated expert file was accepted");
     require(!source.mapped() && !err.empty(), "truncated-file rejection left the source mapped or unreported");
 
     fs::resize_file(dir / "experts.bin", expected_bytes + 1);
     err.clear();
-    require(!source.open(basalt::core::FileRange((dir / "experts.bin").string()), layers, experts, err),
+    require(!source.open(halo::core::FileRange((dir / "experts.bin").string()), layers, experts, err),
             "an oversized expert file was accepted");
     require(!source.mapped() && !err.empty(), "oversized-file rejection left the source mapped or unreported");
 }
 
 void test_native_variable_layout() {
-    using namespace basalt::core;
-    using namespace basalt::kernels::cpu;
+    using namespace halo::core;
+    using namespace halo::kernels::cpu;
     constexpr int64_t layers = 2;
     constexpr int64_t experts = 3;
     constexpr int64_t embedding = 2560;
@@ -179,8 +179,8 @@ void test_native_variable_layout() {
 // Unbuffered bulk reads of blobs whose sizes and offsets are not multiples of the read alignment, with staging
 // buffers small enough to be carved from a shared pinned block that an odd-sized pinned allocation already uses.
 void test_direct_read_unaligned_geometry() {
-    using namespace basalt::core;
-    using namespace basalt::kernels::cpu;
+    using namespace halo::core;
+    using namespace halo::kernels::cpu;
     constexpr int64_t layers = 2;
     constexpr int64_t experts = 3;
     constexpr int64_t embedding = 2560;
@@ -198,7 +198,7 @@ void test_direct_read_unaligned_geometry() {
     std::string err;
     require(native_fmt(GGML_TYPE_IQ2_XXS, GGML_TYPE_IQ4_NL, embedding, feed_forward, first_fmt, err), err);
     require(native_fmt(GGML_TYPE_IQ2_XS, GGML_TYPE_IQ4_NL, embedding, feed_forward, second_fmt, err), err);
-    constexpr uint64_t align = basalt::platform::DirectFile::alignment();
+    constexpr uint64_t align = halo::platform::DirectFile::alignment();
     require(first_fmt.bytes % align != 0 && second_fmt.bytes % align != 0,
             "the synthetic blobs do not exercise unaligned sizes");
     const uint64_t layer0_bytes = (uint64_t) first_fmt.bytes * experts;
@@ -217,7 +217,7 @@ void test_direct_read_unaligned_geometry() {
                 << second_fmt.bytes << '\n';
     require(expert_layout_load_text(layout_text.str(), layers, experts, err, 2560, 640), err);
     {
-        basalt::platform::DirectFile probe;
+        halo::platform::DirectFile probe;
         std::string probe_err;
         if (!probe.open(file.string(), probe_err, 1))
             std::cout << "file_expert_source_test: no unbuffered reads here, the mapped path is checked\n";
@@ -246,7 +246,7 @@ void test_direct_read_unaligned_geometry() {
 }
 
 void test_complement_plan() {
-    using namespace basalt::core::detail;
+    using namespace halo::core::detail;
     std::vector<uint64_t> offsets;
     uint64_t bytes = 0;
     std::string error;
@@ -268,7 +268,7 @@ void test_complement_plan() {
 }
 
 void test_resident_lend_region() {
-    using namespace basalt::core::detail;
+    using namespace halo::core::detail;
     // four slots (sizes 5, 3, 3, 5); the experts no slot holds take 10 bytes
     const std::vector<uint64_t> slots{5, 3, 3, 5};
     require(choose_resident_keep_from(slots, 10, 9, 1) == -1, "a base larger than the budget was accepted");
@@ -305,11 +305,11 @@ void test_resident_lend_region() {
 // A 62 GiB machine with swap, one card, a third of the experts left in the file (issue #285): the tier leaves the OS
 // file cache its floor beside the reserve, so the experts read from the file and the rest of the system keep their RAM.
 void test_file_cache_keep() {
-    using basalt::core::FileCache;
-    using basalt::core::file_cache_floor;
-    using basalt::core::file_cache_keep;
-    using basalt::core::kMinFileCacheBytes;
-    using basalt::core::ram_tier_room;
+    using halo::core::FileCache;
+    using halo::core::file_cache_floor;
+    using halo::core::file_cache_keep;
+    using halo::core::kMinFileCacheBytes;
+    using halo::core::ram_tier_room;
     constexpr uint64_t kGiB = 1ull << 30;
     const FileCache flash{(uint64_t) (1.6 * kGiB), 3584ull << 20};   // a layer's experts, one prompt chunk's reads
     const uint64_t avail = 55 * kGiB, reserve = 2 * kGiB, want = 67 * kGiB;
@@ -330,9 +330,9 @@ void test_file_cache_keep() {
 }
 
 void test_plan_reserve() {
-    using basalt::core::kPostPlanHostBytes;
-    using basalt::core::plan_reserve;
-    using basalt::core::ram_tier_room;
+    using halo::core::kPostPlanHostBytes;
+    using halo::core::plan_reserve;
+    using halo::core::ram_tier_room;
     constexpr uint64_t kGiB = 1ull << 30;
     require(plan_reserve(2 * kGiB) == 2 * kGiB + kPostPlanHostBytes, "the plan leaves the reserve and the late allowance");
     require(plan_reserve(0) == 0, "a guard that is off leaves nothing");
@@ -347,8 +347,8 @@ void test_plan_reserve() {
 }
 
 void test_ram_tier_room() {
-    using basalt::core::ram_tier_room;
-    using basalt::core::pin_tracking_bytes;
+    using halo::core::ram_tier_room;
+    using halo::core::pin_tracking_bytes;
     constexpr uint64_t kGiB = 1ull << 30;
     constexpr uint64_t kBlob = 17407795;   // one expert, bytes
     // The gate and the keep-what-fits budget share ram_tier_room(); the budget packs whole experts into it, so what it
@@ -383,8 +383,8 @@ void test_ram_tier_room() {
 }
 
 void test_resident_exchange() {
-    using namespace basalt::core;
-    using namespace basalt::core::detail;
+    using namespace halo::core;
+    using namespace halo::core::detail;
     // 2 layers x 3 experts; the GPU holds (0,1) and (1,2): the compact copy holds the other four
     std::vector<uint64_t> offsets;
     uint64_t bytes = 0;
@@ -414,7 +414,7 @@ void test_resident_exchange() {
 }
 
 void test_home_regions() {
-    using namespace basalt::core::detail;
+    using namespace halo::core::detail;
     // two regions after a 1000-byte complement: [1000, 1300) and [1300, 1400)
     std::vector<HomeRegion> regions(2);
     regions[0].base = 1000; regions[0].bytes = 300;
@@ -439,7 +439,7 @@ void test_home_regions() {
 }
 
 void test_cgroup_memory_budget() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     constexpr uint64_t GiB = 1ull << 30;
     uint64_t bytes = 0;
 
@@ -476,7 +476,7 @@ void test_cgroup_memory_budget() {
 // memory.stat text -> available bytes, with no /sys read.  A container's own reads sit on the active list, so the
 // file total (active + inactive) is what counts as reclaimable.
 void test_cgroup_memory_stat_text() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     constexpr uint64_t GiB = 1ull << 30;
     auto gib = [](uint64_t n) { return std::to_string(n * GiB); };
     CgroupMemoryStat stat;
@@ -527,7 +527,7 @@ void test_cgroup_memory_stat_text() {
 // The host RAM probe with fake /proc and cgroup trees: v2 (a limit, "max", a missing or malformed limit), v1
 // (a limit, unlimited), and no cgroup line at all.
 void test_host_memory() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     constexpr uint64_t GiB = 1ull << 30;
     HostMemory m;
     TempDirectory t;
@@ -584,7 +584,7 @@ void test_host_memory() {
     require(!host_available_memory(m, (t.path / "meminfo-old").string(), cg, root), "no MemAvailable accepted");
     // the system's own files (empty paths): some RAM, and no container limit where the OS keeps no accounting file
     require(host_available_memory(m) && m.available > 0, "this machine's RAM");
-    if (basalt::platform::meminfo_path().empty()) require(m.cgroup_limit == ~0ull, "no cgroup limit without cgroup files");
+    if (halo::platform::meminfo_path().empty()) require(m.cgroup_limit == ~0ull, "no cgroup limit without cgroup files");
     // available_memory() is that same reading (in a memory-limited cgroup, the room under the limit, not MemAvailable);
     // the two reads are moments apart, so they agree within a GiB
     const uint64_t avail = available_memory();
@@ -596,7 +596,7 @@ void test_host_memory() {
 // group by its host path (not visible here): the limit is read at the root.  The hybrid layout (v1 controllers plus a
 // unified line) reads the v1 memory controller.
 void test_host_memory_namespaced() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     constexpr uint64_t GiB = 1ull << 30;
     const std::string id = "/docker/4f3c2a";
     struct Tree {

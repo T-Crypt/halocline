@@ -1,6 +1,6 @@
-// src/kernels/cuda/wait_abort.cu - see include/basalt/kernels/wait_abort.hpp.
-#include "basalt/kernels/wait_abort.hpp"
-#include "basalt/log.hpp"
+// src/kernels/cuda/wait_abort.cu - see include/halo/kernels/wait_abort.hpp.
+#include "halo/kernels/wait_abort.hpp"
+#include "halo/log.hpp"
 
 #include <cuda_runtime.h>
 
@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <string>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 
 namespace {
 constexpr int kAbortDevs = 16;
@@ -20,14 +20,14 @@ void wait_abort_init() {
     int dev = 0;
     cudaGetDevice(&dev);
     if (dev < 0 || dev >= kAbortDevs) {
-        basalt::log::error("basalt", "wait abort word: device %d out of range", dev);
+        halo::log::error("halo", "wait abort word: device %d out of range", dev);
         std::exit(1);
     }
     if (g_abort_dev[dev] != nullptr) return;
     if (g_abort_host == nullptr) {
         void* p = nullptr;
         if (cudaHostAlloc(&p, 64, cudaHostAllocMapped | cudaHostAllocPortable) != cudaSuccess) {
-            basalt::log::error("basalt", "wait abort word: %s", cudaGetErrorString(cudaGetLastError()));
+            halo::log::error("halo", "wait abort word: %s", cudaGetErrorString(cudaGetLastError()));
             std::exit(1);
         }
         *(volatile unsigned long long*) p = 0;
@@ -35,7 +35,7 @@ void wait_abort_init() {
     }
     void* d = nullptr;
     if (cudaHostGetDevicePointer(&d, g_abort_host, 0) != cudaSuccess) {
-        basalt::log::error("basalt", "wait abort word: %s", cudaGetErrorString(cudaGetLastError()));
+        halo::log::error("halo", "wait abort word: %s", cudaGetErrorString(cudaGetLastError()));
         std::exit(1);
     }
     g_abort_dev[dev] = (unsigned long long*) d;
@@ -46,7 +46,7 @@ unsigned long long* wait_abort_device_word() {
     cudaGetDevice(&dev);
     unsigned long long* const w = dev >= 0 && dev < kAbortDevs ? g_abort_dev[dev] : nullptr;
     if (w == nullptr) {
-        basalt::log::error("basalt", "wait abort word: not initialised on device %d", dev);
+        halo::log::error("halo", "wait abort word: not initialised on device %d", dev);
         std::exit(1);
     }
     return w;
@@ -74,4 +74,4 @@ void wait_abort_clear() {
     if (g_abort_host != nullptr) *(volatile unsigned long long*) g_abort_host = 0;
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

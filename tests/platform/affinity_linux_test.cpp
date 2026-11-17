@@ -2,7 +2,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "basalt/kernels/cpu/pool.hpp"
+#include "halo/kernels/cpu/pool.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -20,7 +20,7 @@
 #include <sched.h>
 #include <unistd.h>
 
-namespace cpu = basalt::kernels::cpu;
+namespace cpu = halo::kernels::cpu;
 
 class DynamicCpuSet {
 public:

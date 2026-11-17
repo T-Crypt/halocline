@@ -13,11 +13,11 @@
 //   2. THE SCALAR GATE.  `ffn_gate_inp_shexp` is (n_embd,) and yields ONE value per token; the two rival
 //      readings are a per-dimension elementwise gate and a per-expert gate.  The elementwise reading is
 //      checked the same way - it is computed and required to differ.
-#include "basalt/kernels/bf16_bits.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/models/qwen4exp/kernels/s_gemv.hpp"
-#include "basalt/models/qwen4exp/kernels/shared_expert.hpp"
+#include "halo/kernels/bf16_bits.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/models/qwen4exp/kernels/s_gemv.hpp"
+#include "halo/models/qwen4exp/kernels/shared_expert.hpp"
 
 #include <cuda_runtime.h>
 
@@ -43,8 +43,8 @@ void check(cudaError_t e, const char* what) {
 // is visible with an O(1) fixture.  Using the shared, oracle-validated pair means the test and the kernel cannot
 // disagree about the conversion itself.
 // using-declarations rather than renames at the call sites, so the body below is untouched by the swap.
-using basalt::kernels::f16_from_f32;
-using basalt::kernels::f32_from_f16;
+using halo::kernels::f16_from_f32;
+using halo::kernels::f32_from_f16;
 inline uint16_t f32_to_f16(float f) { return f16_from_f32(f); }
 inline float f16_to_f32(uint16_t h) { return f32_from_f16(h); }
 
@@ -68,7 +68,7 @@ double q8_0_host(const std::vector<uint8_t>& x, long long i) {
     uint16_t db;
     std::memcpy(&db, blk, 2);
     const int8_t q = ((const int8_t*) (blk + 2))[i % 32];
-    return (double) basalt::kernels::f32_from_f16(db) * (double) q;
+    return (double) halo::kernels::f32_from_f16(db) * (double) q;
 }
 
 float s2_weight(const std::vector<uint8_t>& codes, const std::vector<float>& scales, long long row,                long long n_in, long long i) {
@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
     // the reference therefore dots the bf16 image of the weight with the original x.
     std::vector<uint16_t> hginp_bf16((size_t) n_embd);
     for (long long i = 0; i < n_embd; ++i) {
-        hginp_bf16[(size_t) i] = basalt::kernels::bf16_from_f32(ginp[(size_t) i]);
+        hginp_bf16[(size_t) i] = halo::kernels::bf16_from_f32(ginp[(size_t) i]);
     }
 
     // ---- host reference, exactly as the Python reference writes it
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
         }
         double dot = 0;
         for (long long i = 0; i < n_embd; ++i)
-            dot += (double) fx[(size_t) i] * (double) basalt::kernels::f32_from_bf16(hginp_bf16[(size_t) i]);
+            dot += (double) fx[(size_t) i] * (double) halo::kernels::f32_from_bf16(hginp_bf16[(size_t) i]);
         const double sg = 1.0 / (1.0 + std::exp(-dot));
         for (long long o = 0; o < n_embd; ++o) {
             out[(size_t) o] = elementwise_gate ? (float) ((double) out[(size_t) o] * sg)
@@ -211,7 +211,7 @@ int main(int argc, char** argv) {
     check(cudaMemcpy(d_ginpb, hginp_bf16.data(), hginp_bf16.size() * sizeof(uint16_t), cudaMemcpyHostToDevice),
           "c ginpb");
 
-    const basalt::kernels::SForm f{2, -1, 64, basalt::kernels::Codebook::Affine, false, /*act_kind=*/0};
+    const halo::kernels::SForm f{2, -1, 64, halo::kernels::Codebook::Affine, false, /*act_kind=*/0};
     // **THE ACTIVATION IS Q8_0, NOT FP16, AND THE FIXTURE HAS TO MATCH THE CONTRACT.**  An fp16 activation for
     // the three projections is the wrong `vec_dot_type`, and a reference computed with the fp16 values would
     // agree with the kernel on a number the reference model would not produce.  A fixture that agrees with the kernel about the wrong activation is not a check.
@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
         check(cudaMalloc(&d_xf, (size_t) n_embd * 4), "xf");
         check(cudaMalloc(&d_x0, hx0.size()), "x0");
         check(cudaMemcpy(d_xf, fx.data(), (size_t) n_embd * 4, cudaMemcpyHostToDevice), "cxf");
-        basalt::kernels::quantize_q8_0(d_xf, d_x0, n_embd, nullptr);
+        halo::kernels::quantize_q8_0(d_xf, d_x0, n_embd, nullptr);
         check(cudaMemcpy(hx0.data(), d_x0, hx0.size(), cudaMemcpyDeviceToHost), "cx0");
         d_x_used = d_x0;
     }
@@ -230,8 +230,8 @@ int main(int argc, char** argv) {
     // stream capture and a token-path allocation.  The fixture owns it here, exactly as the
     // layer does, so the test exercises the real contract instead of a private one.
     float* d_scratch = nullptr;
-    check(cudaMalloc(&d_scratch, basalt::kernels::shared_expert_scratch_bytes(n_ff)), "m scratch");
-    basalt::kernels::shared_expert(d_x_used, nullptr, f, d_gc, d_gs, nullptr, f, d_uc, d_us, nullptr, f,
+    check(cudaMalloc(&d_scratch, halo::kernels::shared_expert_scratch_bytes(n_ff)), "m scratch");
+    halo::kernels::shared_expert(d_x_used, nullptr, f, d_gc, d_gs, nullptr, f, d_uc, d_us, nullptr, f,
                                    d_dc, d_ds, nullptr, d_ginpb, d_scratch, d_out, n_embd, n_ff, tpr, nullptr, d_xf);
     std::vector<float> got((size_t) n_embd);
     check(cudaMemcpy(got.data(), d_out, got.size() * sizeof(float), cudaMemcpyDeviceToHost), "c out");
@@ -322,7 +322,7 @@ int main(int argc, char** argv) {
     // Isolate the scalar gate: keep the quantized expert inputs fixed and vary only its F32 activation. A zero
     // scalar weight first exposes half the ungated output without duplicating the GEMVs.
     {
-        using namespace basalt::kernels;
+        using namespace halo::kernels;
         std::vector<uint16_t> zeros((size_t) n_embd, 0), basis(zeros);
         basis[0] = bf16_from_f32(1.0f);
         std::vector<float> witness((size_t) n_embd, 0.0f);
@@ -430,7 +430,7 @@ int main(int argc, char** argv) {
         check(cudaMemcpy(d_p, parts.data(), parts.size() * 4, cudaMemcpyHostToDevice), "mc cp");
         check(cudaMemcpy(d_w, w.data(), w.size() * 4, cudaMemcpyHostToDevice), "mc cw");
         check(cudaMemcpy(d_s, shared.data(), shared.size() * 4, cudaMemcpyHostToDevice), "mc cs");
-        basalt::kernels::moe_combine(d_p, d_w, d_s, d_y, n_embd2, k2, nullptr);
+        halo::kernels::moe_combine(d_p, d_w, d_s, d_y, n_embd2, k2, nullptr);
         std::vector<float> got((size_t) n_embd2);
         check(cudaMemcpy(got.data(), d_y, got.size() * 4, cudaMemcpyDeviceToHost), "mc cy");
 
@@ -450,7 +450,7 @@ int main(int argc, char** argv) {
         if (!(rel_k <= 1e-6)) { std::printf("    *** over 1e-6 ***\n"); ++bad; }
 
         // a null `shared` must mean "no shared expert", not "add nothing but leave it undefined"
-        basalt::kernels::moe_combine(d_p, d_w, nullptr, d_y, n_embd2, k2, nullptr);
+        halo::kernels::moe_combine(d_p, d_w, nullptr, d_y, n_embd2, k2, nullptr);
         check(cudaMemcpy(got.data(), d_y, got.size() * 4, cudaMemcpyDeviceToHost), "mc cy2");
         const double rel_no_shared = rel_l1(want, got);
         const bool differs = rel_no_shared > 0.05;

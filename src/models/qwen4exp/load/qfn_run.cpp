@@ -1,26 +1,26 @@
 // The whole start of a Flash-Next engine, in order: its stack frames hold the resources while the server runs.
-#include "basalt/core/shipped_profiles.hpp"
-#include "basalt/models/qwen4exp/shared_names.hpp"
-#include "basalt/platform/file.hpp"
+#include "halo/core/shipped_profiles.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
+#include "halo/platform/file.hpp"
 #include "context.hpp"
 #include "../../../program/generate/run.hpp"
 #include "models/qwen4exp/adapter.hpp"
 
-namespace basalt::models::qwen4exp {
+namespace halo::models::qwen4exp {
 
 int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
-    using namespace basalt::models::qwen4exp::generate;
+    using namespace halo::models::qwen4exp::generate;
     Context context;
     std::string& ppl_base = o.ppl_base;
     std::string& ppl_out = o.ppl_out;
-    basalt::core::ModelSources srcs;
-    basalt::core::ModelFile model_file;
+    halo::core::ModelSources srcs;
+    halo::core::ModelFile model_file;
     {
         std::string merr;
         if (!model_file.open(o.model, merr) || !model_file.load_meta(merr) || !model_file.register_gguf_view(merr)) {
             return fatal_start_error("--model: " + merr);
         }
-        basalt::core::model_sources(model_file, srcs);
+        halo::core::model_sources(model_file, srcs);
         // the source tensors (embedding, PLE table, native projections, head) are served through the GGUF view of the file
         o.native_shards = {o.model};
         if (srcs.dense.empty() || srcs.dense_index.empty() || srcs.experts.empty() || srcs.experts_layout.empty() ||
@@ -31,19 +31,19 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
         // the expert profile: the one --expert-profile names, else the engine's for this model when it has one
         uint64_t prof_bytes = 0;
         if (!o.expert_profile.empty()) {
-            if (!basalt::platform::file_size(o.expert_profile, prof_bytes) || prof_bytes == 0) {
+            if (!halo::platform::file_size(o.expert_profile, prof_bytes) || prof_bytes == 0) {
                 return fatal_start_error("--expert-profile " + o.expert_profile + ": no such file, or it is empty");
             }
         } else {
             const std::string key = cli::profile_key(model_file.meta());
-            const std::string miss = basalt::core::missing_shipped_profile(basalt::platform::install_root() + "/data/profiles", cli::shipped_profiles(key));
+            const std::string miss = halo::core::missing_shipped_profile(halo::platform::install_root() + "/data/profiles", cli::shipped_profiles(key));
             if (!miss.empty()) return fatal_start_error(miss);
-            const std::string prof = basalt::platform::install_root() + "/data/profiles/" + key + ".prof";
-            if (!key.empty() && basalt::platform::file_size(prof, prof_bytes) && prof_bytes > 0) o.expert_profile = prof;
+            const std::string prof = halo::platform::install_root() + "/data/profiles/" + key + ".prof";
+            if (!key.empty() && halo::platform::file_size(prof, prof_bytes) && prof_bytes > 0) o.expert_profile = prof;
             else {
-                basalt::log::info("basalt generate", "no expert profile for %s", key.empty() ? "this model" : key.c_str());
+                halo::log::info("halo generate", "no expert profile for %s", key.empty() ? "this model" : key.c_str());
                 if (o.resident_cpu_experts) {
-                    basalt::log::error("basalt generate", "expert profile not found: %s; ship data/profiles with the engine "
+                    halo::log::error("halo generate", "expert profile not found: %s; ship data/profiles with the engine "
                                        "(or pass --mmap-experts without --resident-experts)",
                                        key.empty() ? "the model names no architecture or layer and expert counts" : prof.c_str());
                     return 2;
@@ -51,45 +51,45 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
             }
         }
         // the 8-bit hyper-connection copies
-        std::map<std::string, basalt::core::Hc8Copy> table;
-        if (!basalt::core::hc8_read(srcs.hc8, table, merr)) {
+        std::map<std::string, halo::core::Hc8Copy> table;
+        if (!halo::core::hc8_read(srcs.hc8, table, merr)) {
             return fatal_start_error(o.model + ": " + merr);
         }
-        basalt::core::hc8_set_table(std::move(table));
+        halo::core::hc8_set_table(std::move(table));
     }
-    const basalt::core::PackFiles pack_files = basalt::core::PackFiles::from(srcs);
-    const basalt::core::ExpertFiles expert_files = basalt::core::ExpertFiles::from(srcs);
+    const halo::core::PackFiles pack_files = halo::core::PackFiles::from(srcs);
+    const halo::core::ExpertFiles expert_files = halo::core::ExpertFiles::from(srcs);
     if (o.serve && o.conversation_cache_disk_mib > 0 && o.conversation_cache_dir.empty()) {
-        basalt::log::error("basalt", "--conversation-cache-disk-mib needs --conversation-cache-dir");
+        halo::log::error("halo", "--conversation-cache-disk-mib needs --conversation-cache-dir");
         return 2;
     }
     if (o.serve && o.conversation_cache_mib > 0 && (o.prompt_cache == 0 || o.conversation_cache_slots == 0))
-        basalt::log::warn("basalt serve", "conversation caching is disabled by %s",
+        halo::log::warn("halo serve", "conversation caching is disabled by %s",
                      o.prompt_cache == 0 ? "--prompt-cache 0" : "--conversation-cache-slots 0");
     if (const auto code = cli::resolve_model_options(o)) return *code;
-    if (o.serve) basalt::platform::watch_resident_ram(o.resident_cpu_experts, 0);
+    if (o.serve) halo::platform::watch_resident_ram(o.resident_cpu_experts, 0);
     if (const auto code = cli::prepare_input_options(o)) return *code;
-    basalt::core::qsa_set_kv_int8(o.kv == "int8");
-    basalt::core::qsa_set_kv_q4(o.kv == "q4_0");   // 4-bit codes after a Hadamard rotation (kv_q4.hpp)
-    basalt::core::qsa_set_kv_hybrid(o.kv == "k8v4");   // K8V4: INT8 K + rotated Q4_0 V, 816 B/cell
+    halo::core::qsa_set_kv_int8(o.kv == "int8");
+    halo::core::qsa_set_kv_q4(o.kv == "q4_0");   // 4-bit codes after a Hadamard rotation (kv_q4.hpp)
+    halo::core::qsa_set_kv_hybrid(o.kv == "k8v4");   // K8V4: INT8 K + rotated Q4_0 V, 816 B/cell
     if (const auto code = cli::validate_kv_streaming(o)) return *code;
-    basalt::core::qsa_set_kv_resident(o.kv_resident);
+    halo::core::qsa_set_kv_resident(o.kv_resident);
     const bool no_spec = cli::normalize_speculation_options(o);
-    basalt::core::layer_set_shared_early(true);
+    halo::core::layer_set_shared_early(true);
     {
         // the source tensors hold the PLE table
         try {
-            const basalt::GgufModel model(o.native_shards);
+            const halo::GgufModel model(o.native_shards);
             if (model.find("per_layer_token_embd.weight") == nullptr) {
-                basalt::log::error("basalt generate", "%s has no per_layer_token_embd.weight", o.model.c_str());
+                halo::log::error("halo generate", "%s has no per_layer_token_embd.weight", o.model.c_str());
                 return 2;
             }
         } catch (const std::exception& e) {
-            basalt::log::error("basalt generate", "%s: %s", o.model.c_str(), e.what());
+            halo::log::error("halo generate", "%s: %s", o.model.c_str(), e.what());
             return 2;
         }
     }
-    basalt::kernels::RopeScaling rope_cfg;
+    halo::kernels::RopeScaling rope_cfg;
     if (const auto code = cli::validate_generation_options(o, vram_floor_mib())) return *code;
 
     // **BEFORE ANYTHING ELSE.**  The CPU expert kernel is AVX-512 (VNNI + VBMI), so on a CPU without those features it
@@ -97,10 +97,10 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     // whole point of this check.
     // ... and nothing runs on a CPU without AVX2: every CPU expert kernel is AVX2 at least (the AVX-512 ones are
     // chosen above it), and so is ggml-cpu, which the native pack's layout load initializes next.  Refused here, by name, rather than an illegal instruction in the first expert.
-    if (!basalt::kernels::cpu::cpu_avx2_ok()) {
-        basalt::log::error("basalt generate", "this CPU (%s) does not support AVX2 with FMA and F16C, which this engine's "
+    if (!halo::kernels::cpu::cpu_avx2_ok()) {
+        halo::log::error("halo generate", "this CPU (%s) does not support AVX2 with FMA and F16C, which this engine's "
                              "CPU expert kernels need",
-                     basalt::kernels::cpu::cpu_name().c_str());
+                     halo::kernels::cpu::cpu_name().c_str());
         return 2;
     }
 
@@ -108,10 +108,10 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     // Where the experts live.  The model keeps every quantized tensor in its GGUF form, so its experts run in verify
     // windows only (--spec) and its dense projections, head and embedding come from the source tensors.
     {
-        const basalt::core::ModelGeometry g0;
+        const halo::core::ModelGeometry g0;
         std::vector<uint8_t> text;
-        bool layout_ok = basalt::core::read_range(srcs.experts_layout, text, err) &&
-                         basalt::kernels::cpu::expert_layout_load_text(std::string(text.begin(), text.end()), g0.n_layers,
+        bool layout_ok = halo::core::read_range(srcs.experts_layout, text, err) &&
+                         halo::kernels::cpu::expert_layout_load_text(std::string(text.begin(), text.end()), g0.n_layers,
                                                                        g0.n_expert, err, g0.n_embd, g0.n_ff);
         if (!layout_ok) {
             return fatal_start_error(err);
@@ -119,29 +119,29 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
         // Every layer's formats must have GPU expert kernels and a prompt-path dequantizer, checked here, before
         // anything is allocated: an unsupported type would otherwise fail from inside the first verify window or leave
         // the prompt path's fp16 buffer unwritten.
-        const auto& lay = basalt::kernels::cpu::expert_layout();
+        const auto& lay = halo::kernels::cpu::expert_layout();
         for (int64_t l = 0; lay.native && l < (int64_t) lay.fmt.size(); ++l) {
             const auto& f = lay.fmt[(size_t) l];
-            if (!basalt::kernels::native_expert_supported(f.gu_type, f.d_type, f.n_embd, f.n_ff, f.up_type)) {
+            if (!halo::kernels::native_expert_supported(f.gu_type, f.d_type, f.n_embd, f.n_ff, f.up_type)) {
                 char msg[224];
                 std::snprintf(msg, sizeof msg, "layer %lld's experts are %s%s%s/%s (ggml types %d/%d/%d), which "
                                                "this engine has no GPU kernels for: format not supported for decode",
-                              (long long) l, basalt::ggml_type_name((uint32_t) f.gu_type),
+                              (long long) l, halo::ggml_type_name((uint32_t) f.gu_type),
                               f.up_type != f.gu_type ? "+" : "",
-                              f.up_type != f.gu_type ? basalt::ggml_type_name((uint32_t) f.up_type) : "",
-                              basalt::ggml_type_name((uint32_t) f.d_type), f.gu_type, f.up_type, f.d_type);
+                              f.up_type != f.gu_type ? halo::ggml_type_name((uint32_t) f.up_type) : "",
+                              halo::ggml_type_name((uint32_t) f.d_type), f.gu_type, f.up_type, f.d_type);
                 return fatal_start_error(msg);
             }
             // Q6_K experts run on the fast kernels only (decode-once grouped / device-planned tail, MMQ prefill, CPU
             // dot): a pair or shape outside them is refused rather than routed to a general path.
             if ((f.gu_type == 14 || f.d_type == 14) &&
-                (!basalt::kernels::dec_moe_formats_ok(f.gu_type, f.d_type, f.n_embd, f.n_ff, f.up_type) ||
-                 !basalt::prefill::mmq::fits(f.gu_type, 2 * f.n_ff) || !basalt::prefill::mmq::fits(f.d_type, f.n_embd))) {
+                (!halo::kernels::dec_moe_formats_ok(f.gu_type, f.d_type, f.n_embd, f.n_ff, f.up_type) ||
+                 !halo::prefill::mmq::fits(f.gu_type, 2 * f.n_ff) || !halo::prefill::mmq::fits(f.d_type, f.n_embd))) {
                 char msg[224];
                 std::snprintf(msg, sizeof msg, "layer %lld's experts are %s/%s: Q6_K experts have fast kernels only "
                                                "for the covered pairs and shapes",
-                              (long long) l, basalt::ggml_type_name((uint32_t) f.gu_type),
-                              basalt::ggml_type_name((uint32_t) f.d_type));
+                              (long long) l, halo::ggml_type_name((uint32_t) f.gu_type),
+                              halo::ggml_type_name((uint32_t) f.d_type));
                 return fatal_start_error(msg);
             }
         }
@@ -154,14 +154,14 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
                 ++e;
             // a layer whose up rows have their own type shows both: gate+up/down
             const bool mixed = f.up_type != f.gu_type;
-            basalt::log::info("basalt generate", "experts %s%s%s/%s, layers %lld-%lld: decode %s, prefill %s, CPU tier dot",
-                         basalt::ggml_type_name((uint32_t) f.gu_type), mixed ? "+" : "",
-                         mixed ? basalt::ggml_type_name((uint32_t) f.up_type) : "",
-                         basalt::ggml_type_name((uint32_t) f.d_type), (long long) l, (long long) e,
-                         basalt::kernels::dec_moe_formats_ok(f.gu_type, f.d_type, f.n_embd, f.n_ff, f.up_type)
+            halo::log::info("halo generate", "experts %s%s%s/%s, layers %lld-%lld: decode %s, prefill %s, CPU tier dot",
+                         halo::ggml_type_name((uint32_t) f.gu_type), mixed ? "+" : "",
+                         mixed ? halo::ggml_type_name((uint32_t) f.up_type) : "",
+                         halo::ggml_type_name((uint32_t) f.d_type), (long long) l, (long long) e,
+                         halo::kernels::dec_moe_formats_ok(f.gu_type, f.d_type, f.n_embd, f.n_ff, f.up_type)
                              ? "device-planned tail + grouped kernels" : "grouped kernels",
-                         basalt::prefill::mmq::fits(f.gu_type, 2 * f.n_ff) && basalt::prefill::mmq::fits(f.up_type, 2 * f.n_ff) &&
-                                 basalt::prefill::mmq::fits(f.d_type, f.n_embd)
+                         halo::prefill::mmq::fits(f.gu_type, 2 * f.n_ff) && halo::prefill::mmq::fits(f.up_type, 2 * f.n_ff) &&
+                                 halo::prefill::mmq::fits(f.d_type, f.n_embd)
                              ? "MMQ" : "dequant GEMM");
             l = e + 1;
         }
@@ -175,17 +175,17 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
         const double bw = probe_pcie_h2d_gbps(&bursts);
         if (bw > 0.0) {
             o.pcie_frac = pcie_frac_for_gbps(bw, base);
-            basalt::log::info("basalt generate", "PCIe probe: %.1f GB/s host->device (best of %s) -> pcie_frac %.2f "
+            halo::log::info("halo generate", "PCIe probe: %.1f GB/s host->device (best of %s) -> pcie_frac %.2f "
                                  "(default %.2f)", bw, bursts.c_str(), o.pcie_frac, base);
         } else {
             o.pcie_frac = base;
-            basalt::log::warn("basalt generate", "PCIe probe failed -> pcie_frac default %.2f", base);
+            halo::log::warn("halo generate", "PCIe probe failed -> pcie_frac default %.2f", base);
         }
     }
-    if (!basalt::kernels::cpu::cpu_avx512_ok())
-        basalt::log::warn("basalt generate", "this CPU has no AVX-512: the expert kernels run on %s "
+    if (!halo::kernels::cpu::cpu_avx512_ok())
+        halo::log::warn("halo generate", "this CPU has no AVX-512: the expert kernels run on %s "
                              "(multi-token for the i-quant gate/up rows)",
-                     !basalt::kernels::cpu::cpu_avx2_ok() ? "ggml-cpu vec_dot (no AVX2)" : "AVX-2");
+                     !halo::kernels::cpu::cpu_avx2_ok() ? "ggml-cpu vec_dot (no AVX2)" : "AVX-2");
 
     context.o = &o;
     context.ppl_base = &ppl_base;
@@ -198,7 +198,7 @@ int run_engine(Options& o, std::vector<program::GpuCard>& chosen_cards) {
     context.no_spec = &no_spec;
     context.rope_cfg = &rope_cfg;
     context.err = &err;
-    return basalt::models::qwen4exp::generate::model(context);
+    return halo::models::qwen4exp::generate::model(context);
 }
 
-}  // namespace basalt::models::qwen4exp
+}  // namespace halo::models::qwen4exp

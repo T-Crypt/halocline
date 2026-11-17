@@ -470,7 +470,7 @@ def _job(args):
 
 def nvfp4_scale_tiles(sc: np.ndarray) -> np.ndarray:
     """UE4M3 scales [rows, K/16] (rows in 128s) -> the NVFP4_PLANES scale tiles: per 128 rows and 4 groups a 512-byte tile
-    (tiles row-block major), byte (r % 32) * 16 + ((r % 128) // 32) * 4 + g % 4 (include/basalt/kernels/nvfp4_planes.hpp)."""
+    (tiles row-block major), byte (r % 32) * 16 + ((r % 128) // 32) * 4 + g % 4 (include/halo/kernels/nvfp4_planes.hpp)."""
     rows, groups = sc.shape
     return np.ascontiguousarray(sc.reshape(rows // 128, 4, 32, groups // 4, 4).transpose(0, 3, 2, 1, 4)).reshape(-1)
 
@@ -795,7 +795,7 @@ def build(a, Job, fingerprint, die) -> None:
             used = sorted({t_.how for t_ in plan.tensors.values()})
             lic = kv.get("general.license", "")
             meta = {
-                "format": "basalt", "version": 2, "name": name, "arch": ARCH,
+                "format": "halo", "version": 2, "name": name, "arch": ARCH,
                 "converter": {"tool": "tools/convert/convert.py"},
                 "sources": [{"path": p.name, "size": p.stat().st_size,
                              "fingerprint_sha256_first_last_64mib_and_size": fingerprint(p)} for p in ck.shards],

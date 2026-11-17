@@ -2,12 +2,12 @@
 //
 // Each step reuses the code the microbenches use: the startup PCIe probe's burst timing and avx_bench's cold-expert
 // pool loop and its idle read.
-#include "basalt/program/probe_rates.hpp"
+#include "halo/program/probe_rates.hpp"
 
-#include "basalt/kernels/cpu/cpu_quota.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/platform/dynlib.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/kernels/cpu/cpu_quota.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/platform/dynlib.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cuda_runtime.h>
 
@@ -20,10 +20,10 @@
 #include <thread>
 #include <vector>
 
-namespace basalt::program {
+namespace halo::program {
 namespace {
 
-namespace C = basalt::kernels::cpu;
+namespace C = halo::kernels::cpu;
 double median(std::vector<double> v) {
     if (v.empty()) return 0.0;
     std::sort(v.begin(), v.end());
@@ -405,4 +405,4 @@ bool probe_rates(const ProbeEnv& env, std::FILE* out, std::string& err) {
     return true;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

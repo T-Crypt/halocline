@@ -1,20 +1,20 @@
 #include "run.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/ple.hpp"
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/ple.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <exception>
 #include <string>
 #include <vector>
 #include <future>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::ple_gather(int64_t c0, int buf, std::string& e) {
@@ -23,8 +23,8 @@ bool Prefill::Run::ple_gather(int64_t c0, int buf, std::string& e) {
     int32_t pv[2] = {at(c0), at(c0 + 1)};
     for (int64_t t = 0; t < T; ++t) {
         const int32_t tok = (int32_t) tokens[c0 + t];
-        basalt::kernels::ngram_rows(&tok, pv, 1, ss.ple.consts,
-                                    m.ple_rows[buf].data() + t * basalt::kernels::PLE_N_HEADS);
+        halo::kernels::ngram_rows(&tok, pv, 1, ss.ple.consts,
+                                    m.ple_rows[buf].data() + t * halo::kernels::PLE_N_HEADS);
         pv[0] = pv[1];
         pv[1] = tok;
     }
@@ -67,12 +67,12 @@ bool Prefill::Run::Chunk::ple_land() {
                 std::string e;
                 for (size_t a = 2; a < w.size(); a += kSlice) {
                     const size_t b = std::min(a + kSlice, w.size());
-                    rows.resize((b - a) * basalt::kernels::PLE_N_HEADS);
+                    rows.resize((b - a) * halo::kernels::PLE_N_HEADS);
                     for (size_t i = a; i < b; ++i) {
                         const int32_t tok = (int32_t) w[i];
                         const int32_t pv[2] = {(int32_t) w[i - 2], (int32_t) w[i - 1]};
-                        basalt::kernels::ngram_rows(&tok, pv, 1, sess->ple.consts,
-                                                    rows.data() + (i - a) * basalt::kernels::PLE_N_HEADS);
+                        halo::kernels::ngram_rows(&tok, pv, 1, sess->ple.consts,
+                                                    rows.data() + (i - a) * halo::kernels::PLE_N_HEADS);
                     }
                     if (!sess->ple.table->warm_rows(rows.data(), b - a, e)) return;
                 }
@@ -88,8 +88,8 @@ bool Prefill::Run::Chunk::ple_layer(int64_t l) {
         // the whole chunk at once, in sub-batches carved from the idle scratch region: the key and value
         // projections as GEMMs (a token at a time they re-read the whole BF16 key per token), the rest with the per-token kernels' arithmetic (native_ple_postops_batch)
         const auto tp = Clock::now();
-        const basalt::kernels::PleWeights& pw = ss.ple.w;
-        constexpr int64_t HD = basalt::kernels::NG_HC_DIM;
+        const halo::kernels::PleWeights& pw = ss.ple.w;
+        constexpr int64_t HD = halo::kernels::NG_HC_DIM;
         const uint64_t per_token = (uint64_t) (3 * HD + N + 4) * 4 + (uint64_t) N * 2 + 4096;
         const int64_t SB = std::min<int64_t>(T, (int64_t) (m.region_bytes / per_token));
         for (int64_t s0 = 0; s0 < T; s0 += SB) {
@@ -113,7 +113,7 @@ bool Prefill::Run::Chunk::ple_layer(int64_t l) {
             }
             m.gemm.bf16(e16, pw.value_bf16, val, nb, N, N);
             try {
-                basalt::kernels::native_ple_postops_batch(key, m.R + s0 * D, val, ss.ple.hist, pw, qn, gated,
+                halo::kernels::native_ple_postops_batch(key, m.R + s0 * D, val, ss.ple.hist, pw, qn, gated,
                                                           gate, (int) nb, m.cs);
             } catch (const std::exception& e) { err = std::string("prefill PLE: ") + e.what(); return false; }
         }
@@ -121,18 +121,18 @@ bool Prefill::Run::Chunk::ple_layer(int64_t l) {
     } else if (l == 1 && ple_on) {
         const auto tp = Clock::now();
         for (int64_t t = 0; t < T; ++t) {
-            basalt::kernels::PleOut po;
+            halo::kernels::PleOut po;
             po.normalized = m.ple_norm;
             po.result = m.R + t * D;
             try {
-                basalt::kernels::ple_block(m.ple_emb + t * N, m.R + t * D, ss.ple.hist, ss.ple.w, po,
+                halo::kernels::ple_block(m.ple_emb + t * N, m.R + t * D, ss.ple.hist, ss.ple.w, po,
                                            ss.ple.scratch, m.cs);
             } catch (const std::exception& e) { err = std::string("prefill PLE: ") + e.what(); return false; }
-            basalt::kernels::ple_history_advance(ss.ple.hist, m.ple_norm, m.cs);
+            halo::kernels::ple_history_advance(ss.ple.hist, m.ple_norm, m.cs);
         }
         owner.stats_.ms_ple += ms_since(tp);
     }
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

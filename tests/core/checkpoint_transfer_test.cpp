@@ -4,7 +4,7 @@
 // trips; a deferred save is a snapshot (the device state changes right after it is issued, in the stream's order) and
 // its bytes are there only after finish(); page-locked and ordinary host bytes, the bounce buffer, a save that does not
 // fit the spare and one that follows another all end with the same bytes.
-#include "basalt/core/checkpoint_transfer.hpp"
+#include "halo/core/checkpoint_transfer.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::core;
+using namespace halo::core;
 
 namespace {
 int checks = 0;

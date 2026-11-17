@@ -1,17 +1,17 @@
 // src/models/qwen4exp/decode/expert_dispatch.cpp - the pool's side of a layer: which routed experts go where.
-#include "basalt/core/expert_source.hpp"
-#include "basalt/models/qwen4exp/decode/expert_dispatch.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/core/pinned.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/direct_file.hpp"
-#include "basalt/platform/memory.hpp"
-#include "basalt/platform/system.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/models/qwen4exp/kernels/s2_expert_grouped.hpp"
+#include "halo/core/expert_source.hpp"
+#include "halo/models/qwen4exp/decode/expert_dispatch.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/core/pinned.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/direct_file.hpp"
+#include "halo/platform/memory.hpp"
+#include "halo/platform/system.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/models/qwen4exp/kernels/s2_expert_grouped.hpp"
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <atomic>
@@ -30,9 +30,9 @@
 #include <thread>
 #include <utility>
 #include <vector>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 // ================================ THE ADAPTER ================================
 
@@ -55,7 +55,7 @@ void expert_pool_dispatch(void* user, const float*, const int32_t*, const float*
     ExpertDispatch& d = *(ExpertDispatch*) user;
     if (d.failed) return;   // a previous layer already failed; do not make it worse
 
-    using namespace basalt::kernels::cpu;
+    using namespace halo::kernels::cpu;
     // Clause 3: the blob's internal offsets are compile-time constants, so a mismatched geometry does not
     // produce a wrong answer - it produces a walk off the end of the blob into the next expert's bytes, which
     // is finite and plausible.  Refuse, name the number, and let the driver report it.
@@ -76,12 +76,12 @@ namespace {
 // are fixed arrays of this many entries: MAXT tokens of the model's 10 routed experts must fit, and a larger k is
 // refused at run time rather than written past them.
 constexpr int64_t kMaxWindowEntries = 128;
-static_assert(basalt::kernels::cpu::MAXT * 10 <= kMaxWindowEntries, "a verify window's entries overflow the tables");
+static_assert(halo::kernels::cpu::MAXT * 10 <= kMaxWindowEntries, "a verify window's entries overflow the tables");
 }  // namespace
 
 void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k,
                                 float* out) {
-    using namespace basalt::kernels::cpu;
+    using namespace halo::kernels::cpu;
     if (d.failed) return;
     if (n_tok < 1 || n_tok > MAXT) {
         d.failed = true;
@@ -207,7 +207,7 @@ void expert_pool_dispatch_multi(ExpertDispatch& d, const float* x_f, const int32
             bool cpu = false;   // an id of -1 (dropped by the route tail skip) needs no activation
             for (int64_t j = t * k; j < (t + 1) * k; ++j) cpu |= kind[j] < 0 && ids[j] >= 0;
             if (!cpu) continue;
-            if (native && basalt::kernels::cpu::q2_native_kernels(lay.fmt[(size_t) d.layers].gu_type))   // a native Q2_0 pack: the Q2_0 kernels' activations
+            if (native && halo::kernels::cpu::q2_native_kernels(lay.fmt[(size_t) d.layers].gu_type))   // a native Q2_0 pack: the Q2_0 kernels' activations
                 act_quant_any(x_f + (size_t) t * H, H, d.act_multi[(size_t) t]);
             else if (native)
                 native_quant_act(lay.fmt[(size_t) d.layers], x_f + (size_t) t * H, d.nact_multi.data() + (size_t) t * kNativeActBytes);
@@ -317,7 +317,7 @@ void expert_hit_run(void* user, void* stream, HitPhase phase, const int32_t* ids
                 // count of distinct experts moved rather than of looks.
                 const uint8_t* b = d.src->blob(d.layers, e);
                 std::string ferr;
-                if (b == nullptr || !d.cache->fill_slot(cand, b, cs, ferr, (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(d.layers))) {
+                if (b == nullptr || !d.cache->fill_slot(cand, b, cs, ferr, (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(d.layers))) {
                     d.failed = true;
                     d.fail = "the expert cache could not fill a slot";
                     d.fail_layer = d.layers;
@@ -362,9 +362,9 @@ void expert_hit_run(void* user, void* stream, HitPhase phase, const int32_t* ids
             d.fail = "the hit path has no fp32 activation scales";
             return;
         }
-        basalt::kernels::quantize_q8_0_scaled(d.mixed, d.x_q8_0_hit, d.x_q8_0_hit_scale, basalt::kernels::cpu::H,
+        halo::kernels::quantize_q8_0_scaled(d.mixed, d.x_q8_0_hit, d.x_q8_0_hit_scale, halo::kernels::cpu::H,
                                               cs);
-        basalt::kernels::moe_hit_grouped_s2(d.cache_base, d.d_slot, d.d_dst, d.n_hits, d.cache_blob,
+        halo::kernels::moe_hit_grouped_s2(d.cache_base, d.d_slot, d.d_dst, d.n_hits, d.cache_blob,
                 d.x_q8_0_hit, d.hit_scratch, d.hit_out, cs, d.x_q8_0_hit_scale);
         d.hit_pending = true;
         if (d.hit_done != nullptr) {
@@ -386,9 +386,9 @@ void expert_hit_run(void* user, void* stream, HitPhase phase, const int32_t* ids
         if (cudaEventQuery((cudaEvent_t) d.hit_done) == cudaSuccess) ++d.hit_ready;
         else ++d.hit_late;
     }
-    basalt::kernels::add_inplace(d.parts_out, d.hit_out, d.parts_elems, cs);
+    halo::kernels::add_inplace(d.parts_out, d.hit_out, d.parts_elems, cs);
 }
 
 // ================================ THE RESIDENT ARENA ================================
 
-}  // namespace basalt::core
+}  // namespace halo::core

@@ -77,7 +77,7 @@ __device__ __forceinline__ void spin_ge(const unsigned* c, unsigned target) {
     if (ldacq(c) < target) {
         const unsigned long long t0_ = mkb_now();
         while (ldacq(c) < target)
-            if (mkb_now() - t0_ > basalt::kernels::kWaitPollNs && mkb_give_up(t0_, 2, __LINE__)) return;
+            if (mkb_now() - t0_ > halo::kernels::kWaitPollNs && mkb_give_up(t0_, 2, __LINE__)) return;
     }
 }
 __device__ __forceinline__ void hop_copy(const unsigned* ctr, unsigned target, void* dst, const void* src, unsigned bytes, uint64_t* bar) {

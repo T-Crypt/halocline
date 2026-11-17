@@ -60,7 +60,7 @@ for name, sources in targets.items():
 
 for name, words in statements(text, "target_link_libraries"):
     who = owner(name)
-    if name not in targets or is_test(name, targets[name]) or name == "models" or name.startswith("basalt"):
+    if name not in targets or is_test(name, targets[name]) or name == "models" or name.startswith("halo"):
         continue
     bad = [w for w in words if owner(w) and owner(w) != who]
     fail("target " + name + " links another model's library", bad)
@@ -68,7 +68,7 @@ for name, words in statements(text, "target_link_libraries"):
 tracked = subprocess.check_output(["git", "ls-files", "src", "include"], cwd=ROOT, text=True).split()
 hits = []
 for f in tracked:
-    if f.startswith(("src/models/", "include/basalt/models/")) or not f.endswith((".cpp", ".hpp", ".cu", ".cuh", ".h", ".inc")):
+    if f.startswith(("src/models/", "include/halo/models/")) or not f.endswith((".cpp", ".hpp", ".cu", ".cuh", ".h", ".inc")):
         continue
     for n, line in enumerate((ROOT / f).read_text(encoding="utf-8", errors="replace").splitlines(), 1):
         if NAMES.search(line):
@@ -78,18 +78,18 @@ fail("shared code names a model or its token ids", hits)
 # A model's widths in shared code: what a name check cannot see. Each allowed file says why.
 WIDTHS = re.compile(r"\b(2560|10240|1382400|1,382,400)\b|\bFF = 640\b|\b48 ?[x*] ?512\b")
 WIDTH_OK = {
-    "include/basalt/program/options.hpp": "2560 MiB, a RAM floor",
+    "include/halo/program/options.hpp": "2560 MiB, a RAM floor",
     "src/program/cli/help.cpp": "2560 MiB, a RAM floor",
     "src/kernels/cuda/gu2.cuh": "a shared kernel's instance for this width; other widths take the other path",
     "src/kernels/cuda/gdn_window.cu": "the block widths the GDN window kernel is instantiated for; others are refused",
     "src/prefill/moe_mmq.cu": "the Q2_0 blob layout of that format's instance",
-    "include/basalt/prefill/moe_mmq.hpp": "the Q2_0 blob layout of that format's instance",
-    "include/basalt/kernels/cpu/expert.hpp": "the capacity of the Q8_1 activation block, not a model width",
+    "include/halo/prefill/moe_mmq.hpp": "the Q2_0 blob layout of that format's instance",
+    "include/halo/kernels/cpu/expert.hpp": "the capacity of the Q8_1 activation block, not a model width",
     "src/kernels/cpu/kq_avx2.cpp": "a loop bound in a comment",
 }
 hits = []
 for f in tracked:
-    if f.startswith(("src/models/", "include/basalt/models/", "include/basalt/ggml/", "src/kernels/cpu/ggml/")) or f in WIDTH_OK:
+    if f.startswith(("src/models/", "include/halo/models/", "include/halo/ggml/", "src/kernels/cpu/ggml/")) or f in WIDTH_OK:
         continue
     if not f.endswith((".cpp", ".hpp", ".cu", ".cuh", ".h", ".inc")):
         continue

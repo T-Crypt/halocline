@@ -4,7 +4,7 @@
 
 #include "window_gemm.cuh"
 
-namespace basalt::kernels::wgemm::detail {
+namespace halo::kernels::wgemm::detail {
 
 /// The kernel for windows of up to 8 (nt 1), 16 (nt 2) or 32 (nt 4) rows.  Every nt of a kind has the same block shape;
 /// F8 with kw warps on K slices (window_gemm_sliced.cuh).
@@ -26,4 +26,4 @@ template <int F, int RS, int NM, int CH, int ST, int NT, int MW> Kernel make_ker
     return k;
 }
 
-}  // namespace basalt::kernels::wgemm::detail
+}  // namespace halo::kernels::wgemm::detail

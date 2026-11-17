@@ -69,7 +69,7 @@ class Budget:
         self.addCleanup(self.httpd.shutdown)
 
     def chat(self, **extra):
-        body = {"model": "basalt", "messages": [{"role": "user", "content": "2+2?"}], "max_tokens": 2000, **extra}
+        body = {"model": "halo", "messages": [{"role": "user", "content": "2+2?"}], "max_tokens": 2000, **extra}
         req = urllib.request.Request(f"http://127.0.0.1:{self.httpd.server_address[1]}/v1/chat/completions",
                                      data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
         try:

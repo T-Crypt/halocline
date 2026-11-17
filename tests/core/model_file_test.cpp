@@ -1,9 +1,9 @@
-// tests/core/model_file_test.cpp - the .basalt reader (basalt/core/model_file.hpp) on a synthetic file: the table and
+// tests/core/model_file_test.cpp - the .basalt reader (halo/core/model_file.hpp) on a synthetic file: the table and
 // its refusals, the JSON of `meta`, the GGUF view of the `gguf` section, the expert layout read from its section's
 // text, and the hc8 table round trip.  No model, no GPU.
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -14,7 +14,7 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-using namespace basalt::core;
+using namespace halo::core;
 
 namespace {
 int g_fail = 0;
@@ -27,7 +27,7 @@ struct TempDir {
     fs::path path;
     TempDir() {
         path = fs::temp_directory_path() /
-               ("basalt-model-file-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+               ("halo-model-file-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         fs::create_directories(path);
     }
     ~TempDir() { std::error_code ignored; fs::remove_all(path, ignored); }
@@ -88,11 +88,11 @@ int main() {
     for (size_t i = 0; i < 100; ++i) gg[i] = (char) i;
     for (size_t i = 0; i < 40; ++i) gg[kTensorAlign + i] = (char) (200 + i);
     const std::string meta =
-        R"({"format":"basalt","gguf_kv":{"general.architecture":"qwen4exp","qwen4exp.expert_count":512,)"
+        R"({"format":"halo","gguf_kv":{"general.architecture":"qwen4exp","qwen4exp.expert_count":512,)"
         R"("qwen4exp.rope.freq_base":10000000.0,"tok":["a","b","c"],"neg":-3,"name":"hé"},)"
         R"("tensors":{"a.weight":{"type":"F32","type_id":0,"shape":[25],"bytes":100,"offset":0},)"
         R"("b.weight":{"type":"F32","type_id":0,"shape":[5,2],"bytes":40,"offset":4096}}})";
-    basalt::core::Hc8Copy c;
+    halo::core::Hc8Copy c;
     c.name = "blk.0.hc_attn_down.weight";
     c.rows = 3; c.cols = 64; c.srow = 8;
     c.data.resize(3 * 64 + 3 * 8 * 2);
@@ -121,7 +121,7 @@ int main() {
         check(!bad.open((d.path / "n.basalt").string(), e2), "a file without the magic is refused");
         const std::string v1 = write_model(d.path / "v1.basalt", {{"meta", meta}}, false, 1);
         check(!bad.open(v1, e2) && e2.find("version 1") != std::string::npos &&
-                  e2.find("tools/migrations/basalt_v1_to_v2.py") != std::string::npos,
+                  e2.find("tools/migrations/halo_v1_to_v2.py") != std::string::npos,
               "a version 1 file is refused with the migration's name: " + e2);
     }
 
@@ -129,15 +129,15 @@ int main() {
     check(m.load_meta(err), "load_meta: " + err);
     check(m.register_gguf_view(err), "register_gguf_view: " + err);
     {
-        const basalt::GgufModel g(std::vector<std::string>{path});
-        const basalt::MetaValue* ec = g.meta().get("qwen4exp.expert_count");
-        const basalt::MetaValue* fb = g.meta().get("qwen4exp.rope.freq_base");
-        const basalt::MetaValue* nm = g.meta().get("name");
-        const basalt::MetaValue* tk = g.meta().get("tok");
+        const halo::GgufModel g(std::vector<std::string>{path});
+        const halo::MetaValue* ec = g.meta().get("qwen4exp.expert_count");
+        const halo::MetaValue* fb = g.meta().get("qwen4exp.rope.freq_base");
+        const halo::MetaValue* nm = g.meta().get("name");
+        const halo::MetaValue* tk = g.meta().get("tok");
         check(ec && ec->u == 512 && fb && fb->num() == 1e7 && nm && nm->s == "h\xc3\xa9" && tk && tk->count == 3,
               "kv: integer, float, escaped string, array");
         size_t shard = 9;
-        const basalt::TensorInfo* t = g.find("b.weight", &shard);
+        const halo::TensorInfo* t = g.find("b.weight", &shard);
         check(t && shard == 0 && t->shape.size() == 2 && t->shape[1] == 2 && t->type == 0 &&
                   g.shard(0).data_start() + t->offset == m.range("gguf").offset + 4096 &&
                   g.shard(0).tensor_data(*t)[0] == (uint8_t) 200,
@@ -150,10 +150,10 @@ int main() {
         std::vector<uint8_t> text;
         check(m.read("experts.layout", text, err), "read the layout section");
         // a header of the .basalt spelling with no rows is refused as incomplete, not for its header
-        const bool ok = basalt::kernels::cpu::expert_layout_load_text(std::string(text.begin(), text.end()), 2, 2, err, 2560, 640);
+        const bool ok = halo::kernels::cpu::expert_layout_load_text(std::string(text.begin(), text.end()), 2, 2, err, 2560, 640);
         check(!ok && err.find("missing or not contiguous") != std::string::npos,
               "\"# experts v5\" is read as a layout header: " + err);
-        check(!basalt::kernels::cpu::expert_layout_load_text(std::string(), 2, 2, err, 2560, 640), "empty text is refused");
+        check(!halo::kernels::cpu::expert_layout_load_text(std::string(), 2, 2, err, 2560, 640), "empty text is refused");
     }
     {
         std::map<std::string, Hc8Copy> back;

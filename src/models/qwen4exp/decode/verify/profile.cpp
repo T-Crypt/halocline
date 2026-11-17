@@ -1,10 +1,10 @@
 #include "common.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 std::string Verifier::profile_report() {
@@ -147,7 +147,7 @@ std::string DecodeEvents::report() {
                                 "window", "run entry>launch"};
     std::string out;
     char b[400];
-    std::snprintf(b, sizeof b, "basalt decode events (GPU ms, %zu windows; median / mean):", v[0].size());
+    std::snprintf(b, sizeof b, "halo decode events (GPU ms, %zu windows; median / mean):", v[0].size());
     out = b;
     for (int i = 0; i < 8; ++i) {
         if (v[i].empty()) continue;
@@ -290,4 +290,4 @@ void Verifier::collect_profile() {
     ++prof_windows_;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

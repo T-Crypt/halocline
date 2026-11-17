@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -15,7 +15,7 @@ bool MtpDrafter::prewarm(std::string& err) {
     bool ok = true;
     for (int tier = 0; ok && tier < (tier2_.empty() ? 1 : 2); ++tier) {
         tier_ = tier2_.empty() ? saved : tier;
-        for (int T = 1; ok && T <= std::min(max_t_, basalt::kernels::kVerifyMaxT) && !cond_off_; ++T)
+        for (int T = 1; ok && T <= std::min(max_t_, halo::kernels::kVerifyMaxT) && !cond_off_; ++T)
             ok = capture_cond(T, max_steps);
     }
     tier_ = saved;
@@ -31,7 +31,7 @@ bool MtpDrafter::capture_cond(int T, int steps) {
         cudaGraphExecDestroy(exec);
         exec = nullptr;
     }
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     std::string err;
     cudaGraph_t top = nullptr;
     cudaGraphConditionalHandle h[kMtpChainMax] = {};
@@ -93,7 +93,7 @@ bool MtpDrafter::capture_cond(int T, int steps) {
     }
     if (!ok) {
         const cudaError_t e = cudaGetLastError();
-        basalt::log::warn("basalt mtp", "the conditional draft graph failed (%s%s%s); one graph per "
+        halo::log::warn("halo mtp", "the conditional draft graph failed (%s%s%s); one graph per "
                              "step from now on",
                      cudaGetErrorString(e), err.empty() ? "" : ", ", err.c_str());
         if (exec) cudaGraphExecDestroy(exec);

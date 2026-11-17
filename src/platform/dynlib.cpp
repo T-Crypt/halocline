@@ -1,16 +1,16 @@
-// src/platform/dynlib.cpp - see include/basalt/platform/dynlib.hpp.
-#include "basalt/platform/dynlib.hpp"
+// src/platform/dynlib.cpp - see include/halo/platform/dynlib.hpp.
+#include "halo/platform/dynlib.hpp"
 
 #include <algorithm>
 #include <string>
 #include <vector>
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <dlfcn.h>
 #include <link.h>
 
-namespace basalt::platform {
+namespace halo::platform {
 
 DynLib DynLib::open_nvml() {
     DynLib lib;
@@ -36,4 +36,4 @@ void* DynLib::address(const char* name) const { return h_ == nullptr ? nullptr :
 
 void DynLib::reset() { h_ = nullptr; }   // never dlclosed, as before: the management library stays loaded
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

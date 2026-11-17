@@ -1,8 +1,8 @@
 // src/program/serve/request_image.cpp - what every model checks once the prompt's images are placed.
-#include "basalt/protocol.hpp"
+#include "halo/protocol.hpp"
 #include "request.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 Flow Request::begin_quality_gate(const std::string& base, const std::string& out, int most_rows) {
     ppl = nullptr;
@@ -24,7 +24,7 @@ Flow Request::prepare_prompt() {
     if (from_text && req_clip && runtime_.admit_slot < 0) {
         const long long room = (long long) (runtime_.o.max_context - 8 - n);
         if (room < 1) {
-            basalt::protocol::emit_text(basalt::protocol::context_no_room_line((long long) n, (long long) runtime_.o.max_context));
+            halo::protocol::emit_text(halo::protocol::context_no_room_line((long long) n, (long long) runtime_.o.max_context));
             return Flow::next;
         }
         max_new = std::min(max_new, room);
@@ -33,7 +33,7 @@ Flow Request::prepare_prompt() {
         const int64_t ctx = runtime_.admit_slot >= 0 ? runtime_.slot_context(runtime_.admit_slot) : runtime_.o.max_context;
         const long long want = runtime_.admit_slot >= 0 ? runtime_.admit_max_new : (long long) max_new;   // a slot's request: its own max_new
         if (n + want + 8 > ctx) {
-            basalt::protocol::emit_text(basalt::protocol::context_overflow_line((long long) n, want, (long long) ctx,
+            halo::protocol::emit_text(halo::protocol::context_overflow_line((long long) n, want, (long long) ctx,
                                                                                 runtime_.admit_slot));
             runtime_.admit_slot = -1;
             return Flow::next;
@@ -47,4 +47,4 @@ Flow Request::prepare_prompt() {
     return Flow::proceed;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

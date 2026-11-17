@@ -1,7 +1,7 @@
 // src/kernels/cpu/pool.cpp - the CPU expert pool.  Read pool.hpp first; it explains the protocol.
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,9 +10,9 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 
 namespace {
 constexpr uint64_t pack_head(uint32_t epoch, uint32_t n, uint32_t i) {
@@ -89,7 +89,7 @@ ExpertPool::ExpertPool(int n_workers, PoolAffinity affinity)
     for (int i = 0; i < n_; ++i) wstate_[(size_t) i].store(kParked);
     hstate_ms_.store(now_ms());
     g_diag_pool.store(this);
-    basalt::core::diag_pool_fn().store(&diag_active_pool);
+    halo::core::diag_pool_fn().store(&diag_active_pool);
     split_multi_.resize((size_t) kMaxSplitMulti);
     fused_.reset(new FusedExpert[(size_t) kMaxSplitMulti]);
     threads_.reserve((size_t) n_);
@@ -192,7 +192,7 @@ int ExpertPool::claim(uint32_t epoch) {
 
 uint32_t ExpertPool::begin_batch(int n) {
     if (n < 0 || n > 0xffff) {
-        basalt::log::error("basalt", "expert pool batch of %d jobs is out of range", n);
+        halo::log::error("halo", "expert pool batch of %d jobs is out of range", n);
         std::abort();
     }
     // Every job of the previous batch has completed (`wait_done`), and a claim of it can no longer succeed, so
@@ -205,7 +205,7 @@ uint32_t ExpertPool::begin_batch(int n) {
 }
 
 void ExpertPool::stalled() {
-    basalt::core::release_gpu_waits(basalt::log::stream());   // the GPU may be spinning on this layer's flag
+    halo::core::release_gpu_waits(halo::log::stream());   // the GPU may be spinning on this layer's flag
     std::abort();
 }
 
@@ -216,7 +216,7 @@ void ExpertPool::wait_parked(const char* what) {
     while (parked_.load(std::memory_order_acquire) != (uint32_t) n_) {
         _mm_pause();
         if (clock.expired(parked_.load(std::memory_order_relaxed))) {
-            basalt::log::error("basalt", "the CPU expert pool stalled %s (%u of %d workers parked) - stopping the engine "
+            halo::log::error("halo", "the CPU expert pool stalled %s (%u of %d workers parked) - stopping the engine "
                                  "so the server can start it again",
                          what, parked_.load(), n_);
             stalled();
@@ -233,7 +233,7 @@ void ExpertPool::wait_done(int n) {
         if (d >= (uint32_t) n) return;                                // `>=`: never a wait that an overshoot outlives
         _mm_pause();
         if (clock.expired(d)) {                                       // progress restarts the clock
-            basalt::log::error("basalt", "the CPU expert pool stalled: %u of %d jobs done, %u of %d workers parked - "
+            halo::log::error("halo", "the CPU expert pool stalled: %u of %d jobs done, %u of %d workers parked - "
                                  "stopping the engine so the server can start it again",
                          d, n, parked_.load(), n_);
             stalled();
@@ -246,7 +246,7 @@ void ExpertPool::wait_ready(int e) {
     while (fused_[(size_t) e].ready.load(std::memory_order_acquire) == 0) {
         _mm_pause();
         if (clock.expired(done_.load(std::memory_order_relaxed))) {
-            basalt::log::error("basalt", "the CPU expert pool stalled: the gate/up rows of expert %d of the batch did not finish "
+            halo::log::error("halo", "the CPU expert pool stalled: the gate/up rows of expert %d of the batch did not finish "
                                  "(%u of %d tasks done, %u of %d workers parked) - stopping the engine so the server can "
                                  "start it again",
                          e, done_.load(), njobs_, parked_.load(), n_);
@@ -472,4 +472,4 @@ void ExpertPool::run_split_multi_native(const NativeFmt& f, ExpertJobMulti* jobs
     mode_ = 0;
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

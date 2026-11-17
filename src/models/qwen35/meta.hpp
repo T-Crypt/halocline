@@ -2,14 +2,14 @@
 // can check it without linking the model.
 #pragma once
 
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/dense/model.hpp"
-#include "basalt/kernels/nvfp4_planes.hpp"
-#include "basalt/model/adapter.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/dense/model.hpp"
+#include "halo/kernels/nvfp4_planes.hpp"
+#include "halo/model/adapter.hpp"
 
 #include <string>
 
-namespace basalt::models::qwen35 {
+namespace halo::models::qwen35 {
 
 constexpr int kTypeF32 = 0, kTypeQ8_0 = 8, kTypeBf16 = 30, kTypeNvfp4 = 40, kTypeF8 = 44, kTypeNvfp4Planes = 45;
 
@@ -93,4 +93,4 @@ inline dense::Geometry geometry(const GgufFile& g, std::string& err) {
     return o;
 }
 
-}  // namespace basalt::models::qwen35
+}  // namespace halo::models::qwen35

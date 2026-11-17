@@ -12,9 +12,9 @@ extern "C" {
 #include <cstddef>
 #include <cstdio>
 
-#include "basalt/vision/ffmpeg_abi.hpp"
+#include "halo/vision/ffmpeg_abi.hpp"
 
-namespace ff = basalt::vision::ff;
+namespace ff = halo::vision::ff;
 
 int main() {
     const ff::AbiRow* row = nullptr;

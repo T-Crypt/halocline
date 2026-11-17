@@ -8,7 +8,7 @@
 #include "logprobs.hpp"
 #include "reply_rows.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 template <class B>
 Flow Request::decode_loop(B& b) {
@@ -62,7 +62,7 @@ Flow Request::decode_loop(B& b) {
             // the tails the penalties count over, one per row: the tokens the state has consumed, the fed-back
             // head `x` (it joins `consumed` only after this window commits), then the drafts before that row -
             // what plain decode would have counted there
-            basalt::kernels::penalty_rows(consumed.data(), (int64_t) consumed.size(), window.data(), T,
+            halo::kernels::penalty_rows(consumed.data(), (int64_t) consumed.size(), window.data(), T,
                                           hist_n, b.history_stage());
             b.upload_history(T);
         }
@@ -96,12 +96,12 @@ Flow Request::decode_loop(B& b) {
                 outv[(size_t) miss] = gtok;
                 a = miss;
                 if (!gguard->take(gtok))
-                    basalt::log::info("basalt grammar", "the masked draw at row %d of %d was token %d", miss, T, (int) gtok);
+                    halo::log::info("halo grammar", "the masked draw at row %d of %d was token %d", miss, T, (int) gtok);
                 ++grammar_resamples;
             }
         }
         if (req_logprobs >= 0 && ppl == nullptr) {   // the picks are final: read their rows before the commit
-            constexpr int S = basalt::kernels::kLogprobStride;
+            constexpr int S = halo::kernels::kLogprobStride;
             lp_rows.resize((size_t) (a + 1 - e0) * S);
             lp_fields.assign((size_t) a + 1, std::string());
             if (!b.row_logprobs(e0, a + 1 - e0, outv.data() + e0, req_logprobs, lp_rows.data())) {
@@ -154,7 +154,7 @@ Flow Request::decode_loop(B& b) {
             for (int i = e0; i <= a && produced_n < max_new && !eos; ++i) {
                 if (req_logprobs >= 0 && ppl == nullptr) std::printf("P%s\n", lp_fields[(size_t) i].c_str());
                 std::printf("T %d\n", (int) outv[(size_t) i]);
-                basalt::core::progress_beat();
+                halo::core::progress_beat();
                 ++produced_n;
                 b.on_token(outv[(size_t) i]);
                 eos = ppl == nullptr &&
@@ -197,7 +197,7 @@ Flow Request::decode_loop(B& b) {
         b.stamp_loop_end();
     }
     if (gguard != nullptr)
-        basalt::log::info("basalt grammar", "%lld windows checked, %lld masked resamples, %.3f ms in grammar code (%.2f us/window)",
+        halo::log::info("halo grammar", "%lld windows checked, %lld masked resamples, %.3f ms in grammar code (%.2f us/window)",
                      (long long) gguard->windows(), (long long) grammar_resamples, gguard->ms(),
                      gguard->windows() > 0 ? gguard->ms() * 1000.0 / (double) gguard->windows() : 0.0);
     b.decode_end();
@@ -208,4 +208,4 @@ Flow Request::decode_loop(B& b) {
     return Flow::proceed;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

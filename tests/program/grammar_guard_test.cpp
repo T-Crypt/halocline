@@ -1,13 +1,13 @@
 // tests/program/grammar_guard_test.cpp - the pack vocabulary reader and the per-request window check (CPU only).
 #include "tool_form_fixture.hpp"
-#include "basalt/program/grammar/guard.hpp"
+#include "halo/program/grammar/guard.hpp"
 
 #include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
 
-using namespace basalt::program::grammar;
+using namespace halo::program::grammar;
 
 static int g_fail = 0;
 #define CHECK(c)                                                              \

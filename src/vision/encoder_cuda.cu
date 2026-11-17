@@ -1,5 +1,5 @@
-// src/vision/encoder_cuda.cu - see basalt/vision/encoder_cuda.hpp.
-#include "basalt/vision/encoder_cuda.hpp"
+// src/vision/encoder_cuda.cu - see halo/vision/encoder_cuda.hpp.
+#include "halo/vision/encoder_cuda.hpp"
 
 #include <cublas_v2.h>
 #include <cuda_bf16.h>
@@ -12,7 +12,7 @@
 
 #include "vision_kernels.cuh"
 
-namespace basalt::vision {
+namespace halo::vision {
 
 #define CK(x)                                                                                    \
     do {                                                                                         \
@@ -372,4 +372,4 @@ void CudaEncoder::detach() { impl_->detach(); }
 size_t CudaEncoder::device_bytes() const { return impl_->arena_size; }
 std::string CudaEncoder::last_error() const { return impl_->err; }
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

@@ -1,14 +1,14 @@
 // src/kernels/cpu/cpu_quota.cpp - the CPU quota of the process's cgroup.  See cpu_quota.hpp.
-#include "basalt/kernels/cpu/cpu_quota.hpp"
+#include "halo/kernels/cpu/cpu_quota.hpp"
 
-#include "basalt/platform/system.hpp"
+#include "halo/platform/system.hpp"
 
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 
 namespace {
 
@@ -92,4 +92,4 @@ double cgroup_cpu_quota(const std::string& self_cgroup_arg, const std::string& c
     return 0;
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

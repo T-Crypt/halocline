@@ -1,23 +1,23 @@
 #include "state.hpp"
 #include "layout.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/core/host_plan.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/core/host_plan.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <string>
 #include <thread>
 #include <vector>
 #include <memory>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
-// src/models/qwen4exp/prefill/lifecycle.cpp - see include/basalt/models/qwen4exp/prefill/prefill.hpp.
+// src/models/qwen4exp/prefill/lifecycle.cpp - see include/halo/models/qwen4exp/prefill/prefill.hpp.
 Prefill::Prefill() : impl_(new Impl) {}
 Prefill::~Prefill() { release(); }
 
@@ -89,7 +89,7 @@ bool Prefill::init(const core::WeightTable& wt, const core::ModelGeometry& g, co
         const int threads = std::max(2, std::min(4, hw / 4));
         if (!m.stager->init((size_t) MAXBLOB(), threads)) ok = false;
     }
-    m.steps_host.resize(T * basalt::kernels::kStepCount);
+    m.steps_host.resize(T * halo::kernels::kStepCount);
     m.ids_host.resize(T * K); m.slot_host.resize(T * K); m.src_host.resize(T * K); m.cnt.resize(m.g->n_expert); m.off.resize(m.g->n_expert + 1);
     {
         const size_t need = 3 * T * K + (size_t) (2 * (m.g->n_expert + m.g->n_expert / MMQ_GROUP + 2));
@@ -120,7 +120,7 @@ bool Prefill::init(const core::WeightTable& wt, const core::ModelGeometry& g, co
         }
         if (!m.ple_copied[b] && cudaEventCreateWithFlags(&m.ple_copied[b], cudaEventDisableTiming) != cudaSuccess)
             ok = false;
-        m.ple_rows[b].resize(T * basalt::kernels::PLE_N_HEADS);
+        m.ple_rows[b].resize(T * halo::kernels::PLE_N_HEADS);
     }
     if (m.guess_host == nullptr) {   // the routing guess of a chunk below stream_all_min(), outside the loan
         const int64_t rows = std::min<int64_t>(chunk, stream_all_min() - 1) * K;
@@ -171,4 +171,4 @@ bool Prefill::init(const core::WeightTable& wt, const core::ModelGeometry& g, co
 // Every device buffer of a chunk of T tokens, from the Alloc `alloc` (after the GEMM scratch and workspace): `init`
 // once, and `relayout` for a request's own chunk.  The order is `bytes_needed`'s.
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

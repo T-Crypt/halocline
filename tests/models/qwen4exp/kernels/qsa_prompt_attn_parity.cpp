@@ -11,10 +11,10 @@
 //      sub-batches: off the tile grid, a batch of one, the chunk's tail);
 // then times both over a prompt chunk (the old one in batches of 32, as src/models/qwen4exp/prefill/qsa.cpp calls it).
 // Usage: qsa_prompt_attn_parity [context=32768] [queries=2048] [reps=5]
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_prompt_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_prompt_attn.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -27,7 +27,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

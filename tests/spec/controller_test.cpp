@@ -1,9 +1,9 @@
 // tests/spec/controller_test.cpp - the speculation controller's decisions (no model, no GPU).
-#include "basalt/spec/controller.hpp"
+#include "halo/spec/controller.hpp"
 
 #include <cstdio>
 
-using namespace basalt::spec;
+using namespace halo::spec;
 
 namespace {
 int g_fail = 0;

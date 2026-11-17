@@ -1,9 +1,9 @@
-// src/models/qwen4exp/kernels/qsa_prompt_attn.cu - see include/basalt/models/qwen4exp/kernels/qsa_prompt_attn.hpp.
+// src/models/qwen4exp/kernels/qsa_prompt_attn.cu - see include/halo/models/qwen4exp/kernels/qsa_prompt_attn.hpp.
 #include <cstdlib>
 #include <cstring>
-#include "basalt/models/qwen4exp/kernels/qsa_prompt_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_prompt_attn.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -14,9 +14,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <type_traits>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int HD = 256;           // head_dim
@@ -791,7 +791,7 @@ bool launch_i8(const float* q, const QsaAttnPools& pools, const int32_t* ids, co
     }
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "qsa_prompt_attn_batch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "qsa_prompt_attn_batch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     return true;
@@ -822,7 +822,7 @@ bool launch(const float* q, const QsaAttnPools& pools, const int32_t* ids, const
     }
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "qsa_prompt_attn_batch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "qsa_prompt_attn_batch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     return true;
@@ -853,4 +853,4 @@ bool qsa_prompt_attn_batch(const float* q, const QsaAttnPools& pools, const int3
     return launch<0>(q, pools, ids, steps, cap, s, attn, n_q, st);
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

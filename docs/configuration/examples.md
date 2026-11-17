@@ -1,6 +1,9 @@
 # Example configurations
 
-Start with `bin/basalt serve --config basalt_config.json`. Model paths are relative to the file. Settings: [configuration](index.md).
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
+Start with `bin/halo serve --config halo_config.json`. Model paths are relative to the file. Settings: [configuration](index.md).
 
 ## One GPU (32 GB) and RAM
 

@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/kernels/hc_fused_ada.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused_ada.hpp"
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -43,7 +43,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
         if (!parse_index(files.index, tensors_, err)) return false;
         std::vector<uint8_t> blob;
         if (!read_file(files.dense, blob)) { err = "mtp: cannot read " + files.dense.path; return false; }
-        if (basalt::kernels::hc8_only()) {   // the hyper-connection matrices as 8-bit copies only: out of the blob
+        if (halo::kernels::hc8_only()) {   // the hyper-connection matrices as 8-bit copies only: out of the blob
             std::vector<uint8_t> kept;
             size_t staged = 0;
             for (Tensor& t : tensors_) {
@@ -61,7 +61,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
                 t.off = off;
             }
             blob.swap(kept);
-            basalt::log::info("basalt hc8", "the draft layer's hyper-connection matrices as 8-bit copies only (%.1f MiB "
+            halo::log::info("halo hc8", "the draft layer's hyper-connection matrices as 8-bit copies only (%.1f MiB "
                                  "of bf16 left out)", (double) staged / 1048576.0);
         }
         const cudaError_t alloc = cudaMalloc((void**) &dense_, blob.size());
@@ -73,7 +73,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
                   (info == cudaSuccess ? std::to_string(free_bytes >> 20) + " MiB" : "unknown");
             return false;
         }
-        progress.emplace(LoadProgress::cuda(device_), blob.size() + (uint64_t) g.n_expert * basalt::kernels::cpu::BLOB);
+        progress.emplace(LoadProgress::cuda(device_), blob.size() + (uint64_t) g.n_expert * halo::kernels::cpu::BLOB);
         cudaMemcpy(dense_, blob.data(), blob.size(), cudaMemcpyHostToDevice);
         progress->add(blob.size());
         vram_ += blob.size();
@@ -81,7 +81,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
     }
     // ---- the 512 routed experts, one blob each
     {
-        const uint64_t bytes = (uint64_t) g.n_expert * basalt::kernels::cpu::BLOB;
+        const uint64_t bytes = (uint64_t) g.n_expert * halo::kernels::cpu::BLOB;
         if (files.experts.empty() || !files.experts.exists() || files.experts.size() < bytes) {
             err = "mtp: " + files.experts.path + " is missing or shorter than the draft layer's experts";
             return false;
@@ -102,7 +102,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
     for (const char* n : required) if (!q8(n)) { err = std::string("mtp: ") + n + " is missing (q8_0)"; return false; }
 
     // ---- the layer's own K/V (dense attention: no indexer state is read)
-    const basalt::kernels::QsaShapes s = shapes_of(g);
+    const halo::kernels::QsaShapes s = shapes_of(g);
     const int64_t max_cells = ss.qsa_states[ss.qsa_primary()].max_cells;
     // KV streaming: the drafter only reads its last `window` cells, so with streaming on its K/V is a ring of the
     // window (plus the cells a round writes ahead of its queries) over a host copy, refilled on a resume. The host copy
@@ -131,7 +131,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
     if (cudaMalloc(&state_arena_, sb) != cudaSuccess) { err = "mtp: the K/V state does not fit"; return false; }
     if (qsa_state_init(g, max_cells, state_arena_, st_, &ss.qsa_states[ss.qsa_primary()], ring) == 0) {
         if (st_.kv_mode == 0) { err = "mtp: state init failed"; return false; }
-        basalt::log::warn("basalt mtp", "no pinned RAM left for the draft layer's K/V copy; keeping it in VRAM");
+        halo::log::warn("halo mtp", "no pinned RAM left for the draft layer's K/V copy; keeping it in VRAM");
         cudaGetLastError();
         cudaFree(state_arena_);
         st_ = QsaState{};
@@ -153,7 +153,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
         KvArr lay[4];
         const int na = kv_layout(lay);
         if ((st_.kv_mode != 0 && st_.kv_mode != 2) || na == 0) {
-            basalt::log::warn("basalt mtp", "batch windows need the draft layer's K/V whole or a ring; no drafts there");
+            halo::log::warn("halo mtp", "batch windows need the draft layer's K/V whole or a ring; no drafts there");
             n_stores_ = cur_ = 0;
         } else {
             stores_.assign((size_t) n_stores_ + 1, std::array<void*, 4>{});
@@ -186,7 +186,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
     // ---- buffers
     window_ = (window > 0 && window < max_cells) ? window : 0;
     cap_ = (((window_ > 0 ? window_ : max_cells) + 63) / 64) * 64;
-    attn_scratch_floats_ = (int64_t) basalt::kernels::qsa_decode_attn_scratch_floats(cap_, s);
+    attn_scratch_floats_ = (int64_t) halo::kernels::qsa_decode_attn_scratch_floats(cap_, s);
     const uint64_t T = (uint64_t) max_t, N = (uint64_t) g.n_embd, HC = (uint64_t) g.hc, K = (uint64_t) ss.k;
     const uint64_t NH = (uint64_t) g.n_head, HD = (uint64_t) g.head_dim, NKV = (uint64_t) g.n_head_kv;
     const uint64_t R2 = 2 * T;   // step/pos rows: T catch-up rows + up to T-2 chain steps
@@ -206,9 +206,9 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
         mixed_ = b.take<float>(T * N); inj_ = b.take<float>(T * HC); inj2_ = b.take<float>(T * HC);
         lo_ = b.take<float>(T * (uint64_t) g.hc_lr); rs_ = b.take<float>(T * HC); bo_ = b.take<float>(T * N);
         xn_ = b.take<float>(T * HC * N);
-        xq_ = b.take<uint8_t>(basalt::kernels::native_q8_1_bytes((int) (NH * HD), 8));
-        xq2_ = b.take<uint8_t>(basalt::kernels::native_q8_1_bytes((int) (NH * HD), 8));
-        xqr_ = b.take<uint8_t>(basalt::kernels::native_q8_1_bytes((int) N, 1));
+        xq_ = b.take<uint8_t>(halo::kernels::native_q8_1_bytes((int) (NH * HD), 8));
+        xq2_ = b.take<uint8_t>(halo::kernels::native_q8_1_bytes((int) (NH * HD), 8));
+        xqr_ = b.take<uint8_t>(halo::kernels::native_q8_1_bytes((int) N, 1));
         qfull_ = b.take<float>(T * NH * 2 * HD); qcur_ = b.take<float>(T * NH * HD);
         kcur_ = b.take<float>(T * NKV * HD); vcur_ = b.take<float>(T * NKV * HD);
         attn_ = b.take<float>(T * NH * HD); attn32_ = b.take<float>(T * NH * HD);
@@ -220,8 +220,8 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
         grp_ptr_ = b.take<unsigned long long>(T * K); grp_start_ = b.take<int32_t>(T * K + 1);
         grp_counts_ = b.take<int32_t>(4);
         hit_xq_ = b.take<uint8_t>(T * (N / 32) * 34); hit_xs_ = b.take<float>(T * (N / 32));
-        hit_scratch_ = b.take<uint8_t>(basalt::kernels::moe_hit_grouped_scratch_bytes((int64_t) (T * K), g.n_embd, g.n_ff));
-        sh_scratch_ = (float*) b.take<uint8_t>(basalt::kernels::shared_expert_scratch_bytes(g.n_ff));
+        hit_scratch_ = b.take<uint8_t>(halo::kernels::moe_hit_grouped_scratch_bytes((int64_t) (T * K), g.n_embd, g.n_ff));
+        sh_scratch_ = (float*) b.take<uint8_t>(halo::kernels::shared_expert_scratch_bytes(g.n_ff));
         out_ids_ = b.take<int32_t>(T + 4);
         probs_ = b.take<float>(T + 4);
         dummy_inj_ = b.take<float>(HC);
@@ -261,8 +261,8 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
         err = "mtp: second stream";
         return false;
     }
-    basalt::kernels::hc_fused_init();
-    basalt::kernels::hc_fused_ada_init();
+    halo::kernels::hc_fused_init();
+    halo::kernels::hc_fused_ada_init();
     if (cudaStreamCreateWithPriority(&cs3_, cudaStreamNonBlocking, prio) != cudaSuccess ||
         cudaEventCreateWithFlags(&ev_pf_, cudaEventDisableTiming) != cudaSuccess ||
         cudaEventCreateWithFlags(&ev_pfj_, cudaEventDisableTiming) != cudaSuccess) {
@@ -270,7 +270,7 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
         return false;
     }
     {
-        if (basalt::kernels::hc8_enabled()) {   // the draft layer's reads on 8-bit copies too
+        if (halo::kernels::hc8_enabled()) {   // the draft layer's reads on 8-bit copies too
             const int LR = (int) g.hc_lr, D = (int) (g.hc * g.n_embd), HCn = (int) g.hc;
             for (const char* p : {"attn_hyper_connection.", "mlp_hyper_connection.", "hyper_connection_mixer."}) {
                 const std::string s(p);
@@ -287,13 +287,13 @@ bool MtpDrafter::load(const MtpFiles& files, const ModelGeometry& g, SessionStat
             }
         }
     }
-    if (basalt::core::diagnostics().profile && cudaMalloc((void**) &gstamp_, 16) == cudaSuccess)
+    if (halo::core::diagnostics().profile && cudaMalloc((void**) &gstamp_, 16) == cudaSuccess)
         cudaMemset(gstamp_, 0, 16);
     const double files_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t_files).count();
-    basalt::log::info("basalt mtp", "draft layer loaded, %.0f MiB of VRAM (experts %.0f, dense %.0f), files read in %.2f s (%.0f MiB/s)",
-                 (double) vram_ / 1048576.0, (double) g.n_expert * basalt::kernels::cpu::BLOB / 1048576.0,
+    halo::log::info("halo mtp", "draft layer loaded, %.0f MiB of VRAM (experts %.0f, dense %.0f), files read in %.2f s (%.0f MiB/s)",
+                 (double) vram_ / 1048576.0, (double) g.n_expert * halo::kernels::cpu::BLOB / 1048576.0,
                  (double) tensors_.back().off / 1048576.0, files_s,
-                 files_s > 0 ? ((double) g.n_expert * basalt::kernels::cpu::BLOB + (double) tensors_.back().off) /
+                 files_s > 0 ? ((double) g.n_expert * halo::kernels::cpu::BLOB + (double) tensors_.back().off) /
                                    1048576.0 / files_s : 0.0);
     return true;
 }

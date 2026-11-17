@@ -14,12 +14,12 @@
 //               tail against the same window with those experts resident in VRAM
 // All bitwise.  --bench adds: the VRAM share's grouped call (us, GB/s of expert bytes), the combine's launches, and the
 // staged share's copy (us, GB/s over the link).
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/native_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/s2_expert_grouped.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/native_moe.hpp"
+#include "halo/models/qwen4exp/kernels/s2_expert_grouped.hpp"
 
 #include <cuda_runtime.h>
 
@@ -38,7 +38,7 @@
 #include <thread>
 #include <vector>
 
-namespace K = basalt::kernels;
+namespace K = halo::kernels;
 
 namespace {
 
@@ -209,8 +209,8 @@ int main(int argc, char** argv) {
     }
     const bool nvfp4 = std::strcmp(argv[1], "--nvfp4") == 0, kq = std::strcmp(argv[1], "--kq") == 0;
     const bool synth = nvfp4 || kq;
-    std::unique_ptr<basalt::GgufFile> gguf_p;
-    if (!synth) gguf_p = std::make_unique<basalt::GgufFile>(argv[1]);
+    std::unique_ptr<halo::GgufFile> gguf_p;
+    if (!synth) gguf_p = std::make_unique<halo::GgufFile>(argv[1]);
     int ndev = 0;
     ck(cudaGetDeviceCount(&ndev), "device count");
     const bool two = ndev >= 2;
@@ -226,7 +226,7 @@ int main(int argc, char** argv) {
         auto_layers = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     }
     for (int l = 0; !synth && l < 64; ++l) {
-        const basalt::GgufFile& gguf = *gguf_p;
+        const halo::GgufFile& gguf = *gguf_p;
         const auto* g = gguf.find("blk." + std::to_string(l) + ".ffn_gate_exps.weight");
         const auto* d = gguf.find("blk." + std::to_string(l) + ".ffn_down_exps.weight");
         if (!g || !d) continue;
@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
         std::vector<uint8_t> blobs = nvfp4 ? nvfp4_blobs(L, NX, rng) : kq ? kq_blobs(L, NX, rng)
                                                                     : std::vector<uint8_t>((size_t) NX * L.bytes);
         for (int x = 0; !synth && x < NX; ++x) {
-            const basalt::GgufFile& gguf = *gguf_p;
+            const halo::GgufFile& gguf = *gguf_p;
             const auto* tg = gguf.find("blk." + std::to_string(l) + ".ffn_gate_exps.weight");
             const auto* tu = gguf.find("blk." + std::to_string(l) + ".ffn_up_exps.weight");
             const auto* td = gguf.find("blk." + std::to_string(l) + ".ffn_down_exps.weight");

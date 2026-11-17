@@ -3,27 +3,27 @@
 #include "../cli/gpu.hpp"
 #include "../cli/startup.hpp"
 
-#include "basalt/model/adapter.hpp"
-#include "basalt/models/builtin.hpp"
-#include "basalt/program/gpu_select.hpp"
-#include "basalt/program/options.hpp"
+#include "halo/model/adapter.hpp"
+#include "halo/models/builtin.hpp"
+#include "halo/program/gpu_select.hpp"
+#include "halo/program/options.hpp"
 
 #include <memory>
 #include <optional>
 #include <vector>
 
-namespace basalt::program::generate {
+namespace halo::program::generate {
 
-namespace cli = basalt::program::cli;
+namespace cli = halo::program::cli;
 
 int run(int argc, char** argv) {
-    basalt::models::register_builtin_models();
-    std::unique_ptr<basalt::program::CommonOptions> options;
-    const basalt::model::ModelAdapter* adapter = nullptr;
+    halo::models::register_builtin_models();
+    std::unique_ptr<halo::program::CommonOptions> options;
+    const halo::model::ModelAdapter* adapter = nullptr;
     if (const auto code = cli::start(argc, argv, options, adapter)) return *code;
-    basalt::program::CommonOptions& common = *options;
+    halo::program::CommonOptions& common = *options;
     // ---- the GPUs: chosen before any CUDA call, which then sees only them, the main card as device 0
-    std::vector<basalt::program::GpuCard> chosen_cards;
+    std::vector<halo::program::GpuCard> chosen_cards;
     if (const auto code = cli::select_gpus(common, chosen_cards)) return *code;
     // ---- where every loader reads from: the sections of the .basalt file
     if (const auto code = cli::prepare_model_process(common)) return *code;

@@ -1,4 +1,4 @@
-// src/kernels/cuda/gdn_prompt.cu - the prompt path's GDN (include/basalt/kernels/gdn_prompt.hpp): gates, conv, and the
+// src/kernels/cuda/gdn_prompt.cu - the prompt path's GDN (include/halo/kernels/gdn_prompt.hpp): gates, conv, and the
 // gated delta rule in chunks of 16 tokens on the tensor cores.
 // Per chunk and value head, gdn_prepare_kernel builds the L2-normalized BF16 q/k packet, the within-chunk solve
 // (I + L)^-1 diag(beta), the decayed q.k products and the cumulative decays; gdn_chunk_kernel then carries the FP32
@@ -6,7 +6,7 @@
 // output, and S = decay S + K^T diag(suffix) Delta.
 // Adapted from Infernix (Ian Ranson and contributors), src/ops/linear_attention/gated_delta_net/chunked/,
 // Apache-2.0: see THIRD_PARTY_LICENSES.
-#include "basalt/kernels/gdn_prompt.hpp"
+#include "halo/kernels/gdn_prompt.hpp"
 
 #include <cuda_bf16.h>
 #include <cuda_fp8.h>
@@ -16,9 +16,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int S = 128, HK = 16, HV = 48, C = 2 * HK * S + HV * S;
@@ -558,7 +558,7 @@ __global__ void gdn_conv_hist_kernel(float* __restrict__ hist, const In* __restr
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e));
         std::abort();
     }
 }
@@ -606,11 +606,11 @@ void recurrence_impl(float* state, const In* h, const float* gate, const float* 
         static std::atomic<bool> attr[64];   // per In instance
         int dev = 0;
         cudaGetDevice(&dev);
-        if (dev < 0 || dev >= 64) { basalt::log::error("basalt", "gdn_recurrence: device %d out of range", dev); std::abort(); }
+        if (dev < 0 || dev >= 64) { halo::log::error("halo", "gdn_recurrence: device %d out of range", dev); std::abort(); }
         if (!attr[dev].load(std::memory_order_acquire)) {
             if (cudaFuncSetAttribute(gdn_chunk_kernel<In>, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                      (int) sizeof(ChunkShared<In>)) != cudaSuccess) {
-                basalt::log::error("basalt", "gdn_recurrence: shared-memory opt-in failed");
+                halo::log::error("halo", "gdn_recurrence: shared-memory opt-in failed");
                 std::abort();
             }
             attr[dev].store(true, std::memory_order_release);
@@ -649,4 +649,4 @@ void gdn_recurrence_bf16(float* state, const uint16_t* h, const float* gate, con
                     eps, work, y, nullptr, T, stream, act, nullptr, y8, y8_scale, yn16, rowmax);
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

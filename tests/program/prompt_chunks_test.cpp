@@ -1,10 +1,10 @@
 // tests/program/prompt_chunks_test.cpp - the chunks one card reads a prompt in, against the prompt path's own rule.
-#include "basalt/program/prompt_chunks.hpp"
+#include "halo/program/prompt_chunks.hpp"
 
 #include <cstdio>
 #include <vector>
 
-using namespace basalt::program;
+using namespace halo::program;
 
 static int g_fail = 0;
 #define CHECK(c)                                                              \

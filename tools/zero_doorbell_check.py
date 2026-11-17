@@ -3,7 +3,7 @@
 on the graph a fully resident pack runs, whatever the residency) under concurrent streams, some cancelled mid-stream.
 The output is not checked (the experts not in VRAM drop out); every request must end and the engine must not stop.
 
-  zero_doorbell_check.py --engine-bin build/basalt --model PACK.basalt [--secs 120] [--streams 4] [server flags...]
+  zero_doorbell_check.py --engine-bin build/halo --model PACK.basalt [--secs 120] [--streams 4] [server flags...]
 
 Exit 0 when every request ended and the engine never stopped, 1 otherwise."""
 import argparse, http.client, json, os, random, subprocess, sys, threading, time

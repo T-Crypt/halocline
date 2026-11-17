@@ -13,12 +13,12 @@
 // and glibc, so they are checked against the reference instead of a frozen bit pattern.  The fixture uses only the raw
 // generator output, so it is the same on every standard library.
 // `--print` prints the hashes, `--bench` one in-cache thread's rate per format and token count.
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/iq_avx512.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/iq_avx512.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 
-namespace cpu = basalt::kernels::cpu;
+namespace cpu = halo::kernels::cpu;
 
 namespace {
 

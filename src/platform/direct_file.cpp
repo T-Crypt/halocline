@@ -1,7 +1,7 @@
-// src/platform/direct_file.cpp - see include/basalt/platform/direct_file.hpp.
-#include "basalt/platform/direct_file.hpp"
+// src/platform/direct_file.cpp - see include/halo/platform/direct_file.hpp.
+#include "halo/platform/direct_file.hpp"
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <chrono>
 #include <condition_variable>
@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-namespace basalt::platform {
+namespace halo::platform {
 
 double now_us() {
     using namespace std::chrono;
@@ -172,4 +172,4 @@ int DirectFile::wait(Completion* out, int max, int timeout_ms) {
     return n;
 }
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

@@ -1,5 +1,5 @@
-// src/platform/memory.cpp - see include/basalt/platform/memory.hpp.
-#include "basalt/platform/memory.hpp"
+// src/platform/memory.cpp - see include/halo/platform/memory.hpp.
+#include "halo/platform/memory.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -20,10 +20,10 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
-#include "basalt/log.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/log.hpp"
+#include "halo/platform/system.hpp"
 
-namespace basalt::platform {
+namespace halo::platform {
 
 
 LockResult lock_resident(void* p, uint64_t bytes, const LockProgress& progress) {
@@ -166,9 +166,9 @@ bool cgroup_available_bytes(uint64_t limit, const CgroupMemoryStat& stat, uint64
 bool host_available_memory(HostMemory& m, const std::string& meminfo_arg, const std::string& self_cgroup_arg,
                            const std::string& cgroup_root_arg) {
     m = HostMemory{};
-    const std::string meminfo = meminfo_arg.empty() ? basalt::platform::meminfo_path() : meminfo_arg;
-    const std::string self_cgroup = self_cgroup_arg.empty() ? basalt::platform::self_cgroup_path() : self_cgroup_arg;
-    const std::string cgroup_root = cgroup_root_arg.empty() ? basalt::platform::cgroup_root() : cgroup_root_arg;
+    const std::string meminfo = meminfo_arg.empty() ? halo::platform::meminfo_path() : meminfo_arg;
+    const std::string self_cgroup = self_cgroup_arg.empty() ? halo::platform::self_cgroup_path() : self_cgroup_arg;
+    const std::string cgroup_root = cgroup_root_arg.empty() ? halo::platform::cgroup_root() : cgroup_root_arg;
     if (meminfo.empty()) {
         // No memory accounting files and no cgroup hierarchy here: the OS reading is the whole answer, and there is
         // no container limit tighter than it.
@@ -297,17 +297,17 @@ std::string ram_exhausted_message(uint64_t avail, bool resident, uint64_t copy_b
     const unsigned long long mib = (unsigned long long) (avail >> 20);
     char buf[384];
     if (!resident) {
-        std::snprintf(buf, sizeof buf, "basalt error: RAM ran out loading (%llu MiB free); use "
+        std::snprintf(buf, sizeof buf, "halo error: RAM ran out loading (%llu MiB free); use "
                                        "--resident-experts or --mmap-experts", mib);
     } else if (copy_bytes < (1ull << 30)) {
         // a budget of 1 GiB or more would not shrink a copy this small, so it is not offered
-        std::snprintf(buf, sizeof buf, "basalt error: RAM ran out loading (%llu MiB free); the resident copy is only "
+        std::snprintf(buf, sizeof buf, "halo error: RAM ran out loading (%llu MiB free); the resident copy is only "
                                        "%llu MiB, so something else is holding the memory (other programs, or file "
                                        "pages read while loading)", mib, (unsigned long long) (copy_bytes >> 20));
     } else {
         // the copy shrunk by what the reserve is short of leaves the reserve free again
         const uint64_t keep = copy_bytes - std::min(copy_bytes, reserve > avail ? reserve - avail : 0);
-        std::snprintf(buf, sizeof buf, "basalt error: RAM ran out loading (%llu MiB free); use --resident-budget-gib %llu",
+        std::snprintf(buf, sizeof buf, "halo error: RAM ran out loading (%llu MiB free); use --resident-budget-gib %llu",
                       mib, (unsigned long long) std::max<uint64_t>(1, keep >> 30));
     }
     return buf;
@@ -325,7 +325,7 @@ void start_memory_watchdog(uint64_t floor_bytes) {
         while (!g_watch_stop.load()) {
             const uint64_t avail = available_memory();
             if (avail > 0 && avail < floor_bytes) {
-                basalt::log::error("basalt", "%s", ram_exhausted_message(avail, g_resident_mode.load(), g_resident_copy.load(),
+                halo::log::error("halo", "%s", ram_exhausted_message(avail, g_resident_mode.load(), g_resident_copy.load(),
                                                                    ram_reserve()).c_str());
                 _exit(1);
             }
@@ -428,16 +428,16 @@ void guard_judge(uint64_t avail) {
     g_guard_level = level;
     const unsigned long long mib = (unsigned long long) (avail >> 20);
     if (was == RamLevel::Ok && level != RamLevel::Ok)
-        basalt::log::warn("basalt", "RAM low: %llu MiB free < %llu MiB guard", mib, (unsigned long long) (floor >> 20));
+        halo::log::warn("halo", "RAM low: %llu MiB free < %llu MiB guard", mib, (unsigned long long) (floor >> 20));
     if (level == RamLevel::Critical && was != RamLevel::Critical && stalls.known)
-        basalt::log::warn("basalt", "RAM critical: %llu MiB free, hard floor %llu MiB, memory stalls some "
+        halo::log::warn("halo", "RAM critical: %llu MiB free, hard floor %llu MiB, memory stalls some "
                           "%.0f%% full %.0f%%", mib, (unsigned long long) (kRamHardFloor >> 20), stalls.some, stalls.full);
     if (level == RamLevel::Critical && was != RamLevel::Critical && !stalls.known && avail >= kRamHardFloor)
-        basalt::log::warn("basalt", "RAM critical: %llu MiB free, below the %llu MiB guard for %llu s", mib,
+        halo::log::warn("halo", "RAM critical: %llu MiB free, below the %llu MiB guard for %llu s", mib,
                           (unsigned long long) (floor >> 20), (unsigned long long) (below_ms / 1000));
     if (level == RamLevel::Low && was == RamLevel::Critical)
-        basalt::log::info("basalt", "RAM low, no longer critical: %llu MiB free", mib);
-    if (level == RamLevel::Ok && was != RamLevel::Ok) basalt::log::info("basalt", "RAM back: %llu MiB free", mib);
+        halo::log::info("halo", "RAM low, no longer critical: %llu MiB free", mib);
+    if (level == RamLevel::Ok && was != RamLevel::Ok) halo::log::info("halo", "RAM back: %llu MiB free", mib);
     g_judged = level;
 }
 }  // namespace
@@ -716,4 +716,4 @@ uint64_t system_page_size() {
     return page > 0 ? (uint64_t) page : 0;
 }
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

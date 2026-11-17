@@ -9,11 +9,11 @@
 //   - the error of both against a double reference over the dequantized weights and the q8_1 columns.
 // --bench: dense_tc, the query half and the gate half on the launcher's grids, per T, timed as CUDA graphs over enough
 // weight copies that the L2 holds none.
-#include "basalt/ggml/ggml.h"
-#include "basalt/models/qwen4exp/kernels/dense_tc.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_mid.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/models/qwen4exp/kernels/dense_tc.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_mid.hpp"
 
 #include <cuda_runtime.h>
 
@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 

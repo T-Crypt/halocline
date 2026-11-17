@@ -1,6 +1,6 @@
 // The start's check for the expert profiles the engine ships beside its binary: a missing or empty file, or a missing
 // data/profiles folder, gives an error naming the path and the install layout; a pack that names none is never refused.
-#include "basalt/core/shipped_profiles.hpp"
+#include "halo/core/shipped_profiles.hpp"
 
 #include <cstdio>
 #include <filesystem>
@@ -20,10 +20,10 @@ bool has(const std::string& s, const char* part) { return s.find(part) != std::s
 
 int main() {
     namespace fs = std::filesystem;
-    const fs::path root = fs::temp_directory_path() / "basalt_shipped_profiles_test";
+    const fs::path root = fs::temp_directory_path() / "halo_shipped_profiles_test";
     fs::remove_all(root);
     const std::string dir = (root / "data" / "profiles").string();
-    using basalt::core::missing_shipped_profile;
+    using halo::core::missing_shipped_profile;
 
     check(missing_shipped_profile(dir, {}).empty(), "a pack that ships no profile is never refused, with or without the folder");
     const std::string no_dir = missing_shipped_profile(dir, {"m-1x2.prof"});

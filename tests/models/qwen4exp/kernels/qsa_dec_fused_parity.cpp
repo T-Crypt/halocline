@@ -2,15 +2,15 @@
 // window ran (norm, RoPE, tail copy, INT8 appends with a host copy, indexer appends; q split, norms, RoPEs), bitwise,
 // for windows of 1..8 rows at every block phase; then a microbench of both forms.
 //   qsa_dec_fused_parity [iters]
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
-#include "basalt/models/qwen4exp/kernels/native_rope.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/rope_scaling.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/kv_stream.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/models/qwen4exp/kernels/native_rope.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_fused.hpp"
+#include "halo/models/qwen4exp/kernels/rope_scaling.hpp"
 
 #include <cuda_runtime.h>
 
@@ -21,7 +21,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 int g_fail = 0;

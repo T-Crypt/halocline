@@ -1,14 +1,14 @@
 #include "common.hpp"
 #include "record.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // The decode window's overlap structure (all always on): in windows of 2+ tokens the shared expert's side kernels run
@@ -32,7 +32,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
 }
 
 bool Verifier::WindowRecorder::run() {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     if (!inputs()) return false;
     fuse_head_gr = (v_.le_ == g.n_layers) && (v_.head_ != nullptr && v_.head_->loaded()) &&
                               !cvec().covers(g.n_layers - 1);
@@ -46,4 +46,4 @@ bool Verifier::WindowRecorder::run() {
     return head();
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

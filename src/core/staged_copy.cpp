@@ -1,12 +1,12 @@
-// src/core/staged_copy.cpp - see include/basalt/core/staged_copy.hpp.
-#include "basalt/core/staged_copy.hpp"
+// src/core/staged_copy.cpp - see include/halo/core/staged_copy.hpp.
+#include "halo/core/staged_copy.hpp"
 
-#include "basalt/core/host_plan.hpp"
-#include "basalt/core/on_device.hpp"
+#include "halo/core/host_plan.hpp"
+#include "halo/core/on_device.hpp"
 
 #include <algorithm>
 
-namespace basalt::core {
+namespace halo::core {
 
 StagedCopy::~StagedCopy() { release(); }
 
@@ -126,4 +126,4 @@ bool StagedCopy::wait(std::string& err) {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

@@ -26,13 +26,13 @@
 
 #include <cublas_v2.h>
 
-#include "basalt/core/model_file.hpp"
-#include "basalt/vision/encoder_cpu.hpp"
-#include "basalt/vision/encoder_cuda.hpp"
-#include "basalt/vision/video.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/vision/encoder_cpu.hpp"
+#include "halo/vision/encoder_cuda.hpp"
+#include "halo/vision/video.hpp"
 #include "vision_kernels.cuh"
 
-using namespace basalt::vision;
+using namespace halo::vision;
 
 namespace {
 
@@ -321,7 +321,7 @@ void test_elementwise() {
 int run_encoder(const char* mmproj, const char* image) {
     std::string err;
     Mmproj mp;
-    if (!mp.open(basalt::core::FileRange(mmproj), err)) { std::printf("%s\n", err.c_str()); return 2; }
+    if (!mp.open(halo::core::FileRange(mmproj), err)) { std::printf("%s\n", err.c_str()); return 2; }
     std::ifstream f(image, std::ios::binary);
     const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     Image img;
@@ -385,8 +385,8 @@ std::vector<float> embed_of(CpuEncoder& enc, const std::vector<float>& patches, 
 
 int run_video(const char* model, const char* clip) {
     std::string err;
-    basalt::core::ModelFile file;
-    basalt::core::FileRange range(model);
+    halo::core::ModelFile file;
+    halo::core::FileRange range(model);
     const std::string m = model;
     if (m.size() > 7 && m.compare(m.size() - 7, 7, ".basalt") == 0) {
         if (!file.open(m, err) || file.range("vision/mmproj").empty()) { std::printf("no vision/mmproj in %s %s\n", model, err.c_str()); return 2; }

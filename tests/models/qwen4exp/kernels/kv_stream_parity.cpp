@@ -12,13 +12,13 @@
 // INT8, FP16 and Q4_0 pools. Then the batch windows' form, kv_stream_resolve_seg (run_segments).
 //
 //     build/kv_stream_parity [--bench]
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_seg.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/kv_stream.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_seg.hpp"
 
 #include <cuda_runtime.h>
 
@@ -31,7 +31,7 @@
 #include <set>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 int g_fail = 0;

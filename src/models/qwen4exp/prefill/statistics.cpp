@@ -1,15 +1,15 @@
 #include "state.hpp"
 #include "layout.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <vector>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 void Prefill::route_hist_reset() {
@@ -52,7 +52,7 @@ void Prefill::set_ple_warm(const int64_t* tokens, int64_t run_pos0, int64_t from
     if (m.warm.fut.valid()) m.warm.fut.wait();
     m.warm.pending = false;
     if (m.ss == nullptr || !m.ss->ple.ready() || m.ss->ple.table == nullptr || from < 2) return;
-    const int64_t cap = (int64_t) (m.ss->ple.table->cache_rows() / (2 * basalt::kernels::PLE_N_HEADS));
+    const int64_t cap = (int64_t) (m.ss->ple.table->cache_rows() / (2 * halo::kernels::PLE_N_HEADS));
     to = std::min(to, from + cap);
     if (to <= from) return;
     m.warm.tok.assign(tokens + from - 2, tokens + to);
@@ -61,4 +61,4 @@ void Prefill::set_ple_warm(const int64_t* tokens, int64_t run_pos0, int64_t from
     m.warm.pending = true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

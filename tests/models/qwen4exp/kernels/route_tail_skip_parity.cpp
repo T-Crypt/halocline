@@ -11,7 +11,7 @@
 // --bench: one launch of the window kernel at the largest window, timed over many launches.
 #include <cstddef>
 
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_runtime.h>
 
@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::kernels;
+using namespace halo::kernels;
 
 namespace {
 constexpr int kExperts = 512, kTop = 10;

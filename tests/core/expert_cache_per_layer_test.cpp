@@ -1,6 +1,6 @@
 // Per-layer admission on a sized cache (open_sized, every native layout) - each layer admits into its own slot
 // range, as on the uniform cache, so no two layers write the same slot.  Needs a CUDA device (exits 77 without one).
-#include "basalt/core/expert_cache.hpp"
+#include "halo/core/expert_cache.hpp"
 
 #include <cuda_runtime.h>
 
@@ -16,7 +16,7 @@ int main() {
     }
     std::string err;
     for (int sized = 0; sized < 2; ++sized) {
-        basalt::core::ExpertCache cache;
+        halo::core::ExpertCache cache;
         const bool ok = sized ? cache.open_sized(std::vector<int64_t>(6, 1024), 3, 4, err)
                               : cache.open(6, 3, 4, 1024, err);
         if (!ok) {
@@ -30,7 +30,7 @@ int main() {
             for (int64_t e = 0; e < 3; ++e) {
                 const int32_t slot = cache.admit(layer, e);
                 const bool want_room = lo + e < hi;
-                if (want_room ? slot != (int32_t) (lo + e) : slot != basalt::core::kNotResident) {
+                if (want_room ? slot != (int32_t) (lo + e) : slot != halo::core::kNotResident) {
                     std::fprintf(stderr, "%s cache: layer %lld expert %lld got slot %d (range %lld..%lld)\n",
                                  sized ? "sized" : "uniform", (long long) layer, (long long) e, slot, (long long) lo,
                                  (long long) hi - 1);

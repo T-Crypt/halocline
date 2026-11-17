@@ -1,17 +1,17 @@
 // src/models/qwen4exp/decode/session.cpp - one token through all 48 layers.  See the header for why the graphs are per-layer.
-#include "basalt/models/qwen4exp/decode/session.hpp"
-#include "basalt/models/qwen4exp/kernels/mrope.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/decode/kv_arena.hpp"
+#include "halo/models/qwen4exp/decode/session.hpp"
+#include "halo/models/qwen4exp/kernels/mrope.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/decode/kv_arena.hpp"
 
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/models/qwen4exp/kernels/s2_expert_grouped.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/platform/compiler.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/models/qwen4exp/kernels/s2_expert_grouped.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/platform/compiler.hpp"
 
 #include <cuda_runtime.h>
 
@@ -23,7 +23,7 @@
 #include <cstring>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 namespace {
 
 constexpr uint64_t SESSION_STATE_ALIGN = 256;
@@ -43,7 +43,7 @@ uint64_t gdn_state_floats(const ModelGeometry& g) {
 /// `NG_HIST` rows of `hc_dim` floats: the PLE conv's history, which is the ONLY PLE state that lives in the
 /// session arena.  The table and the weights are model-level and the caller owns them.
 static uint64_t ple_hist_bytes() {
-    return (uint64_t) basalt::kernels::NG_HIST * basalt::kernels::NG_HC_DIM * sizeof(float);
+    return (uint64_t) halo::kernels::NG_HIST * halo::kernels::NG_HC_DIM * sizeof(float);
 }
 
 uint64_t session_bytes(const ModelGeometry& g, int64_t max_cells, int64_t k, int64_t layer_lo, int64_t layer_hi) {
@@ -127,7 +127,7 @@ void session_release(SessionState& s) {
     for (int64_t j = 0; s.qsa_states != nullptr && j < s.qsa_alloc; ++j) qsa_state_release(s.qsa_states[s.qsa_ord0 + j]);
     for (int64_t j = 0; s.qsa_states != nullptr && j < s.qsa_alloc; ++j)
         if (s.qsa_states[j].owns_rope) {
-            basalt::kernels::rope_table_release(s.qsa_states[j].cos_tab);
+            halo::kernels::rope_table_release(s.qsa_states[j].cos_tab);
             s.qsa_states[j].owns_rope = false;
         }
 }
@@ -224,7 +224,7 @@ void gdn_point_at(const ModelGeometry& g, int64_t layer, SessionState& s) {
 /// The per-token staging every QSA layer's captured H2D reads FROM.  Must run before each replay: the graphs
 /// captured the SOURCE POINTER, not the value, and that is exactly why the buffers are pinned and fixed.
 void stage_token(const ModelGeometry& g, int64_t pos, int32_t pos_base, SessionState& s) {
-    basalt::kernels::QsaShapes sh = basalt::kernels::qsa_real_shapes();
+    halo::kernels::QsaShapes sh = halo::kernels::qsa_real_shapes();
     sh.n_head = g.n_head;
     sh.n_head_kv = g.n_head_kv;
     sh.head_dim = g.head_dim;
@@ -713,7 +713,7 @@ bool session_loop(const ModelGeometry& g, int64_t pos, int32_t pos_base, Session
                 return false;
             }
             if (rang) break;                             // rung, and the graph is still running: the overlap
-            basalt::platform::cpu_relax();
+            halo::platform::cpu_relax();
         }
         if (mid_graph) ++gr.rings_mid_graph;
         // the window, from just before the launch to the instant the ring was seen
@@ -844,9 +844,9 @@ bool session_token(const WeightTable& tables, const ModelGeometry& g, int64_t po
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core
 
-namespace basalt::core {
+namespace halo::core {
 
 bool session_capture_token(const WeightTable& tables, const ModelGeometry& g, SessionState& s, float* parts_dev,
                            const float* y_miss_host, size_t parts_bytes, TokenGraph& tg, std::string& err,
@@ -885,18 +885,18 @@ bool session_capture_token(const WeightTable& tables, const ModelGeometry& g, Se
         if (!ok) { err = "session_capture_token: pre layer " + std::to_string(l) + ": " + err; break; }
         if (hits != nullptr) {
             // After the ring (and the shared expert): the GPU's experts run while the CPU computes the misses.
-            basalt::kernels::moe_hit_select(s.moe.ids, hits->d_res + l * hits->n_expert, (int) s.k,
+            halo::kernels::moe_hit_select(s.moe.ids, hits->d_res + l * hits->n_expert, (int) s.k,
                                             (int) hits->n_expert, hits->d_slot, hits->d_dst, hits->d_count, (void*) cs);
-            basalt::kernels::quantize_q8_0_scaled(s.block.mixed, hits->x_q8, hits->x_scale, g.n_embd, (void*) cs);
-            basalt::kernels::moe_hit_grouped_s2_dev(hits->cache_base, hits->d_slot, hits->d_dst, hits->d_count, s.k,
+            halo::kernels::quantize_q8_0_scaled(s.block.mixed, hits->x_q8, hits->x_scale, g.n_embd, (void*) cs);
+            halo::kernels::moe_hit_grouped_s2_dev(hits->cache_base, hits->d_slot, hits->d_dst, hits->d_count, s.k,
                                                     hits->blob, hits->x_q8, hits->scratch, hits->hit_out, (void*) cs,
                                                     hits->x_scale);
         }
-        basalt::kernels::doorbell_wait(s.db->d_flag, s.db->d_seq, (void*) cs);
+        halo::kernels::doorbell_wait(s.db->d_flag, s.db->d_seq, (void*) cs);
         // A kernel, not a memcpy node: a copy-engine node splits the driver's submission into extra flushes.
-        basalt::kernels::copy_from_mapped(parts_dev, y_dev, (int64_t) (parts_bytes / sizeof(float)), (void*) cs);
+        halo::kernels::copy_from_mapped(parts_dev, y_dev, (int64_t) (parts_bytes / sizeof(float)), (void*) cs);
         if (hits != nullptr)
-            basalt::kernels::moe_hit_add(parts_dev, hits->hit_out, hits->d_dst, hits->d_count, s.k, g.n_embd, (void*) cs);
+            halo::kernels::moe_hit_add(parts_dev, hits->hit_out, hits->d_dst, hits->d_count, s.k, g.n_embd, (void*) cs);
         ok = block_layer_post(tables, g, l, s.k, s.moe, s.block, parts_dev, (void*) cs, err);
         if (!ok) { err = "session_capture_token: post layer " + std::to_string(l) + ": " + err; break; }
         if (qsa) ++qsa_index;
@@ -944,7 +944,7 @@ bool session_run_token(const ModelGeometry& g, int64_t pos, int32_t pos_base, Se
         uint32_t spins = 0;
         progress_at("token: waiting for the GPU to reach layer", l);
         while (*seq < want) {
-            basalt::platform::cpu_relax();
+            halo::platform::cpu_relax();
             if ((++spins & 1023u) != 0) continue;
             const auto now = Clock::now();
             if (now - last_flush > std::chrono::microseconds(flush_us)) {
@@ -986,4 +986,4 @@ void token_graph_free(TokenGraph& tg) {
     tg = TokenGraph{};
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

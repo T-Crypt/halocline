@@ -11,18 +11,18 @@
 // the group size therefore never changes an answer.
 //
 // The gain is the weight-side work and the weight bytes, read once per verify window instead of once per token.
-#include "basalt/kernels/cpu/kq_avx2.hpp"
+#include "halo/kernels/cpu/kq_avx2.hpp"
 
 #define GGML_COMMON_DECL_CPP
 #define GGML_COMMON_IMPL_CPP
-#include "basalt/ggml/ggml_common.h"
+#include "halo/ggml/ggml_common.h"
 
 #include <immintrin.h>
 
 #include <cmath>
 #include <cstring>
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 namespace {
 
 constexpr int MAXT = 8;   // the verify window's tokens per group (kVerifyMaxT)
@@ -242,4 +242,4 @@ void kq256_rows(int type, const uint8_t* w, size_t row_bytes, int n, const void*
     }
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

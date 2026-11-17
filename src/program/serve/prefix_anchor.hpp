@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 /// How a held sequence meets a prompt.
 struct HeldMeet {
@@ -67,4 +67,4 @@ void splice_held(const int32_t* held, const HeldMeet& m, const int32_t* prompt, 
     out.swap(next);
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

@@ -6,8 +6,8 @@
 //
 // The reference numbers below come from transformers 5.22.2 with its pyav loader; the clip is tests/data/video/
 // synth.mp4 (96x64, 25 frames at 10 fps).
-#include "basalt/vision/ffmpeg_api.hpp"
-#include "basalt/vision/video.hpp"
+#include "halo/vision/ffmpeg_api.hpp"
+#include "halo/vision/video.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::vision;
+using namespace halo::vision;
 
 namespace {
 int failures = 0;

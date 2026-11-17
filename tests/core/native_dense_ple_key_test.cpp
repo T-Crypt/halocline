@@ -7,11 +7,11 @@
 //   2. A quantized key row (a shape-only row) + a Q8_0 source key: the key stays skipped and is served natively.
 //   3. index_code_bits on a missing row and a missing index.
 // Synthetic files at small dimensions; needs a CUDA device for the arena (exits 77 without one).
-#include "basalt/models/builtin.hpp"
+#include "halo/models/builtin.hpp"
 #include "gguf_fixture.hpp"
 
-#include "basalt/models/qwen4exp/decode/native_dense.hpp"
-#include "basalt/core/weights.hpp"
+#include "halo/models/qwen4exp/decode/native_dense.hpp"
+#include "halo/core/weights.hpp"
 
 #include <cuda_runtime.h>
 
@@ -24,8 +24,8 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-using basalt::core::NativeDense;
-using basalt::core::WeightTable;
+using halo::core::NativeDense;
+using halo::core::WeightTable;
 
 namespace {
 int g_fail = 0;
@@ -38,7 +38,7 @@ struct TempDir {
     fs::path path;
     TempDir() {
         path = fs::temp_directory_path() /
-               ("basalt-ple-key-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+               ("halo-ple-key-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         fs::create_directories(path);
     }
     ~TempDir() {
@@ -86,10 +86,10 @@ struct Loaded {
     ~Loaded() { if (arena) cudaFree(arena); }
 };
 
-basalt::core::PackFiles pack_of(const fs::path& dir) {
-    basalt::core::PackFiles p;
-    p.index = basalt::core::FileRange((dir / "index.txt").string());
-    p.files[0] = basalt::core::FileRange((dir / "dense.bin").string());
+halo::core::PackFiles pack_of(const fs::path& dir) {
+    halo::core::PackFiles p;
+    p.index = halo::core::FileRange((dir / "index.txt").string());
+    p.files[0] = halo::core::FileRange((dir / "dense.bin").string());
     return p;
 }
 
@@ -107,7 +107,7 @@ void load(const fs::path& pack, const std::string& shard, Loaded& l) {
 }  // namespace
 
 int main() {
-    basalt::models::register_builtin_models();
+    halo::models::register_builtin_models();
     int devices = 0;
     if (cudaGetDeviceCount(&devices) != cudaSuccess || devices == 0) {
         std::printf("native_dense_ple_key_test: no CUDA device, skipped\n");

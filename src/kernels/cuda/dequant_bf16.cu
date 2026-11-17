@@ -1,19 +1,19 @@
-// src/kernels/cuda/dequant_bf16.cu - see include/basalt/kernels/dequant_bf16.hpp.
+// src/kernels/cuda/dequant_bf16.cu - see include/halo/kernels/dequant_bf16.hpp.
 //
 // Arithmetic transcribed from ggml/src/ggml-quants.c at the pinned llama.cpp (MIT License, Copyright (c) 2023-2026
 // The ggml authors): dequantize_row_q2_0/q4_0/q5_0/q8_0/q3_K/q4_K/q5_K/q6_K/iq4_nl/iq4_xs.
-#include "basalt/kernels/dequant_bf16.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/packed_byte.hpp"
+#include "halo/kernels/dequant_bf16.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/packed_byte.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 __device__ __forceinline__ float h2f(const uint8_t* p) {
@@ -209,7 +209,7 @@ template <typename T>
 void launch(int type, const void* blocks, int64_t row0, int64_t rows, int64_t cols, T* out, void* stream) {
     int be = 0, bb = 0;
     if (!geometry(type, be, bb) || cols % be != 0 || rows <= 0) {
-        basalt::log::error("basalt", "dequant: unsupported type %d or shape %lld x %lld", type, (long long) rows,
+        halo::log::error("halo", "dequant: unsupported type %d or shape %lld x %lld", type, (long long) rows,
                      (long long) cols);
         std::exit(1);
     }
@@ -237,7 +237,7 @@ const bool vec = (reinterpret_cast<uintptr_t>(out) & 15) == 0;
     }
 #undef DEQUANT_CASE
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "dequant launch: %s", cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "dequant launch: %s", cudaGetErrorString(e)); std::exit(1); }
 }
 
 }  // namespace
@@ -276,4 +276,4 @@ void dequant_f32(int ggml_type, const void* blocks, int64_t row0, int64_t rows, 
     launch<float>(ggml_type, blocks, row0, rows, cols, out, stream);
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

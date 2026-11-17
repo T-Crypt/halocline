@@ -1,13 +1,13 @@
-// src/models/qwen4exp/kernels/dec_moe.cuh - see include/basalt/models/qwen4exp/kernels/dec_moe.hpp.  The decode MoE tail's device code: types, helpers and
+// src/models/qwen4exp/kernels/dec_moe.cuh - see include/halo/models/qwen4exp/kernels/dec_moe.hpp.  The decode MoE tail's device code: types, helpers and
 // kernel templates, with no kernel of its own in it, so a TU that includes it compiles only the kernels it names.  The kernels
 // are in dec_moe_kernels.cuh, the launchers in dec_moe_host.cuh.
 #pragma once
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/core/diag.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int kDmThreads = 256;
@@ -1236,4 +1236,4 @@ int dm_vram_blocks() {
 }
 
 }  // namespace
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

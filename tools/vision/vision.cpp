@@ -1,11 +1,11 @@
 // tools/vision/vision.cpp - the image half of the engine's multimodal path.
 //
-// Turns an image into the embeddings the text model reads in place of its <|image_pad|> tokens, with Basalt's own
+// Turns an image into the embeddings the text model reads in place of its <|image_pad|> tokens, with Halocline's own
 // encoder (src/vision) and the model's mmproj file (vision encoder + projector).  The engine does the rest: it
 // places the rows at the image's pad tokens and gives them their 2-D M-RoPE positions (see --serve GENI in
 // src/program/serve/commands.cpp).
 //
-//   basalt-vision --model <model.basalt> [--gpu] [--threads N] [--max-tokens N]
+//   halo-vision --model <model.basalt> [--gpu] [--threads N] [--max-tokens N]
 //
 // The projector is read in place from the model file's `vision/mmproj` section; nothing is copied out.
 //
@@ -29,19 +29,19 @@
 #include <thread>
 #include <vector>
 
-#ifdef BASALT_VISION_CUDA
-#include "basalt/vision/encoder_cuda.hpp"
+#ifdef HALO_VISION_CUDA
+#include "halo/vision/encoder_cuda.hpp"
 #endif
-#include "basalt/core/model_file.hpp"
-#include "basalt/vision/encoder_cpu.hpp"
-#include "basalt/vision/ffmpeg_api.hpp"
-#include "basalt/vision/mmproj.hpp"
-#include "basalt/vision/preprocess.hpp"
-#include "basalt/vision/video.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/vision/encoder_cpu.hpp"
+#include "halo/vision/ffmpeg_api.hpp"
+#include "halo/vision/mmproj.hpp"
+#include "halo/vision/preprocess.hpp"
+#include "halo/vision/video.hpp"
 
 namespace {
 
-using namespace basalt::vision;
+using namespace halo::vision;
 
 // "ENC <image> <out>": paths may contain spaces, so the image path ends at the last " " before the output path;
 // the server always writes paths without spaces, but a user calling the tool by hand might not
@@ -56,7 +56,7 @@ bool parse_enc(const std::string& line, std::string& img, std::string& out) {
 }
 
 const char* const kUsage =
-    "usage: basalt-vision --model <model.basalt> [--gpu] [--threads N] [--max-tokens N]\n"
+    "usage: halo-vision --model <model.basalt> [--gpu] [--threads N] [--max-tokens N]\n"
     "  reads the projector in place from the model file's vision/mmproj section;\n"
     "  reads \"ENC <image> <output>\" lines on stdin and writes each image's embeddings to <output>,\n"
     "  and \"ENCV <video> <output> [fps=F] [max_frames=N] [max_tokens=N]\" lines, one record per group;\n"
@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "%s", kUsage);
         return 2;
     }
-#ifdef BASALT_VISION_CUDA
+#ifdef HALO_VISION_CUDA
     if (gpu) {                    // a build made for another card says so here, before it reads any model file
         std::string perr;
         if (!probe_device(perr)) {
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     const auto load_t0 = std::chrono::steady_clock::now();
     std::string err;
     Mmproj mp;
-    basalt::core::ModelFile file;
+    halo::core::ModelFile file;
     if (!file.open(model, err) || file.range("vision/mmproj").empty()) {
         if (err.empty()) err = model + " has no vision/mmproj section";
         std::printf("ERR cannot load the vision encoder: %s\n", err.c_str());
@@ -113,11 +113,11 @@ int main(int argc, char** argv) {
     if (max_tokens > 0) geo.max_tokens = std::max(max_tokens, geo.min_tokens);
     if (threads <= 0) threads = (int) std::max(1u, std::thread::hardware_concurrency() / 2);
     CpuEncoder cpu;
-#ifdef BASALT_VISION_CUDA
+#ifdef HALO_VISION_CUDA
     CudaEncoder cuda;
 #endif
     if (gpu) {
-#ifdef BASALT_VISION_CUDA
+#ifdef HALO_VISION_CUDA
         // Sized and warmed at the largest picture before READY: the engine is started after this process and sizes
         // its expert cache from the memory that is left, so nothing may be allocated later.
         if (!cuda.init(mp, geo.max_tokens, err)) { std::printf("ERR cannot load the vision encoder: %s\n", err.c_str()); std::fflush(stdout); return 1; }
@@ -133,12 +133,12 @@ int main(int argc, char** argv) {
         return 1;
     }
     auto encode = [&](const std::vector<float>& patches, Size sz, std::vector<float>& out) {
-#ifdef BASALT_VISION_CUDA
+#ifdef HALO_VISION_CUDA
         if (gpu) return cuda.encode(patches, sz, out);
 #endif
         return cpu.encode(patches, sz, out);
     };
-    std::fprintf(stderr, "basalt-vision: model files loaded in %.1f s\n",
+    std::fprintf(stderr, "halo-vision: model files loaded in %.1f s\n",
                  std::chrono::duration<double>(std::chrono::steady_clock::now() - load_t0).count());
     if (gpu) {
         const auto warm_t0 = std::chrono::steady_clock::now();
@@ -148,10 +148,10 @@ int main(int argc, char** argv) {
         normalize_planar(to_canvas(gray, sz), planar);
         patchify(planar, sz, geo, patches);
         const bool ok = encode(patches, sz, out);
-        std::fprintf(stderr, "basalt-vision: warmed up at %d image tokens%s in %.1f s\n", sz.w / 32 * (sz.h / 32), ok ? "" : " (failed)",
+        std::fprintf(stderr, "halo-vision: warmed up at %d image tokens%s in %.1f s\n", sz.w / 32 * (sz.h / 32), ok ? "" : " (failed)",
                      std::chrono::duration<double>(std::chrono::steady_clock::now() - warm_t0).count());
     } else {
-        std::fprintf(stderr, "basalt-vision: on the CPU, %d threads, no warm-up\n", threads);
+        std::fprintf(stderr, "halo-vision: on the CPU, %d threads, no warm-up\n", threads);
     }
     const int n_embd = mp.hp().proj;
     std::printf("%s\n", video_line().c_str());
@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
             VideoOptions vo;
             vo.group_tokens = geo.max_tokens;
             vo.gpu = gpu ? 0 : -1;   // NVDEC on the encoder's own card, in its context
-#ifdef BASALT_VISION_CUDA
+#ifdef HALO_VISION_CUDA
             if (gpu) vo.cuda_context = current_context();
 #endif
             Video v;

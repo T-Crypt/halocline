@@ -1,23 +1,23 @@
 #include "state.hpp"
 #include "layout.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused.hpp"
+#include "halo/prefill/moe_mmq.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 #include <algorithm>
 #include <string>
 #include <vector>
 #include <memory>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::draft_kv(core::MtpDrafter& mtp, const float* R_rows, const int32_t* next_tokens, int64_t n, int64_t cell0,
@@ -62,7 +62,7 @@ bool Prefill::draft_kv(core::MtpDrafter& mtp, const float* R_rows, const int32_t
                              (q8 ? (uint64_t) mmq::q8_bytes(g.hc, Nn) + 4 * g.hc : 0);
     int64_t B = std::min<int64_t>(n - r0, (int64_t) (m.region_bytes / per_row) & ~(int64_t) 63);
     if (st.kv_mode == 2)   // a ring: one batch's cells must not share a slot (a batch can straddle one page more)
-        B = std::min<int64_t>(B, ((st.n_slots - 1) * basalt::kernels::qsa_real_shapes().page_size) & ~(int64_t) 63);
+        B = std::min<int64_t>(B, ((st.n_slots - 1) * halo::kernels::qsa_real_shapes().page_size) & ~(int64_t) 63);
     if (B < 64) return false;
     uint8_t* q = m.region;
     auto carve = [&](size_t bytes) { void* p = q; q += (bytes + 255) & ~(size_t) 255; return p; };
@@ -88,7 +88,7 @@ bool Prefill::draft_kv(core::MtpDrafter& mtp, const float* R_rows, const int32_t
     int32_t* bnd = q8 ? (int32_t*) carve(16) : nullptr;
     if ((uint64_t) (q - m.region) > m.region_bytes) return false;
     if (!mtp.idle(err)) return false;   // the drafter's own stream (its graph uploads) before this writes its K/V
-    basalt::kernels::QsaShapes s = basalt::kernels::qsa_real_shapes();
+    halo::kernels::QsaShapes s = halo::kernels::qsa_real_shapes();
     s.n_head = g.n_head; s.n_head_kv = g.n_head_kv; s.head_dim = g.head_dim; s.idx_n_head = g.idx_q_heads;
     s.idx_dim = g.idx_key_dim;
     std::vector<int32_t> tk((size_t) B);
@@ -127,7 +127,7 @@ bool Prefill::draft_kv(core::MtpDrafter& mtp, const float* R_rows, const int32_t
             const auto* scales = (const float*) (codes + wemb->codes_bytes);
             const auto* offsets = wemb->has_offset ? (const float*) (codes + wemb->codes_bytes + wemb->scales_bytes)
                                                    : nullptr;
-            basalt::kernels::embedding_gather_dev(codes, scales, offsets, tok, (int) nb, wemb->ne0, wemb->code_bits,
+            halo::kernels::embedding_gather_dev(codes, scales, offsets, tok, (int) nb, wemb->ne0, wemb->code_bits,
                                                   wemb->code_bias, wemb->group_elems,
                                                   (uint64_t) (wemb->ne0 / (8 / wemb->code_bits)),
                                                   (uint64_t) (wemb->ne0 / wemb->group_elems), emb, m.cs);
@@ -139,7 +139,7 @@ bool Prefill::draft_kv(core::MtpDrafter& mtp, const float* R_rows, const int32_t
         rms_rows(hn, w_nh, nb, HCN, HCN, EPS, m.cs);
         if (!q8) to_f16(hn, hn16, nb * HCN, m.cs);
         proj(hn, hn16, w_fh, h2, nb * g.hc, Nn, Nn, 1);   // every stream through fc_hidden
-        basalt::kernels::add_streams_broadcast(h2, e2, Rm, Nn, (int) g.hc, (int) nb, m.cs);
+        halo::kernels::add_streams_broadcast(h2, e2, Rm, Nn, (int) g.hc, (int) nb, m.cs);
         // the attention hyper-connection's read (its mixed input only: this pass writes nothing back)
         gr_norm_rs(Rm, w_hn, EPS, grs, xn16, nb, m.cs);
         m.gemm.bf16_w(xn16, w_dn, lo, nb, LR, HCN);
@@ -149,13 +149,13 @@ bool Prefill::draft_kv(core::MtpDrafter& mtp, const float* R_rows, const int32_t
         proj(mixed, mixed_h, w_k, Kc, nb, KV, Nn, 0);
         proj(mixed, mixed_h, w_v, Vc, nb, KV, Nn, 0);
         rms_rows(Kc, w_kn, nb * g.n_head_kv, g.head_dim, g.head_dim, EPS, m.cs);
-        rope(Kc, nb, g.n_head_kv, g.head_dim, KV, c0, basalt::kernels::rope_scaling(), m.cs);
+        rope(Kc, nb, g.n_head_kv, g.head_dim, KV, c0, halo::kernels::rope_scaling(), m.cs);
         if (st.kv_rot) {   // rotated as the drafter's own decode stores them (src/models/qwen4exp/decode/mtp/forward.cpp)
-            basalt::kernels::fwht256_inplace_cuda(Kc, nb * g.n_head_kv, m.cs);
-            basalt::kernels::fwht256_inplace_cuda(Vc, nb * g.n_head_kv, m.cs);
+            halo::kernels::fwht256_inplace_cuda(Kc, nb * g.n_head_kv, m.cs);
+            halo::kernels::fwht256_inplace_cuda(Vc, nb * g.n_head_kv, m.cs);
         }
         if (st.kv_q4) {
-            basalt::kernels::kv_append_q4(st.k_q4, st.v_q4, st.page_table, c0, nb, Kc, Vc, s, m.cs, &st.host);
+            halo::kernels::kv_append_q4(st.k_q4, st.v_q4, st.page_table, c0, nb, Kc, Vc, s, m.cs, &st.host);
         } else {
             kv_append(Kc, Vc, nb, c0, st.page_table, s.page_size, st.kv_int8 ? nullptr : st.k_pool,
                       st.kv_int8 ? nullptr : st.v_pool, st.k_q, st.v_q, st.k_scale, st.v_scale, m.cs, &st.host);
@@ -170,4 +170,4 @@ bool Prefill::draft_kv(core::MtpDrafter& mtp, const float* R_rows, const int32_t
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

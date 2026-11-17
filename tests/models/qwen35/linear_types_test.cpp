@@ -15,7 +15,7 @@ bool has(const std::string& s, const char* part) { return s.find(part) != std::s
 }  // namespace
 
 int main() {
-    using namespace basalt::models::qwen35;
+    using namespace halo::models::qwen35;
     const std::string w = "blk.0.ffn_gate";
     check(linear_type_error(w, kTypeQ8_0, 17408, 5120).empty(), "Q8_0 runs");
     check(linear_type_error(w, kTypeNvfp4Planes, 17408, 5120).empty(), "NVFP4_PLANES of 128-row blocks runs");

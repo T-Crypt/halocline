@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int token_path(Context& context) {
     auto& o = *context.o;
@@ -32,7 +32,7 @@ int token_path(Context& context) {
     float* d_hit_q8_scale = nullptr;   ///< the fp32 activation scales the CPU path also uses
     float* d_hit_out = nullptr;
     if (o.expert_cache > 0 && !o.no_pool) {
-        const uint64_t sb = basalt::kernels::moe_hit_grouped_scratch_bytes(K, g.n_embd, basalt::kernels::cpu::FF);
+        const uint64_t sb = halo::kernels::moe_hit_grouped_scratch_bytes(K, g.n_embd, halo::kernels::cpu::FF);
         if (cudaMalloc(&hit_scratch, (size_t) sb) != cudaSuccess ||
             cudaMalloc((void**) &d_hit_slot, (size_t) K * sizeof(int32_t)) != cudaSuccess ||
             cudaMalloc((void**) &d_hit_dst, (size_t) K * sizeof(int32_t)) != cudaSuccess ||
@@ -42,13 +42,13 @@ int token_path(Context& context) {
             // every chunk that would change the tokens when the cache is enabled.
             cudaMalloc((void**) &d_hit_q8_scale, (size_t) (g.n_embd / 32) * sizeof(float)) != cudaSuccess ||
             cudaMalloc((void**) &d_hit_out, (size_t) K * g.n_embd * 4) != cudaSuccess) {
-            basalt::log::error("basalt generate", "the hit path could not allocate its device buffers");
+            halo::log::error("halo generate", "the hit path could not allocate its device buffers");
             return 1;
         }
         drive.d.cache = &xcache;
         drive.d.cache_stream = main_cs;
         drive.d.cache_base = (const uint8_t*) xcache.device_slot(0);
-        drive.d.cache_blob = (int64_t) basalt::kernels::cpu::expert_layout().max_blob;
+        drive.d.cache_blob = (int64_t) halo::kernels::cpu::expert_layout().max_blob;
         drive.d.cache_slot_off = xcache.slot_offsets();
         drive.d.hit_scratch = hit_scratch;
         drive.d.parts_out = d_parts;
@@ -62,12 +62,12 @@ int token_path(Context& context) {
         drive.d.h_slot.resize((size_t) K);
         cudaEvent_t hit_done = nullptr;
         if (cudaEventCreate(&hit_done) != cudaSuccess) {
-            basalt::log::error("basalt generate", "the hit path could not create its probe event");
+            halo::log::error("halo generate", "the hit path could not create its probe event");
             return 1;
         }
         drive.d.hit_done = (void*) hit_done;
         drive.d.h_dst.resize((size_t) K);
-        basalt::log::info("basalt generate", "R4 hit path ON - resident experts are computed on the GPU");
+        halo::log::info("halo generate", "R4 hit path ON - resident experts are computed on the GPU");
     }
     // ---- the routing trace.  Only meaningful with the pool running, because the ids arrive through the doorbell that
     // the pool consumes - so `--no-pool` is refused rather than silently producing an empty file that would read as
@@ -75,25 +75,25 @@ int token_path(Context& context) {
     // ---- PER-STAGE TIMING.  `--no-capture` only: an event recorded inside a stream capture is silently dropped, so a
     // captured graph cannot carry these events and the numbers would be zeros that read as "every stage is free".
     // Refusing is the fix.
-    if (const int rc = basalt::models::qwen4exp::measure::arm_stage_timing(o); rc != 0) return rc;
+    if (const int rc = halo::models::qwen4exp::measure::arm_stage_timing(o); rc != 0) return rc;
     std::FILE* routing = nullptr;
     if (!o.dump_routing.empty()) {
         if (o.no_pool) {
-            basalt::log::error("basalt generate", "--dump-routing needs the expert pool; the routed ids reach "
+            halo::log::error("halo generate", "--dump-routing needs the expert pool; the routed ids reach "
                                  "the host through the doorbell the pool reads. Drop --no-pool.");
             return 2;
         }
         routing = std::fopen(o.dump_routing.c_str(), "wb");
         if (routing == nullptr) {
-            basalt::log::error("basalt generate", "cannot write %s", o.dump_routing.c_str());
+            halo::log::error("halo generate", "cannot write %s", o.dump_routing.c_str());
             return 1;
         }
         drive.routing = routing;
     }
     // The hit hook rides the same switch as the pool: with no pool there is no `parts` staging to
     // write into, and a hit path with nowhere to write is a wrong token rather than an error.
-    basalt::core::HitFn hit_fn =
-        (o.no_pool || o.expert_cache <= 0) ? nullptr : &basalt::core::expert_hit_run;
+    halo::core::HitFn hit_fn =
+        (o.no_pool || o.expert_cache <= 0) ? nullptr : &halo::core::expert_hit_run;
 
     // THE LOOP RUNS A CAPTURED PAIR PER LAYER: `pre[l]` ends with the router and the doorbell, then the CPU pool runs,
     // then `post[l]` combines those experts with THAT layer's weights - so layer `l`'s experts meet layer `l`'s
@@ -102,7 +102,7 @@ int token_path(Context& context) {
     // and the CPU term is answered by the VRAM expert cache, not by this pipeline.
 
     // ---- the graphs
-    basalt::core::SessionGraphs gr;
+    halo::core::SessionGraphs gr;
     // **`--no-capture` AND THE EXPERTS ARE MUTUALLY EXCLUSIVE, AND SILENTLY SO.**
     //
     // The CPU expert pool is wired into `session_loop` - the host loop around the captured graphs - and
@@ -113,7 +113,7 @@ int token_path(Context& context) {
     //
     // Refusing is the fix.  `--no-pool` is the explicit way to say "I want the GPU-only floor".
     if (o.no_capture && !o.no_pool) {
-        basalt::log::error("basalt generate", "--no-capture runs `session_token`, which has NO CPU expert pool hook, so "
+        halo::log::error("halo generate", "--no-capture runs `session_token`, which has NO CPU expert pool hook, so "
                      "the routed experts would silently contribute nothing. Pass --no-pool as well if the "
                      "GPU-only floor is what you want.");
         return 2;
@@ -121,16 +121,16 @@ int token_path(Context& context) {
     // The ladder is written by `session_loop`, which this build never runs; nothing fills the staging buffer, so the
     // two flags that asked for it are gone (see the PR that removed them).
 
-    basalt::log::info("basalt generate", "session is up (engine %s)", BASALT_VERSION);
+    halo::log::info("halo generate", "session is up (engine %s)", HALO_VERSION);
     auto run_head = [&](void* stream) -> bool {
         if (!native_head.loaded())
-            return basalt::core::lm_head(wt, g, ss.block, d_logits, stream, err);
-        return basalt::core::lm_head_mix(wt, g, ss.block, stream, err) &&
+            return halo::core::lm_head(wt, g, ss.block, d_logits, stream, err);
+        return halo::core::lm_head_mix(wt, g, ss.block, stream, err) &&
                native_head.run(ss.block.mixed, d_logits, stream, err);
     };
     float* d_emb = nullptr;
     if (cudaMalloc(&d_emb, (size_t) g.n_embd * 4) != cudaSuccess) {
-        basalt::log::error("basalt generate", "the embedding buffer failed");
+        halo::log::error("halo generate", "the embedding buffer failed");
         return 1;
     }
     // **`sample_tokens` TAKES DEVICE POINTERS.**  It is a kernel launch; `logits` and `out` are both read and
@@ -139,7 +139,7 @@ int token_path(Context& context) {
     // illegal access on a weight plane.  Nothing in the parameter names said device.
     int* d_next = nullptr;
     if (cudaMalloc(&d_next, sizeof(int)) != cudaSuccess) {
-        basalt::log::error("basalt generate", "the sampler output buffer failed");
+        halo::log::error("halo generate", "the sampler output buffer failed");
         return 1;
     }
 
@@ -168,7 +168,7 @@ int token_path(Context& context) {
     // ---- THE GPU-ONLY MEASUREMENT MODES.  `--gpu-stages`, `--graph-only` and `--gpu-only-full` replay the captured
     // graphs and print a table instead of decoding; they live in measure/gpu_modes.cpp.
     {
-        basalt::models::qwen4exp::measure::GpuModeContext mc;
+        halo::models::qwen4exp::measure::GpuModeContext mc;
         mc.o = &o;
         mc.g = &g;
         mc.ss = &ss;
@@ -178,8 +178,8 @@ int token_path(Context& context) {
         mc.d_next = d_next;
         mc.run_head = run_head;
         mc.err = &err;
-        const int rc = basalt::models::qwen4exp::measure::run_gpu_modes(mc);
-        if (rc != basalt::models::qwen4exp::measure::kNotRequested) return rc;
+        const int rc = halo::models::qwen4exp::measure::run_gpu_modes(mc);
+        if (rc != halo::models::qwen4exp::measure::kNotRequested) return rc;
     }
 
     // ---- THE TOKEN PATH ALLOCATES NOTHING.
@@ -187,9 +187,9 @@ int token_path(Context& context) {
     // `session_loop` must not allocate its pinned staging buffer, its probe event and its host pin on every token:
     // `cudaFreeHost` implicitly synchronises the device, so every token would finish with a device-wide sync.  The
     // scratch is created once here and reused; it also owns the host pin for the whole session.
-    basalt::core::SessionLoopScratch loop_scratch;
+    halo::core::SessionLoopScratch loop_scratch;
     struct ScratchFree {
-        basalt::core::SessionLoopScratch* p;
+        halo::core::SessionLoopScratch* p;
         ~ScratchFree() { if (p != nullptr) p->free(); }
     } scratch_free{&loop_scratch};
     // Initialised unconditionally, including under --no-pool: the loop validates the scratch it is handed, so
@@ -200,10 +200,10 @@ int token_path(Context& context) {
     }
     // The whole token as ONE graph whenever nothing needs a host step between the ring and post[l] (the VRAM expert
     // tier and the per-layer dumps do).
-    basalt::core::TokenGraph tgraph;
+    halo::core::TokenGraph tgraph;
     struct TokenGraphFree {
-        basalt::core::TokenGraph* p;
-        ~TokenGraphFree() { basalt::core::token_graph_free(*p); }
+        halo::core::TokenGraph* p;
+        ~TokenGraphFree() { halo::core::token_graph_free(*p); }
     } tgraph_free{&tgraph};
     // With a PROFILE-filled cache the residency is static, so the hit decision moves onto the device and the token
     // graph keeps it.  (A cache filled on demand still needs the per-layer host path.)
@@ -217,21 +217,21 @@ int token_path(Context& context) {
     };
     int32_t* d_res = nullptr;
     int32_t* d_hit_count = nullptr;
-    basalt::core::TokenHits thits;
+    halo::core::TokenHits thits;
     const bool graph_hits = hit_fn != nullptr && !profile.empty() && !o.no_pool;
     if (graph_hits && !o.no_capture) {
-        host_res.assign((size_t) (g.n_layers * g.n_expert), basalt::core::kNotResident);
+        host_res.assign((size_t) (g.n_layers * g.n_expert), halo::core::kNotResident);
         int64_t resident = 0;
         for (int64_t l = 0; l < g.n_layers; ++l)
             for (int64_t e = 0; e < g.n_expert; ++e) {
                 const int32_t slot = xcache.slot_of(l, e);
                 host_res[(size_t) (l * g.n_expert + e)] = slot;
-                if (slot != basalt::core::kNotResident) ++resident;
+                if (slot != halo::core::kNotResident) ++resident;
             }
         if (cudaMalloc((void**) &d_res, host_res.size() * sizeof(int32_t)) != cudaSuccess ||
             cudaMalloc((void**) &d_hit_count, sizeof(int32_t)) != cudaSuccess ||
             res_put(d_res) != cudaSuccess) {
-            basalt::log::error("basalt generate", "the device residency table could not be staged");
+            halo::log::error("halo generate", "the device residency table could not be staged");
             return 1;
         }
         thits.d_res = d_res;
@@ -243,14 +243,14 @@ int token_path(Context& context) {
         {
             uint64_t released = 0;
             for (size_t i = 0; i < host_res.size(); ++i)
-                if (host_res[i] != basalt::core::kNotResident)
+                if (host_res[i] != halo::core::kNotResident)
                     released += srcp->release((int64_t) i / g.n_expert, (int64_t) i % g.n_expert);
             if (released > 0)
-                basalt::log::info("basalt generate", "expert arena: %.2f GiB of VRAM-held experts handed back to the OS",
+                halo::log::info("halo generate", "expert arena: %.2f GiB of VRAM-held experts handed back to the OS",
                              (double) released / (1024.0 * 1024.0 * 1024.0));
             int64_t pf = 0;
             for (size_t i = 0; i < host_res.size(); ++i)
-                if (host_res[i] == basalt::core::kNotResident) {
+                if (host_res[i] == halo::core::kNotResident) {
                     srcp->prefetch((int64_t) i / g.n_expert, (int64_t) i % g.n_expert);
                     ++pf;
                 }
@@ -266,7 +266,7 @@ int token_path(Context& context) {
         thits.scratch = drive.d.hit_scratch;
         thits.hit_out = drive.d.hit_out;
         drive.d.host_res = host_res.data();
-        basalt::log::info("basalt generate", "token graph hit path: %lld resident experts, decided on the device",
+        halo::log::info("halo generate", "token graph hit path: %lld resident experts, decided on the device",
                      (long long) resident);
     }
 

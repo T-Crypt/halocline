@@ -11,10 +11,10 @@
 //   3. --bench: the read's time (weights cold in L2) and the products' time against the bf16 ones.
 //
 //     build/hc8_parity [--bench]
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
-#include "basalt/models/qwen4exp/kernels/gr.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/gr.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
 
 #include <cuda_runtime.h>
 
@@ -29,7 +29,7 @@
 #include <string>
 #include <vector>
 
-namespace K = basalt::kernels;
+namespace K = halo::kernels;
 
 namespace {
 
@@ -211,7 +211,7 @@ int main(int argc, char** argv) {
     cudaStream_t st;
     cudaStreamCreate(&st);
     std::string err;
-    basalt::prefill::Gemm big, small;
+    halo::prefill::Gemm big, small;
     if (!big.init(st, 32ll << 20, err) || !small.init(st, 1ll << 20, err)) { std::printf("FAIL: gemm init: %s\n", err.c_str()); return 1; }
     struct Shape { int64_t T, N, K; const void* key; const uint16_t* w; const char* what; };
     const Shape shapes[] = {

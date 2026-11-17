@@ -3,11 +3,11 @@
 // fp8 rms_norm_quantize and the StoreBf16 / AddBf16 epilogues, fp4_dense rms_norm_quantize, product_bf16 and
 // product_add_bf16, gdn_gating_proj, gdn_conv, gdn_recurrence_bf16 (E4M3 and BF16 out), attn_qk_prepare_bf16,
 // attn_gate_e4m3 and attn_gate_bf16.  A BF16 output's row amax is the largest |value| as stored.
-#include "basalt/kernels/dense_ops.hpp"
-#include "basalt/kernels/gdn_prompt.hpp"
-#include "basalt/kernels/gqa_attn.hpp"
-#include "basalt/prefill/fp4_dense.hpp"
-#include "basalt/prefill/fp8_gemm.hpp"
+#include "halo/kernels/dense_ops.hpp"
+#include "halo/kernels/gdn_prompt.hpp"
+#include "halo/kernels/gqa_attn.hpp"
+#include "halo/prefill/fp4_dense.hpp"
+#include "halo/prefill/fp8_gemm.hpp"
 
 #include <cuda_runtime.h>
 
@@ -18,9 +18,9 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
-namespace fp8 = basalt::prefill::fp8;
-namespace fd = basalt::prefill::fp4_dense;
+namespace k = halo::kernels;
+namespace fp8 = halo::prefill::fp8;
+namespace fd = halo::prefill::fp4_dense;
 
 namespace {
 std::mt19937 rng(5);

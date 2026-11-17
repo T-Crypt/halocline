@@ -23,10 +23,10 @@
 //
 // --bench: the reference and the three modes timed as CUDA graphs over enough layers' distinct weights that the L2
 // holds none of them, per stage and whole, in microseconds per layer and GB/s over the bytes each must move.
-#include "basalt/kernels/gdn_window.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/gdn_window.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_runtime.h>
 
@@ -40,7 +40,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::kernels;
+using namespace halo::kernels;
 
 namespace {
 

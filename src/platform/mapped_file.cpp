@@ -1,13 +1,13 @@
-// src/platform/mapped_file.cpp - see include/basalt/platform/mapped_file.hpp.
-#include "basalt/platform/mapped_file.hpp"
+// src/platform/mapped_file.cpp - see include/halo/platform/mapped_file.hpp.
+#include "halo/platform/mapped_file.hpp"
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-namespace basalt::platform {
+namespace halo::platform {
 
 // --------------------------------------------------------------------------------------------- Linux
 
@@ -73,4 +73,4 @@ LockResult lock_view(void* p, uint64_t bytes, const LockProgress& progress) {
 }
 
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

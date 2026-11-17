@@ -2,14 +2,14 @@
 #include "prefix_anchor.hpp"
 #include "request.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 // ---- where this request starts reading: the live session, or a checkpoint, whose tokens and pictures are
 // exactly the start of this prompt - at most n - 1 of them, the last token is always the first window
 bool Request::starts_with(const std::vector<int32_t>& pre, const std::vector<ImgKey>& pre_imgs) {
     const int64_t L = (int64_t) pre.size();
     if (L < 1 || L > n - 1) return false;
-    if (!basalt::core::conversation_ids_equal(pre.data(), pre.size(), ids32.data())) return false;
+    if (!halo::core::conversation_ids_equal(pre.data(), pre.size(), ids32.data())) return false;
     return runtime_.imgs_below(runtime_.req_imgs, L) == pre_imgs;
 }
 
@@ -48,7 +48,7 @@ void Request::respell_prompt() {
     splice_held(best->data(), meet, ids32.data(), n, ids);
     ids32 = std::vector<int32_t>(ids.begin(), ids.end());
     runtime_.cur = ids;
-    basalt::log::info("basalt serve", "prompt kept the ids of %s from token %lld on: the same bytes in other pieces "
+    halo::log::info("halo serve", "prompt kept the ids of %s from token %lld on: the same bytes in other pieces "
                       "(%+lld tokens)", from_slot < 0 ? "the live conversation" : ("slot " + std::to_string(from_slot)).c_str(),
                       (long long) from, (long long) (grown - n));
     n = grown;
@@ -171,31 +171,31 @@ Flow Request::restore() {
     // the disk tier, when it holds a longer start than every other source: read back cut at its match, after the
     // RAM guard's wait below (the read takes RAM)
     on_disk = runtime_.disk.enabled() ? runtime_.disk.best(ids32.data(), ids32.size(), runtime_.req_imgs, want_cvec)
-                       : basalt::core::ConversationStore::Match{};
+                       : halo::core::ConversationStore::Match{};
     from_disk = on_disk.tokens > std::max({resume, slot_tokens, parked.tokens});
     if (!from_disk && parked.tokens > std::max(resume, slot_tokens)) incoming.emplace(runtime_.conversations->take(parked.index));
     // RAM below the guard's floor (another program's peak): shed (after the conversation this request
     // continues is taken out of the cache), then let it come back before the request starts; a STOP ends the
     // wait, and the request then ends as cancelled.  A request that only continues the live conversation by a
     // few tokens (the server's wrap-up after a thinking budget) is part of a reply already streaming: no wait.
-    if (!runtime_.batch_on() && basalt::platform::ram_guard_level() != basalt::platform::RamLevel::Ok) {
+    if (!runtime_.batch_on() && halo::platform::ram_guard_level() != halo::platform::RamLevel::Ok) {
         runtime_.shed_if_low();
-        if (!basalt::platform::ram_continues_live(from_live && !incoming && !from_disk && slot_source < 0,
+        if (!halo::platform::ram_continues_live(from_live && !incoming && !from_disk && slot_source < 0,
                                                    n - resume)) {
             uint64_t avail = 0, floor = 0;
-            (void) basalt::platform::ram_guard_level(&avail, &floor);
-            basalt::log::info("basalt serve", "RAM low (%llu MiB free < %llu MiB guard): the request waits up "
+            (void) halo::platform::ram_guard_level(&avail, &floor);
+            halo::log::info("halo serve", "RAM low (%llu MiB free < %llu MiB guard): the request waits up "
                               "to %llu s", (unsigned long long) (avail >> 20), (unsigned long long) (floor >> 20),
-                              (unsigned long long) (basalt::platform::kRamAdmitWaitMs / 1000));
-            basalt::core::progress_at("RAM wait");
+                              (unsigned long long) (halo::platform::kRamAdmitWaitMs / 1000));
+            halo::core::progress_at("RAM wait");
             const auto w0 = Clock::now();
             auto waited = [&] {
                 return (uint64_t) std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - w0).count();
             };
             while (!runtime_.stop_req.load() && !runtime_.stdin_lost.load() &&
-                   basalt::platform::ram_admit_waits(basalt::platform::ram_guard_level(), waited())) {
+                   halo::platform::ram_admit_waits(halo::platform::ram_guard_level(), waited())) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                basalt::core::progress_beat();
+                halo::core::progress_beat();
             }
             // a STOP during the wait ends the request here, before anything moves for it: the conversation it
             // would continue goes back to the cache, the live one stays as it is (a batch slot's request ends
@@ -203,42 +203,42 @@ Flow Request::restore() {
             if ((runtime_.stop_req.load() || runtime_.stdin_lost.load()) && !in_slot && runtime_.admit_slot < 0) {
                 if (incoming && incoming->from_slot) runtime_.conversations->put_slot(std::move(*incoming), runtime_.bs.size());
                 else if (incoming) (void) runtime_.conversations->put(std::move(*incoming));
-                basalt::log::info("basalt serve", "RAM wait: the request was stopped after %.1f s",
+                halo::log::info("halo serve", "RAM wait: the request was stopped after %.1f s",
                                   waited() / 1000.0);
-                basalt::log::info("basalt serve", "prompt %lld tokens = 0 reused + 0 of %lld read in 0 ms "
+                halo::log::info("halo serve", "prompt %lld tokens = 0 reused + 0 of %lld read in 0 ms "
                                   "(0.0 tok/s), 0 generated in 0 ms (0.0 tok/s), drafts accepted 0 of 0, %zu "
                                   "checkpoints (cancelled)", (long long) n, (long long) n, runtime_.checks.size());
                 std::printf("DONE 0 %lld 0.0 0.0 cancel 0 0 0 0 0 0 0 0.0 0 0\n", (long long) n);
                 std::fflush(stdout);
                 return Flow::next;
             }
-            const basalt::platform::RamLevel level = basalt::platform::ram_guard_level(&avail, &floor);
-            if (level == basalt::platform::RamLevel::Ok)
-                basalt::log::info("basalt serve", "RAM back after %.1f s (%llu MiB free): the request starts",
+            const halo::platform::RamLevel level = halo::platform::ram_guard_level(&avail, &floor);
+            if (level == halo::platform::RamLevel::Ok)
+                halo::log::info("halo serve", "RAM back after %.1f s (%llu MiB free): the request starts",
                                   waited() / 1000.0, (unsigned long long) (avail >> 20));
             else if (!runtime_.stop_req.load() && !runtime_.stdin_lost.load())
-                basalt::log::warn("basalt serve", "RAM still low after %.1f s (%llu MiB free < %llu MiB guard): "
+                halo::log::warn("halo serve", "RAM still low after %.1f s (%llu MiB free < %llu MiB guard): "
                                   "the request starts", waited() / 1000.0, (unsigned long long) (avail >> 20),
                                   (unsigned long long) (floor >> 20));
-            basalt::core::progress_at("request");
+            halo::core::progress_at("request");
         }
     }
     if (from_disk) {
         const uint64_t need = runtime_.disk.load_bytes(on_disk);
         const uint64_t floor = std::max<uint64_t>((uint64_t) runtime_.o.conversation_cache_min_free_mib << 20, runtime_.disk_floor);
         const auto t0 = Clock::now();
-        basalt::core::SavedConversation image;
+        halo::core::SavedConversation image;
         std::string de;
         if (!runtime_.capture_admit(need, floor)) {
-            basalt::log::info("basalt serve", "conversation cache: %lld tokens on disk not read (physical RAM "
+            halo::log::info("halo serve", "conversation cache: %lld tokens on disk not read (physical RAM "
                               "admission; need %llu MiB)", (long long) on_disk.tokens,
                               (unsigned long long) (need >> 20));
         } else if (!runtime_.disk.load(on_disk, image, de)) {
-            basalt::log::warn("basalt serve", "conversation cache: reading from disk failed (%s); the file is "
+            halo::log::warn("halo serve", "conversation cache: reading from disk failed (%s); the file is "
                               "dropped", de.c_str());
         } else {
             const double ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
-            basalt::log::info("basalt serve", "conversation cache: read %lld tokens from disk in %.1f ms "
+            halo::log::info("halo serve", "conversation cache: read %lld tokens from disk in %.1f ms "
                               "(%.2f GB of state)", (long long) on_disk.tokens, ms, (double) image.bytes() / 1e9);
             incoming.emplace(std::move(image));
             in_tokens = on_disk.tokens;
@@ -274,7 +274,7 @@ Flow Request::restore() {
         const auto t0 = Clock::now();
         if (!runtime_.copy_from_slot(slot_source, slot_ck, runtime_.err)) {
             // the main session may be half written: read this prompt from the start
-            basalt::log::warn("basalt batch", "restoring slot %d failed (%s); reading the prompt",
+            halo::log::warn("halo batch", "restoring slot %d failed (%s); reading the prompt",
                          slot_source, runtime_.err.c_str());
             runtime_.err.clear();
             runtime_.slot_held = SlotHeld{};
@@ -304,7 +304,7 @@ Flow Request::restore() {
             runtime_.live_imgs = slot_ck != nullptr ? slot_ck->imgs : runtime_.bs[(size_t) slot_source].imgs;
             resume = slot_tokens;
             from_live = true;
-            basalt::log::info("basalt batch", "slot %d gave back %lld tokens of this conversation (%s) in "
+            halo::log::info("halo batch", "slot %d gave back %lld tokens of this conversation (%s) in "
                          "%.1f ms", slot_source, (long long) slot_tokens,
                          slot_ck != nullptr ? "its turn checkpoint" : "all it holds",
                          std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
@@ -325,7 +325,7 @@ Flow Request::restore() {
         retain_image();
         incoming.reset();   // its running state and checkpoints are in the session now
         const double restore_ms = std::chrono::duration<double, std::milli>(Clock::now() - restore_t0).count();
-        basalt::log::info("basalt serve", "conversation cache: restored %lld tokens (%s) in %.1f ms; parked=%zu bytes=%zu",
+        halo::log::info("halo serve", "conversation cache: restored %lld tokens (%s) in %.1f ms; parked=%zu bytes=%zu",
                      (long long) resume, from_live ? "live" : "checkpoint", restore_ms,
                      runtime_.conversations->size(), runtime_.conversations->bytes());
         runtime_.report_conversations((long long) resume, restore_ms);
@@ -371,10 +371,10 @@ Flow Request::restore() {
         return Flow::error;
     }
     std::printf("RESUME %lld\n", (long long) resume);   // before reading: this many prompt tokens are reused
-    basalt::core::progress_at("reading the prompt, from token", read_from);
+    halo::core::progress_at("reading the prompt, from token", read_from);
     std::fflush(stdout);
 
     return Flow::proceed;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

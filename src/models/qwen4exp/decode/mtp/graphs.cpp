@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -27,7 +27,7 @@ bool finish_capture(cudaStream_t cs, bool ok, cudaGraphExec_t& exec, const char*
 
 bool MtpDrafter::capture_prefill(int T, std::string& err) {
     if (prefill_exec_[T]) return true;
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     if (cudaStreamBeginCapture(cs_, cudaStreamCaptureModeThreadLocal) != cudaSuccess) { err = "mtp: begin capture"; return false; }
     copy_i32_from_mapped(tok_, m_tok_, T, cs_);
     copy_i32_from_mapped(step_, m_step_, (int64_t) T * 4, cs_);
@@ -48,7 +48,7 @@ bool MtpDrafter::capture_prefill_dev(int T, std::string& err) {
 // 2*max_t - 1; draft 0 and its probability to the mapped outputs.  The draft chain is one graph per step
 // (`capture_step`) so the host can stop it when a draft is unlikely, or conditional nodes (`capture_cond`).
 bool MtpDrafter::record_round(int T, bool all_rows, std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const int64_t HCN = g_->hc * g_->n_embd, NH = g_->n_head;
     const int64_t rows = all_rows ? 2 * (int64_t) max_t_ : 2 * (int64_t) T;
     const int ra = 2 * max_t_ - 1;
@@ -81,7 +81,7 @@ bool MtpDrafter::record_round(int T, bool all_rows, std::string& err) {
 // Chain step j (1..max_t-2): one row at the cell staged in step row `max_t + j - 1`, from the previous step's
 // residual and token (left in tok_[0] by the previous step); draft j and its probability to the mapped outputs.
 bool MtpDrafter::record_step(int j, bool copy_records, std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const int64_t NH = g_->n_head;
     const int row = max_t_ + j - 1;
     if (copy_records) {

@@ -1,14 +1,14 @@
 #include "run.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
 #include <algorithm>
 #include <utility>
 #include <vector>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 // A chunk below stream_all_min(): each layer's MoE half also runs the next layer's router on its FFN rows, and the
@@ -32,7 +32,7 @@ void Prefill::Run::Chunk::copy_ahead(int64_t L) {
     std::vector<std::pair<int32_t, int32_t>> want;   // (-rows, expert)
     for (int32_t e = 0; e < (int32_t) m.g->n_expert; ++e) {
         const int32_t c = m.guess_rows[(size_t) e];
-        if (c <= basalt::kernels::cpu::MAXT || m.host_res[(size_t) L * m.g->n_expert + e] >= 0) continue;
+        if (c <= halo::kernels::cpu::MAXT || m.host_res[(size_t) L * m.g->n_expert + e] >= 0) continue;
         if (!m.src->pinned(L, e)) continue;
         want.emplace_back(-c, e);
     }
@@ -59,4 +59,4 @@ void Prefill::Run::Chunk::copy_ahead(int64_t L) {
     }
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

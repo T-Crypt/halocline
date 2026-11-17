@@ -1,12 +1,12 @@
 #include "experts.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::Experts::Group::compute_fp16(size_t j, const uint8_t* blob_dev, int slot) {
@@ -17,9 +17,9 @@ bool Prefill::Run::Chunk::Experts::Group::compute_fp16(size_t j, const uint8_t* 
         const auto& f = lay.fmt[(size_t) l];
         // NVFP4: the tail's FP32 scales {s_gate, s_up, s_down} go into the fp16 weights
         const float* tail = f.tail ? (const float*) (blob_dev + f.bytes - f.tail) : nullptr;
-        basalt::kernels::iq_dequant_gu_f16(f.gu_type, blob_dev, blob_dev + f.up_off, f.n_ff, f.n_embd,
+        halo::kernels::iq_dequant_gu_f16(f.gu_type, blob_dev, blob_dev + f.up_off, f.n_ff, f.n_embd,
                                            m.dq_gu[q], m.cs, tail, f.up_type);
-        basalt::kernels::iq_dequant_f16(f.d_type, blob_dev + f.down_off, f.n_embd * f.n_ff, m.dq_d[q], m.cs,
+        halo::kernels::iq_dequant_f16(f.d_type, blob_dev + f.down_off, f.n_embd * f.n_ff, m.dq_d[q], m.cs,
                                         tail ? tail + 2 : nullptr);
     } else {
         blob_dequant_f16(blob_dev, m.dq_gu[q], m.dq_d[q], m.cs);
@@ -32,4 +32,4 @@ bool Prefill::Run::Chunk::Experts::Group::compute_fp16(size_t j, const uint8_t* 
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

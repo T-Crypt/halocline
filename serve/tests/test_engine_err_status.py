@@ -52,7 +52,7 @@ class EngineErrStatus(unittest.TestCase):
         out = []
         try:
             for path, body in BODIES:
-                req = urllib.request.Request(base + path, data=json.dumps({"model": "basalt", **body}).encode(),
+                req = urllib.request.Request(base + path, data=json.dumps({"model": "halo", **body}).encode(),
                                              headers={"Content-Type": "application/json"})
                 try:
                     with urllib.request.urlopen(req, timeout=30) as r:

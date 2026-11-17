@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <vector>
 
-using basalt::program::serve::root_boundary;
+using halo::program::serve::root_boundary;
 
 namespace {
 int failures = 0;

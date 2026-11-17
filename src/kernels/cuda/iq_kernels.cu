@@ -1,36 +1,36 @@
-// src/kernels/cuda/iq_kernels.cu - see include/basalt/kernels/iq_kernels.hpp.
+// src/kernels/cuda/iq_kernels.cu - see include/halo/kernels/iq_kernels.hpp.
 //
 // The dot products (vec_dot_*_q8_1), the dequantizers and the q8_1 quantizer are transcribed from llama.cpp
 // (ggml/src/ggml-cuda/vecdotq.cuh, dequantize.cuh, quantize.cu at llama.cpp commit
 // 3cf03257f219afbe7334045ff7c6a06ac68c627d; MIT, Copyright (c) 2023-2026 The ggml authors, see
-// THIRD_PARTY_LICENSES).  The block structs and codebook grids are basalt/ggml/ggml_common.h.
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/packed_byte.hpp"
-#include "basalt/kernels/q8_1_finite.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/core/diag.hpp"
+// THIRD_PARTY_LICENSES).  The block structs and codebook grids are halo/ggml/ggml_common.h.
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/packed_byte.hpp"
+#include "halo/kernels/q8_1_finite.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/core/diag.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #define GGML_COMMON_DECL_CUDA
 #define GGML_COMMON_IMPL_CUDA
-#include "basalt/ggml/ggml_common.h"
+#include "halo/ggml/ggml_common.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <type_traits>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e)); std::exit(1); }
 }
 
 // ---------------------------------------------------------------- llama.cpp helpers (vecdotq.cuh)
@@ -3124,13 +3124,13 @@ void iq_mmvq(int t, const void* w, const void* x_q8_1, float* y, int n_in, int n
 #define MMVQ_CASE(T) case T: launch_mmvq<T>(W, rb, X, y, n_in, n_out, ncols, s); break;
         MMVQ_FMTS(MMVQ_CASE)
 #undef MMVQ_CASE
-        default: basalt::log::error("basalt", "iq_mmvq: type %d is not supported", t); std::exit(1);
+        default: halo::log::error("halo", "iq_mmvq: type %d is not supported", t); std::exit(1);
     }
     check("iq_mmvq");
 }
 
 void iq_dequant_f16(int t, const void* src, int64_t n, uint16_t* dst, void* stream, const float* scale) {
-    if (n % 256 != 0 || !is_iq(t)) { basalt::log::error("basalt", "iq_dequant_f16: bad arguments"); std::exit(1); }
+    if (n % 256 != 0 || !is_iq(t)) { halo::log::error("halo", "iq_dequant_f16: bad arguments"); std::exit(1); }
     dequant_flat_kernel<__half><<<(unsigned) (n / 256), 32, 0, (cudaStream_t) stream>>>(t, src, (__half*) dst, scale);
     check("iq_dequant_f16");
 }
@@ -3150,7 +3150,7 @@ __global__ void embed_rows_kernel(int ty, const uint8_t* __restrict__ table, con
 void iq_embed_rows(int t, const void* table, size_t row_bytes, const int32_t* tokens, int64_t n_tok, int64_t n_embd,
                    float* out, void* stream, const void* hot, int64_t n_hot) {
     if (n_tok <= 0) return;
-    if (n_embd % 256 != 0 || !embed_type_supported(t)) { basalt::log::error("basalt", "iq_embed_rows: bad arguments"); std::exit(1); }
+    if (n_embd % 256 != 0 || !embed_type_supported(t)) { halo::log::error("halo", "iq_embed_rows: bad arguments"); std::exit(1); }
     if (hot == nullptr) n_hot = 0;
     embed_rows_kernel<<<dim3((unsigned) (n_embd / 256), (unsigned) n_tok), 32, 0, (cudaStream_t) stream>>>(
         t, (const uint8_t*) table, (const uint8_t*) hot, n_hot, row_bytes, tokens, n_embd, out);
@@ -3158,7 +3158,7 @@ void iq_embed_rows(int t, const void* table, size_t row_bytes, const int32_t* to
 }
 
 void iq_dequant_f32(int t, const void* src, int64_t n, float* dst, void* stream) {
-    if (n % 256 != 0 || !embed_type_supported(t)) { basalt::log::error("basalt", "iq_dequant_f32: bad arguments"); std::exit(1); }
+    if (n % 256 != 0 || !embed_type_supported(t)) { halo::log::error("halo", "iq_dequant_f32: bad arguments"); std::exit(1); }
     dequant_flat_kernel<float><<<(unsigned) (n / 256), 32, 0, (cudaStream_t) stream>>>(t, src, dst);
     check("iq_dequant_f32");
 }
@@ -3167,7 +3167,7 @@ void iq_dequant_gu_f16(int t, const void* gate, const void* up, int64_t n_ff, in
                        const float* scale, int up_type) {
     if (up_type < 0) up_type = t;
     // checked like the other entry points: an unknown type would leave `dst` unwritten, a wrong prompt and no error
-    if (n_embd % 256 != 0 || !is_iq(t) || !is_iq(up_type)) { basalt::log::error("basalt", "iq_dequant_gu_f16: type %d / %d / %lld", t, up_type, (long long) n_embd); std::exit(1); }
+    if (n_embd % 256 != 0 || !is_iq(t) || !is_iq(up_type)) { halo::log::error("halo", "iq_dequant_gu_f16: type %d / %d / %lld", t, up_type, (long long) n_embd); std::exit(1); }
     const int64_t per_row = n_embd / 256;
     dequant_gu_kernel<<<dim3((unsigned) (n_ff * per_row), 2), 32, 0, (cudaStream_t) stream>>>(t, up_type, gate, up, per_row,
                                                                                            (__half*) dst, scale);
@@ -3255,7 +3255,7 @@ void grouped_impl(const NativeExpertLayout& L, const unsigned long long* grp_ptr
                   int64_t cap_entries, const void* x_q8_1, void* scratch, float* out, void* stream,
                   int64_t grid_groups, [[maybe_unused]] float limit) {
     if (cap_groups <= 0 || cap_entries <= 0) return;
-    if (L.n_ff % 32 != 0) { basalt::log::error("basalt", "native_expert_grouped: n_ff %lld", (long long) L.n_ff); std::exit(1); }
+    if (L.n_ff % 32 != 0) { halo::log::error("halo", "native_expert_grouped: n_ff %lld", (long long) L.n_ff); std::exit(1); }
     cudaStream_t s = (cudaStream_t) stream;
     const size_t f = (size_t) cap_entries * (size_t) L.n_ff * sizeof(float), fa = (f + 255) & ~(size_t) 255;
     float* gate = (float*) scratch;
@@ -3271,7 +3271,7 @@ void grouped_impl(const NativeExpertLayout& L, const unsigned long long* grp_ptr
     if (g_exp_phase != 2) {
     if (L.up_type != L.gu_type) {   // a mixed layer: the gu2 rows only
         if (v1 || !g_gu2 || g_old_kernels || !gu2_usable(L)) {
-            basalt::log::error("basalt", "native_expert_grouped: gate %d / up %d rows need the default kernels",
+            halo::log::error("halo", "native_expert_grouped: gate %d / up %d rows need the default kernels",
                                L.gu_type, L.up_type);
             std::exit(1);
         }
@@ -3281,14 +3281,14 @@ void grouped_impl(const NativeExpertLayout& L, const unsigned long long* grp_ptr
             native_gu2_kernel<TG, TU><<<g2, 256, 0, s>>>(grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up); break;
             GU_MIX(GU_MIX_CASE)
 #undef GU_MIX_CASE
-            default: basalt::log::error("basalt", "native_expert_grouped: gate %d / up %d", L.gu_type, L.up_type); std::exit(1);
+            default: halo::log::error("halo", "native_expert_grouped: gate %d / up %d", L.gu_type, L.up_type); std::exit(1);
         }
     } else
     switch (L.gu_type) {
 #define GU_CASE(T) case T: launch_gu<T>(ggu, s, grp_ptr, grp_start, n_groups, ent_tok, X, L, gate, up, !v1); break;
         GU_FMTS(GU_CASE)
 #undef GU_CASE
-        default: basalt::log::error("basalt", "native_expert_grouped: gate/up type %d", L.gu_type); std::exit(1);
+        default: halo::log::error("halo", "native_expert_grouped: gate/up type %d", L.gu_type); std::exit(1);
     }
     check("native_expert_grouped/gu");
     const long long nh = (long long) cap_entries * L.n_ff;
@@ -3319,7 +3319,7 @@ void grouped_impl(const NativeExpertLayout& L, const unsigned long long* grp_ptr
 #define DOWN_CASE(T) case T: launch_down<T>(gd, s, grp_ptr, grp_start, n_groups, ent_dst, hq, L, out, chain); break;
         D_FMTS(DOWN_CASE)
 #undef DOWN_CASE
-        default: basalt::log::error("basalt", "native_expert_grouped: down type %d", L.d_type); std::exit(1);
+        default: halo::log::error("halo", "native_expert_grouped: down type %d", L.d_type); std::exit(1);
     }
     check("native_expert_grouped/down");
 }
@@ -3384,4 +3384,4 @@ void gated_mlp_clamped(const NativeExpertLayout& L, float swiglu_limit, const vo
 
 #endif  // IQ_DEV_ONLY
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

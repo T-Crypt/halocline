@@ -1,7 +1,7 @@
 // Capacity 262144, live prefill up to the register boundary, and the legacy fallbacks.
 // Compare selected IDs only: unused output padding is not part of the API contract.
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_select.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_select.hpp"
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cstdio>
@@ -9,7 +9,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 namespace {
 void ck(cudaError_t e) {
     if (e != cudaSuccess) {

@@ -1,11 +1,11 @@
 // src/core/weights.cpp - the dense-weight loader.  See the header for the engine-vs-pack distinction.
-#include "basalt/core/weights.hpp"
-#include "basalt/core/direct_upload.hpp"
-#include "basalt/core/load_progress.hpp"
+#include "halo/core/weights.hpp"
+#include "halo/core/direct_upload.hpp"
+#include "halo/core/load_progress.hpp"
 
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cuda_runtime.h>
 
@@ -17,10 +17,10 @@
 #include <cstring>
 #include <optional>
 
-namespace basalt::core {
+namespace halo::core {
 namespace {
 
-constexpr uint64_t CHUNK = basalt::core::DirectUploader::kChunk;   // SOURCE bytes per staging round
+constexpr uint64_t CHUNK = halo::core::DirectUploader::kChunk;   // SOURCE bytes per staging round
 
 double now_ms() {
     using namespace std::chrono;
@@ -255,7 +255,7 @@ bool WeightTable::load(const PackFiles& pack, void* arena_base, uint64_t arena_b
     }
 
     uint8_t* dst_base = (uint8_t*) arena_base;
-    basalt::core::DirectUploader reader;   // unbuffered reads into pinned staging
+    halo::core::DirectUploader reader;   // unbuffered reads into pinned staging
     int cur_file = -1;
     std::string cur_path;
     uint64_t cur_base = 0, cur_size = 0;   // the current file's range: reads are relative to it
@@ -435,7 +435,7 @@ bool WeightTable::load(const PackFiles& pack, void* arena_base, uint64_t arena_b
                         for (uint64_t i = 0; i < elems; ++i) {
                             float v;
                             std::memcpy(&v, src + i * 4, 4);
-                            const uint16_t h = basalt::kernels::f16_from_f32(v);
+                            const uint16_t h = halo::kernels::f16_from_f32(v);
                             std::memcpy(o + i * 2, &h, 2);
                         }
                         host_src = stage_out;
@@ -452,7 +452,7 @@ bool WeightTable::load(const PackFiles& pack, void* arena_base, uint64_t arena_b
                         for (uint64_t i = 0; i < elems; ++i) {
                             uint16_t h;
                             std::memcpy(&h, src + i * 2, 2);
-                            o[i] = basalt::kernels::f32_from_f16(h);
+                            o[i] = halo::kernels::f32_from_f16(h);
                         }
                         host_src = stage_out;
                         out_at = s.dst_off + done * 2;
@@ -524,4 +524,4 @@ bool WeightTable::rebind(const std::string& name, const void* data) {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

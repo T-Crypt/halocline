@@ -1,16 +1,16 @@
 // src/program/gpu_select.cpp - see gpu_select.hpp.
-#include "basalt/program/gpu_select.hpp"
+#include "halo/program/gpu_select.hpp"
 
-#include "basalt/log.hpp"
-#include "basalt/platform/dynlib.hpp"
-#include "basalt/platform/process.hpp"
+#include "halo/log.hpp"
+#include "halo/platform/dynlib.hpp"
+#include "halo/platform/process.hpp"
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
-namespace basalt::program {
+namespace halo::program {
 
 namespace {
 
@@ -65,7 +65,7 @@ struct NvmlCards {
 
 NvmlCards read_nvml() {
     NvmlCards out;
-    const basalt::platform::DynLib lib = basalt::platform::DynLib::open_nvml();
+    const halo::platform::DynLib lib = halo::platform::DynLib::open_nvml();
     if (!lib) return out;
     struct MemInfo { unsigned long long total, free, used; };
     const auto init = lib.sym<int (*)()>("nvmlInit_v2");
@@ -255,8 +255,8 @@ void apply_gpus(const std::vector<GpuCard>& visible, const std::vector<int>& car
         list += (i >= 0 && (size_t) i < visible.size()) ? visible[(size_t) i].token : std::to_string(i);
     }
     // numbers are nvidia-smi's, which is the PCI bus order; CUDA's own default order differs
-    basalt::platform::set_env("CUDA_DEVICE_ORDER", "PCI_BUS_ID");
-    basalt::platform::set_env("CUDA_VISIBLE_DEVICES", list);
+    halo::platform::set_env("CUDA_DEVICE_ORDER", "PCI_BUS_ID");
+    halo::platform::set_env("CUDA_VISIBLE_DEVICES", list);
 }
 
 // a card named only by its index
@@ -302,8 +302,8 @@ bool select_gpus(const std::string& text, const char* label, std::string& engine
         err = "Halocline runs on exactly one GPU; " + std::to_string(c.cards.size()) + " were chosen";
         return false;
     }
-    for (const std::string& s : c.notes) basalt::log::info(label, "%s", s.c_str());
-    if (!c.warning.empty()) basalt::log::warn(label, "%s", c.warning.c_str());
+    for (const std::string& s : c.notes) halo::log::info(label, "%s", s.c_str());
+    if (!c.warning.empty()) halo::log::warn(label, "%s", c.warning.c_str());
     apply_gpus(visible, c.cards);
     used.clear();
     for (int i : c.cards) used.push_back((size_t) i < visible.size() ? visible[(size_t) i] : unknown_card(i));
@@ -311,4 +311,4 @@ bool select_gpus(const std::string& text, const char* label, std::string& engine
     return true;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

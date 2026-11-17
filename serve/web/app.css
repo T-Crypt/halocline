@@ -2,20 +2,20 @@
 @font-face { font-family: "Geist Mono"; font-weight: 100 900; font-display: swap; src: url(../fonts/geist-mono-latin-wght.woff2) format("woff2"); }
 
 :root {
-  --basalt-950: #0E1114; --basalt-900: #151A1F; --basalt-700: #2A333C; --basalt-500: #56616C; --basalt-300: #9AA4AD;
+  --halo-950: #0E1114; --halo-900: #151A1F; --halo-700: #2A333C; --halo-500: #56616C; --halo-300: #9AA4AD;
   --ember: #F2662B; --ember-hot: #FFB547; --ember-deep: #B8401A;
 
   --font-sans: "Geist", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  --bg: var(--basalt-950);
-  --panel: var(--basalt-900);
+  --bg: var(--halo-950);
+  --panel: var(--halo-900);
   --surface: #1A2128;
-  --raised: var(--basalt-700);
+  --raised: var(--halo-700);
   --line: #28313A;
   --line-soft: #222A32;
   --fg: #E9ECEE;
-  --fg-2: var(--basalt-300);
+  --fg-2: var(--halo-300);
   --fg-3: #77828C;
   --accent: #FF7A3D;
   --warn: #E9C341;

@@ -1,15 +1,15 @@
 #include "common.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/kernels/dense_tc.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/kernels/dense_tc.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/pdl.hpp"
 #include <cmath>
 #include <mutex>
 #include <set>
 #include <string>
 #include <tuple>
 
-namespace basalt::core::verify_detail {
+namespace halo::core::verify_detail {
 
 // one stderr line per distinct fast-path fallback (what, a, b)
 void note_fallback(const char* what, int a, int b) {
@@ -17,7 +17,7 @@ void note_fallback(const char* what, int a, int b) {
     static std::set<std::tuple<std::string, int, int>> seen;
     std::lock_guard<std::mutex> lk(mu);
     if (seen.insert({what, a, b}).second)
-        basalt::log::warn("basalt verify", "fallback: %s (types %d / %d)", what, a, b);
+        halo::log::warn("halo verify", "fallback: %s (types %d / %d)", what, a, b);
 }
 // a dense projection of the window: dense_tc where dense_tc_mask has the projection's bit and the type, else
 // native_mmvq (either one for every window width, so a column's value never depends on T)
@@ -42,4 +42,4 @@ double card_bandwidth(int dev) {
     return 2.0 * khz * 1e3 * bits / 8.0;
 }
 
-}  // namespace basalt::core::verify_detail
+}  // namespace halo::core::verify_detail

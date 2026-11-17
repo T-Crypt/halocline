@@ -1,20 +1,20 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/q6k_head.hpp"
-#include "basalt/models/qwen4exp/kernels/q80_vhead.hpp"
-#include "basalt/kernels/logprobs.hpp"
-#include "basalt/kernels/sampler.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/q6k_head.hpp"
+#include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
+#include "halo/kernels/logprobs.hpp"
+#include "halo/kernels/sampler.hpp"
 #include <exception>
 #include <string>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 bool Verifier::set_logit_bias(const std::vector<float>& bias, std::string& err) {
@@ -37,7 +37,7 @@ bool Verifier::set_logit_bias(const std::vector<float>& bias, std::string& err) 
 }
 
 int Verifier::head_keep() const {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     if (!head_sampling_) return 1;   // the recorded greedy pick only
     if (sampling_.logit_bias != nullptr) return 0;
     if (hist_d_ != nullptr && sampling_.penalty_last_n > 0 &&
@@ -60,13 +60,13 @@ void Verifier::set_head_keep(int keep) {
 bool Verifier::head_exact_again() const {
     if (!head_screened_) return true;
     const OnDevice on_device(device_);
-    basalt::kernels::q80p_mmvq(head_->weights(), xq_, head_logits_, (int) g_->n_embd, (int) n_vocab_, last_t_, cs_);
+    halo::kernels::q80p_mmvq(head_->weights(), xq_, head_logits_, (int) g_->n_embd, (int) n_vocab_, last_t_, cs_);
     head_screened_ = false;
     return cudaPeekAtLastError() == cudaSuccess;
 }
 
 bool Verifier::exact_head_rows(int T, std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     if (head_screened_) {
         if (head_exact_again()) return true;
         err = "verify head: the exact pass failed";
@@ -91,7 +91,7 @@ bool Verifier::exact_head_rows(int T, std::string& err) {
 
 bool Verifier::reserve_wide_sampler(std::string& err) {
     const OnDevice on_device(device_);
-    if (basalt::kernels::sampler_wide_reserve((int) n_vocab_, cs_)) return true;
+    if (halo::kernels::sampler_wide_reserve((int) n_vocab_, cs_)) return true;
     err = "the sampler has no VRAM for a list longer than 64 entries (top_k 0 or above 64): about " +
           std::to_string((16 * (int64_t) n_vocab_ >> 20) + 1) + " MiB plus the sort's own";
     return false;
@@ -109,7 +109,7 @@ bool Verifier::resample_row(int t, int64_t pos0, const std::vector<float>& bias,
         return false;
     }
     // a batch window's row draws with its own slot's sampling and position, as the window drew it
-    basalt::kernels::SamplerParams sp;
+    halo::kernels::SamplerParams sp;
     const int32_t* hist = nullptr;
     int hist_n = 0;
     if (last_batch_ && t < last_t_) {
@@ -123,7 +123,7 @@ bool Verifier::resample_row(int t, int64_t pos0, const std::vector<float>& bias,
         if (hist_d_ != nullptr) { hist = hist_d_ + (size_t) t * (size_t) hist_len_; hist_n = (int) hist_len_; }
     }
     sp.logit_bias = row_bias_device_;
-    basalt::kernels::sample_tokens(head_logits_ + (size_t) t * (size_t) n_vocab_, 1, (int) n_vocab_, hist, hist_n, sp,
+    halo::kernels::sample_tokens(head_logits_ + (size_t) t * (size_t) n_vocab_, 1, (int) n_vocab_, hist, hist_n, sp,
                   m_out_, cs_);
     if (cudaStreamSynchronize(cs_) != cudaSuccess) { err = "resample_row: the sampling failed"; return false; }
     token = ((volatile int32_t*) h_out_)[0];
@@ -131,7 +131,7 @@ bool Verifier::resample_row(int t, int64_t pos0, const std::vector<float>& bias,
 }
 
 bool Verifier::row_logprobs(int t0, int n, const int32_t* picks, int top, float* host) {
-    using basalt::kernels::kLogprobStride;
+    using halo::kernels::kLogprobStride;
     if (head_logits_ == nullptr || host == nullptr || picks == nullptr || t0 < 0 || n <= 0 || n_vocab_ <= 0) return false;
     const OnDevice on_device(device_);
     if (head_screened_ && !head_exact_again()) return false;
@@ -139,14 +139,14 @@ bool Verifier::row_logprobs(int t0, int n, const int32_t* picks, int top, float*
         if (lp_buf_ != nullptr) cudaFree(lp_buf_);
         lp_buf_ = nullptr;
         lp_cap_ = 0;
-        const size_t floats = basalt::kernels::row_logprobs_scratch_floats(n, (int) n_vocab_) + (size_t) n * (kLogprobStride + 1);
+        const size_t floats = halo::kernels::row_logprobs_scratch_floats(n, (int) n_vocab_) + (size_t) n * (kLogprobStride + 1);
         if (cudaMalloc((void**) &lp_buf_, floats * sizeof(float)) != cudaSuccess) return false;
         lp_cap_ = (size_t) n;
     }
-    float* d_out = lp_buf_ + basalt::kernels::row_logprobs_scratch_floats((int) lp_cap_, (int) n_vocab_);
+    float* d_out = lp_buf_ + halo::kernels::row_logprobs_scratch_floats((int) lp_cap_, (int) n_vocab_);
     int32_t* d_picks = reinterpret_cast<int32_t*>(d_out + lp_cap_ * kLogprobStride);
     if (cudaMemcpyAsync(d_picks, picks, (size_t) n * sizeof(int32_t), cudaMemcpyHostToDevice, cs_) != cudaSuccess) return false;
-    basalt::kernels::row_logprobs(head_logits_ + (size_t) t0 * (size_t) n_vocab_, n, (int) n_vocab_, d_picks, top, d_out,
+    halo::kernels::row_logprobs(head_logits_ + (size_t) t0 * (size_t) n_vocab_, n, (int) n_vocab_, d_picks, top, d_out,
                                   lp_buf_, cs_);
     return cudaMemcpyAsync(host, d_out, (size_t) n * kLogprobStride * sizeof(float), cudaMemcpyDeviceToHost, cs_) ==
                cudaSuccess && cudaStreamSynchronize(cs_) == cudaSuccess;
@@ -159,4 +159,4 @@ bool Verifier::copy_logits(int t, float* host) const {
                       cudaMemcpyDeviceToHost) == cudaSuccess;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

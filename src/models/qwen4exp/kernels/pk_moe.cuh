@@ -1,9 +1,9 @@
-// src/models/qwen4exp/kernels/pk_moe.cuh - see include/basalt/models/qwen4exp/kernels/pk_moe.hpp.  Included at the end of iq_kernels.cu, after
+// src/models/qwen4exp/kernels/pk_moe.cuh - see include/halo/models/qwen4exp/kernels/pk_moe.hpp.  Included at the end of iq_kernels.cu, after
 // dec_moe.cuh: it runs that file's gate/up items (gu2::pair), SwiGLU (dm_swiglu_q8) and down items (dm_down_item).
-#include "basalt/models/qwen4exp/kernels/pk_moe.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/kernels/pk_moe.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int kPkSpan = 64;                         // output columns per down item
@@ -260,7 +260,7 @@ void pk_moe_experts(const NativeExpertLayout& L, const PkMoeArgs& a, void* scrat
     float* up = gate + (size_t) kDmCap * L.n_ff;
     const int n = a.n_tok * a.k;
     if (n > kDmCap || a.k != 10 || a.n_tok < 1 || L.up_type != L.gu_type) {
-        basalt::log::error("basalt", "pk_moe_experts: %d tokens, k %d, gate %d / up %d", a.n_tok, a.k, L.gu_type,
+        halo::log::error("halo", "pk_moe_experts: %d tokens, k %d, gate %d / up %d", a.n_tok, a.k, L.gu_type,
                            L.up_type);
         std::exit(1);
     }
@@ -280,7 +280,7 @@ void pk_moe_experts(const NativeExpertLayout& L, const PkMoeArgs& a, void* scrat
         default: break;
     }
     if (!done) {
-        basalt::log::error("basalt", "pk_moe_experts: formats %d / %d", L.gu_type, L.d_type);
+        halo::log::error("halo", "pk_moe_experts: formats %d / %d", L.gu_type, L.d_type);
         std::exit(1);
     }
     check("pk_moe_experts");
@@ -291,4 +291,4 @@ void pk_moe_shared_done(unsigned int* sync, void* stream) {
     check("pk_moe_shared_done");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

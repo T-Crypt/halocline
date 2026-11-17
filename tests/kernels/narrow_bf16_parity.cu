@@ -1,11 +1,11 @@
-// tests/kernels/narrow_bf16_parity.cu - the FP8 E4M3 and FP4 E2M1 conversions to bf16x2 (basalt/kernels/narrow_bf16.cuh)
+// tests/kernels/narrow_bf16_parity.cu - the FP8 E4M3 and FP4 E2M1 conversions to bf16x2 (halo/kernels/narrow_bf16.cuh)
 // against the f16 route the header takes before CUDA 13.2 and against the host's values: every pair of E4M3 bytes, and
 // every E2M1 byte at every UE4M3 scale byte in each byte of the word, bit for bit, NaNs included (their bits against the
 // other route; the host only says NaN).  Built with CUDA 13.2 or later this checks the direct instruction against the
 // fallback; built with 13.0 or 13.1 both sides are the fallback and the host values check it.  On 8.9 (no direct
 // conversion, no E2M1 conversion, no mul.rn.bf16x2) the E2M1 side is the header's byte permute to bf16 against its permute
 // to f16 widened to bf16, both through its fma multiply, and the host values check both.  Exit 77 without a GPU.
-#include "basalt/kernels/narrow_bf16.cuh"
+#include "halo/kernels/narrow_bf16.cuh"
 
 #include <cuda_fp8.h>
 #include <cuda_runtime.h>
@@ -15,7 +15,7 @@
 #include <cstring>
 #include <vector>
 
-namespace bk = basalt::kernels;
+namespace bk = halo::kernels;
 
 namespace {
 

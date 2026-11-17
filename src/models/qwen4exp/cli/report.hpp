@@ -1,13 +1,13 @@
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace basalt::models::qwen4exp { struct Options; }
-namespace basalt::models::qwen4exp::engine_local { struct Drive; }
-namespace basalt::core {
+namespace halo::models::qwen4exp { struct Options; }
+namespace halo::models::qwen4exp::engine_local { struct Drive; }
+namespace halo::core {
 struct ModelGeometry;
 struct TokenGraph;
 struct SessionGraphs;
@@ -17,23 +17,23 @@ class ExpertCache;
 class Verifier;
 class MtpDrafter;
 }
-namespace basalt::kernels {
+namespace halo::kernels {
 class PleTable;
 namespace cpu { class ExpertPool; }
 }
 
-namespace basalt::models::qwen4exp::cli {
+namespace halo::models::qwen4exp::cli {
 
 struct StatsReport {
     const Options& o;
-    const basalt::core::ModelGeometry& g;
+    const halo::core::ModelGeometry& g;
     const engine_local::Drive& drive;
-    const basalt::kernels::cpu::ExpertPool& pool;
-    const basalt::kernels::PleTable& ple_table;
-    const basalt::core::ExpertSource* srcp;
-    const basalt::core::ExpertCache& xcache;
-    const basalt::core::TokenGraph& tgraph;
-    const basalt::core::SessionGraphs& gr;
+    const halo::kernels::cpu::ExpertPool& pool;
+    const halo::kernels::PleTable& ple_table;
+    const halo::core::ExpertSource* srcp;
+    const halo::core::ExpertCache& xcache;
+    const halo::core::TokenGraph& tgraph;
+    const halo::core::SessionGraphs& gr;
     double decode_ms;
     int64_t phase_tokens;
     double ms_ple;
@@ -46,13 +46,13 @@ struct StatsReport {
 
 struct SpeculationReport {
     const Options& o;
-    const basalt::core::ModelGeometry& g;
+    const halo::core::ModelGeometry& g;
     const engine_local::Drive& drive;
-    const basalt::kernels::cpu::ExpertPool& pool;
-    const basalt::core::FileExpertSource& src;
-    const basalt::core::ExpertSource* srcp;
-    const basalt::core::Verifier& ver;
-    const basalt::core::MtpDrafter& mtp;
+    const halo::kernels::cpu::ExpertPool& pool;
+    const halo::core::FileExpertSource& src;
+    const halo::core::ExpertSource* srcp;
+    const halo::core::Verifier& ver;
+    const halo::core::MtpDrafter& mtp;
     int64_t rounds;
     int64_t drafts_ok;
     int64_t drafts_total;
@@ -79,4 +79,4 @@ void print_routing_dump(const std::string& path, int64_t records);
 double print_generation(const Options& o, const std::vector<int64_t>& produced, int64_t n_prompt,
                         double total_ms, double prefill_ms, double ttft_ms);
 
-}  // namespace basalt::models::qwen4exp::cli
+}  // namespace halo::models::qwen4exp::cli

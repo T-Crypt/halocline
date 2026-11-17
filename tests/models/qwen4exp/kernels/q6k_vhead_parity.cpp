@@ -10,8 +10,8 @@
 // for two sets of columns: all at a head's spread, and with flat columns (a small spread puts most rows within the
 // margin, as a prompt row folded into a window can); then a cold microbench of both kernels per set.
 //   q6k_vhead_parity [rows] [iters] [spread|flat]     (iters 0: no microbench, e.g. under compute-sanitizer)
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/q6k_head.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/q6k_head.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

@@ -1,8 +1,8 @@
 // src/models/qwen4exp/serve/prompt_windows.cpp - request prompt_windows operations.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 // A short part of the prompt - the new message of a chat that continues from a checkpoint, the assistant
 // header - goes through the verify windows, S tokens at a time, as decode reads them.  The batched path has
@@ -20,11 +20,11 @@ bool QfnRequest::windows_ok(int64_t a, int64_t b) {
 
 // tokens [a, b) through the windows: commit all of them, then give the draft layer their residuals
 bool QfnRequest::read_windows(int64_t a, int64_t b, std::string& e) {
-    basalt::core::progress_at("reading the prompt (verify windows), from token", a);   // not "batched"
+    halo::core::progress_at("reading the prompt (verify windows), from token", a);   // not "batched"
     // every token is committed and the picks are discarded: no head sampling (see set_head_sampling)
     struct NoHeadSampling {
-        basalt::core::Verifier& v;
-        explicit NoHeadSampling(basalt::core::Verifier& x) : v(x) { v.set_head_sampling(false); }
+        halo::core::Verifier& v;
+        explicit NoHeadSampling(halo::core::Verifier& x) : v(x) { v.set_head_sampling(false); }
         ~NoHeadSampling() { v.set_head_sampling(true); }
     } no_head_sampling(runtime_.ver);
     std::vector<int32_t> win((size_t) runtime_.S), outw((size_t) runtime_.S), nxt((size_t) runtime_.S);
@@ -51,9 +51,9 @@ bool QfnRequest::read_windows(int64_t a, int64_t b, std::string& e) {
     const double ms = std::chrono::duration<double, std::milli>(Clock::now() - runtime_.pp_t0).count();
     std::printf("PP %lld %lld %.0f %.1f\n", (long long) b, (long long) runtime_.pp_total, ms,
                 ms > 0.0 ? 1000.0 * (double) (b - runtime_.pp_from) / ms : 0.0);
-    basalt::core::progress_beat();
+    halo::core::progress_beat();
     std::fflush(stdout);
     return true;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

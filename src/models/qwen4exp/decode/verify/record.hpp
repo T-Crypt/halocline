@@ -1,19 +1,19 @@
 #pragma once
 
 #include "common.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/gr.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/gr.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
 #include <string>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 
 struct Verifier::WindowRecorder {
     WindowRecorder(Verifier& v, int T, cudaStream_t cs, std::string& err) : v_(v), T(T), cs(cs), err(err) {}
@@ -79,4 +79,4 @@ struct Verifier::WindowRecorder {
     bool fuse_head_gr = false;
 };
 
-}  // namespace basalt::core
+}  // namespace halo::core

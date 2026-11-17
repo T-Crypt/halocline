@@ -1,12 +1,12 @@
-// src/models/qwen4exp/kernels/hc_fused_ada.cu - see include/basalt/models/qwen4exp/kernels/hc_fused_ada.hpp.
+// src/models/qwen4exp/kernels/hc_fused_ada.cu - see include/halo/models/qwen4exp/kernels/hc_fused_ada.hpp.
 //
 // Built WITHOUT fast math, like fused_gr.cu, so the hc arithmetic below is fused_gr.cu's expressions compiled the
 // same way.  The router part reproduces kernels built WITH fast math (the MMVF GEMV and the native top-10): those
 // operations are spelled out as the flush-to-zero PTX instructions that build emits.
-#include "basalt/core/diag.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused_ada.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/q8_1_finite.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused_ada.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/q8_1_finite.hpp"
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
@@ -22,9 +22,9 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int N = 2560;              // n_embd
@@ -1177,7 +1177,7 @@ void hc_fused_ada_read(const HcFusedArgs& a, void* stream) {
         (a.pub_ctr && (!a.w_router || !a.xq)) ||
         (a.w_gate_sh && (!a.w_router || !a.gate_sh || (reinterpret_cast<uintptr_t>(a.w_gate_sh) & 15u) != 0)) ||
         (a.xq_sh && !a.w_router)) {
-        basalt::log::error("basalt", "hc_fused_ada_read: invalid arguments or unsupported device");
+        halo::log::error("halo", "hc_fused_ada_read: invalid arguments or unsupported device");
         std::exit(1);
     }
     HcLaunch L{};
@@ -1207,7 +1207,7 @@ void hc_fused_ada_read(const HcFusedArgs& a, void* stream) {
                  (a.w_inject == nullptr || (h.q_inject != nullptr && h.s_inject != nullptr));
         }
         if (!q8) {
-            basalt::log::error("basalt", "hc_fused_ada_read: the matrices need their 8-bit copies (hc8_prepare)");
+            halo::log::error("halo", "hc_fused_ada_read: the matrices need their 8-bit copies (hc8_prepare)");
             std::exit(1);
         }
         if (a.w_inject == nullptr) h.q_inject = nullptr;
@@ -1220,9 +1220,9 @@ void hc_fused_ada_read(const HcFusedArgs& a, void* stream) {
                (cudaStream_t) stream, L);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "hc_fused_ada_read: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "hc_fused_ada_read: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

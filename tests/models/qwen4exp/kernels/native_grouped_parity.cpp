@@ -15,10 +15,10 @@
 //
 // Random bytes are valid codes for every format here (every grid index is in range); only the fp16 block scales are
 // set, small enough that the SwiGLU outputs keep a finite fp16 q8_1 scale.
-#include "basalt/core/diag.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_runtime.h>
 
@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 
@@ -553,7 +553,7 @@ int main(int argc, char** argv) {
         else if (a == "--exp" && i + 1 < argc) {   // --exp NAME=V
             const std::string kv = argv[++i];
             const size_t eq = kv.find('=');
-            if (eq != std::string::npos) basalt::core::diagnostics().exp[kv.substr(0, eq)] = std::atof(kv.c_str() + eq + 1);
+            if (eq != std::string::npos) halo::core::diagnostics().exp[kv.substr(0, eq)] = std::atof(kv.c_str() + eq + 1);
         }
         else if (a == "--gu2") gu2 = true;   // also check the gate/up pair kernel (2560-value rows only)
         else if (a == "--bench-gu") { num(bo.gu); glue_one = true; }

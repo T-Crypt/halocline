@@ -1,9 +1,9 @@
-// tests/platform/system_test.cpp - the host-system questions in basalt/platform/system.hpp, the DynLib loader and the
+// tests/platform/system_test.cpp - the host-system questions in halo/platform/system.hpp, the DynLib loader and the
 // memory-accounting paths. CPU only. Each answer is checked for being usable; none depends on a particular machine.
-#include "basalt/platform/dynlib.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/platform/dynlib.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
+#include "halo/platform/system.hpp"
 
 #include <cstdio>
 #include <fstream>
@@ -19,7 +19,7 @@ void check(bool ok, const std::string& what) {
 }  // namespace
 
 int main() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     check(process_id() > 0, "process_id is positive");
 
     // the root is two path components above the executable: what is left of the path is "/<dir>/<name>"
@@ -58,7 +58,7 @@ int main() {
     const DynLib nvml = DynLib::open_nvml();
     if (nvml) {
         check(nvml.sym<void*>("nvmlInit_v2") != nullptr, "the management library, when present, exports nvmlInit_v2");
-        check(nvml.sym<void*>("basalt_no_such_symbol") == nullptr, "and a missing symbol is null");
+        check(nvml.sym<void*>("halo_no_such_symbol") == nullptr, "and a missing symbol is null");
     } else {
         std::printf("system: no GPU management library here; the loader returned empty\n");
     }
@@ -66,7 +66,7 @@ int main() {
     check(!moved, "an empty DynLib is false");
 
     // application libraries: a name nobody ships loads nothing; the C runtime's own does load, and names its file
-    check(!DynLib::open_app(DynLib::versioned_name("basalt_no_such_library", 99)), "open_app: a missing library is empty");
+    check(!DynLib::open_app(DynLib::versioned_name("halo_no_such_library", 99)), "open_app: a missing library is empty");
     check(DynLib::versioned_name("avformat", 62) == "libavformat.so.62", "versioned_name follows the platform's spelling");
     const DynLib crt = DynLib::open_app("libc.so.6");
     check((bool) crt && !crt.path().empty(), "open_app: the C runtime loads and path() names its file");

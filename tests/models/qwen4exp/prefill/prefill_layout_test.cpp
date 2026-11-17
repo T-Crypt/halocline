@@ -6,12 +6,12 @@
 // expert source, a resident and a streamed KV, and the ring depths.  The expert layout is process-wide, so the layout
 // is the argument: nvfp4 (every layer NVFP4 with a tail: the FP4 path), mixed (NVFP4 and K-quant layers),
 // kquant (Q4_K / Q5_1) and q2 (no native layout, as in the IQ and Q2_0 packs).  Needs a CUDA device for the MMQ plan (exit 77 without).
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/decode/session.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/decode/session.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
 
 #include <cuda_runtime.h>
 
@@ -22,8 +22,8 @@
 #include <vector>
 
 namespace {
-namespace cpu = basalt::kernels::cpu;
-using basalt::prefill::Prefill;
+namespace cpu = halo::kernels::cpu;
+using halo::prefill::Prefill;
 
 constexpr int kNvfp4 = 40, kQ4K = 12, kQ51 = 7;
 
@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
         return 77;
     }
     const std::string mode = argc > 1 ? argv[1] : "nvfp4";
-    basalt::core::ModelGeometry g;
+    halo::core::ModelGeometry g;
     std::string err;
     if (!load_layout(mode, g.n_layers, err)) {
         std::printf("layout %s: %s\n", mode.c_str(), err.c_str());
@@ -61,8 +61,8 @@ int main(int argc, char** argv) {
     int fails = 0, cases = 0;
     uint64_t worst_headroom = ~0ull;
     for (int kv_mode : {0, 1}) {
-        basalt::core::SessionState ss;
-        basalt::core::QsaState qs;
+        halo::core::SessionState ss;
+        halo::core::QsaState qs;
         qs.max_cells = 300000;
         qs.kv_mode = kv_mode;
         qs.kv_int8 = true;

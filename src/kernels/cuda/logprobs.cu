@@ -1,12 +1,12 @@
 // src/kernels/cuda/logprobs.cu - a pick's log probability and its row's likeliest tokens (see the header).
-#include "basalt/kernels/logprobs.hpp"
+#include "halo/kernels/logprobs.hpp"
 
 #include <cuda_runtime.h>
 
 #include <cfloat>
 #include <cmath>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int kThreads = 256;
@@ -156,4 +156,4 @@ void row_logprobs(const float* logits, int n_rows, int n_vocab, const int32_t* p
     merge_kernel<<<n_rows, kThreads, 0, st>>>(logits, n_vocab, picks, top, out, scratch);
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

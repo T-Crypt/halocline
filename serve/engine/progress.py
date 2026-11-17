@@ -28,7 +28,7 @@ def start_failure_hint(log: str | None, offset: int) -> str:
     if DRAFT_HEAD_FAIL not in text:
         return ""
     said = [e.text for x in text.splitlines()
-            if (e := engine_line(x.strip())) is not None and e.tag == "basalt mtp"
+            if (e := engine_line(x.strip())) is not None and e.tag == "halo mtp"
             and ("draft head over" in e.text or "hint:" in e.text)]
     return ". mtp: " + DRAFT_HEAD_FAIL + ". " + (" ".join(said) if said else "Hint: " + DRAFT_HEAD_HINT)
 
@@ -55,7 +55,7 @@ def start_last_line(log: str | None, offset: int) -> str:
 
 
 class LoadBars:
-    """One progress bar per `basalt load:` target against its planned size (a byte counter before the plan).
+    """One progress bar per `halo load:` target against its planned size (a byte counter before the plan).
     `copy` targets are counted apart from the total. finish() collapses the bars into one result line. Off a
     terminal the rows print as text once per heartbeat, only while their bytes move.
 
@@ -378,8 +378,8 @@ def server_line(text: str) -> None:
 
 
 def load_progress(line: str):
-    """(target, done, total, copy) from an engine `basalt load: [copy ]<target> <done> <total>` line, else None."""
-    if not line.startswith("basalt load: "):
+    """(target, done, total, copy) from an engine `halo load: [copy ]<target> <done> <total>` line, else None."""
+    if not line.startswith("halo load: "):
         return None
     parts = line.split()[2:]
     copy = parts[:1] == ["copy"]
@@ -394,9 +394,9 @@ def load_progress(line: str):
 
 
 def load_plan(line: str):
-    """(target, bytes, copy) from an engine `basalt load: plan [copy ]<target> <bytes>` line, else None."""
+    """(target, bytes, copy) from an engine `halo load: plan [copy ]<target> <bytes>` line, else None."""
     parts = line.split()
-    if parts[:3] != ["basalt", "load:", "plan"]:
+    if parts[:3] != ["halo", "load:", "plan"]:
         return None
     parts = parts[3:]
     copy = parts[:1] == ["copy"]
@@ -409,10 +409,10 @@ def load_plan(line: str):
 
 def load_kv(line: str):
     """(target, bytes, tokens, kind, max bytes) from an engine
-    `basalt load: kv [slot|draft ]<target> <bytes> <tokens> [<max_bytes>]` line (kind "" for the solo session; the max
+    `halo load: kv [slot|draft ]<target> <bytes> <tokens> [<max_bytes>]` line (kind "" for the solo session; the max
     is the bytes when the line has none), else None."""
     parts = line.split()
-    if parts[:3] != ["basalt", "load:", "kv"]:
+    if parts[:3] != ["halo", "load:", "kv"]:
         return None
     rest = parts[3:]
     kind = rest.pop(0) if rest and rest[0] in ("slot", "draft") else ""
@@ -422,9 +422,9 @@ def load_kv(line: str):
 
 
 def load_total(line: str):
-    """The bytes of the whole start from an engine `basalt load: total <bytes>` line, else None."""
+    """The bytes of the whole start from an engine `halo load: total <bytes>` line, else None."""
     parts = line.split()
-    if len(parts) == 4 and parts[:3] == ["basalt", "load:", "total"] and parts[3].isdigit():
+    if len(parts) == 4 and parts[:3] == ["halo", "load:", "total"] and parts[3].isdigit():
         return int(parts[3])
     return None
 
@@ -436,9 +436,9 @@ def engine_warning(line: str):
 
 
 def engine_ram_floor(line: str):
-    """The text after `RAM floor ` of an engine `basalt generate: RAM floor ...` line, else None."""
+    """The text after `RAM floor ` of an engine `halo generate: RAM floor ...` line, else None."""
     e = engine_line(line)
-    if e is not None and e.tag == "basalt generate" and e.text.startswith("RAM floor ") and e.text[10:].strip():
+    if e is not None and e.tag == "halo generate" and e.text.startswith("RAM floor ") and e.text[10:].strip():
         return e.text[10:].strip()
     return None
 

@@ -1,5 +1,5 @@
-// src/vision/video.cpp - see basalt/vision/video.hpp.
-#include "basalt/vision/video.hpp"
+// src/vision/video.cpp - see halo/vision/video.hpp.
+#include "halo/vision/video.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -13,9 +13,9 @@
 #include <mutex>
 #include <thread>
 
-#include "basalt/vision/ffmpeg_api.hpp"
+#include "halo/vision/ffmpeg_api.hpp"
 
-namespace basalt::vision {
+namespace halo::vision {
 
 namespace {
 // What NVDEC takes for frames of `px` pixels: its surfaces (the reference frames and the output pool, about 40 frames
@@ -598,4 +598,4 @@ bool read_video_once(const std::string& path, const VideoOptions& o, Video& out,
 
 }  // namespace
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

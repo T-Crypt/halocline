@@ -1,19 +1,19 @@
 // src/dense/session.cpp - a conversation of the dense stack as a model::ModelSession.
 #include "internal.hpp"
 
-#include "basalt/core/conversation_cache.hpp"
-#include "basalt/kernels/logprobs.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/log.hpp"
-#include "basalt/program/expert_spill.hpp"
-#include "basalt/vision/encoder_cuda.hpp"
-#include "basalt/vision/preprocess.hpp"
+#include "halo/core/conversation_cache.hpp"
+#include "halo/kernels/logprobs.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/log.hpp"
+#include "halo/program/expert_spill.hpp"
+#include "halo/vision/encoder_cuda.hpp"
+#include "halo/vision/preprocess.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
-namespace basalt::dense {
+namespace halo::dense {
 namespace {
 
 using model::Result;
@@ -837,4 +837,4 @@ std::unique_ptr<model::ModelSession> make_session(Model& m, std::string& err) {
     return s;
 }
 
-}  // namespace basalt::dense
+}  // namespace halo::dense

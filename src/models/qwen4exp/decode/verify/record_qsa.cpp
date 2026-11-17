@@ -1,28 +1,28 @@
 #include "common.hpp"
 #include "record.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
-#include "basalt/models/qwen4exp/kernels/native_rope.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_mid.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_select.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/models/qwen4exp/kernels/native_rope.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_fused.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_mid.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_select.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 bool Verifier::WindowRecorder::qsa(int64_t l, const LayerView& v, bool read_q8) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const int n = T;
     float* xm = v_.mixed_;
     // ======================= QSA =======================
@@ -302,4 +302,4 @@ bool Verifier::WindowRecorder::qsa(int64_t l, const LayerView& v, bool read_q8) 
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

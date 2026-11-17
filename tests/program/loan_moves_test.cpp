@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-using namespace basalt::models::qwen4exp::serve;
+using namespace halo::models::qwen4exp::serve;
 
 static int g_fail = 0;
 #define CHECK(c)                                                                         \

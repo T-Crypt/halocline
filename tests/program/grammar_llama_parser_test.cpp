@@ -1,11 +1,11 @@
-// tests/program/grammar_llama_parser_test.cpp - llama.cpp's tests/test-grammar-parser.cpp run against Basalt's GBNF
+// tests/program/grammar_llama_parser_test.cpp - llama.cpp's tests/test-grammar-parser.cpp run against Halocline's GBNF
 // parser: the same grammars must give the same rule names, rule ids and element lists (and fail where llama.cpp
 // fails). Cases are copied from llama.cpp (MIT, see THIRD_PARTY_LICENSES).
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 
-#include "basalt/program/grammar/grammar.hpp"
+#include "halo/program/grammar/grammar.hpp"
 
 #include <cassert>
 #include <cstdio>
@@ -14,11 +14,11 @@
 #include <string>
 #include <vector>
 
-using basalt::program::grammar::Grammar;
+using halo::program::grammar::Grammar;
 
 static int g_cases = 0;
 
-// llama.cpp's element names over Basalt's element type (the values are the same)
+// llama.cpp's element names over Halocline's element type (the values are the same)
 enum llama_gretype {
     LLAMA_GRETYPE_END = 0,
     LLAMA_GRETYPE_ALT = 1,

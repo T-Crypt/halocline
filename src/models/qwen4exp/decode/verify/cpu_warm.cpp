@@ -1,12 +1,12 @@
 #include "cpu_warm.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -14,17 +14,17 @@
 #include <vector>
 #include <immintrin.h>
 
-namespace basalt::core::verify_detail {
+namespace halo::core::verify_detail {
 
 // layer `c.layer`'s router rows [e0, e1) on the job's tokens
-BASALT_TARGET_AVX2_FMA_F16C void warm_logits(CpuWarm& c, int e0, int e1, const std::atomic<bool>& stop) {
+HALO_TARGET_AVX2_FMA_F16C void warm_logits(CpuWarm& c, int e0, int e1, const std::atomic<bool>& stop) {
     const int NB = c.n_embd / 32, pt = c.n_tok;
     const uint8_t* R = c.rq.data() + (size_t) c.layer * c.n_expert * (c.n_embd / 2);
     const float* S = c.rs.data() + (size_t) c.layer * c.n_expert * NB;
     const __m128i lo4 = _mm_set1_epi8(0x0f), off = _mm_set1_epi8(8);
     for (int e = e0; e < e1; ++e) {
         if (stop.load(std::memory_order_relaxed)) return;
-        __m256 acc[basalt::kernels::kVerifyMaxT];
+        __m256 acc[halo::kernels::kVerifyMaxT];
         for (int t = 0; t < pt; ++t) acc[t] = _mm256_setzero_ps();
         const uint8_t* row = R + (size_t) e * (c.n_embd / 2);
         for (int b = 0; b < NB; ++b) {
@@ -118,7 +118,7 @@ void warm_job(void* ctx, int w, int W, const std::atomic<bool>& stop) {
 // layout for the CPU pool's warm-up (`q4`, `s4`).  A prediction only.  False when a layer's router is not such a table.
 bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<uint8_t>* q4, std::vector<float>* s4) {
     const int64_t N = g.n_embd, NE = g.n_expert, L = g.n_layers, NB = N / 32;
-    if (NE > basalt::kernels::kDmPredExperts || N % 32 != 0) return false;
+    if (NE > halo::kernels::kDmPredExperts || N % 32 != 0) return false;
     std::vector<uint16_t> src((size_t) (NE * N));
     q4->assign((size_t) (L * NE * N / 2), 0);
     s4->assign((size_t) (L * NE * NB), 0.0f);
@@ -152,4 +152,4 @@ bool router_codes(const WeightTable& wt, const ModelGeometry& g, std::vector<uin
     return true;
 }
 
-}  // namespace basalt::core::verify_detail
+}  // namespace halo::core::verify_detail

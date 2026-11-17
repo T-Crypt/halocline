@@ -1,6 +1,6 @@
-"""Every flag the engine lists in its help reaches the engine through basalt-bench.
+"""Every flag the engine lists in its help reaches the engine through halo-bench.
 
-    BASALT_BIN=bin/basalt BASALT_BENCH_BIN=bin/basalt-bench python3 -m unittest tools.test_bench_flags
+    HALO_BIN=bin/halo HALO_BENCH_BIN=bin/halo-bench python3 -m unittest tools.test_bench_flags
 """
 import json
 import os
@@ -11,8 +11,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE = Path(os.environ.get("BASALT_BIN", ROOT / "bin" / "basalt"))
-BENCH = Path(os.environ.get("BASALT_BENCH_BIN", ROOT / "bin" / "basalt-bench"))
+ENGINE = Path(os.environ.get("HALO_BIN", ROOT / "bin" / "halo"))
+BENCH = Path(os.environ.get("HALO_BENCH_BIN", ROOT / "bin" / "halo-bench"))
 # bench's own options that share an engine flag's name
 BENCH_OWNED = {"--help", "--model", "--engine", "--spec", "--set", "--seed", "--gpu"}
 
@@ -22,7 +22,7 @@ def engine_flags() -> list[str]:
     return sorted(set(re.findall(r"^\s+(--[a-z0-9][a-z0-9-]*)", out, re.M)))
 
 
-@unittest.skipUnless(ENGINE.is_file() and BENCH.is_file(), "build bin/basalt and bin/basalt-bench first")
+@unittest.skipUnless(ENGINE.is_file() and BENCH.is_file(), "build bin/halo and bin/halo-bench first")
 class BenchFlags(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -128,7 +128,7 @@ class BenchFlags(unittest.TestCase):
 
     def test_help_lists_the_engine_flags(self):
         r = subprocess.run([str(BENCH), "--help", "--engine", str(ENGINE)], capture_output=True, text=True)
-        self.assertIn("Engine flags (passed to basalt):", r.stdout)
+        self.assertIn("Engine flags (passed to halo):", r.stdout)
         self.assertIn("--max-context", r.stdout)
 
 

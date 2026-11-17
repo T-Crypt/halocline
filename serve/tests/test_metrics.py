@@ -66,9 +66,9 @@ class Http(unittest.TestCase):
                 return e.code, json.loads(e.read())
 
     def ask(self, path):
-        body = {"model": "basalt", "max_tokens": 64, "messages": [{"role": "user", "content": "hi"}]}
+        body = {"model": "halo", "max_tokens": 64, "messages": [{"role": "user", "content": "hi"}]}
         if path == "/v1/responses":
-            body = {"model": "basalt", "input": "hi"}
+            body = {"model": "halo", "input": "hi"}
         self.assertEqual(self.call(path, body)[0], 200)
 
     # --- /metrics
@@ -174,7 +174,7 @@ class Http(unittest.TestCase):
 
     def test_a_request_waiting_for_the_single_stream_is_queued(self):
         self.engine.delay = 0.05
-        body = {"model": "basalt", "max_tokens": 64, "messages": [{"role": "user", "content": "hi"}]}
+        body = {"model": "halo", "max_tokens": 64, "messages": [{"role": "user", "content": "hi"}]}
         ts = [threading.Thread(target=self.call, args=(p, body)) for p in ("/v1/chat/completions", "/v1/messages")]
         ts[0].start()
         end = time.time() + 5
@@ -187,7 +187,7 @@ class Http(unittest.TestCase):
             time.sleep(0.01)
         q = self.call("/metrics")[1]["live"]["queue"]
         self.assertEqual(len(q), 1)
-        self.assertEqual((q[0]["api"], q[0]["model"]), ("anthropic", "basalt"))
+        self.assertEqual((q[0]["api"], q[0]["model"]), ("anthropic", "halo"))
         self.assertGreater(q[0]["prompt_tokens"], 0)
         for t in ts:
             t.join(20)
@@ -203,12 +203,12 @@ class Http(unittest.TestCase):
         self.assertEqual(self.call("/api/logs")[1], {"lines": [], "last": 0})
         for i in range(5):
             self.svc.logs.add("srv", f"line {i}")
-        self.svc.logs.add("eng", "basalt: error: CUDA boom")
+        self.svc.logs.add("eng", "halo: error: CUDA boom")
         code, body = self.call("/api/logs")
         self.assertEqual(code, 200)
         self.assertEqual(set(body), {"lines", "last"})
         self.assertEqual((len(body["lines"]), body["last"]), (6, 6))
-        self.assertEqual(body["lines"][-1]["msg"], "basalt: error: CUDA boom")
+        self.assertEqual(body["lines"][-1]["msg"], "halo: error: CUDA boom")
         self.assertEqual((body["lines"][-1]["src"], body["lines"][-1]["lvl"]), ("eng", "err"))
         self.assertEqual([x["id"] for x in self.call("/api/logs?after=4")[1]["lines"]], [5, 6])
         self.assertEqual(self.call("/api/logs?after=6")[1], {"lines": [], "last": 6})

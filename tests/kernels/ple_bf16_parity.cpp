@@ -4,7 +4,7 @@
 // issue/collect path and the Direct reader all read the same bits of the same one-tensor GGUF, whose
 // first rows carry hand-picked bit patterns (zeros, infinities, two NaN payloads, the smallest
 // denormal, the smallest normal, the largest finite values) and whose later rows are random.
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -19,7 +19,7 @@
 
 namespace {
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 constexpr uint32_t kTypeBF16 = 30;             // the ggml type id this reader names "BF16"
 constexpr uint32_t kRows = 4096;               // 1.3 MB of rows: a small table with a real header

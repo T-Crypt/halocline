@@ -4,7 +4,7 @@
 // norm in place (a.o == a.y).  dec_gdn_rec_seg is itself bitwise to dec_gdn_rec per segment (dec_gdn_parity), which is
 // the reference on a card without thread-block clusters (below compute capability 9.0, where dec_gdn_rec runs its split
 // kernel with the gates computed inside, and dec_gdn_rec_seg is refused).  Exit 77 without a GPU.
-#include "basalt/kernels/gdn_window.hpp"
+#include "halo/kernels/gdn_window.hpp"
 
 #include <cuda_runtime.h>
 
@@ -13,7 +13,7 @@
 #include <random>
 #include <vector>
 
-using namespace basalt::kernels;
+using namespace halo::kernels;
 
 namespace {
 

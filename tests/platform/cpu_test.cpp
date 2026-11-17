@@ -1,6 +1,6 @@
 // tests/platform/cpu_test.cpp - platform::detect_cpu_topology and the thread placement calls. CPU only. Where the OS
 // refuses a placement (a restricted container) the placement cases are skipped with a line saying so.
-#include "basalt/platform/cpu.hpp"
+#include "halo/platform/cpu.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -16,7 +16,7 @@ void check(bool ok, const std::string& what) {
 }  // namespace
 
 int main() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     const CpuTopology all = detect_cpu_topology(false, CpuAffinity::All);
     check(!all.worker_cores.empty(), "at least one worker core is found");
     check(all.host_core == -1, "without skip_first no core is reserved");

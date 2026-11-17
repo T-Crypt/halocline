@@ -1,7 +1,7 @@
 // The segmented expert cache (--vram-elastic).  A shrink gives the last segments' VRAM back to the driver and
 // keeps every slot left exactly as it was (same address, same bytes); a grow maps them again at the same addresses.
 // Uniform and sized slots.  Needs a CUDA device with virtual memory management (exits 77 without one).
-#include "basalt/core/expert_cache.hpp"
+#include "halo/core/expert_cache.hpp"
 
 #include <cuda_runtime.h>
 
@@ -22,7 +22,7 @@ size_t free_vram() {
 }
 
 // slot i holds the byte (i * 7 + 1) everywhere
-bool fill(basalt::core::ExpertCache& c, int64_t from, int64_t to, int64_t blob) {
+bool fill(halo::core::ExpertCache& c, int64_t from, int64_t to, int64_t blob) {
     std::vector<uint8_t> b((size_t) blob);
     for (int64_t i = from; i < to; ++i) {
         std::fill(b.begin(), b.end(), (uint8_t) (i * 7 + 1));
@@ -32,7 +32,7 @@ bool fill(basalt::core::ExpertCache& c, int64_t from, int64_t to, int64_t blob) 
     return true;
 }
 
-bool check(const basalt::core::ExpertCache& c, int64_t to, int64_t blob) {
+bool check(const halo::core::ExpertCache& c, int64_t to, int64_t blob) {
     std::vector<uint8_t> b((size_t) blob);
     for (int64_t i = 0; i < to; ++i) {
         if (cudaMemcpy(b.data(), c.device_slot((int32_t) i), (size_t) blob, cudaMemcpyDeviceToHost) != cudaSuccess)
@@ -52,7 +52,7 @@ int main() {
     }
     constexpr int64_t kBlob = 1 << 20, kSlots = 96, kSeg = 8ll << 20;
     for (int sized = 0; sized < 2; ++sized) {
-        basalt::core::ExpertCache c;
+        halo::core::ExpertCache c;
         c.set_segment_bytes(kSeg);
         std::string err;
         const bool ok = sized ? c.open_sized(std::vector<int64_t>(kSlots, kBlob), 4, 64, err)
@@ -92,7 +92,7 @@ int main() {
     }
     // the elastic tail: large head segments, granule-sized ones over the last bytes; a shrink by whole granules
     {
-        basalt::core::ExpertCache c;
+        halo::core::ExpertCache c;
         std::string err;
         constexpr int64_t kTail = 20ll << 20;
         c.set_elastic_tail(kTail);
@@ -109,7 +109,7 @@ int main() {
         if (!check(c, keep / kBlob, kBlob)) return fail("tail head after grow");
     }
     // the default (no segment size): one allocation, shrink refused
-    basalt::core::ExpertCache d;
+    halo::core::ExpertCache d;
     std::string err;
     if (!d.open(8, 2, 4, kBlob, err) || d.segmented() || d.shrink(0, err)) return fail("unsegmented", err);
     std::puts("expert cache segments: shrink gives VRAM back and keeps the slots, grow maps them again");

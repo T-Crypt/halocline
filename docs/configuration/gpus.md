@@ -1,11 +1,14 @@
 # GPUs
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
 Flash-Next uses every mechanism on this page. DeepSeek takes up to four second cards as expert tiers and nothing else, each
 holding the experts of its own block of layers ([DeepSeek memory](../models/deepseek41.md#memory)).
 Qwen3.8-27B uses a second card for long prompts, or for its later layers when it does not fit the main card.
 
 One setting picks the cards: `gpu`. It means the same in the server (`"gpu"` in the config's `server` section, or
-`--gpu`), in `basalt` itself, in `basalt-bench` and in `basalt-probe`.
+`--gpu`), in `halo` itself, in `halo-bench` and in `halo-probe`.
 
 | Value | Cards used | Main card |
 | --- | --- | --- |

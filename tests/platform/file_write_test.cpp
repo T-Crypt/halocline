@@ -2,9 +2,9 @@
 // read back, list with sizes and write times, replace by rename, touch, remove, nested directories and free space, on a
 // directory with a non-ASCII name (the bytes must reach the OS as UTF-8 on both platforms); where files have modes, the
 // new directories and files are owner-only and an existing directory keeps its mode. CPU only.
-#include "basalt/platform/direct_file.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/platform/direct_file.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/system.hpp"
 
 #include <sys/stat.h>
 
@@ -29,7 +29,7 @@ int mode_of(const std::string& path) {
     return ::stat(path.c_str(), &st) == 0 ? (int) (st.st_mode & 0777) : -1;
 }
 
-const basalt::platform::DirFile* find(const std::vector<basalt::platform::DirFile>& files, const std::string& name) {
+const halo::platform::DirFile* find(const std::vector<halo::platform::DirFile>& files, const std::string& name) {
     for (const auto& f : files)
         if (f.name == name) return &f;
     return nullptr;
@@ -37,7 +37,7 @@ const basalt::platform::DirFile* find(const std::vector<basalt::platform::DirFil
 }  // namespace
 
 int main() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     {   // temp_dir follows an absolute, existing $TMPDIR and falls back to /tmp otherwise
         const char* was = std::getenv("TMPDIR");
         const std::string saved = was ? was : "";
@@ -45,13 +45,13 @@ int main() {
         check(temp_dir() == "/usr", "temp_dir takes $TMPDIR, no trailing slash");
         ::setenv("TMPDIR", "relative/dir", 1);
         check(temp_dir() == "/tmp", "temp_dir refuses a relative $TMPDIR");
-        ::setenv("TMPDIR", "/nonexistent-basalt-tmpdir", 1);
+        ::setenv("TMPDIR", "/nonexistent-halo-tmpdir", 1);
         check(temp_dir() == "/tmp", "temp_dir refuses a missing $TMPDIR");
         ::unsetenv("TMPDIR");
         check(temp_dir() == "/tmp", "temp_dir is /tmp without $TMPDIR");
         if (was) ::setenv("TMPDIR", saved.c_str(), 1);
     }
-    const std::string dir = temp_dir() + "/basalt-file-write-" + std::to_string((long long) process_id()) +
+    const std::string dir = temp_dir() + "/halo-file-write-" + std::to_string((long long) process_id()) +
                             "/\xc3\xa9-\xe6\x97\xa5";   // é-日 under a fresh parent
     ::umask(022);
     check(make_dirs(dir), "nested directories are made");

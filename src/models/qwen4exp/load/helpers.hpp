@@ -1,20 +1,20 @@
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "dependencies.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
-using basalt::models::qwen4exp::serve::vram_floor_mib;
-using basalt::models::qwen4exp::engine_local::kSatBoost;
+using halo::models::qwen4exp::serve::vram_floor_mib;
+using halo::models::qwen4exp::engine_local::kSatBoost;
 
 
 using Clock = std::chrono::steady_clock;
 
-using basalt::models::qwen4exp::Options;
-namespace cli = basalt::models::qwen4exp::cli;
-namespace engine_local = basalt::models::qwen4exp::engine_local;
-namespace serve_loans = basalt::models::qwen4exp::serve;
+using halo::models::qwen4exp::Options;
+namespace cli = halo::models::qwen4exp::cli;
+namespace engine_local = halo::models::qwen4exp::engine_local;
+namespace serve_loans = halo::models::qwen4exp::serve;
 using engine_local::Drive;
 using engine_local::JobRunner;
 using engine_local::SlotDelete;
@@ -27,7 +27,7 @@ using engine_local::drive_pool_multi;
 std::string gib_text(uint64_t bytes);
 int fatal_start_error(const std::string& text);
 std::string vram_free_note();
-bool for_each_index_name(const basalt::core::FileRange& index, const std::function<void(const std::string&)>& f);
+bool for_each_index_name(const halo::core::FileRange& index, const std::function<void(const std::string&)>& f);
 int argmax(const std::vector<float>& v);
 double probe_pcie_h2d_gbps(std::string* samples = nullptr);
 double pcie_frac_for_gbps(double gbps, double base);
@@ -41,7 +41,7 @@ double pcie_frac_for_gbps(double gbps, double base);
 // GPU commits and drafts: `copy_back(layer, slot, dst)` queues the copy of a slot of the layer's own cache (a layer
 // split keeps one cache per card) into the buffer, and `wait` waits for every queued copy before the refills are queued.
 template <class Swap, class CopyBack, class Wait>
-bool resident_stage_swaps(basalt::core::FileExpertSource& src, const std::vector<int32_t>& host_res, int64_t n_expert,
+bool resident_stage_swaps(halo::core::FileExpertSource& src, const std::vector<int32_t>& host_res, int64_t n_expert,
                           std::vector<Swap>& swaps, CopyBack&& copy_back, Wait&& wait) {
     if (!src.complement_ready() || swaps.empty()) return true;
     struct Staged { int32_t layer, in, out; int64_t q; };

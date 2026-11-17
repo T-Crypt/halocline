@@ -1,8 +1,8 @@
 // src/models/qwen4exp/serve/prompt_read.cpp - request prompt_read operations.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
     if (runtime_.o.batch <= 0 || (b0 - a0 <= runtime_.kReadAlone && resumed_chunk <= 0)) {
@@ -48,7 +48,7 @@ bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
                     yield_slot = ys;
                     abort_read.store(true);
                 } else {
-                    basalt::log::info("basalt batch", "BYIELD %d not taken at %lld of %lld", ys,
+                    halo::log::info("halo batch", "BYIELD %d not taken at %lld of %lld", ys,
                                  (long long) (p0 + T), (long long) n);
                 }
             };
@@ -59,7 +59,7 @@ bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
         runtime_.sp.should_stop = [&] { return abort_read.load() || (orig_stop && orig_stop()); };
         runtime_.ov_active = true;
         std::thread th([&] {
-            const basalt::core::OnDevice on(0);
+            const halo::core::OnDevice on(0);
             ok = runtime_.sp.run(ids.data() + a0, b0 - a0, a0, terr);
             if (ok && runtime_.ov_post) {   // (the checkpoint's copy to the host beside the windows)
                 ok = runtime_.ov_post();
@@ -118,7 +118,7 @@ bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
         }
         th.join();
         runtime_.ov_active = false;
-        basalt::log::info("basalt batch", "overlapped prompt read: %lld windows (%.1f ms avg, %.0f ms max) beside "
+        halo::log::info("halo batch", "overlapped prompt read: %lld windows (%.1f ms avg, %.0f ms max) beside "
                              "%lld chunk jobs run between windows (%.1f ms avg, %.0f ms max)",
                      (long long) ov_wins, ov_wins ? ov_win_ms / (double) ov_wins : 0.0, ov_win_max,
                      (long long) ov_jobs, ov_jobs ? ov_job_ms / (double) ov_jobs : 0.0, ov_job_max);
@@ -135,7 +135,7 @@ bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
                 e = "BYIELD: parking the prompt read failed: " + ye;
                 return false;
             }
-            basalt::log::info("basalt batch", "the prompt read gives way at %lld of %lld tokens; slot %d "
+            halo::log::info("halo batch", "the prompt read gives way at %lld of %lld tokens; slot %d "
                                  "holds it (copied in %.1f ms)", (long long) yield_q, (long long) n, yield_slot,
                          std::chrono::duration<double, std::milli>(Clock::now() - ty).count());
             e = "yield";
@@ -178,13 +178,13 @@ bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
             std::string ye;
             const auto ty = Clock::now();
             if (can_yield(q, b0, ys) && park_read(q, ys, ye)) {
-                basalt::log::info("basalt batch", "the prompt read gives way at %lld of %lld tokens; slot %d "
+                halo::log::info("halo batch", "the prompt read gives way at %lld of %lld tokens; slot %d "
                                      "holds it (copied in %.1f ms)", (long long) q, (long long) n, ys,
                              std::chrono::duration<double, std::milli>(Clock::now() - ty).count());
                 e = "yield";
                 return false;
             }
-            basalt::log::info("basalt batch", "BYIELD %d not taken at %lld of %lld%s%s", ys, (long long) q,
+            halo::log::info("halo batch", "BYIELD %d not taken at %lld of %lld%s%s", ys, (long long) q,
                          (long long) n, ye.empty() ? "" : ": ", ye.c_str());
         }
         if (decode_share <= 0.0 || !runtime_.batch_on()) continue;
@@ -199,4 +199,4 @@ bool QfnRequest::read_part(int64_t a0, int64_t b0, std::string& e) {
     return true;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

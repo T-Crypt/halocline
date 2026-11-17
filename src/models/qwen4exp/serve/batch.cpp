@@ -1,10 +1,10 @@
 // src/models/qwen4exp/serve/batch.cpp - batch operations for the persistent engine.
-#include "basalt/models/qwen4exp/shared_names.hpp"
-#include "basalt/protocol.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
+#include "halo/protocol.hpp"
 #include "qfn_state.hpp"
 #include "../../../program/serve/logprobs.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 namespace {
 // stable insertion sort for the few slots a window holds
@@ -31,7 +31,7 @@ uint64_t QfnRuntime::row_hash(int t) {
 // one batch window over the active slots only (row t is the t-th active slot): an idle slot is not touched,
 // so it keeps the conversation it holds
 bool QfnRuntime::batch_step() {
-    constexpr int MR = basalt::kernels::kVerifyMaxT;
+    constexpr int MR = halo::kernels::kVerifyMaxT;
     const int MB = std::min(MR, ver.max_t());   // the row budget is this verifier capacity; MR only sizes the arrays
     int S = 0, R = 0;
     int rows[MR] = {}, lens[MR] = {}, n_keep[MR] = {}, r0s[MR] = {};
@@ -44,15 +44,15 @@ bool QfnRuntime::batch_step() {
     if (kv_floor > 0)
         for (int b = 0; b < (int) bs.size(); ++b) {
             if (!bs[(size_t) b].active) continue;
-            basalt::core::SessionState& u = *bslot_ss[0][(size_t) b];
-            const int64_t backed = basalt::core::session_kv_cells(u), at = bs[(size_t) b].p;
+            halo::core::SessionState& u = *bslot_ss[0][(size_t) b];
+            const int64_t backed = halo::core::session_kv_cells(u), at = bs[(size_t) b].p;
             if (at + 2 * MR + 64 <= backed) continue;
             std::string ke;
             if (!ov_active && ba_job) { ba_thr.join(); ba_job = false; }   // its copies land before the drain
             if (kv_fit(u, at + kKvGrowCells, ke, !ov_active, at + 2 * MR + 64)) continue;
             if (!ke.empty() && kv_short) {   // the expert cache's floor: this slot's reply ends here
                 BSlot& sl = bs[(size_t) b];
-                basalt::log::warn("basalt batch", "slot %d stopped at %lld cells: %s", b, (long long) at, ke.c_str());
+                halo::log::warn("halo batch", "slot %d stopped at %lld cells: %s", b, (long long) at, ke.c_str());
                 std::printf("BDONE %d %lld length %.1f %lld %lld\n", b, (long long) sl.produced,
                             std::chrono::duration<double, std::milli>(Clock::now() - sl.t0).count(),
                             (long long) sl.drafts_accepted, (long long) sl.drafts_offered);
@@ -86,14 +86,14 @@ bool QfnRuntime::batch_step() {
         for (int sg = 0; sg < S; ++sg) {
             BSlot& sl = bs[(size_t) rows[sg]];
             int T = 1;
-            while (T < S_mtp && T - 1 < sl.n_dr && basalt::core::draft_keep(sl.dprob, T - 1, sl.cum.th())) ++T;
+            while (T < S_mtp && T - 1 < sl.n_dr && halo::core::draft_keep(sl.dprob, T - 1, sl.cum.th())) ++T;
             sl.from_sfx = false;
             sl.sk = 0;
             if (sl.sfx && sl.n_dr > 0) {
                 sl.sk = sl.sfx->propose(S_all - 1, sl.sbuf);
                 sl.smatch = sl.sfx->last_match();
                 if (sl.sk > 0 && sl.sbuf[0] == sl.dr[0]) {
-                    const basalt::spec::DraftPolicy::Pick pk = bpolicy->choose(T, sl.sk, sl.smatch);
+                    const halo::spec::DraftPolicy::Pick pk = bpolicy->choose(T, sl.sk, sl.smatch);
                     if (pk.lookup) { T = pk.t; sl.from_sfx = true; }
                 }
             }
@@ -103,7 +103,7 @@ bool QfnRuntime::batch_step() {
             float c = 1.0f;
             const double q = sl.from_sfx ? bpolicy->lookup_rate(sl.smatch) : 0.0;
             for (int j = 0; j + 1 < 8; ++j) {   // val[j]: the chance drafts 0..j are all accepted
-                c *= sl.from_sfx ? (float) q : basalt::core::draft_cum_acc(sl.dprob[j]);
+                c *= sl.from_sfx ? (float) q : halo::core::draft_cum_acc(sl.dprob[j]);
                 val[sg][j] = c;
             }
         }
@@ -170,7 +170,7 @@ bool QfnRuntime::batch_step() {
     if (pen_h > 0) {
         for (int sg = 0; sg < S; ++sg) {
             const BSlot& sl = bs[(size_t) rows[sg]];
-            basalt::kernels::penalty_rows(sl.ids.data(), (int64_t) sl.ids.size(), tok + r0s[sg], lens[sg], pen_h,
+            halo::kernels::penalty_rows(sl.ids.data(), (int64_t) sl.ids.size(), tok + r0s[sg], lens[sg], pen_h,
                                           hist_stage.data() + (size_t) r0s[sg] * (size_t) pen_h);
         }
         if (cudaMemcpy(d_hist, hist_stage.data(), (size_t) R * (size_t) pen_h * sizeof(int32_t),
@@ -180,8 +180,8 @@ bool QfnRuntime::batch_step() {
         }
     }
     ver.set_batch_history(pen_h > 0 ? d_hist : nullptr, pen_h);
-    const bool was_busy = basalt::core::progress().busy.load();
-    basalt::core::progress().busy.store(true);
+    const bool was_busy = halo::core::progress().busy.load();
+    halo::core::progress().busy.store(true);
     drive.d.layers = 0;
     drive.d.experts = 0;
     drive.d.failed = false;
@@ -215,12 +215,12 @@ bool QfnRuntime::batch_step() {
             }
         }
         std::string perr;
-        if (ok && acted && !ver.dm_presync(perr)) basalt::log::warn("basalt serve", "%s", perr.c_str());
+        if (ok && acted && !ver.dm_presync(perr)) halo::log::warn("halo serve", "%s", perr.c_str());
         if (!ok) { std::printf("ERR an adaptive refill failed\n"); return false; }
         ba_ms += std::chrono::duration<double, std::milli>(Clock::now() - ta).count();
         if (ba_win % 2000 == 0 && ba_win > 0) {   // the swap rate and the hit rate over the last 2000 windows
             const int64_t h = drive.d.cache_hits, m = drive.d.multi_misses;
-            basalt::log::info("basalt batch adapt", "window %lld: %lld swaps in %lld rounds, VRAM hits %.2f and CPU "
+            halo::log::info("halo batch adapt", "window %lld: %lld swaps in %lld rounds, VRAM hits %.2f and CPU "
                                  "experts %.2f per layer-window", (long long) ba_win, (long long) (ba_swaps - ba_swaps_l),
                          (long long) (ba_rounds - ba_rounds_l), (double) (h - ba_h_l) / (2000.0 * g.n_layers),
                          (double) (m - ba_m_l) / (2000.0 * g.n_layers));
@@ -271,7 +271,7 @@ bool QfnRuntime::batch_step() {
         }
         outb[r0s[sg] + miss] = gtok;
         if (!sl.guard->take(gtok))
-            basalt::log::info("basalt grammar", "slot %d: the masked draw at row %d was token %d", rows[sg], miss, (int) gtok);
+            halo::log::info("halo grammar", "slot %d: the masked draw at row %d was token %d", rows[sg], miss, (int) gtok);
         n_keep[sg] = miss + 1;
         fin_of[sg] = fin_at(sl, rows[sg], gtok, miss);
     }
@@ -280,7 +280,7 @@ bool QfnRuntime::batch_step() {
     for (int sg = 0; sg < S; ++sg) {
         const int top = bs[(size_t) rows[sg]].lp_top;
         if (top < 0) continue;
-        constexpr int LS = basalt::kernels::kLogprobStride;
+        constexpr int LS = halo::kernels::kLogprobStride;
         lh_buf.resize((size_t) n_keep[sg] * LS);
         if (!ver.row_logprobs(r0s[sg], n_keep[sg], outb + r0s[sg], top, lh_buf.data())) {
             std::printf("ERR logprobs: the head logits read failed\n");
@@ -288,12 +288,12 @@ bool QfnRuntime::batch_step() {
         }
         for (int e = 0; e < n_keep[sg]; ++e)
             lp_lines[sg] += "BP " + std::to_string(rows[sg]) +
-                            basalt::program::serve::logprob_fields(lh_buf.data() + (size_t) e * LS, outb[r0s[sg] + e], top) + "\n";
+                            halo::program::serve::logprob_fields(lh_buf.data() + (size_t) e * LS, outb[r0s[sg] + e], top) + "\n";
     }
     if (logit_hash)
         for (int sg = 0; sg < S; ++sg)
             for (int e = 0; e < n_keep[sg]; ++e)
-                basalt::log::raw("LH %d %lld %016llx\n", rows[sg], (long long) (bs[(size_t) rows[sg]].p + e),
+                halo::log::raw("LH %d %lld %016llx\n", rows[sg], (long long) (bs[(size_t) rows[sg]].p + e),
                              (unsigned long long) row_hash(r0s[sg] + e));
     // the commit runs beside the drafts when nothing reads the committed state meanwhile
     const bool overlap = real && !bdigest;
@@ -316,7 +316,7 @@ bool QfnRuntime::batch_step() {
             sl.ids.push_back(tok[r0s[sg] + e]);    // the window fed it: the slot's sessions hold it now
             bt += " " + std::to_string((int) outb[r0s[sg] + e]);
         }
-        basalt::protocol::emit_text(lp_lines[sg] + bt + "\n");
+        halo::protocol::emit_text(lp_lines[sg] + bt + "\n");
         sl.produced += k;
         if (real) {   // the window's verdict on its drafts: the draft-length rule, the lookup history, the policy
             const int a = k - 1, Tw = lens[sg];
@@ -410,11 +410,11 @@ bool QfnRuntime::batch_step() {
         }
         bt_commit += msd(c0, Clock::now());
     }
-    basalt::core::progress().busy.store(was_busy);
+    halo::core::progress().busy.store(was_busy);
     if (!batch_on() && bt_windows > 0) {
         const double w = (double) bt_windows, wall = msd(bt_start, Clock::now());
         const double L = (double) g.n_layers;
-        basalt::log::info("basalt batch", "%lld windows, avg %.2f rows, %.2f ms/window = run %.2f (CUDA0 GPU-reach "
+        halo::log::info("halo batch", "%lld windows, avg %.2f rows, %.2f ms/window = run %.2f (CUDA0 GPU-reach "
                              "wait %.2f + CPU experts %.2f) + commit %.2f + emit %.2f; per layer-window: CPU experts "
                              "%.2f, VRAM hits %.2f, PCIe %.2f; %.1f rows/s over %.0f ms of wall time (admissions "
                              "included)",
@@ -423,7 +423,7 @@ bool QfnRuntime::batch_step() {
                      (drive.d.multi_misses - bt_miss0) / (w * L), (drive.d.cache_hits - bt_hits0) / (w * L),
                      (drive.d.pcie_experts - bt_pcie0) / (w * L), 1000.0 * bt_rows / std::max(wall, 1e-9), wall);
         if (batch_adapt) {
-            basalt::log::info("basalt batch adapt", "%lld rounds, %lld swaps queued (%.1f per round), %lld deferred "
+            halo::log::info("halo batch adapt", "%lld rounds, %lld swaps queued (%.1f per round), %lld deferred "
                                  "(no free RAM place), %.3f ms/window of host time",
                          (long long) ba_rounds, (long long) ba_swaps,
                          ba_rounds > 0 ? (double) ba_swaps / (double) ba_rounds : 0.0,
@@ -432,13 +432,13 @@ bool QfnRuntime::batch_step() {
             ba_ms = 0;
         }
         if (bt_slotwin > 0)
-            basalt::log::info("basalt batch spec", "%.2f tokens/window/slot (%.2f slots/window, %.2f rows/window), "
+            halo::log::info("halo batch spec", "%.2f tokens/window/slot (%.2f slots/window, %.2f rows/window), "
                                  "drafts %lld accepted of %lld, draft %.2f ms/window (%.2f ms/slot-window), %.1f "
                                  "tokens/s", (double) bt_tokens / (double) bt_slotwin, (double) bt_slotwin / w,
                          bt_rows / w, (long long) bt_dr_acc, (long long) bt_dr_off, bt_draft / w,
                          bt_draft / (double) bt_slotwin, 1000.0 * (double) bt_tokens / std::max(wall, 1e-9));
         if (const std::string pr = ver.profile_report(); !pr.empty())
-            basalt::log::raw("basalt batch GPU stages (ms/window):%s\n", pr.c_str());
+            halo::log::raw("halo batch GPU stages (ms/window):%s\n", pr.c_str());
         bt_run = bt_commit = bt_emit = bt_draft = 0;
         bt_windows = bt_rows = bt_tokens = bt_slotwin = bt_dr_off = bt_dr_acc = 0;
     }
@@ -457,9 +457,9 @@ int QfnRuntime::init_batch() {
     bt_dr_off = 0;
     bt_dr_acc = 0;
     bscript = std::vector<std::pair<std::vector<int32_t>, uint64_t>>((size_t) std::max(o.batch, 0));
-    bdigest = basalt::core::exp_flag("concur5_digest", 0) != 0;
+    bdigest = halo::core::exp_flag("concur5_digest", 0) != 0;
     // concur9_logit_hash: a hash of the head logits of every accepted row, on stderr (solo and batch alike)
-    logit_hash = basalt::core::exp_flag("concur9_logit_hash", 0) != 0;
+    logit_hash = halo::core::exp_flag("concur9_logit_hash", 0) != 0;
 
     // adaptive tier rounds in the batch windows (routing counts from every row of every slot)
     batch_adapt = adapt_fast && !drive.d.usage.empty();
@@ -496,4 +496,4 @@ int QfnRuntime::init_batch() {
     return 0;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

@@ -3,7 +3,7 @@
 
 #include "state.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 class Request {
 public:
@@ -45,10 +45,10 @@ protected:
     bool ids_ok{};
     bool from_text{};
     int64_t n{};
-    std::unique_ptr<basalt::program::grammar::Guard> gguard{};
+    std::unique_ptr<halo::program::grammar::Guard> gguard{};
     std::vector<float> grammar_bias{};
     int64_t grammar_resamples{};
-    basalt::program::PplGate* ppl{};
+    halo::program::PplGate* ppl{};
     bool bad{};
     std::vector<int32_t> ids32{};
     Clock::time_point r0{};
@@ -70,17 +70,17 @@ protected:
     int64_t resumed_chunk{};
     const ConvCheckpoint* slot_ck{};
     int own_slot{};
-    basalt::core::ConversationCache::Match parked{};
-    std::optional<basalt::core::SavedConversation> incoming{};
+    halo::core::ConversationCache::Match parked{};
+    std::optional<halo::core::SavedConversation> incoming{};
     int64_t in_tokens{};
     bool in_live{};
-    basalt::core::ConversationStore::Match on_disk{};
+    halo::core::ConversationStore::Match on_disk{};
     bool from_disk{};
     Clock::time_point restore_t0{};
     int64_t read_from{};
 
     // per-request sampling (greedy when temperature is absent)
-    basalt::kernels::SamplerParams req_sp{};
+    halo::kernels::SamplerParams req_sp{};
     bool cancelled{};
     std::vector<int32_t> window{};
     std::vector<int32_t> outv{};
@@ -172,4 +172,4 @@ protected:
     virtual void prompt_parts_reset() {}
 };
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

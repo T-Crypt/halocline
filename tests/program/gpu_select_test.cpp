@@ -1,14 +1,14 @@
 // tests/program/gpu_select_test.cpp - the gpu setting over fake card tables: parsing and the card choice.
-#include "basalt/program/gpu_select.hpp"
+#include "halo/program/gpu_select.hpp"
 
-#include "basalt/build_archs.hpp"
-#include "basalt/platform/process.hpp"
+#include "halo/build_archs.hpp"
+#include "halo/platform/process.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 
-using namespace basalt::program;
+using namespace halo::program;
 
 static int g_fail = 0;
 #define CHECK(c)                                                              \
@@ -127,7 +127,7 @@ int main() {
         const std::vector<GpuCard> w = {card(0, "RTX 5070 Ti Laptop GPU", 12, 0, 896, 12), card(1, "RTX 5080", 12, 0, 896, 16)};
         CHECK_STR(cards(pick("auto", w)), "1,0");
     }
-    // A first card Basalt cannot run: unset is an error that points at gpu N and auto.
+    // A first card Halocline cannot run: unset is an error that points at gpu N and auto.
     {
         const std::vector<GpuCard> v = {card(0, "RTX 3090", 8, 6, 936, 24), card(1, "RTX 5090", 12, 0, 1792, 32)};
         CHECK(!pick("", v).error.empty());
@@ -145,7 +145,7 @@ int main() {
     }
     // Under CUDA_VISIBLE_DEVICES the numbers count within its list, and the narrowed list keeps its tokens.
     {
-        basalt::platform::set_env("CUDA_VISIBLE_DEVICES", "1,0");
+        halo::platform::set_env("CUDA_VISIBLE_DEVICES", "1,0");
         bool known = false;
         const std::vector<GpuCard> v = visible_gpus(known);
         CHECK(known && v.size() == 2);
@@ -158,20 +158,20 @@ int main() {
             const char* order = std::getenv("CUDA_DEVICE_ORDER");
             CHECK_STR(order ? order : "", "PCI_BUS_ID");
         }
-        basalt::platform::set_env("CUDA_VISIBLE_DEVICES", "-1");
+        halo::platform::set_env("CUDA_VISIBLE_DEVICES", "-1");
         CHECK(visible_gpus(known).empty() && known);
     }
     CHECK_STR(gpu_identity(3), "0,1,2");
     // The architecture list a build holds device code for (build_archs.hpp): a Blackwell main card with an Ada tier
     // card needs both entries; suffixes after the number do not count.
     {
-        CHECK(basalt::arch_list_has("120,89", 12, 0) && basalt::arch_list_has("120,89", 8, 9));
-        CHECK(basalt::arch_list_has("89", 8, 9) && !basalt::arch_list_has("89", 12, 0));
-        CHECK(basalt::arch_list_has("120", 12, 0) && !basalt::arch_list_has("120", 8, 9));
-        CHECK(basalt::arch_list_has("120a-real,89-real", 12, 0) && basalt::arch_list_has("120a-real,89-real", 8, 9));
-        CHECK(!basalt::arch_list_has("120,89", 8, 6) && !basalt::arch_list_has("120,89", 9, 0));
-        CHECK(!basalt::arch_list_has("", 12, 0) && !basalt::arch_list_has("1200", 12, 0));
-        CHECK(basalt::build_has_arch(12, 0) == basalt::arch_list_has(basalt::build_archs(), 12, 0));
+        CHECK(halo::arch_list_has("120,89", 12, 0) && halo::arch_list_has("120,89", 8, 9));
+        CHECK(halo::arch_list_has("89", 8, 9) && !halo::arch_list_has("89", 12, 0));
+        CHECK(halo::arch_list_has("120", 12, 0) && !halo::arch_list_has("120", 8, 9));
+        CHECK(halo::arch_list_has("120a-real,89-real", 12, 0) && halo::arch_list_has("120a-real,89-real", 8, 9));
+        CHECK(!halo::arch_list_has("120,89", 8, 6) && !halo::arch_list_has("120,89", 9, 0));
+        CHECK(!halo::arch_list_has("", 12, 0) && !halo::arch_list_has("1200", 12, 0));
+        CHECK(halo::build_has_arch(12, 0) == halo::arch_list_has(halo::build_archs(), 12, 0));
     }
     if (g_fail) { std::printf("gpu_select_test: %d failures\n", g_fail); return 1; }
     std::printf("gpu_select_test: ok\n");

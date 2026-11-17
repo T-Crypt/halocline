@@ -1,5 +1,8 @@
 # Adaptive expert tier
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
 Flash-Next only. The GPUs hold part of the experts. The adaptive tier counts what the conversation routes to and, in rounds beside decode, moves the most
 used experts into VRAM. The defaults are the fastest measured here.
 
@@ -42,4 +45,4 @@ chat requests. Decode tok/s, one run per arm:
 A long cadence is what hurts: the first round of a fresh engine and every topic change wait for it. Single-knob tests on two cards:
 `adapt-swaps 256` alone and `adapt-decay 0.7` alone stay within noise of the defaults.
 
-Smaller rounds can win where the card is small, since each round moves fewer experts over the link. [basalt-probe](../probe.md) tries these values on your machine, small rounds included.
+Smaller rounds can win where the card is small, since each round moves fewer experts over the link. [halo-probe](../probe.md) tries these values on your machine, small rounds included.

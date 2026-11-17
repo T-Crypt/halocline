@@ -2,7 +2,7 @@
 // error-marked log line during a healthy start does not fail it, an engine that exits before READY does, with its
 // error lines in the reason; an engine with lossy flags reports them. Also the default engine and fixtures paths and
 // the community refusal of engine flags. CPU only.
-#include "basalt/program/engine_session.hpp"
+#include "halo/program/engine_session.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -25,8 +25,8 @@ void check(bool ok, const std::string& what, const std::string& got = "") {
 // `--serve lossy` starts as an engine with --route-tail-skip 7 does.
 int stand_in(const std::string& mode) {
     if (mode == "lossy") {
-        std::fprintf(stderr, "basalt: warning: lossy flags enabled, these flags will affect the accuracy of the served model\n");
-        std::fprintf(stderr, "basalt: warning: --route-tail-skip 7 drops low-ranked missed experts\n");
+        std::fprintf(stderr, "halo: warning: lossy flags enabled, these flags will affect the accuracy of the served model\n");
+        std::fprintf(stderr, "halo: warning: --route-tail-skip 7 drops low-ranked missed experts\n");
         std::fflush(stderr);
         std::printf("INFO batch_slots=1\nINFO lossy=--route-tail-skip\nREADY 4096 stop\n");
         std::fflush(stdout);
@@ -34,8 +34,8 @@ int stand_in(const std::string& mode) {
             if (line.rfind("QUIT", 0) == 0) break;
         return 0;
     }
-    std::fprintf(stderr, "basalt serve: warning: a copy was skipped\n");
-    std::fprintf(stderr, "basalt serve: error: a swap failed (layer 3)\n");
+    std::fprintf(stderr, "halo serve: warning: a copy was skipped\n");
+    std::fprintf(stderr, "halo serve: error: a swap failed (layer 3)\n");
     std::fflush(stderr);
     if (mode == "die") return 1;
     std::printf("INFO batch_slots=1\nREADY 4096 stop\n");
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     const std::string dir = std::filesystem::temp_directory_path().string();
     {
         const std::string log = dir + "/engine_session_test_ok.log";
-        basalt::program::Engine e;
+        halo::program::Engine e;
         std::string err;
         const bool up = e.start(self, {"ok"}, log, err);
         check(up, "an error line in a healthy start does not fail it", err);
@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
     }
     {
         const std::string log = dir + "/engine_session_test_die.log";
-        basalt::program::Engine e;
+        halo::program::Engine e;
         std::string err;
         const bool up = e.start(self, {"die"}, log, err);
         check(!up, "an engine that exits before READY fails the start");
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
     }
     {
         const std::string log = dir + "/engine_session_test_lossy.log";
-        basalt::program::Engine e;
+        halo::program::Engine e;
         std::string err;
         const bool up = e.start(self, {"lossy"}, log, err);
         check(up, "a start with lossy flags is a start", err);
@@ -94,22 +94,22 @@ int main(int argc, char** argv) {
         const fs::path top = fs::path(dir) / "engine_session_test_install";
         fs::remove_all(top);
         fs::create_directories(top / "bin");
-        const std::string bench = (top / "bin" / "basalt-bench.exe").string(), built = "/build/bin/basalt";
-        check(basalt::program::default_engine(bench, built) == built, "no engine beside the program: the build's");
-        std::ofstream((top / "bin" / "basalt.exe").string()) << "x";
-        fs::permissions(top / "bin" / "basalt.exe", fs::perms::owner_all);
-        const std::string got = basalt::program::default_engine(bench, built);
-        check(got == (top / "bin" / "basalt.exe").string(), "the engine beside the program, with its suffix", got);
-        check(basalt::program::default_engine("", built) == built, "a program that cannot name itself: the build's");
-        check(basalt::program::default_fixtures(top.string(), "/build/data/bench") == "/build/data/bench",
+        const std::string bench = (top / "bin" / "halo-bench.exe").string(), built = "/build/bin/halo";
+        check(halo::program::default_engine(bench, built) == built, "no engine beside the program: the build's");
+        std::ofstream((top / "bin" / "halo.exe").string()) << "x";
+        fs::permissions(top / "bin" / "halo.exe", fs::perms::owner_all);
+        const std::string got = halo::program::default_engine(bench, built);
+        check(got == (top / "bin" / "halo.exe").string(), "the engine beside the program, with its suffix", got);
+        check(halo::program::default_engine("", built) == built, "a program that cannot name itself: the build's");
+        check(halo::program::default_fixtures(top.string(), "/build/data/bench") == "/build/data/bench",
               "no data/bench in the install: the build's fixtures");
         fs::create_directories(top / "data" / "bench");
-        check(basalt::program::default_fixtures(top.string(), "/build/data/bench") == (top / "data" / "bench").string(),
+        check(halo::program::default_fixtures(top.string(), "/build/data/bench") == (top / "data" / "bench").string(),
               "the install's data/bench");
         fs::remove_all(top);
     }
     {   // --community and engine flags: the engine's plan names the lossy ones
-        using basalt::program::community_refusal;
+        using halo::program::community_refusal;
         const std::string plan = "{\"arch\":\"qwen4exp\",\"lossy\":\"--route-tail-skip\",\"spec\":8}";
         std::string got = community_refusal({"--route-tail-skip", "7"}, plan);
         check(got == "--community runs the model as it is: --route-tail-skip is a lossy flag", "a lossy flag is named as one", got);

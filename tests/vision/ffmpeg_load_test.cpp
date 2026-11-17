@@ -3,13 +3,13 @@
 // A release nobody ships loads nothing and the reason names the file looked for. Where the machine has FFmpeg the
 // process's copy must be one row of the table, with its file named; where it has none, the reason is printed and
 // the test still passes (CI runners carry no FFmpeg).
-#include "basalt/platform/dynlib.hpp"
-#include "basalt/vision/ffmpeg_api.hpp"
+#include "halo/platform/dynlib.hpp"
+#include "halo/vision/ffmpeg_api.hpp"
 
 #include <cstdio>
 #include <string>
 
-using namespace basalt::vision;
+using namespace halo::vision;
 
 namespace {
 int failures = 0;
@@ -24,7 +24,7 @@ int main() {
     Ffmpeg f;
     std::string why;
     check(!load_ffmpeg({none}, f, why), "a release nobody ships does not load");
-    const std::string name = basalt::platform::DynLib::versioned_name("avformat", 99);
+    const std::string name = halo::platform::DynLib::versioned_name("avformat", 99);
     check(why.find(name) != std::string::npos, "and the reason names " + name);
 
     std::string off;

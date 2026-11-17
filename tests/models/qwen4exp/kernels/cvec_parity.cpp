@@ -1,12 +1,12 @@
-// tests/models/qwen4exp/kernels/cvec_parity.cpp - the control vector kernel (basalt/kernels/cvec.hpp) against a host reference.
+// tests/models/qwen4exp/kernels/cvec_parity.cpp - the control vector kernel (halo/kernels/cvec.hpp) against a host reference.
 //   1. project: h - s (h.v) v per stream and token, against double precision; the steered component is gone.
 //   2. add: h + d.
 //   3. switched off: R unchanged without a pending write; with one, R is BITWISE the write the fused read folds
 //      (fused_gr_read with apply), which is what keeps a loaded-but-off vector identical to the stock engine.
 //   4. a layer without a direction is untouched.
 
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
 
 #include <cuda_runtime.h>
 
@@ -17,7 +17,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 

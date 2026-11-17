@@ -1,9 +1,9 @@
 // src/models/qwen4exp/serve/qfn_image.cpp - a request's image positions and the quality gate's chunk.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
-#include "basalt/vision/mrope_positions.hpp"
+#include "halo/vision/mrope_positions.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 bool QfnRequest::parse_begin() { return !runtime_.mtp_on || runtime_.mtp.use_main(runtime_.err); }
 float QfnRequest::default_relax() const { return runtime_.o.relaxed_drafting; }
@@ -34,7 +34,7 @@ Flow QfnRequest::prepare_image() {
                 if (got == 0) break;
                 if (got != 5 || hdr[0] != 0x31455653 || hdr[1] < 1 || hdr[2] < 1 || hdr[3] < 1 ||
                     (int64_t) hdr[2] * hdr[3] != hdr[1] || hdr[4] != (int32_t) runtime_.g.n_embd) {
-                    ve = "bad embeddings file (expected basalt-vision records of width " +
+                    ve = "bad embeddings file (expected halo-vision records of width " +
                          std::to_string((long long) runtime_.g.n_embd) + ")";
                     break;
                 }
@@ -51,9 +51,9 @@ Flow QfnRequest::prepare_image() {
             // each run of a picture's pad or a video group's takes the next record, in order
             std::vector<int64_t> pads = {runtime_.o.image_pad_id}, runs;
             if (runtime_.o.video_pad_id >= 0) pads.push_back(runtime_.o.video_pad_id);
-            std::vector<basalt::vision::MediaGrid> grids;
+            std::vector<halo::vision::MediaGrid> grids;
             for (const Img& im : imgs) grids.push_back({im.n, im.nx, im.ny});
-            if (ve.empty()) ve = basalt::vision::mrope_positions(ids.data(), n, pads, grids, cells, runtime_.mrope_host.data(), runs);
+            if (ve.empty()) ve = halo::vision::mrope_positions(ids.data(), n, pads, grids, cells, runtime_.mrope_host.data(), runs);
             for (size_t k = 0; ve.empty() && k < runs.size(); ++k) {
                 const Img& im = imgs[k];
                 const int64_t i = runs[k];
@@ -90,4 +90,4 @@ Flow QfnRequest::prepare_image() {
     return Flow::proceed;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

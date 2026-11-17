@@ -1,11 +1,11 @@
 // tests/program/image_loan_test.cpp - the room an image encode may borrow, the elastic KV give-back order and the
 // elastic KV's ceiling.
-#include "basalt/program/image_loan.hpp"
+#include "halo/program/image_loan.hpp"
 
 #include <algorithm>
 #include <cstdio>
 
-using namespace basalt::program;
+using namespace halo::program;
 
 static int g_fail = 0;
 #define CHECK(c)                                                                         \

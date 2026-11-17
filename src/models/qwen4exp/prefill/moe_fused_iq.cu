@@ -1,4 +1,4 @@
-// src/models/qwen4exp/prefill/moe_fused_iq.cu - see include/basalt/models/qwen4exp/prefill/moe_fused_iq.hpp (the native prompt experts on
+// src/models/qwen4exp/prefill/moe_fused_iq.cu - see include/halo/models/qwen4exp/prefill/moe_fused_iq.hpp (the native prompt experts on
 // the fused int8 kernels of moe_fused.cu).
 //
 // The arithmetic.  An activation block of 32 values is x = d_x * a, a = round(x / d_x) in -127..127, stored in natural
@@ -34,30 +34,30 @@
 //   - hands out items through an atomic counter (items differ in size: their routed rows), and prefetches the next
 //     item's first weights into L2 while the current one runs.
 // Same math as above, rounded in another order: the products agree to the last bits, H's int8 codes almost always.
-#include "basalt/models/qwen4exp/prefill/moe_fused_iq.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused_iq.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #define GGML_COMMON_DECL_CUDA
 #define GGML_COMMON_IMPL_CUDA
-#include "basalt/ggml/ggml_common.h"
+#include "halo/ggml/ggml_common.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::prefill::fused {
+namespace halo::prefill::fused {
 namespace {
 
 void ck(cudaError_t e, const char* what) {
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "prefill fused experts (native): %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "prefill fused experts (native): %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -896,7 +896,7 @@ template <bool GU> bool setup_v2(int& occ) {
         o < 1)
         return false;
     occ = std::min(occ, o);
-    basalt::log::info("basalt", "prompt experts, v2 %s kernel: %d registers, %zu bytes local, %d bytes shared",
+    halo::log::info("halo", "prompt experts, v2 %s kernel: %d registers, %zu bytes local, %d bytes shared",
                  GU ? "gate/up" : "down", fa.numRegs, (size_t) fa.localSizeBytes, V2<GU>::SMEM);
     return true;
 }
@@ -947,7 +947,7 @@ int v2_occ() {
             d.v2 = 1;
             d.v2_occ = occ;
         } else {
-            basalt::log::warn("basalt", "the v2 fused prompt kernels do not run on this device; the native kernels stay");
+            halo::log::warn("halo", "the v2 fused prompt kernels do not run on this device; the native kernels stay");
         }
         cudaGetLastError();
     }
@@ -1025,7 +1025,7 @@ void experts_native(const Batch& b, const NativeGeom& g_in, int n_expert, int64_
     }
     const bool mix = g.up_type != g.gu_type;
     if (!d.ok || !(mix ? d.mix_ok && mix_covered(g.gu_type, g.up_type) : gu_covered(g.gu_type)) || !d_covered(g.d_type)) {
-        basalt::log::error("basalt", "prefill fused experts (native): types %d / %d / %d are not covered here", g.gu_type,
+        halo::log::error("halo", "prefill fused experts (native): types %d / %d / %d are not covered here", g.gu_type,
                            g.up_type, g.d_type);
         std::exit(1);
     }
@@ -1046,7 +1046,7 @@ void experts_native(const Batch& b, const NativeGeom& g_in, int n_expert, int64_
         ck(cudaMemsetAsync(ctr, 0, 2 * sizeof(int), s), "v2 counters");
         static std::atomic<bool> said{false};
         if (!said.exchange(true))
-            basalt::log::info("basalt", "prompt experts on the v2 native kernels");
+            halo::log::info("halo", "prompt experts on the v2 native kernels");
     }
     if (v2_gu) {
         const unsigned gr = (unsigned) std::min<int64_t>(tiles * V2<true>::NFB, (int64_t) d.sms * occ2);
@@ -1074,4 +1074,4 @@ void experts_native(const Batch& b, const NativeGeom& g_in, int n_expert, int64_
     ck(cudaGetLastError(), "experts_native");
 }
 
-}  // namespace basalt::prefill::fused
+}  // namespace halo::prefill::fused

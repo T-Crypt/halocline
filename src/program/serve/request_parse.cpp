@@ -3,7 +3,7 @@
 #include "../cli/tokens.hpp"
 #include "logprobs.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 Flow Request::parse() {
     runtime_.stop_req.store(false);   // a STOP that arrived between requests is stale
@@ -34,7 +34,7 @@ Flow Request::parse() {
     req_gprompt = -1;       // gprompt=N: the first N ids are the prompt, the rest tokens the request has already generated
     req_cvec = 1;   // cvec=0|1: a loaded control vector for this request (on when absent)
     req_relax = default_relax();   // relax=P: this request's --relaxed-drafting (0 = exact)
-    // ppl=K [ppl_t=T]: quality gate (basalt/program/ppl_gate.hpp) - chunk K of --ppl-base, the rest of
+    // ppl=K [ppl_t=T]: quality gate (halo/program/ppl_gate.hpp) - chunk K of --ppl-base, the rest of
     // the chunk teacher-forced through verify windows of T tokens, every token committed
     req_ppl = -1;
     req_ppl_t = 3;
@@ -95,7 +95,7 @@ Flow Request::parse() {
     if (req_bias_present) {
         std::string bias_error;
         if (runtime_.o.batch > 0) bias_error = "continuous batching is not supported";
-        const bool ok = runtime_.o.batch <= 0 && basalt::core::parse_logit_bias(req_bias_text, (int) runtime_.n_vocab, req_bias, bias_error);
+        const bool ok = runtime_.o.batch <= 0 && halo::core::parse_logit_bias(req_bias_text, (int) runtime_.n_vocab, req_bias, bias_error);
         if (!ok) { std::printf("ERR logit_bias: %s\n", bias_error.c_str()); return Flow::next; }
     }
 
@@ -144,7 +144,7 @@ Flow Request::parse() {
     if (!req_grammar_text.empty() && runtime_.grammar_vocab) {
         std::string gerr;
         {
-            gguard = std::make_unique<basalt::program::grammar::Guard>(*runtime_.grammar_vocab);
+            gguard = std::make_unique<halo::program::grammar::Guard>(*runtime_.grammar_vocab);
             const size_t gp = req_gprompt > 0 && (size_t) req_gprompt < ids.size() ? (size_t) req_gprompt : ids.size();
             if (!gguard->begin(req_grammar_text, ids.data(), gp, gerr)) gguard.reset();
             else if (gp < ids.size() && gguard->on()) {
@@ -158,7 +158,7 @@ Flow Request::parse() {
         }
         if (!gerr.empty()) { std::printf("ERR grammar: %s\n", gerr.c_str()); return Flow::next; }
     } else if (!req_grammar_text.empty()) {
-        basalt::log::warn("basalt grammar", "the request has a grammar but this engine runs with --grammar off; ignored");
+        halo::log::warn("halo grammar", "the request has a grammar but this engine runs with --grammar off; ignored");
     }
 
     grammar_resamples = 0;
@@ -168,4 +168,4 @@ Flow Request::parse() {
     return Flow::proceed;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

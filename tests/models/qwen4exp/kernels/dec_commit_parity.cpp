@@ -17,13 +17,13 @@
 // epochs in a row, nothing owed before the first epoch or after an epoch is done, and the read-ahead (waiting for the
 // pool or the peers, never waiting, every entry on CUDA0).  With --bench: its throughput against the commit kernel, the
 // cost of a launch with nothing owed and the read-ahead's rate.
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/rope_scaling.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/kernels/wait_abort.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/rope_scaling.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/kernels/wait_abort.hpp"
 
 #include <cuda_runtime.h>
 
@@ -40,7 +40,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::kernels;
+using namespace halo::kernels;
 
 namespace {
 
@@ -385,7 +385,7 @@ static int fin_blocks() {
     return sms;
 }
 static const int FIN_BLOCKS = fin_blocks();
-constexpr int64_t HS = (int64_t) basalt::kernels::NG_HIST * basalt::kernels::NG_HC_DIM;
+constexpr int64_t HS = (int64_t) halo::kernels::NG_HIST * halo::kernels::NG_HC_DIM;
 
 template<typename T> T* mapped(size_t n, T** dev) {
     void* h = nullptr;

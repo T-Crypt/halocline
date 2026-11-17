@@ -1,7 +1,7 @@
-// src/platform/process.cpp - see include/basalt/platform/process.hpp.
-#include "basalt/platform/process.hpp"
+// src/platform/process.cpp - see include/halo/platform/process.hpp.
+#include "halo/platform/process.hpp"
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <cerrno>
 #include <chrono>
@@ -17,7 +17,7 @@
 #include <time.h>
 #include <unistd.h>
 
-namespace basalt::platform {
+namespace halo::platform {
 
 std::string quote_arg(const std::string& s) {
     // An argument list is one string here, so an argument that holds a space or a quote has to be quoted and its
@@ -189,4 +189,4 @@ int exec_replacing(const std::vector<std::string>& argv) {
     return -1;   // errno says why, and it is the caller's message
 }
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

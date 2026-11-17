@@ -16,8 +16,8 @@ from serve.engine.process import EngineStartError, ProcessEngine
 
 LOGGED = r'''
 import sys
-sys.stderr.write("basalt serve: warning: the profile copy was skipped\n")
-sys.stderr.write("basalt serve: error: a swap failed (layer 3)\n")
+sys.stderr.write("halo serve: warning: the profile copy was skipped\n")
+sys.stderr.write("halo serve: error: a swap failed (layer 3)\n")
 sys.stderr.flush()
 '''
 HEALTHY = LOGGED + r'''
@@ -25,7 +25,7 @@ print("INFO engine=fake", flush=True)
 print("READY 4096 stop", flush=True)
 for raw in sys.stdin:
     if raw.startswith("GEN"):
-        sys.stderr.write("basalt serve: error: an eviction copy failed (layer 5)\n")
+        sys.stderr.write("halo serve: error: an eviction copy failed (layer 5)\n")
         sys.stderr.flush()
         print("T 65", flush=True)
         print("DONE 1 3 1.0 1.0 length 0 0 0", flush=True)
@@ -47,7 +47,7 @@ class ErrorLineIsNotFailure(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log, patch = self._engine(HEALTHY, d)
             with contextlib.redirect_stdout(io.StringIO()), patch:
-                engine = ProcessEngine("basalt", [], log=str(log))
+                engine = ProcessEngine("halo", [], log=str(log))
                 self.addCleanup(engine.close)
                 list(engine.generate([1, 2, 3], 4, {}, threading.Event()))
             engine.close()
@@ -59,7 +59,7 @@ class ErrorLineIsNotFailure(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log, patch = self._engine(EXITS, d)
             with contextlib.redirect_stdout(io.StringIO()), patch, self.assertRaises(EngineStartError) as ctx:
-                ProcessEngine("basalt", [], log=str(log))
+                ProcessEngine("halo", [], log=str(log))
             self.assertIn("a swap failed (layer 3)", str(ctx.exception))
             self.assertNotIn("profile copy", str(ctx.exception))
 

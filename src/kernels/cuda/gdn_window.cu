@@ -1,4 +1,4 @@
-// src/kernels/cuda/gdn_window.cu - see include/basalt/kernels/gdn_window.hpp: the recurrence stage.
+// src/kernels/cuda/gdn_window.cu - see include/halo/kernels/gdn_window.hpp: the recurrence stage.
 //
 // Built with the flags of verify_kernels.cu, whose kernels it fuses: gdn_conv_l2_multi (conv1d + SiLU + q/k L2
 // norm), gdn_ab_multi (alpha/beta gates), gdn_step_norm_multi (the recurrence and the gated RMS norm).  The q8_1 of
@@ -10,9 +10,9 @@
 // adds the four warps' butterflies in rank order through distributed shared memory; rank 0 computes alpha, rank 1
 // beta, and the others read them the same way.  The state and every constant are loaded before the grid
 // dependency wait (the window never writes the state).
-#include "basalt/kernels/gdn_window.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/q8_1_finite.hpp"
+#include "halo/kernels/gdn_window.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/q8_1_finite.hpp"
 
 #include <cooperative_groups.h>
 #include <cuda_fp16.h>
@@ -22,20 +22,20 @@
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 namespace cg = cooperative_groups;
 
 // Thread-block clusters (distributed shared memory, barrier.cluster) exist from compute capability 9.0.  Below it - the
 // 8.9 build, or any device pass for a compute capability under 9.0 - the cluster kernels trap and rec_block keeps only its
 // SPLIT form (no cluster), which the peer mixer item, dec_gdn_rec_split and dec_gdn_rec_seg_split run; the callers take
-// the unfused recurrence (dec_gdnf_mode() == 0) or the split forms on such a card.  BASALT_ARCH_BELOW_SM90 is CMake's: a
+// the unfused recurrence (dec_gdnf_mode() == 0) or the split forms on such a card.  HALO_ARCH_BELOW_SM90 is CMake's: a
 // build with no architecture of 9.0 or up.
-#if defined(BASALT_ARCH_BELOW_SM90) || (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 900)
+#if defined(HALO_ARCH_BELOW_SM90) || (defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 900)
 #define REC_NO_CLUSTER 1
 #endif
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int S = 128;   // state size
@@ -552,7 +552,7 @@ template<int MAXT, int NJ> struct SplitSegK { static constexpr auto f = rec_spli
 void dec_gdn_rec(const DecRecArgs& a, int n_tok, void* stream) {
     if (n_tok < 1 || n_tok > kDecMaxT || !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 || a.h_v % a.h_k != 0 ||
         a.h_v < 1) {
-        basalt::log::error("basalt", "dec_gdn_rec: invalid arguments");
+        halo::log::error("halo", "dec_gdn_rec: invalid arguments");
         std::exit(1);
     }
     if (dec_gdnf_mode() == 0) {
@@ -561,7 +561,7 @@ void dec_gdn_rec(const DecRecArgs& a, int n_tok, void* stream) {
         DecRecArgs b = a;
         if (b.o == nullptr) b.o = b.y;
         if (b.o == nullptr) {
-            basalt::log::error("basalt", "dec_gdn_rec: below compute capability 9.0 the window needs a.o or a.y");
+            halo::log::error("halo", "dec_gdn_rec: below compute capability 9.0 the window needs a.o or a.y");
             std::exit(1);
         }
         dec_gdn_rec_split(b, n_tok, stream);
@@ -572,18 +572,18 @@ void dec_gdn_rec(const DecRecArgs& a, int n_tok, void* stream) {
     const cudaStream_t s = (cudaStream_t) stream;
     by_width<RecK>(a.n_embd, n_tok, [&](auto k) { launch_pdl(k, grid, block, 0, s, a, n_tok); });
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "dec_gdn_rec: %s", cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "dec_gdn_rec: %s", cudaGetErrorString(e)); std::exit(1); }
 }
 
 void dec_gdn_rec_seg(const DecRecArgs& a, const SegRow* rows, size_t state_off, int n_rows, int max_n, void* stream,
                      const SegDst* dst, size_t off_c, size_t off_hv) {
     if (n_rows < 1 || max_n < 1 || max_n > kDecMaxT || !rows || !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 ||
         a.h_v % a.h_k != 0) {
-        basalt::log::error("basalt", "dec_gdn_rec_seg: invalid arguments");
+        halo::log::error("halo", "dec_gdn_rec_seg: invalid arguments");
         std::exit(1);
     }
     if (dec_gdnf_mode() == 0) {
-        basalt::log::error("basalt", "dec_gdn_rec_seg needs thread-block clusters (compute capability 9.0); "
+        halo::log::error("halo", "dec_gdn_rec_seg needs thread-block clusters (compute capability 9.0); "
                                      "dec_gdn_rec_seg_split runs on any card");
         std::exit(1);
     }
@@ -591,12 +591,12 @@ void dec_gdn_rec_seg(const DecRecArgs& a, const SegRow* rows, size_t state_off, 
     const cudaStream_t s = (cudaStream_t) stream;
     by_width<SegK>(a.n_embd, max_n, [&](auto k) { launch_pdl(k, grid, block, 0, s, a, rows, state_off, dst, off_c, off_hv); });
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "dec_gdn_rec_seg: %s", cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "dec_gdn_rec_seg: %s", cudaGetErrorString(e)); std::exit(1); }
 }
 
 void dec_gdn_gates(const DecRecArgs& a, int n_tok, float* gates, void* stream) {
     if (n_tok < 1 || n_tok > 2 * kDecMaxT || !gates || !dec_gdn_rec_supported(a.n_embd) || a.h_v < 1) {
-        basalt::log::error("basalt", "dec_gdn_gates: invalid arguments");
+        halo::log::error("halo", "dec_gdn_gates: invalid arguments");
         std::exit(1);
     }
     const dim3 grid((unsigned) a.h_v, (unsigned) ((n_tok + 3) / 4));
@@ -604,14 +604,14 @@ void dec_gdn_gates(const DecRecArgs& a, int n_tok, float* gates, void* stream) {
     if (a.n_embd == 5120) launch_pdl(gates_kernel<20>, grid, dim3(128), 0, s, a, n_tok, gates);
     else launch_pdl(gates_kernel<10>, grid, dim3(128), 0, s, a, n_tok, gates);
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "dec_gdn_gates: %s", cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "dec_gdn_gates: %s", cudaGetErrorString(e)); std::exit(1); }
 }
 
 void dec_gdn_rec_seg_split(const DecRecArgs& a, const SegRow* rows, size_t state_off, int n_rows, int max_n, int n_tok,
                            void* stream, const SegDst* dst, size_t off_c, size_t off_hv, const float* gates) {
     if (n_rows < 1 || max_n < 1 || max_n > kDecMaxT || n_tok < 1 || n_tok > 2 * kDecMaxT || !rows || !a.o || !gates ||
         !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 || a.h_v % a.h_k != 0) {
-        basalt::log::error("basalt", "dec_gdn_rec_seg_split: invalid arguments");
+        halo::log::error("halo", "dec_gdn_rec_seg_split: invalid arguments");
         std::exit(1);
     }
     const dim3 grid((unsigned) (a.h_v * 4), (unsigned) n_rows), block(S);
@@ -619,21 +619,21 @@ void dec_gdn_rec_seg_split(const DecRecArgs& a, const SegRow* rows, size_t state
     by_width<SplitSegK>(a.n_embd, max_n,
                         [&](auto k) { launch_pdl(k, grid, block, 0, s, a, rows, state_off, dst, off_c, off_hv, gates, n_tok); });
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "dec_gdn_rec_seg_split: %s", cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "dec_gdn_rec_seg_split: %s", cudaGetErrorString(e)); std::exit(1); }
     dec_gdn_rec_norm(a, n_tok, stream);
 }
 
 void dec_gdn_rec_split(const DecRecArgs& a, int n_tok, void* stream) {
     if (n_tok < 1 || n_tok > kDecMaxT || !dec_gdn_rec_supported(a.n_embd) || a.h_k <= 0 || a.h_v % a.h_k != 0 || !a.o ||
         a.h_v < 1) {
-        basalt::log::error("basalt", "dec_gdn_rec_split: invalid arguments");
+        halo::log::error("halo", "dec_gdn_rec_split: invalid arguments");
         std::exit(1);
     }
     const dim3 grid((unsigned) (a.h_v * 4)), block(S);
     const cudaStream_t s = (cudaStream_t) stream;
     by_width<SplitK>(a.n_embd, n_tok, [&](auto k) { launch_pdl(k, grid, block, 0, s, a, n_tok); });
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "dec_gdn_rec_split: %s", cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "dec_gdn_rec_split: %s", cudaGetErrorString(e)); std::exit(1); }
 }
 
 int dec_gdnf_mode() {
@@ -657,8 +657,8 @@ void dec_gdn_rec_norm(const DecRecArgs& a, int n_tok, void* stream) {
     const unsigned blocks = (unsigned) ((n_tok * a.h_v + 3) / 4);
     launch_pdl(rec_norm_kernel, dim3(blocks), dim3(128), 0, (cudaStream_t) stream, a, n_tok);
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "dec_gdn_rec_norm: %s", cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "dec_gdn_rec_norm: %s", cudaGetErrorString(e)); std::exit(1); }
 }
 
 #endif
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

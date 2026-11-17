@@ -9,14 +9,14 @@
 //     build/hc_fused_parity [iters] [T min] [T max] [--tol] [--check-only] [--stress N]
 //
 // --tol prints every case's differences against the plain kernels, not only the failing ones.
-#include "basalt/core/diag.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/native_router.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/shared_expert.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/native_router.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/shared_expert.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -33,7 +33,7 @@
 #include <string>
 #include <vector>
 
-namespace K = basalt::kernels;
+namespace K = halo::kernels;
 
 
 // the fused read's largest deviation from the plain kernels, relative to the output's largest value

@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int layer_plan(Context& context) {
     auto& o = *context.o;
@@ -26,7 +26,7 @@ int layer_plan(Context& context) {
     // The hyper-connection down/up matrices are held only as 8-bit copies - the arena leaves their bf16 form
     // out and they are staged, copied and dropped right after the load
     std::set<std::string> hc8_names;
-    if (basalt::kernels::hc8_only()) {
+    if (halo::kernels::hc8_only()) {
         for_each_index_name(pack_files.index, [&](const std::string& n) {
             const bool blk = n.rfind("blk.", 0) == 0 &&
                              (n.ends_with(".hc_attn_down.weight") || n.ends_with(".hc_attn_up.weight") ||
@@ -36,7 +36,7 @@ int layer_plan(Context& context) {
         for (const std::string& n : hc8_names) skip.insert(n);
     }
     uint64_t pool_bytes = 0;
-    if (!basalt::core::WeightTable::pool_bytes(pack_files, pool_bytes, err, skip.empty() ? nullptr : &skip)) {
+    if (!halo::core::WeightTable::pool_bytes(pack_files, pool_bytes, err, skip.empty() ? nullptr : &skip)) {
         return fatal_start_error(err);
     }
 

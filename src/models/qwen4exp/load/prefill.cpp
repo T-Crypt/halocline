@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int prefill(Context& context) {
     auto& o = *context.o;
@@ -27,7 +27,7 @@ int prefill(Context& context) {
     // ---- the prompt's conditioning positions [0, n_prompt - 1) in batched chunks.  The token loop then starts at the
     // last prompt position, whose prediction is the first generated token.
     int64_t pos_start = 0;
-    basalt::prefill::Prefill prefill;
+    halo::prefill::Prefill prefill;
     double prefill_batched_ms = 0;
     std::FILE* final_r = o.dump_final_r.empty() ? nullptr : std::fopen(o.dump_final_r.c_str(), "wb");
     std::vector<float> final_r_host(final_r ? (size_t) (g.hc * g.n_embd) : 0);
@@ -49,28 +49,28 @@ int prefill(Context& context) {
             }
             if (o.prefill_auto) {
                 o.prefill_chunk = k > 0 ? chunk : serve_loans::request_chunk(n_batched, 1024);
-                basalt::log::info("basalt generate", "prompt chunk auto: %lld tokens", (long long) o.prefill_chunk);
+                halo::log::info("halo generate", "prompt chunk auto: %lld tokens", (long long) o.prefill_chunk);
             } else if (chunk != o.prefill_chunk) {
                 k = 0;                                 // a fixed chunk that does not fit: its own buffers, as before
             }
-            const int64_t blob = (int64_t) basalt::kernels::cpu::expert_layout().max_blob;
+            const int64_t blob = (int64_t) halo::kernels::cpu::expert_layout().max_blob;
             if (k > 0) {   // the lent slots are refilled after the prompt
                 const int32_t first = (int32_t) (xcache.slots() - k);
                 for (size_t i = 0; i < host_res.size(); ++i)
                     if (host_res[i] >= first) {
                         lent.emplace_back((int32_t) i, host_res[i]);
-                        host_res[i] = basalt::core::kNotResident;
+                        host_res[i] = halo::core::kNotResident;
                     }
                 res_put(d_res);
                 borrow = xcache.device_slot(first);
                 borrow_bytes = xcache.slot_offsets() ? (uint64_t) (xcache.bytes() - (int64_t) xcache.slot_offsets()[first])
                                                      : (uint64_t) k * (uint64_t) blob;
-                basalt::log::info("basalt generate", "prompt path borrows %lld cache slots (%.2f GiB)", (long long) k,
+                halo::log::info("halo generate", "prompt path borrows %lld cache slots (%.2f GiB)", (long long) k,
                              (double) borrow_bytes / 1073741824.0);
             }
         }
         if (borrow == nullptr)
-            basalt::log::info("basalt generate", "prompt path allocates its own buffers (no cache slots to borrow)");
+            halo::log::info("halo generate", "prompt path allocates its own buffers (no cache slots to borrow)");
         if (o.batch <= 0 && !o.no_pool) { prefill.set_cpu_pool(&pool); prefill.set_cpu_share(o.prefill_cpu_share); }
         if (!prefill.init(wt, g, ss, srcp, o.expert_cache > 0 ? &xcache : nullptr,
                           host_res.empty() ? nullptr : host_res.data(), o.prefill_chunk, main_cs, err, borrow,
@@ -98,19 +98,19 @@ int prefill(Context& context) {
             const Clock::time_point tr = Clock::now();
             for (const auto& [i, slot] : lent) {   // queued, one wait
                 const uint8_t* b = srcp->blob(i / g.n_expert, i % g.n_expert);
-                const int64_t nb = (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(i / g.n_expert);
+                const int64_t nb = (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(i / g.n_expert);
                 if (b == nullptr || !(xcache.fill_slot_queued(slot, b, err, nb))) {
-                    basalt::log::error("basalt generate", "refilling a lent slot failed: %s", err.c_str());
+                    halo::log::error("halo generate", "refilling a lent slot failed: %s", err.c_str());
                     return 1;
                 }
                 host_res[(size_t) i] = slot;
             }
             if (!xcache.sync_queued(err)) {
-                basalt::log::error("basalt generate", "refilling the lent slots failed: %s", err.c_str());
+                halo::log::error("halo generate", "refilling the lent slots failed: %s", err.c_str());
                 return 1;
             }
             res_put(d_res);
-            basalt::log::info("basalt generate", "%zu lent slots refilled in %.1f ms", lent.size(),
+            halo::log::info("halo generate", "%zu lent slots refilled in %.1f ms", lent.size(),
                          std::chrono::duration<double, std::milli>(Clock::now() - tr).count());
         }
         prefill_batched_ms = std::chrono::duration<double, std::milli>(Clock::now() - tp0).count();
@@ -120,8 +120,8 @@ int prefill(Context& context) {
         // the PLE window of the token path: the two tokens before `pos_start`
         ss.ple_prev[0] = pos_start >= 2 ? (int32_t) o.tokens[(size_t) (pos_start - 2)] : -1;
         ss.ple_prev[1] = pos_start >= 1 ? (int32_t) o.tokens[(size_t) (pos_start - 1)] : -1;
-        const basalt::prefill::PrefillStats& ps = prefill.stats();
-        basalt::log::info("basalt generate", "prefill %lld tokens in %lld chunks, %.1f ms (%.1f tok/s); experts "
+        const halo::prefill::PrefillStats& ps = prefill.stats();
+        halo::log::info("halo generate", "prefill %lld tokens in %lld chunks, %.1f ms (%.1f tok/s); experts "
                              "streamed %lld (%lld by DMA, host %.1f ms), resident %lld, on the CPU %lld (share %.2f); PLE %.1f ms",
                      (long long) ps.tokens, (long long) ps.chunks, ps.ms_total,
                      ps.ms_total > 0 ? 1000.0 * (double) ps.tokens / ps.ms_total : 0.0, (long long) ps.experts_streamed,

@@ -1,9 +1,9 @@
 // tests/platform/process_pipe_test.cpp - platform::spawn_piped, the pipe calls and capture_output, with this program as
 // the child. CPU only, no model. `--echo` is the child's mode: it answers each line of its input with the same line
 // upper-cased on its output, reports on its error stream, and ends with code 7 when its input ends.
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/process.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/process.hpp"
+#include "halo/platform/system.hpp"
 
 #include <cctype>
 #include <cstdint>
@@ -23,7 +23,7 @@ void check(bool ok, const std::string& what) {
 
 int child_echo() {
     // the protocol is newline-framed bytes: no text-mode translation may touch it
-    basalt::platform::set_stdio_binary();
+    halo::platform::set_stdio_binary();
     std::fprintf(stderr, "child ready\n");
     std::fflush(stderr);
     std::string line;
@@ -37,7 +37,7 @@ int child_echo() {
 std::string read_line(int fd) {
     std::string line;
     char c = 0;
-    while (basalt::platform::pipe_read(fd, &c, 1) == 1 && c != '\n') line += c;
+    while (halo::platform::pipe_read(fd, &c, 1) == 1 && c != '\n') line += c;
     return line;
 }
 }  // namespace
@@ -50,13 +50,13 @@ int main(int argc, char** argv) {
         std::fputs("to stderr\n", stderr);
         return 0;
     }
-    using namespace basalt::platform;
+    using namespace halo::platform;
     const std::string self = module_path();
     check(!self.empty(), "the program knows its own path");
     check(process_id() > 0, "process_id");
     check(!python_interpreter(".").empty(), "python_interpreter names something");
 
-    const std::string log = temp_dir() + "/basalt_process_pipe_test.err";
+    const std::string log = temp_dir() + "/halo_process_pipe_test.err";
     PipedChild pc;
     std::string err;
     check(spawn_piped({self, "--echo"}, log, pc, err), "the child starts: " + err);
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
     // a program that cannot be started is refused, not crashed
     PipedChild none;
     std::string err2;
-    const bool started = spawn_piped({temp_dir() + "/basalt_no_such_program"}, log, none, err2);
+    const bool started = spawn_piped({temp_dir() + "/halo_no_such_program"}, log, none, err2);
     if (started) {   // fork starts a child that fails at exec: its exit code says so
         check(child_wait(none.child, 10000) != 0, "a missing program ends non-zero");
         close_fd(none.in_fd);

@@ -1,8 +1,8 @@
 // src/models/qwen4exp/serve/qfn_prompt.cpp - how Flash-Next reads a prompt's parts: sampling setup, windows, loans, the split.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 bool QfnRequest::prompt_begin() {
     ov_copied = false;
@@ -22,7 +22,7 @@ Flow QfnRequest::set_sampling() {
     runtime_.ver.set_sampling(req_sp);
     // a list longer than the top_k kernels keep is sampled through sorted rows: their buffers before the first window
     if (!req_sp.greedy &&
-        basalt::kernels::sampler_list_len(req_sp.top_k, (int) runtime_.n_vocab) > basalt::kernels::kSamplerNarrowMax &&
+        halo::kernels::sampler_list_len(req_sp.top_k, (int) runtime_.n_vocab) > halo::kernels::kSamplerNarrowMax &&
         !runtime_.ver.reserve_wide_sampler(runtime_.err)) {
         std::printf("ERR %s\n", runtime_.err.c_str());
         return Flow::next;
@@ -99,7 +99,7 @@ Flow QfnRequest::read_to(int64_t to) {
         for (PfPart& p : runtime_.pf_parts) {
             if (p.lent.empty()) continue;
             std::string re;
-            const basalt::core::OnDevice on(p.dev);
+            const halo::core::OnDevice on(p.dev);
             if (!refill_issue(p, re, false) || !p.cache->sync_queued(re)) { runtime_.ckpt_why = ": " + re; return false; }
         }
         ov_copied = true;
@@ -111,7 +111,7 @@ Flow QfnRequest::read_to(int64_t to) {
     if (sp_ok && win && !ov_window()) { std::printf("ERR %s\n", runtime_.err.c_str()); return Flow::error; }
     if (!sp_ok) {
         if (yielded_at < 0 && (batch_fatal || !(runtime_.stop_req.load() || runtime_.stdin_lost.load() || runtime_.ram_stop.load()))) {
-            basalt::log::error("basalt serve", "%s", runtime_.err.c_str());
+            halo::log::error("halo serve", "%s", runtime_.err.c_str());
             std::printf("ERR %s\n", runtime_.err.c_str());
             // a CUDA fault (an illegal address) poisons the context for the whole process, and unwinding
             // the destructors on it could hang until the watchdog: leave at once
@@ -140,9 +140,9 @@ Flow QfnRequest::prompt_end() {
         return Flow::error;
     }
     if (il_parts > 0)
-        basalt::log::info("basalt batch", "the prompt was read in %lld parts, the slots decoding %.0f ms between "
+        halo::log::info("halo batch", "the prompt was read in %lld parts, the slots decoding %.0f ms between "
                              "them", (long long) il_parts + 1, il_ms);
     return Flow::proceed;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

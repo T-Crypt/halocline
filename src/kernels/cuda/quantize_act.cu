@@ -19,22 +19,22 @@
 //      `rintf` differs from the reference wherever the f32 quotient rounds across a .5 boundary.
 //   3. The DEQUANTIZED value is `q * d16`, the fp16 scale, not `q * d32`.  The block stores fp16 and that is
 //      what a reader multiplies by.
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/kernels/f16_bits.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/kernels/f16_bits.hpp"
 
 #include <cuda_runtime.h>
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int QK8_0 = 32;
 
-// THE fp16 CONVERSION LIVES IN `basalt/kernels/f16_bits.hpp`, one copy for every kernel: a private copy that
+// THE fp16 CONVERSION LIVES IN `halo/kernels/f16_bits.hpp`, one copy for every kernel: a private copy that
 // tests `if (exp >= 31)` to detect an out-of-range exponent conflates an f32 INF/NAN (raw exponent 255) with a
 // FINITE value too large for fp16, so every finite overflow - 1e30, 65536, 1e45 - comes back as a NaN instead of
 // saturating to inf, and an O(1) fixture cannot see it.
@@ -199,7 +199,7 @@ __global__ void dequant_q8_K_kernel(const uint8_t* __restrict__ blocks, float* _
 void quantize_q8_0(const float* x, uint8_t* blocks, int64_t n, void* stream) {
     if (n <= 0) return;
     if (n % QK8_0 != 0) {
-        basalt::log::error("basalt", "quantize_q8_0: n %lld is not a multiple of %d", (long long) n, QK8_0);
+        halo::log::error("halo", "quantize_q8_0: n %lld is not a multiple of %d", (long long) n, QK8_0);
         std::exit(1);
     }
     const long long nb = n / QK8_0;
@@ -208,7 +208,7 @@ void quantize_q8_0(const float* x, uint8_t* blocks, int64_t n, void* stream) {
     quantize_q8_0_kernel<<<grid, threads, 0, (cudaStream_t) stream>>>(x, blocks, nb);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "quantize_q8_0 launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "quantize_q8_0 launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) cudaDeviceSynchronize();
@@ -220,11 +220,11 @@ void quantize_q8_0(const float* x, uint8_t* blocks, int64_t n, void* stream) {
 void quantize_q8_0_scaled(const float* x, uint8_t* blocks, float* scales, int64_t n, void* stream) {
     if (n <= 0) return;
     if (n % QK8_0 != 0) {
-        basalt::log::error("basalt", "quantize_q8_0_scaled: n %lld is not a multiple of %d", (long long) n, QK8_0);
+        halo::log::error("halo", "quantize_q8_0_scaled: n %lld is not a multiple of %d", (long long) n, QK8_0);
         std::exit(1);
     }
     if (scales == nullptr) {
-        basalt::log::error("basalt", "quantize_q8_0_scaled: scales is null");
+        halo::log::error("halo", "quantize_q8_0_scaled: scales is null");
         std::exit(1);
     }
     const long long nb = n / QK8_0;
@@ -232,7 +232,7 @@ void quantize_q8_0_scaled(const float* x, uint8_t* blocks, float* scales, int64_
     quantize_q8_0_scaled_warp_kernel<<<grid, 256, 0, (cudaStream_t) stream>>>(x, blocks, scales, nb);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "quantize_q8_0_scaled launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "quantize_q8_0_scaled launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) cudaDeviceSynchronize();
@@ -246,7 +246,7 @@ void dequant_q8_0(const uint8_t* blocks, float* x, int64_t n, void* stream) {
     dequant_q8_0_kernel<<<grid, threads, 0, (cudaStream_t) stream>>>(blocks, x, nb);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "dequant_q8_0 launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "dequant_q8_0 launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) cudaDeviceSynchronize();
@@ -255,7 +255,7 @@ void dequant_q8_0(const uint8_t* blocks, float* x, int64_t n, void* stream) {
 void quantize_q8_K(const float* x, uint8_t* blocks, int64_t n, void* stream) {
     if (n <= 0) return;
     if (n % QK_K != 0) {
-        basalt::log::error("basalt", "quantize_q8_K: n %lld is not a multiple of %d", (long long) n, QK_K);
+        halo::log::error("halo", "quantize_q8_K: n %lld is not a multiple of %d", (long long) n, QK_K);
         std::exit(1);
     }
     const long long nb = n / QK_K;
@@ -264,7 +264,7 @@ void quantize_q8_K(const float* x, uint8_t* blocks, int64_t n, void* stream) {
     quantize_q8_K_kernel<<<grid, threads, 0, (cudaStream_t) stream>>>(x, blocks, nb);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "quantize_q8_K launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "quantize_q8_K launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) cudaDeviceSynchronize();
@@ -278,10 +278,10 @@ void dequant_q8_K(const uint8_t* blocks, float* x, int64_t n, void* stream) {
     dequant_q8_K_kernel<<<grid, threads, 0, (cudaStream_t) stream>>>(blocks, x, nb);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "dequant_q8_K launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "dequant_q8_K launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) cudaDeviceSynchronize();
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

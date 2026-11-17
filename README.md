@@ -1,96 +1,145 @@
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/basalt-lockup-dark.png"><img src="assets/basalt-lockup-light.png" alt="Basalt" width="480"></picture></p>
+<p align="center">
+  <img src="assets/halocline-hero.svg" alt="Halocline: the engine that hides nothing. A water column split by one bright boundary, labelled with the measured KLD to BF16, and a depth gauge with the decode speed measured at 36K and 137K tokens." width="100%">
+</p>
 
-Basalt is a local inference engine for large language models: **Qwen3.8-Flash-Next**, **DeepSeek-V4.1-Flash** and **Qwen3.8-27B**. It runs
-on an NVIDIA Blackwell GPU (sm_120) on Linux and Windows x64, with what does not fit in VRAM (the experts of a mixture-of-experts model)
-in system RAM, and optionally on more GPUs. The server speaks the OpenAI and Anthropic APIs. Website: [basalt.jgulfo.com](https://basalt.jgulfo.com).
+<p align="center">
+  <b>An inference engine for one machine and one model family, built to stay as close to BF16 as the weights allow.</b><br>
+  The Qwen4 family on one NVIDIA Ada GPU (sm_89). Every number links to the run that produced it.
+</p>
 
-<p align="center"><img src="docs/img/frontend.gif" alt="The Basalt web UI while a reply streams" width="720"></p>
+<p align="center">
+  <code>status: pre-alpha</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>models: Qwen4 family</code> &nbsp; <code>licence: MIT</code>
+</p>
 
-**Help wanted:** spare Blackwell compute for testing? See [Contributing](CONTRIBUTING.md#other-ways-to-help).
+<img src="assets/halocline-divider.svg" width="100%" alt="">
 
-## Requirements
+> [!IMPORTANT]
+> **Halocline is for sm_89 (Ada) only, and it is tuned for one machine: [mine](SPECS.md).** It will never support
+> another GPU architecture; the build refuses anything but compute capability 8.9. It runs the Qwen4 family only. Its
+> speeds and settings come from that one machine, so to reproduce them you need the same parts. On another Ada card it
+> builds, and every number has to be measured again.
+>
+> To build an engine like this for your own card, read [the recipe](RESEARCH.md): the steps, the gates, the papers
+> behind each decision, and how to fork Halocline and swap in kernels for your architecture.
 
-- Linux x86-64 with AVX2, or Windows 10 1903+ x64 ([platforms](docs/platforms.md)).
-- An NVIDIA Blackwell GPU (compute capability 12.0) with CUDA 13.
-- CMake 3.24+, GCC 13+ (Linux), Python 3.10+, and enough system RAM for the experts that do not fit in VRAM.
+A halocline is the layer in deep water where salinity changes so sharply that the water above and below barely mix.
+This engine is built around one boundary of its own: the distance between what the model says at full precision and
+what it says here. Each change is measured against that line, and the measurements live in this repo.
 
-## Quick start
+## What it is
 
-Prebuilt Linux and Windows archives are attached to each [release](https://github.com/jesdga95/basalt/releases) ([what they need](docs/platforms.md#release-archives)); otherwise build from source:
+|  |  |
+|---|---|
+| **Card** | One NVIDIA Ada GPU, compute capability 8.9: an RTX 4090, 24 GB, at 350 W. No other architecture is compiled, now or later. |
+| **Host** | The machine in [SPECS.md](SPECS.md): i9-14900K (AVX2, AVX-VNNI), 64 GB RAM, Arch Linux, CUDA 13.4. |
+| **Models** | The Qwen4 family only. Another architecture belongs in its own fork (`halocline-<family>`). |
+| **Sparse** | Qwen3.8-Flash-Next (`qwen4_exp`): 512 experts, 10 active plus 1 shared, QSA sparse attention, gated residual, n-gram embedding, MTP drafter. Experts that do not fit the card live in page-locked RAM. **Runs.** |
+| **Dense** | Qwen3.8-27B, standing in for Qwen4-27B until its weights exist. **Does not run yet.** |
+| **Weights** | Unsloth GGUFs, converted to a pack that copies the quantized tensors byte for byte. One interim exception: the 195 `hc_*` tensors (Q8_0 in the GGUF) are cast to BF16. |
+| **API** | OpenAI-compatible chat completions with streaming and tool calls, one request at a time, meant to sit behind [llama-swap](https://github.com/mostlygeek/llama-swap). |
+
+## Measured so far
+
+Qwen3.8-Flash-Next UD-IQ4_XS v3.1 with the MTP drafter, int8 KV, on the [reference machine](SPECS.md).
+
+| Measure | Value | Evidence |
+|---|---|---|
+| Mean KLD to BF16 (100 chunks of 512) | 0.0820, top-1 90.45%, PPL 3.232 (BF16 3.273) | [`evals/2026-11-17/halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/) |
+| KV format | int8: fp16 is no closer (paired +0.0004, interval holds 0) and halves 131K prefill; k8v4 and q4_0 measurably further | same |
+| Decode, warm, short prompt | 148 to 182 tok/s | [`evals/2026-11-17/halocline-llama-swap`](evals/2026-11-17/halocline-llama-swap/) |
+| 36K needle: decode / prompt | 123 / 6,298 tok/s | same |
+| 137K needle: decode / prompt | 121 / 5,664 tok/s | same |
+| Same card and quant, Strata 0.2.10 (DFlash2, q4_0 KV) | 95 to 101 warm; 68 / 2,403 at 36K; 87 / 2,864 at 137K | [`evals/2026-11-16/halocline-p0-floors`](evals/2026-11-16/halocline-p0-floors/) |
+| Greedy identity across the scope removals | 900 of 900 tokens | [`evals/2026-11-17/halocline-greedy-identity`](evals/2026-11-17/halocline-greedy-identity/) |
+
+Limits: the KLD gate scores 512-token chunks, so it cannot see KV rounding that builds up deep in a long context; the
+needle checks cover retrieval there. Strata's column is its quiet-host rerun; its earlier runs and the reason are in
+the floors README.
+
+## How a change gets in
+
+Each commit in this history passed these gates, and its logs and hash files are in the repo:
+
+1. A clean build for sm_89.
+2. SASS hashes per object and per function (`gates/`): kernels whose source did not change come out byte-identical,
+   and inside a changed object only the functions the change targets may differ.
+3. The CPU suite (86 tests) and the GPU suite (122 tests, 7 skip on sm_89), plus the Python server suite (1,079 tests).
+4. For numerics changes: paired KLD against the frozen BF16 base, and greedy identity against the previous build.
+
+## Build and run
 
 ```sh
-git clone https://github.com/jesdga95/basalt && cd basalt
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j                  # bin/basalt, bin/basalt-bench, bin/basalt-probe, bin/basalt-vision
-                                        # Windows: add -G Ninja to the first line, from an x64 VS 2022 prompt ([platforms](docs/platforms.md#building-on-windows))
-                                        # one model only: -DBASALT_MODELS=qwen4exp, deepseek41 or qwen35 ([building](docs/building.md#building-only-some-models))
-pip install -r requirements.txt
-hf download jesdga/Qwen3.8-Flash-Next-Basalt Qwen3.8-FN-NVFP4-DQ6_K.basalt --local-dir models
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
+ninja -C build                       # binaries land in bin/: halo, halo-bench, halo-probe, halo-vision
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+# the draft layer: Qwen's BF16 mtp.* tensors, hash-checked
+.venv/bin/python tools/convert/mtp_fetch.py fetch --out mtp-qfn
+
+# the pack: Unsloth's GGUF shards, quantized tensors copied as published
+.venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00004.gguf \
+    --no-vision --compat-bf16 --mtp-source mtp-qfn --out QFN-UD-IQ4_XS.basalt
+
+# serve, with the settings the evals above used
+bin/halo serve QFN-UD-IQ4_XS.basalt --host 127.0.0.1 --port 8092 \
+    --spec 8 --prefill auto --max-context 262144 --kv int8
+
+# the quality gate against a BF16 KLD base
+bin/halo-bench --model QFN-UD-IQ4_XS.basalt --quality 100 --kld-base flashnext-bf16-base.kld -- --kv int8 --prefill auto
 ```
 
-Put the settings in `basalt_config.json`:
+The pack format is Basalt's model-file format v2, unchanged (`.basalt`, magic `BASALTMF`), so converted packs keep
+their names.
 
-```json
-{
-  "version": 2,
-  "models": [{ "model": "models/Qwen3.8-FN-NVFP4-DQ6_K.basalt", "gpu": "0,1", "kv": "int8" }],
-  "engine": { "resident-experts": true },
-  "server": { "port": 8080 }
-}
-```
+## Repository
 
-```sh
-bin/basalt serve --config basalt_config.json
-```
+| Path | What |
+|---|---|
+| `src/`, `include/halo/`, `serve/`, `tools/` | the engine, the Python server, the converter and the bench |
+| `evals/` | every measurement: command, raw JSON, logs, and the script that made it |
+| `gates/` | SASS hashes per step, whole objects and per function |
+| `logs/` | build and test logs per step |
+| `docs/design/` | the build spec and the review notes the engine was planned from |
+| `docs/research/` | the research notes behind the design, with sources |
+| [`SPECS.md`](SPECS.md) | the reference machine |
+| [`RESEARCH.md`](RESEARCH.md) | the recipe and the sources, applied or read |
+| [`LIFTS.md`](LIFTS.md) | the base snapshot's hashes and what came from where |
+| `docs/` | user docs carried over from Basalt, each marked for a rewrite |
 
-The server listens on 127.0.0.1. Every setting: [configuration](docs/configuration/index.md). More examples:
-[example configurations](docs/configuration/examples.md).
+## Open work
 
-## Models
+- Remove the last sm_90+ code: the decode cluster kernels (sampler, QSA top-k), the fused-verify chain (GDN cluster
+  recurrence, mid chain, dense tensor-core path, gated-residual fusion), the in-engine model router, the Windows and
+  Docker files.
+- The dense path (Qwen3.8-27B) on the GGUF weights.
+- A DFlash2 drafter A/B against MTP on Halocline.
+- Revisit the `hc_*` BF16 cast against the KLD numbers.
+- Rewrite the carried-over docs.
 
-| | Qwen3.8-Flash-Next | DeepSeek-V4.1-Flash | Qwen3.8-27B |
-|---|---|---|---|
-| Packs | default `Qwen3.8-FN-NVFP4-DQ6_K`, [Hugging Face](https://huggingface.co/jesdga/Qwen3.8-Flash-Next-Basalt) | default `DeepSeek-V4.1-Flash-1017-UD-IQ1_M`, [Hugging Face](https://huggingface.co/jesdga/DeepSeek-V4.1-Flash-1017-Basalt) | `Qwen3.8-27B-QUASAR-NVFP4`, [Hugging Face](https://huggingface.co/jesdga/Qwen3.8-27B-Basalt) |
-| Context | up to 262,144 (longer with YaRN) | up to 1,048,576 | up to 262,144 |
-| Drafting | MTP, on by default | DSpark, on by default | DFlash 2, on by default |
-| Images | yes | yes | yes |
-| Documents (PDF, text) | yes | yes | yes |
-| Guide | [guide](docs/models/qwen38-flash-next.md) | [guide](docs/models/deepseek41.md) | [guide](docs/models/qwen38-27b.md) |
-| Precision | [precision](docs/precision/qwen38-flash-next.md) | [precision](docs/precision/deepseek41.md) | [precision](docs/precision/qwen38-27b.md) |
+## Design rules
 
-All models compared, with each one's context limit, flags and cards: [models](docs/models/index.md).
+Targets the engine is being built toward. Not all of them exist in code yet.
 
-## Video
+- One architecture, one toolchain, recorded per release.
+- Every choice that affects speed or output (expert cache, prefill mode, drafter, KV format) resolved once per model
+  into a checked-in profile, never keyed on a model's name.
+- Expert swaps copy exact bytes, so where an expert lives changes speed, never text.
+- A regression in mean or tail KLD beyond its interval, or in speed beyond run-to-run range, fails the release.
 
-Qwen3.8-Flash-Next and Qwen3.8-27B read video; DeepSeek does not. A video is named like an image in a chat message, and needs
-`--vision` and FFmpeg on the machine. Flash-Next decodes frames on the GPU with NVDEC; the 27B decodes them on the CPU.
-How a request names a video, and the limits: [video](docs/running.md#video).
+## Lineage
 
-## Documentation
+Halocline starts from a one-time snapshot and has no upstream after it. Credit where the code came from:
 
-- **Run:** [running](docs/running.md), [configuration](docs/configuration/index.md), [models and the router](docs/configuration/models.md),
-  [sampling](docs/configuration/sampling.md), [image sources](docs/configuration/image-sources.md),
-  [documents](docs/configuration/documents.md),
-  [diagnostics](docs/configuration/diagnostics.md), [basalt-probe](docs/probe.md), [platforms](docs/platforms.md).
-- **Models:** [models](docs/models/index.md), [Flash-Next](docs/models/qwen38-flash-next.md), [DeepSeek](docs/models/deepseek41.md),
-  [Qwen3.8-27B](docs/models/qwen38-27b.md),
-  [the `.basalt` file](docs/model-file.md), [file format changes](docs/basalt-file-changelog.md).
-- **Quality:** [precision](docs/precision/index.md), [method](docs/precision/quality.md).
-- **Build and develop:** [building](docs/building.md), [adding a model](docs/adding-a-model.md), [community runs](docs/community.md),
-  [changelog](docs/changelog/index.md), [contributing](CONTRIBUTING.md).
+- [Strata](https://github.com/Niko1221/Strata) by Niko1221 and contributors (MIT), the expert-offload engine the rest
+  descends from.
+- [Basalt](https://github.com/jesdga95/basalt) by Jesús Gulfo (MIT), the multi-model engine forked from Strata.
+- [basalt_ada](https://github.com/Ex3c4Def/basalt_ada) (MIT), the Ada port of Basalt this snapshot merges.
+- [Infernix](https://github.com/Wallawalla47/Infernix) (Apache-2.0), tile layouts in several kernels.
+- [Unsloth](https://huggingface.co/unsloth) for the GGUFs, and [Qwen](https://huggingface.co/Qwen) for the models, which
+  carry their own licences.
 
-## Credits
+Original notices are kept in `LICENSE` and `THIRD_PARTY_LICENSES`; [`LIFTS.md`](LIFTS.md) records the snapshot.
 
-- **Code:** [Strata](https://github.com/Niko1221/Strata), the project Basalt forks (MIT); [Infernix](https://github.com/Wallawalla47/Infernix)
-  (Ian Ranson and contributors, Apache-2.0), whose kernels are adapted; [ggml and llama.cpp](https://github.com/ggml-org/llama.cpp)
-  (MIT); and ideas from [NInfer](https://github.com/Neroued/ninfer). Licences: [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES).
-- **Models:** [Qwen](https://huggingface.co/Qwen) and [DeepSeek](https://huggingface.co/deepseek-ai), under the licences on their cards;
-  [Unsloth](https://huggingface.co/unsloth)'s GGUFs; [NVIDIA](https://huggingface.co/nvidia)'s NVFP4 checkpoints;
-  [QUASAR-QAT](https://huggingface.co/QUASAR-QAT/Qwen3.8-27B-QUASAR-NVFP4)'s NVFP4 27B (Apache-2.0); [z-lab](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2)'s DFlash 2 drafter.
+<img src="assets/halocline-divider.svg" width="100%" alt="">
 
-Thank you to everyone who has [contributed](https://github.com/jesdga95/basalt/graphs/contributors) or
-[sponsored](https://github.com/sponsors/jesdga95) the project.
-
-## License
-
-MIT, see [LICENSE](LICENSE).
+<p align="center"><sub>Built for one machine. Measured, not guessed.</sub></p>

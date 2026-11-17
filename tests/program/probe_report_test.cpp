@@ -1,13 +1,13 @@
-// Unit test for basalt-probe's report: parsing the rates block, the k-suffix depth parser and the layout.
-#include "basalt/program/engine_session.hpp"
-#include "basalt/program/probe_report.hpp"
+// Unit test for halo-probe's report: parsing the rates block, the k-suffix depth parser and the layout.
+#include "halo/program/engine_session.hpp"
+#include "halo/program/probe_report.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <vector>
 
-using namespace basalt::program;
+using namespace halo::program;
 
 static int failures = 0;
 #define CHECK(c)                                                                  \
@@ -70,7 +70,7 @@ int main() {
 
     // layout
     ReportInput in;
-    in.command_line = "basalt-probe";
+    in.command_line = "halo-probe";
     in.rates = r;
     in.experts_line = "experts 5090 9460 / 5060 Ti 5704 / RAM rest";
     in.kv = "int8";

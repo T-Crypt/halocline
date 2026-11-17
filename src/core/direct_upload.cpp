@@ -1,13 +1,13 @@
-#include "basalt/core/direct_upload.hpp"
+#include "halo/core/direct_upload.hpp"
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <cuda_runtime.h>
 
 #include <algorithm>
 #include <cerrno>
 
-namespace basalt::core {
+namespace halo::core {
 
 namespace {
 constexpr uint64_t kAlign = 4096;
@@ -43,10 +43,10 @@ struct DirectUploader::Impl {
 
     bool open_path(const std::string& p, std::string& err) {
         if (fd >= 0 && p == path) return true;
-        if (fd >= 0) basalt::platform::close_fd(fd);
-        fd = basalt::platform::open_unbuffered(p);
+        if (fd >= 0) halo::platform::close_fd(fd);
+        fd = halo::platform::open_unbuffered(p);
         direct = fd >= 0;
-        if (fd < 0) fd = basalt::platform::open_fd_utf8(p);
+        if (fd < 0) fd = halo::platform::open_fd_utf8(p);
         if (fd < 0) {
             path.clear();
             err = "cannot open " + p;
@@ -62,7 +62,7 @@ struct DirectUploader::Impl {
         const uint64_t a1 = direct ? (off + n + kAlign - 1) / kAlign * kAlign : off + n;
         uint64_t got = 0;
         while (got < off + n - a0) {
-            const int64_t r = basalt::platform::pread(fd, b + got, (size_t) (a1 - a0 - got), a0 + got);
+            const int64_t r = halo::platform::pread(fd, b + got, (size_t) (a1 - a0 - got), a0 + got);
             if (r < 0 && errno == EINTR) continue;
             if (r <= 0) {
                 err = "short read from " + path;
@@ -92,7 +92,7 @@ DirectUploader::~DirectUploader() {
         if (m.done[i]) cudaEventDestroy(m.done[i]);
     }
     if (m.stream) cudaStreamDestroy(m.stream);
-    if (m.fd >= 0) basalt::platform::close_fd(m.fd);
+    if (m.fd >= 0) halo::platform::close_fd(m.fd);
     delete impl_;
 }
 
@@ -135,4 +135,4 @@ bool DirectUploader::upload(const std::string& path, uint64_t file_off, uint64_t
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

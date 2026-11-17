@@ -1,8 +1,8 @@
 // tests/program/grammar_test.cpp - GBNF parse, accept/reject, UTF-8 across tokens, clone/rewind, lazy triggers, and
 // the vocabulary mask against a token-by-token check. Ends with a timing line for allows() and fill_mask().
 #include "tool_form_fixture.hpp"
-#include "basalt/program/grammar/grammar.hpp"
-#include "basalt/program/grammar/schema.hpp"
+#include "halo/program/grammar/grammar.hpp"
+#include "halo/program/grammar/schema.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::program::grammar;
+using namespace halo::program::grammar;
 
 static int g_fail = 0;
 #define CHECK(c)                                                              \
@@ -382,8 +382,8 @@ static std::vector<std::string> bench_vocab(size_t n) {
     return v;
 }
 
-// BASALT_GRAMMAR_VOCAB names a file of (u32 length, bytes) records, one per token id, for a run on the real vocabulary;
-// BASALT_GRAMMAR_END is the end token's id.
+// HALO_GRAMMAR_VOCAB names a file of (u32 length, bytes) records, one per token id, for a run on the real vocabulary;
+// HALO_GRAMMAR_END is the end token's id.
 static bool load_vocab(const char* path, std::vector<std::string>& out) {
     std::FILE* f = std::fopen(path, "rb");
     if (!f) return false;
@@ -399,8 +399,8 @@ static bool load_vocab(const char* path, std::vector<std::string>& out) {
 
 static void bench() {
     std::vector<std::string> tokens;
-    const char* vpath = std::getenv("BASALT_GRAMMAR_VOCAB");
-    const char* eos = std::getenv("BASALT_GRAMMAR_END");
+    const char* vpath = std::getenv("HALO_GRAMMAR_VOCAB");
+    const char* eos = std::getenv("HALO_GRAMMAR_END");
     bool real = vpath && load_vocab(vpath, tokens);
     if (!real) tokens = bench_vocab(248320);
     const size_t N = tokens.size();
@@ -458,7 +458,7 @@ int main() {
     test_token_refs();
     test_patterns();
     test_partial_utf8();
-    if (std::getenv("BASALT_GRAMMAR_BENCH")) bench();
+    if (std::getenv("HALO_GRAMMAR_BENCH")) bench();
     if (g_fail) { std::printf("grammar_test: %d failures\n", g_fail); return 1; }
     std::printf("grammar_test: ok\n");
     return 0;

@@ -1,10 +1,10 @@
-// src/models/qwen4exp/kernels/qsa_dec_attn.cu - see include/basalt/models/qwen4exp/kernels/qsa_dec_attn.hpp.
-#include "basalt/models/qwen4exp/kernels/qsa_dec_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_seg.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/kernels/packed_byte.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/q8_1_fm.cuh"
+// src/models/qwen4exp/kernels/qsa_dec_attn.cu - see include/halo/models/qwen4exp/kernels/qsa_dec_attn.hpp.
+#include "halo/models/qwen4exp/kernels/qsa_dec_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_seg.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/kernels/packed_byte.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/q8_1_fm.cuh"
 #include "smem_opt_in.cuh"
 
 #include <cuda_fp16.h>
@@ -14,12 +14,12 @@
 #include <cfloat>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 // `ushort` comes from the POSIX sys/types.h where there is one; redeclaring the same type is harmless.
 using ushort = unsigned short;
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int HD = 256;          // head_dim
@@ -725,7 +725,7 @@ void qsa_dec_attn(const float* q, const QsaAttnPools& pools, const int32_t* ids,
                   float* attn_gated, void* xq, void* merge_after) {
     if (n_q <= 0) return;
     if (!qsa_dec_attn_supported(pools, s) || cap <= 0 || !scratch || !ids || !steps || n_q > 65535) {
-        basalt::log::error("basalt", "qsa_dec_attn: unsupported geometry, pools or buffers");
+        halo::log::error("halo", "qsa_dec_attn: unsupported geometry, pools or buffers");
         std::exit(1);
     }
     const int mode = kv_mode_of(pools);
@@ -768,7 +768,7 @@ void qsa_dec_attn(const float* q, const QsaAttnPools& pools, const int32_t* ids,
     else launch_pdl(attn_merge_v2, dim3((unsigned) s.n_head, (unsigned) n_q), dim3(THREADS), mbytes, st, a);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "qsa_dec_attn: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "qsa_dec_attn: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -779,7 +779,7 @@ void qsa_dec_attn_seg(const float* q, const QsaSegTable& t, bool int8, const int
     if (n_q <= 0) return;
     if (s.head_dim != HD || s.n_head != (int64_t) G * s.n_head_kv || cap <= 0 || !scratch || !ids || !steps ||
         n_q > 65535 || t.n_rows < n_q) {
-        basalt::log::error("basalt", "qsa_dec_attn_seg: unsupported geometry, table or buffers");
+        halo::log::error("halo", "qsa_dec_attn_seg: unsupported geometry, table or buffers");
         std::exit(1);
     }
     AttnArgs a;
@@ -807,9 +807,9 @@ void qsa_dec_attn_seg(const float* q, const QsaSegTable& t, bool int8, const int
     launch_pdl(attn_merge_v2, dim3((unsigned) s.n_head, (unsigned) n_q), dim3(THREADS), mbytes, st, a);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "qsa_dec_attn_seg: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "qsa_dec_attn_seg: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

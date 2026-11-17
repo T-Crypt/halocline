@@ -1,4 +1,4 @@
-// tests/kernels/gqa_attn_parity.cpp - gqa_decode_attn and gqa_prompt_attn (basalt/kernels/gqa_attn.hpp) and
+// tests/kernels/gqa_attn_parity.cpp - gqa_decode_attn and gqa_prompt_attn (halo/kernels/gqa_attn.hpp) and
 // attn_qk_prepare (dense_ops.hpp) against a CPU reference in double precision, at the Qwen3.5-27B attention geometry
 // (24 query heads, 4 KV heads, 256 wide, 64 rotated dims, interleaved M-RoPE sections 11/11/10), unscaled and under YaRN.
 //
@@ -6,9 +6,9 @@
 // 8-warp launches); a decode row's output is bitwise the same
 // whatever the window width or the row's place in it; the prompt kernel's rows agree with decode's within fp16 rounding.
 // Exit 77 without a GPU.  Prints one line per check and a microbench line for the decode and prompt kernels.
-#include "basalt/kernels/dense_ops.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/kernels/gqa_attn.hpp"
+#include "halo/kernels/dense_ops.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/kernels/gqa_attn.hpp"
 
 #include <cuda_runtime.h>
 
@@ -38,7 +38,7 @@ template <class T> T* dev(size_t n) {
     return (T*) p;
 }
 
-float h2f(uint16_t h) { return basalt::kernels::f32_from_f16(h); }
+float h2f(uint16_t h) { return halo::kernels::f32_from_f16(h); }
 
 // out[h][d] for one query row at `visible` cells
 void ref_attn(const float* q, const std::vector<uint16_t>& kc, const std::vector<uint16_t>& vc, int64_t visible, double* out) {
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
         for (auto& x : kn) x = 1.0f + 0.1f * nd(rng);
         std::vector<int32_t> pos = {5, 5, 5, 6, 9, 11, 7, 7, 7};   // a text row, an image row (t, h, w), a text row
         if (yarn) pos = {300001, 300001, 300001, 400000, 400003, 400005, 524287, 524287, 524287};
-        basalt::kernels::RopeSpec rope;
+        halo::kernels::RopeSpec rope;
         rope.rot = ROT;
         rope.theta = 1e7f;
         for (int i = 0; i < ROT / 2; ++i) rope.axis[i] = (int8_t) (i % 3 == 1 && i < 33 ? 1 : i % 3 == 2 && i < 30 ? 2 : 0);
@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
         double mscale = 1.0;
         for (int i = 0; i < ROT / 2; ++i) inv_freq[(size_t) i] = std::pow(base, -2.0 * i / ROT);
         if (yarn) {
-            rope.scaling.type = basalt::kernels::RopeScalingType::YaRN;
+            rope.scaling.type = halo::kernels::RopeScalingType::YaRN;
             rope.scaling.factor = factor;
             rope.scaling.orig_ctx = orig;
             rope.scaling.freq_base = base;
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
         ck(cudaMemcpy(d_qn, qn.data(), HD * 4, cudaMemcpyHostToDevice), "copy");
         ck(cudaMemcpy(d_kn, kn.data(), HD * 4, cudaMemcpyHostToDevice), "copy");
         ck(cudaMemcpy(d_pos, pos.data(), pos.size() * 4, cudaMemcpyHostToDevice), "copy");
-        basalt::kernels::attn_qk_prepare(d_qf, d_k, d_v, d_qn, d_kn, 1e-6f, rope, d_pos, T, NH, NKV, d_qo, d_kc, d_vc, cell0, nullptr);
+        halo::kernels::attn_qk_prepare(d_qf, d_k, d_v, d_qn, d_kn, 1e-6f, rope, d_pos, T, NH, NKV, d_qo, d_kc, d_vc, cell0, nullptr);
         std::vector<float> qo((size_t) T * NH * HD);
         std::vector<uint16_t> kc((size_t) (cell0 + T) * NKV * HD);
         ck(cudaMemcpy(qo.data(), d_qo, qo.size() * 4, cudaMemcpyDeviceToHost), "copy");
@@ -169,14 +169,14 @@ int main(int argc, char** argv) {
     // ---- attention: a cache of L cells, decode windows and a prompt chunk
     const int64_t L = 3000, max_cells = 4096;
     std::vector<uint16_t> kc((size_t) max_cells * NKV * HD), vc(kc.size());
-    for (auto& x : kc) x = basalt::kernels::f16_from_f32(nd(rng));
-    for (auto& x : vc) x = basalt::kernels::f16_from_f32(nd(rng));
+    for (auto& x : kc) x = halo::kernels::f16_from_f32(nd(rng));
+    for (auto& x : vc) x = halo::kernels::f16_from_f32(nd(rng));
     const int TP = 300;   // the prompt chunk: rows at cells L - TP .. L - 1
     std::vector<float> q((size_t) TP * NH * HD);
     for (auto& x : q) x = 2.0f * nd(rng);
     uint16_t *d_kc = dev<uint16_t>(kc.size()), *d_vc = dev<uint16_t>(vc.size());
     float *d_q = dev<float>(q.size()), *d_out = dev<float>(q.size());
-    float* d_scr = dev<float>(basalt::kernels::gqa_decode_scratch_floats(max_cells, basalt::kernels::kGqaMaxWindow, NH));
+    float* d_scr = dev<float>(halo::kernels::gqa_decode_scratch_floats(max_cells, halo::kernels::kGqaMaxWindow, NH));
     ck(cudaMemcpy(d_kc, kc.data(), kc.size() * 2, cudaMemcpyHostToDevice), "copy");
     ck(cudaMemcpy(d_vc, vc.data(), vc.size() * 2, cudaMemcpyHostToDevice), "copy");
     ck(cudaMemcpy(d_q, q.data(), q.size() * 4, cudaMemcpyHostToDevice), "copy");
@@ -186,13 +186,13 @@ int main(int argc, char** argv) {
     std::vector<std::vector<double>> want(rows.size(), std::vector<double>((size_t) NH * HD));
     for (size_t i = 0; i < rows.size(); ++i) ref_attn(&q[(size_t) rows[i] * NH * HD], kc, vc, p0 + rows[i] + 1, want[i].data());
     // decode: the last 8 rows as windows of 1..8 rows; each row bitwise equal across widths
-    constexpr int TW = basalt::kernels::kGqaMaxWindow;
+    constexpr int TW = halo::kernels::kGqaMaxWindow;
     std::vector<float> single((size_t) TW * NH * HD), got((size_t) TW * NH * HD);
     Err ed;
     bool bitwise = true;
     for (int T = 1; T <= TW; ++T) {
         const int r0 = TP - T;
-        basalt::kernels::gqa_decode_attn(d_q + (size_t) r0 * NH * HD, d_kc, d_vc, NH, NKV, p0 + r0, T, d_scr, max_cells, d_out, nullptr);
+        halo::kernels::gqa_decode_attn(d_q + (size_t) r0 * NH * HD, d_kc, d_vc, NH, NKV, p0 + r0, T, d_scr, max_cells, d_out, nullptr);
         ck(cudaMemcpy(got.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
         // row TP-1 is the window's last row: compare with the single-row window
         const float* last = &got[(size_t) (T - 1) * NH * HD];
@@ -213,19 +213,19 @@ int main(int argc, char** argv) {
         // host-position launch, past the grid's first round of chunks
         const int64_t L2 = 12000, cap2 = 65536, at = L2 - 8;
         std::vector<uint16_t> k2((size_t) L2 * NKV * HD), v2(k2.size());
-        for (auto& x : k2) x = basalt::kernels::f16_from_f32(nd(rng));
-        for (auto& x : v2) x = basalt::kernels::f16_from_f32(nd(rng));
+        for (auto& x : k2) x = halo::kernels::f16_from_f32(nd(rng));
+        for (auto& x : v2) x = halo::kernels::f16_from_f32(nd(rng));
         uint16_t *d_k2 = dev<uint16_t>((size_t) cap2 * NKV * HD), *d_v2 = dev<uint16_t>((size_t) cap2 * NKV * HD);
-        float* d_s2 = dev<float>(basalt::kernels::gqa_decode_scratch_floats(cap2, 16, NH));
+        float* d_s2 = dev<float>(halo::kernels::gqa_decode_scratch_floats(cap2, 16, NH));
         int32_t* d_at = dev<int32_t>(2);
         const int32_t at2[2] = {(int32_t) at, 0};
         ck(cudaMemcpy(d_k2, k2.data(), k2.size() * 2, cudaMemcpyHostToDevice), "copy");
         ck(cudaMemcpy(d_v2, v2.data(), v2.size() * 2, cudaMemcpyHostToDevice), "copy");
         ck(cudaMemcpy(d_at, at2, sizeof at2, cudaMemcpyHostToDevice), "copy");
         std::vector<float> h1((size_t) 8 * NH * HD), h2(h1.size());
-        basalt::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at, 8, d_s2, cap2, d_out, nullptr);
+        halo::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at, 8, d_s2, cap2, d_out, nullptr);
         ck(cudaMemcpy(h1.data(), d_out, h1.size() * 4, cudaMemcpyDeviceToHost), "copy");
-        basalt::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at, 8, d_s2, cap2, d_out, nullptr, d_at);
+        halo::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at, 8, d_s2, cap2, d_out, nullptr, d_at);
         ck(cudaMemcpy(h2.data(), d_out, h2.size() * 4, cudaMemcpyDeviceToHost), "copy");
         const bool same = std::memcmp(h1.data(), h2.data(), h1.size() * 4) == 0;
         std::printf("gqa_decode_attn: device first cell at %lld of %lld cells bitwise the host launch: %s\n", (long long) at,
@@ -234,16 +234,16 @@ int main(int argc, char** argv) {
         {   // two sequences' windows in one launch (a batch window's segments), each bitwise its own launch
             const int TA = 5, TB = 7;
             std::vector<float> solo((size_t) (TA + TB) * NH * HD), seg(solo.size());
-            basalt::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, 3000, TA, d_s2, cap2, d_out, nullptr);
+            halo::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, 3000, TA, d_s2, cap2, d_out, nullptr);
             ck(cudaMemcpy(solo.data(), d_out, (size_t) TA * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
-            basalt::kernels::gqa_decode_attn(d_q + (size_t) TA * NH * HD, d_k2, d_v2, NH, NKV, at - TB, TB, d_s2, cap2, d_out, nullptr);
+            halo::kernels::gqa_decode_attn(d_q + (size_t) TA * NH * HD, d_k2, d_v2, NH, NKV, at - TB, TB, d_s2, cap2, d_out, nullptr);
             ck(cudaMemcpy(solo.data() + (size_t) TA * NH * HD, d_out, (size_t) TB * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
             const int32_t atb[2] = {(int32_t) (at - TB), 0};
             ck(cudaMemcpy(d_at, atb, sizeof atb, cudaMemcpyHostToDevice), "copy");
-            basalt::kernels::GqaSeg sg[2];
+            halo::kernels::GqaSeg sg[2];
             sg[0].T = TA; sg[0].k_cache = d_k2; sg[0].v_cache = d_v2; sg[0].pos0 = 3000;
             sg[1].T = TB; sg[1].k_cache = d_k2; sg[1].v_cache = d_v2; sg[1].pos0 = at - TB; sg[1].pos_dev = d_at;
-            basalt::kernels::gqa_decode_attn_segs(d_q, NH, NKV, sg, 2, d_s2, cap2, d_out, nullptr);
+            halo::kernels::gqa_decode_attn_segs(d_q, NH, NKV, sg, 2, d_s2, cap2, d_out, nullptr);
             ck(cudaMemcpy(seg.data(), d_out, seg.size() * 4, cudaMemcpyDeviceToHost), "copy");
             const bool same_seg = std::memcmp(solo.data(), seg.data(), seg.size() * 4) == 0;
             std::printf("gqa_decode_attn_segs: windows of %d and %d rows in one launch bitwise their own launches: %s\n", TA, TB,
@@ -257,28 +257,28 @@ int main(int argc, char** argv) {
         double us[2];
         for (int dv = 0; dv < 2; ++dv) {
             for (int i = 0; i < 5; ++i)
-                basalt::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, 2999, 1, d_s2, cap2, d_out, nullptr, dv ? d_at : nullptr);
+                halo::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, 2999, 1, d_s2, cap2, d_out, nullptr, dv ? d_at : nullptr);
             cudaDeviceSynchronize();
             const auto t0 = std::chrono::steady_clock::now();
             for (int i = 0; i < 200; ++i)
-                basalt::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, 2999, 1, d_s2, cap2, d_out, nullptr, dv ? d_at : nullptr);
+                halo::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, 2999, 1, d_s2, cap2, d_out, nullptr, dv ? d_at : nullptr);
             cudaDeviceSynchronize();
             us[dv] = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / 200;
         }
         std::printf("bench: decode 1 row x 3000 cells in %lld: %.1f us host first cell, %.1f us device first cell\n",
                     (long long) cap2, us[0], us[1]);
         for (int T : {1, 8, 16}) {   // a window of T rows near 12K cells
-            for (int i = 0; i < 5; ++i) basalt::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at - 8, T, d_s2, cap2, d_out, nullptr);
+            for (int i = 0; i < 5; ++i) halo::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at - 8, T, d_s2, cap2, d_out, nullptr);
             cudaDeviceSynchronize();
             const auto t0 = std::chrono::steady_clock::now();
-            for (int i = 0; i < 100; ++i) basalt::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at - 8, T, d_s2, cap2, d_out, nullptr);
+            for (int i = 0; i < 100; ++i) halo::kernels::gqa_decode_attn(d_q, d_k2, d_v2, NH, NKV, at - 8, T, d_s2, cap2, d_out, nullptr);
             cudaDeviceSynchronize();
             std::printf("bench: decode %d rows x %lld cells: %.1f us\n", T, (long long) at, std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / 100);
         }
         cudaFree(d_k2); cudaFree(d_v2); cudaFree(d_s2); cudaFree(d_at);
     }
     // prompt chunk
-    basalt::kernels::gqa_prompt_attn(d_q, d_kc, d_vc, NH, NKV, p0, TP, d_out, nullptr);
+    halo::kernels::gqa_prompt_attn(d_q, d_kc, d_vc, NH, NKV, p0, TP, d_out, nullptr);
     std::vector<float> pr(q.size());
     ck(cudaMemcpy(pr.data(), d_out, pr.size() * 4, cudaMemcpyDeviceToHost), "copy");
     Err ep;
@@ -297,19 +297,19 @@ int main(int argc, char** argv) {
             for (size_t g = 0; g < rows * HD / 64; ++g) {
                 float amax = 0;
                 for (int i = 0; i < 64; ++i) amax = std::max(amax, std::fabs(h2f(src[g * 64 + i])));
-                const uint16_t h = basalt::kernels::f16_from_f32(amax / 127.0f);
+                const uint16_t h = halo::kernels::f16_from_f32(amax / 127.0f);
                 const float s16 = h2f(h);
                 sc[g] = h;
                 for (int i = 0; i < 64; ++i) {
                     const float c = s16 > 0 ? std::rint(h2f(src[g * 64 + i]) / s16) : 0.0f;
                     q[g * 64 + i] = (int8_t) std::max(-127.0f, std::min(127.0f, c));
-                    deq[g * 64 + i] = basalt::kernels::f16_from_f32(q[g * 64 + i] * s16);
+                    deq[g * 64 + i] = halo::kernels::f16_from_f32(q[g * 64 + i] * s16);
                 }
             }
         };
         quant(kc, k8, ks, kd);
         quant(vc, v8, vs, vd);
-        basalt::kernels::KvInt8 q8;
+        halo::kernels::KvInt8 q8;
         ck(cudaMalloc(&q8.k, k8.size()), "malloc");
         ck(cudaMalloc(&q8.v, v8.size()), "malloc");
         ck(cudaMalloc(&q8.ks, ks.size() * 2), "malloc");
@@ -333,7 +333,7 @@ int main(int argc, char** argv) {
         };
         std::vector<double> w8((size_t) NH * HD), w8q((size_t) NH * HD);
         ref8(&q[(size_t) (TP - 1) * NH * HD], p0 + TP, w8.data(), w8q.data());
-        basalt::kernels::gqa_decode_attn(d_q + (size_t) (TP - 1) * NH * HD, nullptr, nullptr, NH, NKV, p0 + TP - 1, 1, d_scr,
+        halo::kernels::gqa_decode_attn(d_q + (size_t) (TP - 1) * NH * HD, nullptr, nullptr, NH, NKV, p0 + TP - 1, 1, d_scr,
                                          max_cells, d_out, nullptr, nullptr, q8);
         std::vector<float> g8((size_t) NH * HD);
         ck(cudaMemcpy(g8.data(), d_out, g8.size() * 4, cudaMemcpyDeviceToHost), "copy");
@@ -351,13 +351,13 @@ int main(int argc, char** argv) {
         for (auto& x : qb) x = 2.0f * nd(rng);
         float *d_qb = dev<float>(qb.size()), *d_ob = dev<float>(qb.size());
         ck(cudaMemcpy(d_qb, qb.data(), qb.size() * 4, cudaMemcpyHostToDevice), "copy");
-        const size_t split_floats = basalt::kernels::gqa_prompt_split_floats(TP, NH, 8);
+        const size_t split_floats = halo::kernels::gqa_prompt_split_floats(TP, NH, 8);
         float* d_split = dev<float>(split_floats);
         for (int cfg = 0; cfg < 3; ++cfg) {
             const int T = cfg < 2 ? TP : TB;
             const int64_t pp = L - T;
             const float* qh = cfg < 2 ? q.data() : qb.data();
-            basalt::kernels::gqa_prompt_attn(cfg < 2 ? d_q : d_qb, nullptr, nullptr, NH, NKV, pp, T, d_ob, nullptr, q8,
+            halo::kernels::gqa_prompt_attn(cfg < 2 ? d_q : d_qb, nullptr, nullptr, NH, NKV, pp, T, d_ob, nullptr, q8,
                                              cfg == 1 ? d_split : nullptr, cfg == 1 ? split_floats : 0);
             std::vector<float> po((size_t) T * NH * HD);
             ck(cudaMemcpy(po.data(), d_ob, po.size() * 4, cudaMemcpyDeviceToHost), "copy");
@@ -389,14 +389,14 @@ int main(int argc, char** argv) {
     const int reps = 50;
     cudaEventRecord(a);
     for (int i = 0; i < reps; ++i)
-        basalt::kernels::gqa_decode_attn(d_q, d_kc, d_vc, NH, NKV, L - 1, 1, d_scr, max_cells, d_out, nullptr);
+        halo::kernels::gqa_decode_attn(d_q, d_kc, d_vc, NH, NKV, L - 1, 1, d_scr, max_cells, d_out, nullptr);
     cudaEventRecord(b);
     cudaEventSynchronize(b);
     float ms = 0;
     cudaEventElapsedTime(&ms, a, b);
     const double us_dec = 1000.0 * ms / reps, bytes = (double) L * NKV * HD * 2 * 2;
     cudaEventRecord(a);
-    for (int i = 0; i < 10; ++i) basalt::kernels::gqa_prompt_attn(d_q, d_kc, d_vc, NH, NKV, p0, TP, d_out, nullptr);
+    for (int i = 0; i < 10; ++i) halo::kernels::gqa_prompt_attn(d_q, d_kc, d_vc, NH, NKV, p0, TP, d_out, nullptr);
     cudaEventRecord(b);
     cudaEventSynchronize(b);
     cudaEventElapsedTime(&ms, a, b);
@@ -412,7 +412,7 @@ int main(int argc, char** argv) {
             uint16_t* bv = dev<uint16_t>((size_t) cells * NKV * HD);
             float* bq = dev<float>((size_t) T2 * NH * HD);
             float* bo = dev<float>((size_t) T2 * NH * HD);
-            basalt::kernels::KvInt8 b8;
+            halo::kernels::KvInt8 b8;
             cudaMalloc(&b8.k, (size_t) cells * NKV * HD);
             cudaMalloc(&b8.v, (size_t) cells * NKV * HD);
             cudaMalloc(&b8.ks, (size_t) cells * NKV * HD / 64 * 2);
@@ -427,14 +427,14 @@ int main(int argc, char** argv) {
             double fl = 0;
             for (int64_t t = 0; t < T2; ++t) fl += 4.0 * NH * HD * (double) (pp + t + 1);
             // fp16, int8, int8 with scratch for three key splits
-            const size_t sf = basalt::kernels::gqa_prompt_split_floats(T2, NH, 3);
+            const size_t sf = halo::kernels::gqa_prompt_split_floats(T2, NH, 3);
             float* bs = dev<float>(sf);
             for (int run = 0; run < 3; ++run) {
-                const basalt::kernels::KvInt8 kv = run ? b8 : basalt::kernels::KvInt8{};
+                const halo::kernels::KvInt8 kv = run ? b8 : halo::kernels::KvInt8{};
                 float* scr = run == 2 ? bs : nullptr;
-                basalt::kernels::gqa_prompt_attn(bq, bk, bv, NH, NKV, pp, T2, bo, nullptr, kv, scr, sf);
+                halo::kernels::gqa_prompt_attn(bq, bk, bv, NH, NKV, pp, T2, bo, nullptr, kv, scr, sf);
                 cudaEventRecord(a);
-                for (int i = 0; i < 5; ++i) basalt::kernels::gqa_prompt_attn(bq, bk, bv, NH, NKV, pp, T2, bo, nullptr, kv, scr, sf);
+                for (int i = 0; i < 5; ++i) halo::kernels::gqa_prompt_attn(bq, bk, bv, NH, NKV, pp, T2, bo, nullptr, kv, scr, sf);
                 cudaEventRecord(b);
                 cudaEventSynchronize(b);
                 cudaEventElapsedTime(&ms, a, b);

@@ -1,22 +1,22 @@
 // src/models/qwen4exp/serve/qfn_decode.cpp - Flash-Next's side of the window loop: verify windows, drafts, adaptive rounds.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
 #include "../../../program/serve/decode_loop.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 namespace {
 // --draft-log FILE: one line per window (T, accepted, draft probabilities, ms) for draft-policy study
 FILE* draft_log_file() {
-    static FILE* const f = basalt::core::diagnostics().draft_log.empty() ? nullptr
-        : std::fopen(basalt::core::diagnostics().draft_log.c_str(), "a");
+    static FILE* const f = halo::core::diagnostics().draft_log.empty() ? nullptr
+        : std::fopen(halo::core::diagnostics().draft_log.c_str(), "a");
     return f;
 }
 // spec_log: per window, the target's sampling distribution at each verified row beside the draft head's top-4
 // of the draft that row checks, for offline tree-draft studies (written next to --draft-log as FILE.tk)
 FILE* tk_log_file() {
-    static FILE* const f = basalt::core::exp_flag("spec_log", 0) != 0 && !basalt::core::diagnostics().draft_log.empty()
-        ? std::fopen((basalt::core::diagnostics().draft_log + ".tk").c_str(), "a") : nullptr;
+    static FILE* const f = halo::core::exp_flag("spec_log", 0) != 0 && !halo::core::diagnostics().draft_log.empty()
+        ? std::fopen((halo::core::diagnostics().draft_log + ".tk").c_str(), "a") : nullptr;
     return f;
 }
 }  // namespace
@@ -42,8 +42,8 @@ void QfnRequest::seed_tiers() {
 }
 
 void QfnRequest::decode_state_begin() {
-    drafts = std::vector<int32_t>((size_t) std::max(runtime_.S, basalt::core::kMtpChainMax), 0);
-    dprob = std::vector<float>((size_t) std::max(runtime_.S, basalt::core::kMtpChainMax), 0.0f);
+    drafts = std::vector<int32_t>((size_t) std::max(runtime_.S, halo::core::kMtpChainMax), 0);
+    dprob = std::vector<float>((size_t) std::max(runtime_.S, halo::core::kMtpChainMax), 0.0f);
     sbuf = std::vector<int32_t>((size_t) runtime_.S, 0);
     if (runtime_.o.suffix_draft > 0) {
         runtime_.sfx->reset();
@@ -58,7 +58,7 @@ void QfnRequest::decode_state_begin() {
 
 void QfnRequest::decode_stats_begin() {
     // --decode-timing: where a request's decode time goes (one line per request)
-    dec_timing = basalt::core::diagnostics().decode_timing;
+    dec_timing = halo::core::diagnostics().decode_timing;
 
     ds0 = dec_snap();
     dt_run = 0;
@@ -92,7 +92,7 @@ void QfnRequest::decode_stats_begin() {
 
 inline int QfnRequest::draft_window() {
     int T = 1;
-        while (T < runtime_.S_mtp && basalt::core::draft_keep(dprob.data(), T - 1, cum_adapt.th())) ++T;
+        while (T < runtime_.S_mtp && halo::core::draft_keep(dprob.data(), T - 1, cum_adapt.th())) ++T;
     return T;
 }
 
@@ -101,7 +101,7 @@ inline void QfnRequest::lookup_window(int& T, bool& from_sfx, int& sfx_match) {
             const int k = runtime_.sfx->propose(runtime_.S - 1, sbuf.data());
             sfx_match = runtime_.sfx->last_match();
             if (k > 0 && sbuf[0] == drafts[0]) {
-                const basalt::spec::DraftPolicy::Pick pk = runtime_.policy->choose(T, k, sfx_match);
+                const halo::spec::DraftPolicy::Pick pk = runtime_.policy->choose(T, k, sfx_match);
                 if (pk.lookup) { T = pk.t; from_sfx = true; }
             }
         }
@@ -117,22 +117,22 @@ inline int QfnRequest::before_window(int T, int64_t) {
         runtime_.drive.d.failed = false;
         // the previous adapt round's copies land first: with a non-blocking query, whether a swapped-in expert
         // ran on the GPU or the CPU (they round differently) would depend on the copy's timing
-        basalt::core::decode_gaps().mark(17);
+        halo::core::decode_gaps().mark(17);
         // an adaptive round's swaps land before the second window after it (a fixed window, so reproducible),
         // applied beside the draft before it (apply_thr) when their copies are done
         if (apply_thr.joinable()) apply_thr.join();
         if (copy_live && copy_done) {   // the RAM copies are done: their bookkeeping, between windows
-            basalt::core::decode_events().tag(1u << 3);
+            halo::core::decode_events().tag(1u << 3);
             runtime_.src.commit_exchanges();
             copy_live = false;
         }
         ++adapt_age;
         if (adapt_age >= 2 && !(applied_early && adapt_age == 2)) {
-            if (!runtime_.pending.empty()) basalt::core::decode_events().tag(1u << 1);
+            if (!runtime_.pending.empty()) halo::core::decode_events().tag(1u << 1);
             runtime_.apply_pending(true);
         }
         // the elastic KV: the next window's cells backed before it runs (between windows, rare)
-        if (runtime_.kv_floor > 0 && p + T + 64 > basalt::core::session_kv_cells(*runtime_.rsp)) {
+        if (runtime_.kv_floor > 0 && p + T + 64 > halo::core::session_kv_cells(*runtime_.rsp)) {
             if (adapt_thr.joinable()) adapt_thr.join();
             if (copy_live) { runtime_.src.commit_exchanges(); copy_live = false; }   // as at the request's end
             if (!runtime_.kv_fit(*runtime_.rsp, p + runtime_.kKvGrowCells, runtime_.err, true, p + runtime_.kKvWindowCells)) {
@@ -143,7 +143,7 @@ inline int QfnRequest::before_window(int T, int64_t) {
                 return 2;
             }
         }
-        basalt::core::decode_gaps().mark(18);
+        halo::core::decode_gaps().mark(18);
     return 0;
 }
 
@@ -152,27 +152,27 @@ inline void QfnRequest::spawn_adapt(bool early) {
             if (runtime_.adapt_fast) {   // a round, or the next step of the one in flight, beside the draft
                 if (!do_adapt && runtime_.xq_stage == 0) return;
                 if (do_adapt) adapt_age = 0;
-                basalt::core::decode_events().tag(1u << 0);
-                basalt::core::decode_events().tag(1u << (6 + runtime_.xq_stage));
+                halo::core::decode_events().tag(1u << 0);
+                halo::core::decode_events().tag(1u << (6 + runtime_.xq_stage));
                 adapt_early = early;
                 adapt_thr.run([&, early] {
                     auto ms = [](Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); };
                     const auto ta = Clock::now();
-                    basalt::core::decode_events().stamp(8);
+                    halo::core::decode_events().stamp(8);
                     std::vector<QfnRuntime::Swap> ranked;
                     const bool pre = early && runtime_.xq_stage == 0;
                     if (pre) runtime_.rank_swaps(ranked, runtime_.xq_across);
                     const double ms_pre = ms(ta);
-                    basalt::core::SpinWait spin;
+                    halo::core::SpinWait spin;
                     while (early && adapt_go.load(std::memory_order_acquire) == 0) spin();
                     if (early && adapt_go.load(std::memory_order_acquire) != 1) return;
                     const auto tb = Clock::now();
                     adapt_ok = runtime_.xq_stage != 0 ? runtime_.xq_advance(false) : runtime_.xq_round(pre ? &ranked : nullptr);
-                    basalt::core::decode_events().stamp(6);
+                    halo::core::decode_events().stamp(6);
                     std::string perr;
-                    if (adapt_ok && !runtime_.ver.dm_presync(perr)) basalt::log::warn("basalt serve", "%s", perr.c_str());
-                    basalt::core::decode_events().stamp(7);
-                    basalt::core::decode_gaps().hms[20] += ms_pre + ms(tb);
+                    if (adapt_ok && !runtime_.ver.dm_presync(perr)) halo::log::warn("halo serve", "%s", perr.c_str());
+                    halo::core::decode_events().stamp(7);
+                    halo::core::decode_gaps().hms[20] += ms_pre + ms(tb);
                 });
                 return;
             }
@@ -183,9 +183,9 @@ inline void QfnRequest::spawn_adapt(bool early) {
                 adapt_ok = runtime_.adapt();
                 if (adapt_ok) {   // the evictions' residency, uploaded beside the draft
                     std::string perr;
-                    if (!runtime_.ver.dm_presync(perr)) basalt::log::warn("basalt serve", "%s", perr.c_str());
+                    if (!runtime_.ver.dm_presync(perr)) halo::log::warn("halo serve", "%s", perr.c_str());
                 }
-                basalt::core::decode_gaps().hms[20] += std::chrono::duration<double, std::milli>(Clock::now() - ta).count();
+                halo::core::decode_gaps().hms[20] += std::chrono::duration<double, std::milli>(Clock::now() - ta).count();
             });
         }
 
@@ -216,12 +216,12 @@ inline void QfnRequest::tier_after_commit() {
                     copy_live = true;
                     copy_done = false;
                 }
-                basalt::core::decode_events().tag(1u << 2);
+                halo::core::decode_events().tag(1u << 2);
                 apply_thr.run([&, boundary, copies] {
                     if (boundary) {
                         runtime_.apply_pending(true, false);
                         std::string perr;
-                        if (!runtime_.ver.dm_presync(perr)) basalt::log::warn("basalt serve", "%s", perr.c_str());
+                        if (!runtime_.ver.dm_presync(perr)) halo::log::warn("halo serve", "%s", perr.c_str());
                     }
                     if (copies) copy_done = !runtime_.src.exchanges_staged() || runtime_.src.copy_exchanges(8ull << 20);
                 });
@@ -278,7 +278,7 @@ inline int QfnRequest::accept_drafts(int T) {
 inline bool QfnRequest::after_accept(int T, int& a, int e0, bool from_sfx) {
         (void) e0;
         if (runtime_.logit_hash)   // the accepted rows' logits, per position (equality of the batch rows with these)
-            for (int t = 0; t <= a; ++t) basalt::log::raw("LH -1 %lld %016llx\n", (long long) (p + t), (unsigned long long) runtime_.row_hash(t));
+            for (int t = 0; t <= a; ++t) halo::log::raw("LH -1 %lld %016llx\n", (long long) (p + t), (unsigned long long) runtime_.row_hash(t));
         if (from_sfx) { ++sfx_windows; sfx_drafts += T - 1; sfx_ok += a; }
         if (tk_log != nullptr && tk_valid && !from_sfx && ppl == nullptr && req_temperature > 0.0) {
             std::vector<float> lg((size_t) runtime_.n_vocab);
@@ -294,7 +294,7 @@ inline bool QfnRequest::after_accept(int T, int& a, int e0, bool from_sfx) {
                 // top_k, top_p, then temperature over the survivors: the sampler chain without penalties
                 std::vector<int> ord((size_t) runtime_.n_vocab);
                 for (int i = 0; i < runtime_.n_vocab; ++i) ord[(size_t) i] = i;
-                const int K = basalt::kernels::sampler_list_len(req_top_k, (int) runtime_.n_vocab);
+                const int K = halo::kernels::sampler_list_len(req_top_k, (int) runtime_.n_vocab);
                 std::partial_sort(ord.begin(), ord.begin() + K, ord.end(), [&](int x, int y) {
                     return lg[(size_t) x] > lg[(size_t) y] || (lg[(size_t) x] == lg[(size_t) y] && x < y);
                 });
@@ -328,7 +328,7 @@ inline void QfnRequest::note_draft_probs(bool from_sfx) {
 
 template <class After>
 inline bool QfnRequest::draft_next(int T, int a, int e0, bool from_sfx, bool will_draft, After& after_launch) {
-    basalt::core::decode_gaps().mark(5);
+    halo::core::decode_gaps().mark(5);
     if (!from_sfx && e0 == 0) cum_adapt.observe(dprob.data(), T - 1, a);
     runtime_.mtp.set_cum_th(cum_adapt.th());
     bool drafted = true;
@@ -338,7 +338,7 @@ inline bool QfnRequest::draft_next(int T, int a, int e0, bool from_sfx, bool wil
             runtime_.mtp.set_cum_th(cum_adapt.th());
             runtime_.mtp.set_host_th(cum_adapt.th());
             if (const int32_t* top = cv->top_ids())
-                runtime_.mtp.note_candidates(top, (a + 1) * basalt::core::Verifier::kTopIds);
+                runtime_.mtp.note_candidates(top, (a + 1) * halo::core::Verifier::kTopIds);
             drafted = runtime_.mtp.draft_from(cv->final_R_all(), T, outv.data(), p, a, drafts.data(), runtime_.err, dprob.data(), &n_chain);
             runtime_.mtp.set_launch_hook(nullptr);
             if (tk_log != nullptr && drafted) {
@@ -353,7 +353,7 @@ inline bool QfnRequest::draft_next(int T, int a, int e0, bool from_sfx, bool wil
 
 inline void QfnRequest::window_timing(int T, int a, bool from_sfx, Clock::time_point round0, Clock::time_point tw0,
                                       Clock::time_point tw1, Clock::time_point tw2) {
-    basalt::core::decode_events().stamp(0);
+    halo::core::decode_events().stamp(0);
         {
             const Clock::time_point tw3 = Clock::now();
             auto msd = [](Clock::time_point a0, Clock::time_point b0) { return std::chrono::duration<double, std::milli>(b0 - a0).count(); };
@@ -376,4 +376,4 @@ void QfnRequest::decode_end() {
 
 Flow QfnRequest::decode() { return decode_loop(*this); }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

@@ -1,19 +1,19 @@
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace basalt::core { struct Json; }
-namespace basalt::models::qwen4exp { struct Options; }
-namespace basalt::kernels { struct RopeScaling; struct SamplerParams; }
+namespace halo::core { struct Json; }
+namespace halo::models::qwen4exp { struct Options; }
+namespace halo::kernels { struct RopeScaling; struct SamplerParams; }
 
-namespace basalt::models::qwen4exp::cli {
+namespace halo::models::qwen4exp::cli {
 
 // The name of the engine's expert profile for a model (data/profiles/<key>.prof): "<architecture>-<block_count>x
 // <expert_count>" from meta.gguf_kv; empty when the metadata does not say.
-std::string profile_key(const basalt::core::Json& meta);
+std::string profile_key(const halo::core::Json& meta);
 
 // The file names under data/profiles the engine ships for the pack `key` names; empty for any other pack.
 std::vector<std::string> shipped_profiles(const std::string& key);
@@ -31,6 +31,6 @@ bool normalize_speculation_options(Options& o);
 
 // Check CLI ranges and conflicts before allocating weights; seed the RoPE type for model resolution.
 std::optional<int> validate_generation_options(const Options& o, int min_vram_reserve_mib);
-basalt::kernels::SamplerParams sampling_options(const Options& o);
+halo::kernels::SamplerParams sampling_options(const Options& o);
 
-}  // namespace basalt::models::qwen4exp::cli
+}  // namespace halo::models::qwen4exp::cli

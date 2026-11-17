@@ -2,13 +2,13 @@
 // check it without linking the model.
 #pragma once
 
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/model/adapter.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/model/adapter.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
 
 #include <string>
 
-namespace basalt::models::qwen4exp {
+namespace halo::models::qwen4exp {
 
 inline std::string validate_meta(const GgufFile& g) {
     // keys the model must carry; a zero expectation checks presence only (pruned variants ship fewer experts)
@@ -52,4 +52,4 @@ inline model::ModelDesc describe_meta(const GgufFile& g) {
     return d;
 }
 
-}  // namespace basalt::models::qwen4exp
+}  // namespace halo::models::qwen4exp

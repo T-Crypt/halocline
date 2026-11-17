@@ -2,29 +2,29 @@
 #pragma once
 
 #include "../cli/tokens.hpp"
-#include "basalt/core/checkpoint_transfer.hpp"
-#include "basalt/core/conversation_cache.hpp"
-#include "basalt/core/conversation_memory.hpp"
-#include "basalt/core/conversation_store.hpp"
-#include "basalt/core/device.hpp"
-#include "basalt/core/draft_cum.hpp"
-#include "basalt/core/logit_bias.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/log.hpp"
-#include "basalt/model/adapter.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
-#include "basalt/platform/process.hpp"
-#include "basalt/platform/system.hpp"
-#include "basalt/program/conv_cache.hpp"
-#include "basalt/program/grammar/guard.hpp"
-#include "basalt/program/options.hpp"
-#include "basalt/program/ppl_gate.hpp"
-#include "basalt/program/tokenizer.hpp"
-#include "basalt/spec/draft_policy.hpp"
-#include "basalt/spec/suffix_drafter.hpp"
+#include "halo/core/checkpoint_transfer.hpp"
+#include "halo/core/conversation_cache.hpp"
+#include "halo/core/conversation_memory.hpp"
+#include "halo/core/conversation_store.hpp"
+#include "halo/core/device.hpp"
+#include "halo/core/draft_cum.hpp"
+#include "halo/core/logit_bias.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/log.hpp"
+#include "halo/model/adapter.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
+#include "halo/platform/process.hpp"
+#include "halo/platform/system.hpp"
+#include "halo/program/conv_cache.hpp"
+#include "halo/program/grammar/guard.hpp"
+#include "halo/program/options.hpp"
+#include "halo/program/ppl_gate.hpp"
+#include "halo/program/tokenizer.hpp"
+#include "halo/spec/draft_policy.hpp"
+#include "halo/spec/suffix_drafter.hpp"
 
 #include <cuda_runtime.h>
 
@@ -54,12 +54,12 @@
 #include <thread>
 #include <vector>
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
-namespace cli = basalt::program::cli;
+namespace cli = halo::program::cli;
 using Clock = std::chrono::steady_clock;
-using ImgKey = basalt::core::ConversationImageKey;
-using ConvCheckpoint = basalt::core::ConversationCheckpoint;
+using ImgKey = halo::core::ConversationImageKey;
+using ConvCheckpoint = halo::core::ConversationCheckpoint;
 
 uint64_t fnv1a(const void* data, size_t n, uint64_t h = 1469598103934665603ull);
 std::string stage_text();
@@ -73,13 +73,13 @@ enum class Flow { proceed, next, quit, error };
 // a streaming state's residency map).
 inline constexpr int kVramStallMib = 256;
 inline constexpr int kVramFloorMib = 128;
-inline int vram_floor_mib() { return basalt::platform::gpu_memory_pages() ? kVramStallMib : kVramFloorMib; }
+inline int vram_floor_mib() { return halo::platform::gpu_memory_pages() ? kVramStallMib : kVramFloorMib; }
 
 // The server's state every model shares: its input, its requests' conversation chain, its slots.
 class Runtime {
 public:
-    Runtime(basalt::program::CommonOptions& options, basalt::core::ModelFile& file, std::string& error, const int64_t& vocab,
-            std::optional<basalt::program::grammar::PackVocab>& vocab_tables)
+    Runtime(halo::program::CommonOptions& options, halo::core::ModelFile& file, std::string& error, const int64_t& vocab,
+            std::optional<halo::program::grammar::PackVocab>& vocab_tables)
         : o(options), model_file(file), err(error), n_vocab(vocab), grammar_vocab(vocab_tables) {}
     // the stdin reader thread uses this object's state: it ends before the object does
     virtual ~Runtime() {
@@ -99,7 +99,7 @@ public:
     virtual void print_info() = 0;   // the INFO line
     virtual void at_exit() {}
     /// The pack's tokenizer rule, set before the input starts.
-    basalt::model::ModelAdapter::PreTokenizer pre_{};
+    halo::model::ModelAdapter::PreTokenizer pre_{};
     static constexpr int kPenaltyWindowCap = 4096;
     // ---- what a model answers: one call per batch window at most, the rest per command or per request
     virtual bool next_batch_window() = 0;
@@ -134,11 +134,11 @@ public:
     virtual size_t spill_to_disk(bool at_exit, size_t limit) = 0;
     virtual bool park_idle_engine(std::string& e) = 0;
     virtual void kv_ceiling_note() {}   // a model with an elastic KV sends its ceiling again when it moves
-    basalt::program::CommonOptions& o;
-    basalt::core::ModelFile& model_file;
+    halo::program::CommonOptions& o;
+    halo::core::ModelFile& model_file;
     std::string& err;
     const int64_t& n_vocab;
-    std::optional<basalt::program::grammar::PackVocab>& grammar_vocab;
+    std::optional<halo::program::grammar::PackVocab>& grammar_vocab;
     // ---- the conversation cache (see ConvCheckpoint).  `live` is what the session holds right now: the tokens it
     // has consumed, so a request that starts with exactly them continues without any copy.  `checks` are the saved
     // points; every one of them is a prefix of `live` (the loop drops the rest), so they form a chain - the radix
@@ -152,17 +152,17 @@ public:
     bool live_ok{};
     std::vector<ConvCheckpoint> checks{};
     /// The checkpoint save in flight (see ckd_finish).  Declared after `checks`: its wait runs before their bytes are freed.
-    basalt::core::CheckpointDeferral ckd{};
+    halo::core::CheckpointDeferral ckd{};
     /// A checkpoint of `to` tokens already in the chain is used again (and keeps the higher `source`): true.
     bool touch_check(int64_t to, ConvCheckpoint::Source source);
     /// Adds a checkpoint to the chain; the least recently used one goes first past --prompt-cache.
     void keep_check(ConvCheckpoint&& c);
     uint64_t check_clock{};
     bool cvec_cached{};
-    std::optional<basalt::core::ConversationCache> conversations;
+    std::optional<halo::core::ConversationCache> conversations;
     // the disk tier under it (--conversation-cache-dir): what leaves the session or the RAM cache is written there,
     // and a prompt that starts with a stored conversation reads it back, after a restart too
-    basalt::core::ConversationStore disk{};
+    halo::core::ConversationStore disk{};
     virtual int64_t disk_min_tokens() const = 0;
     static constexpr int64_t kDiskStaleTokens = 4096;   // a stored copy this close to the chain's end is kept
     static constexpr uint64_t kDiskQueueCap = 4ull << 30;   // images waiting for the writer, in RAM
@@ -178,7 +178,7 @@ public:
     // says so
     std::string ckpt_why{};
     // GENT: the request text arrives as bytes and the reader thread turns it into ids, from the pack's tokenizer tables
-    basalt::program::Tokenizer text_tokenizer{};
+    halo::program::Tokenizer text_tokenizer{};
     std::string text_tokenizer_note{};
     /// The raw bytes a token stands for; empty when the pack's tokenizer tables are not loaded or the id has none.
     std::string_view token_bytes(int32_t id) const {
@@ -256,17 +256,17 @@ public:
         std::mt19937_64 rng;
         // the request's grammar (the batch windows' form of the solo loop's `gguard`): the window's kept picks are
         // scanned, the first refused one is resampled under the mask, and the segment ends there
-        std::unique_ptr<basalt::program::grammar::Guard> guard;
+        std::unique_ptr<halo::program::grammar::Guard> guard;
         int lp_top = -1;   ///< the request's logprobs=K: a BP line ahead of the BT line for every kept pick (-1: off)
         // the MTP drafter's side of the slot (the draft K/V is the drafter's store of the same index): the drafts and
         // their probabilities for the slot's next window, the request's draft-length rule state, its prompt-lookup
         // history and last proposal
-        int32_t dr[basalt::spec::DraftPolicy::kMaxT] = {};
-        float dprob[basalt::spec::DraftPolicy::kMaxT] = {};
+        int32_t dr[halo::spec::DraftPolicy::kMaxT] = {};
+        float dprob[halo::spec::DraftPolicy::kMaxT] = {};
         int n_dr = 0;
-        basalt::core::DraftCumAdapt cum;
-        std::unique_ptr<basalt::spec::SuffixDrafter> sfx;
-        int32_t sbuf[basalt::spec::DraftPolicy::kMaxT] = {};
+        halo::core::DraftCumAdapt cum;
+        std::unique_ptr<halo::spec::SuffixDrafter> sfx;
+        int32_t sbuf[halo::spec::DraftPolicy::kMaxT] = {};
         int sk = 0, smatch = 0;
         int pen_n = 0;                 ///< the request's penalty window (penalty_last_n; 0: no penalties)
         bool from_sfx = false;
@@ -311,8 +311,8 @@ public:
     // two do not fit side by side; copy_from_slot restores from it
     struct SlotHeld {
         int b = -1;
-        std::vector<basalt::core::ConversationCheckpoint> ck;
-        std::vector<std::vector<basalt::core::ConversationKv>> kv;
+        std::vector<halo::core::ConversationCheckpoint> ck;
+        std::vector<std::vector<halo::core::ConversationKv>> kv;
     };
     SlotHeld slot_held{};
     std::vector<ImgKey> imgs_below(const std::vector<ImgKey>& all, int64_t L);
@@ -324,4 +324,4 @@ public:
     bool try_next_line(std::string& out);
 };
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

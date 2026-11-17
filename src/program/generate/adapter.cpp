@@ -4,15 +4,15 @@
 #include "../cli/tokens.hpp"
 #include "../serve/session_engine.hpp"
 
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/core/shipped_profiles.hpp"
-#include "basalt/log.hpp"
-#include "basalt/model/adapter.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/process.hpp"
-#include "basalt/program/options.hpp"
-#include "basalt/protocol.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/core/shipped_profiles.hpp"
+#include "halo/log.hpp"
+#include "halo/model/adapter.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/process.hpp"
+#include "halo/program/options.hpp"
+#include "halo/protocol.hpp"
 #include <cuda_runtime.h>
 #include <chrono>
 #include <cstdio>
@@ -29,27 +29,27 @@
 #include <sstream>
 #include <thread>
 
-namespace basalt::program::generate {
+namespace halo::program::generate {
 
 namespace {
 
 using Clock = std::chrono::steady_clock;
-namespace cli = basalt::program::cli;
+namespace cli = halo::program::cli;
 
 // The name of the engine's expert profile for a model (data/profiles/<key>.prof).
-std::string profile_key(const basalt::core::Json& meta) {
-    using T = basalt::core::Json::Type;
-    const basalt::core::Json* kv = meta.get("gguf_kv");
-    const basalt::core::Json* arch = kv ? kv->get("general.architecture") : nullptr;
+std::string profile_key(const halo::core::Json& meta) {
+    using T = halo::core::Json::Type;
+    const halo::core::Json* kv = meta.get("gguf_kv");
+    const halo::core::Json* arch = kv ? kv->get("general.architecture") : nullptr;
     if (arch == nullptr || !arch->is_string() || arch->s.empty()) return {};
-    const basalt::core::Json* nl = kv->get(arch->s + ".block_count");
-    const basalt::core::Json* ne = kv->get(arch->s + ".expert_count");
+    const halo::core::Json* nl = kv->get(arch->s + ".block_count");
+    const halo::core::Json* ne = kv->get(arch->s + ".expert_count");
     if (nl == nullptr || ne == nullptr || nl->type != T::Int || ne->type != T::Int || nl->neg || ne->neg) return {};
     return arch->s + "-" + std::to_string(nl->u64()) + "x" + std::to_string(ne->u64());
 }
 
 int fatal_start_error(const std::string& text) {
-    basalt::log::error("basalt", "%s", text.c_str());
+    halo::log::error("halo", "%s", text.c_str());
     return 1;
 }
 
@@ -62,7 +62,7 @@ struct AdapterImage {
     int64_t at = 0;
     std::vector<float> rows;
     int n_rows = 0;
-    basalt::model::ImageGrid grid;
+    halo::model::ImageGrid grid;
 };
 
 struct AdapterTimes {
@@ -75,7 +75,7 @@ struct AdapterTimes {
 /// text. `next` is the token after the prompt; `pos` the next free position. The first `reuse` tokens (no pictures)
 /// are already in the session. `report`: print `PP <position> <positions in the prompt> <ms> <tok/s>` as the prompt is
 /// read, the reused positions counted as read and left out of the speed.
-bool adapter_prompt(basalt::model::ModelSession& sess, const std::vector<int32_t>& toks,
+bool adapter_prompt(halo::model::ModelSession& sess, const std::vector<int32_t>& toks,
                     const std::vector<AdapterImage>& images, int32_t& next, int64_t& pos, AdapterTimes& tm,
                     std::string& err, float* logits = nullptr, size_t reuse = 0, bool report = false) {
     const auto t0 = Clock::now();
@@ -89,7 +89,7 @@ bool adapter_prompt(basalt::model::ModelSession& sess, const std::vector<int32_t
         const double prev = last_ms.load();
         if (ms - prev < 500.0 && ms >= prev) return;
         last_ms.store(ms);
-        basalt::protocol::emit("PL %lld %lld %.0f %.1f\n", (long long) at, (long long) total, ms,
+        halo::protocol::emit("PL %lld %lld %.0f %.1f\n", (long long) at, (long long) total, ms,
                                ms > 0.0 ? 1000.0 * (double) (at - (int64_t) reuse) / ms : 0.0);
     };
     auto report_at = [&](int64_t at) {
@@ -101,11 +101,11 @@ bool adapter_prompt(basalt::model::ModelSession& sess, const std::vector<int32_t
     };
     size_t done = reuse;   // prompt tokens consumed
     const size_t n_pre = toks.size() - 1;
-    basalt::model::Result r;
+    halo::model::Result r;
     for (size_t i = 0; r.ok() && i <= images.size(); ++i) {
         const size_t end = i < images.size() ? (size_t) images[i].at : n_pre;
         if (end > done) {
-            basalt::model::PrefillRequest pr;
+            halo::model::PrefillRequest pr;
             pr.tokens = toks.data() + done;
             pr.n_tokens = (int) (end - done);
             pr.pos = pos;
@@ -113,7 +113,7 @@ bool adapter_prompt(basalt::model::ModelSession& sess, const std::vector<int32_t
             if (g_diag_serial_prompt) {   // one token per step, through the decode path
                 for (int t = 0; r.ok() && t < pr.n_tokens; ++t) {
                     int32_t row_next = -1;
-                    basalt::model::DecodeRequest one;
+                    halo::model::DecodeRequest one;
                     one.tokens = pr.tokens + t;
                     one.n_tokens = 1;
                     one.pos = pos + t;
@@ -136,7 +136,7 @@ bool adapter_prompt(basalt::model::ModelSession& sess, const std::vector<int32_t
             if (report) pr.live = [&, base](int n) { live_at(base + n); };
             const auto tp = Clock::now();
             r = sess.prefill_chunk(pr);
-            basalt::log::info("basalt generate", "batched prefill %d tokens in %.0f ms", pr.n_tokens,
+            halo::log::info("halo generate", "batched prefill %d tokens in %.0f ms", pr.n_tokens,
                          std::chrono::duration<double, std::milli>(Clock::now() - tp).count());
             pos += pr.n_tokens;
             done = end;
@@ -145,14 +145,14 @@ bool adapter_prompt(basalt::model::ModelSession& sess, const std::vector<int32_t
         if (r.ok() && i < images.size()) {
             const auto tp = Clock::now();
             r = sess.prefill_embeddings(images[i].rows.data(), images[i].n_rows, pos, images[i].grid);
-            basalt::log::info("basalt generate", "image prefill %d rows in %.0f ms", images[i].n_rows,
+            halo::log::info("halo generate", "image prefill %d rows in %.0f ms", images[i].n_rows,
                          std::chrono::duration<double, std::milli>(Clock::now() - tp).count());
             pos += images[i].n_rows;
             if (r.ok()) report_at(pos);
         }
     }
     if (r.ok()) {
-        basalt::model::DecodeRequest dr;
+        halo::model::DecodeRequest dr;
         dr.tokens = toks.data() + n_pre;
         dr.n_tokens = 1;
         dr.pos = pos;
@@ -178,17 +178,17 @@ bool adapter_prompt(basalt::model::ModelSession& sess, const std::vector<int32_t
 
 // The CLI path of a session model: greedy decode of a pre-tokenized prompt, one `T <id>` line per token.
 // Each --image's embedding block goes before the prompt token at its --image-at index.
-int adapter_generate(basalt::model::LoadedModel& loaded, const std::vector<int64_t>& prompt, int64_t max_new,
+int adapter_generate(halo::model::LoadedModel& loaded, const std::vector<int64_t>& prompt, int64_t max_new,
                             const std::vector<int64_t>& stop_ids, const std::vector<std::string>& images,
                             const std::vector<int64_t>& image_at, const std::vector<int64_t>& oracle, bool teacher) {
-    std::unique_ptr<basalt::model::ModelSession> sess;
-    const basalt::model::Result mr = loaded.make_session(sess);
+    std::unique_ptr<halo::model::ModelSession> sess;
+    const halo::model::Result mr = loaded.make_session(sess);
     if (!mr.ok()) {
-        basalt::log::error("basalt generate", "%s", mr.message.c_str());
+        halo::log::error("halo generate", "%s", mr.message.c_str());
         return 1;
     }
     if (images.size() != image_at.size()) {
-        basalt::log::error("basalt generate", "every --image needs an --image-at");
+        halo::log::error("halo generate", "every --image needs an --image-at");
         return 2;
     }
     std::vector<int32_t> toks(prompt.begin(), prompt.end());
@@ -196,19 +196,19 @@ int adapter_generate(basalt::model::LoadedModel& loaded, const std::vector<int64
     std::vector<AdapterImage> blocks(images.size());
     for (size_t i = 0; i < images.size(); ++i) {
         if (image_at[i] < 0 || image_at[i] >= (int64_t) toks.size() || (i > 0 && image_at[i] < image_at[i - 1])) {
-            basalt::log::error("basalt generate", "--image-at must rise and stay inside the prompt");
+            halo::log::error("halo generate", "--image-at must rise and stay inside the prompt");
             return 2;
         }
         blocks[i].at = image_at[i];
         std::ifstream f(images[i], std::ios::binary);
         const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
         const auto te = Clock::now();
-        const basalt::model::Result er = sess->encode_image(bytes.data(), bytes.size(), blocks[i].rows, blocks[i].n_rows, blocks[i].grid);
+        const halo::model::Result er = sess->encode_image(bytes.data(), bytes.size(), blocks[i].rows, blocks[i].n_rows, blocks[i].grid);
         if (!er.ok()) {
-            basalt::log::error("basalt generate", "%s: %s", images[i].c_str(), er.message.c_str());
+            halo::log::error("halo generate", "%s: %s", images[i].c_str(), er.message.c_str());
             return 1;
         }
-        basalt::log::info("basalt generate", "image %s -> %d rows in %.0f ms", images[i].c_str(), blocks[i].n_rows,
+        halo::log::info("halo generate", "image %s -> %d rows in %.0f ms", images[i].c_str(), blocks[i].n_rows,
                      std::chrono::duration<double, std::milli>(Clock::now() - te).count());
     }
     if (!images.empty()) sess->images_done();
@@ -218,7 +218,7 @@ int adapter_generate(basalt::model::LoadedModel& loaded, const std::vector<int64
     std::string err;
     const auto t0 = Clock::now();
     if (!adapter_prompt(*sess, toks, blocks, next, pos, tm, err)) {
-        basalt::log::error("basalt generate", "%s", err.c_str());
+        halo::log::error("halo generate", "%s", err.c_str());
         return 1;
     }
     const auto t1 = Clock::now();
@@ -247,10 +247,10 @@ int adapter_generate(basalt::model::LoadedModel& loaded, const std::vector<int64
                 ++n_draft;
             }
         } else if (cap > 1) {
-            basalt::model::Result dres = sess->draft_begin(next, pos, cap - 1);
+            halo::model::Result dres = sess->draft_begin(next, pos, cap - 1);
             if (dres.ok()) dres = sess->draft_end(drafts.data(), conf.data(), cap - 1, n_draft);
-            if (!dres.ok() && dres.status != basalt::model::Status::NotImplemented) {
-                basalt::log::error("basalt generate", "%s", dres.message.c_str());
+            if (!dres.ok() && dres.status != halo::model::Status::NotImplemented) {
+                halo::log::error("halo generate", "%s", dres.message.c_str());
                 return 1;
             }
         }
@@ -258,7 +258,7 @@ int adapter_generate(basalt::model::LoadedModel& loaded, const std::vector<int64
         window[0] = next;
         std::copy(drafts.begin(), drafts.begin() + n_draft, window.begin() + 1);
         const auto w1 = Clock::now();
-        basalt::model::DecodeRequest dr;
+        halo::model::DecodeRequest dr;
         dr.tokens = window.data();
         dr.n_tokens = T;
         dr.pos = pos;
@@ -267,9 +267,9 @@ int adapter_generate(basalt::model::LoadedModel& loaded, const std::vector<int64
             diag_rows.resize((size_t) cap * (size_t) g_n_vocab);
             dr.logits = diag_rows.data();
         }
-        const basalt::model::Result r = sess->decode_window(dr);
+        const halo::model::Result r = sess->decode_window(dr);
         if (!r.ok()) {
-            basalt::log::error("basalt generate", "%s", r.message.c_str());
+            halo::log::error("halo generate", "%s", r.message.c_str());
             return 1;
         }
         const auto w2 = Clock::now();
@@ -300,19 +300,19 @@ int adapter_generate(basalt::model::LoadedModel& loaded, const std::vector<int64
         next = rows[(size_t) a];
     }
     const auto t2 = Clock::now();
-    basalt::log::info("basalt generate", "prompt %.0f ms, %lld tokens in %.0f ms",
+    halo::log::info("halo generate", "prompt %.0f ms, %lld tokens in %.0f ms",
                  std::chrono::duration<double, std::milli>(t1 - t0).count(), (long long) made,
                  std::chrono::duration<double, std::milli>(t2 - t1).count());
     if (cap > 1)
-        basalt::log::info("basalt generate", "windows %lld of %.2f tokens: %lld of %lld drafts accepted, %lld picks differ from the oracle; draft %.2f ms, verify %.2f ms per window",
+        halo::log::info("halo generate", "windows %lld of %.2f tokens: %lld of %lld drafts accepted, %lld picks differ from the oracle; draft %.2f ms, verify %.2f ms per window",
                           (long long) windows, windows ? (double) (accepted + windows) / (double) windows : 0.0, (long long) accepted,
                           (long long) offered, (long long) differ, windows ? ms_draft / (double) windows : 0.0, windows ? ms_verify / (double) windows : 0.0);
     return 0;
 }
 
-int run_session_model(basalt::program::CommonOptions& o, const basalt::model::ModelAdapter& model_adapter) {
-    const basalt::model::ModelAdapter* adapter = &model_adapter;
-    basalt::core::ModelFile model_file;
+int run_session_model(halo::program::CommonOptions& o, const halo::model::ModelAdapter& model_adapter) {
+    const halo::model::ModelAdapter* adapter = &model_adapter;
+    halo::core::ModelFile model_file;
     {
         std::string merr;
         if (!model_file.open(o.model, merr) || !model_file.load_meta(merr) || !model_file.register_gguf_view(merr))
@@ -322,13 +322,13 @@ int run_session_model(basalt::program::CommonOptions& o, const basalt::model::Mo
     g_diag_serial_prompt = o.diag_serial_prompt;
     if (!o.diag_logits.empty()) g_diag_logits = std::fopen(o.diag_logits.c_str(), "wb");
     try {
-        const basalt::GgufFile model_gguf(o.native_shards.front());
+        const halo::GgufFile model_gguf(o.native_shards.front());
         std::string err = adapter->validate(model_gguf);
         if (!err.empty()) return fatal_start_error(err);
-        const basalt::model::ModelDesc desc = adapter->describe(model_gguf);
+        const halo::model::ModelDesc desc = adapter->describe(model_gguf);
         g_n_vocab = desc.n_vocab;
-        std::unique_ptr<basalt::model::LoadedModel> loaded;
-        basalt::model::LoadRequest lreq;
+        std::unique_ptr<halo::model::LoadedModel> loaded;
+        halo::model::LoadRequest lreq;
         lreq.paths = o.native_shards;
         lreq.diag_dump = o.diag_dump;
         lreq.diag_tier_ram = o.diag_tier_ram;
@@ -343,13 +343,13 @@ int run_session_model(basalt::program::CommonOptions& o, const basalt::model::Mo
             for (const std::string& name : adapter->shipped_profiles(key)) {
                 if (!(name == key + ".prof" && !o.expert_profile.empty())) need.push_back(name);
             }
-            const std::string miss = basalt::core::missing_shipped_profile(basalt::platform::install_root() + "/data/profiles", need);
+            const std::string miss = halo::core::missing_shipped_profile(halo::platform::install_root() + "/data/profiles", need);
             if (!miss.empty()) return fatal_start_error(miss);
         }
         if (lreq.expert_profile.empty()) {   // the engine's own for this model, when it ships one
-            const std::string prof = basalt::platform::install_root() + "/data/profiles/" + key + ".prof";
+            const std::string prof = halo::platform::install_root() + "/data/profiles/" + key + ".prof";
             uint64_t bytes = 0;
-            if (!key.empty() && basalt::platform::file_size(prof, bytes) && bytes > 0) lreq.expert_profile = prof;
+            if (!key.empty() && halo::platform::file_size(prof, bytes) && bytes > 0) lreq.expert_profile = prof;
         }
         lreq.expert_cache = o.expert_cache;
         lreq.resident_budget = o.resident_budget;
@@ -361,18 +361,18 @@ int run_session_model(basalt::program::CommonOptions& o, const basalt::model::Mo
         lreq.spec = o.spec;
         lreq.draft = o.spec >= 2 && o.spec_oracle.empty();
         lreq.drafter_device = o.drafter_device;
-        lreq.profile_dir = basalt::platform::install_root() + "/data/profiles";
+        lreq.profile_dir = halo::platform::install_root() + "/data/profiles";
         lreq.draft_experts = o.draft_experts;
         lreq.diag_tier_frozen = o.diag_tier_frozen;
         lreq.kv = o.kv;
         lreq.rope = o.rope;
         lreq.kv_resident = o.kv_resident;
-        const basalt::model::Result r = adapter->load(lreq, loaded);
+        const halo::model::Result r = adapter->load(lreq, loaded);
         if (!r.ok() || !loaded) return fatal_start_error(r.message);
         std::vector<int64_t> stop;
         if (o.stop_eos) stop = o.eos_ids;
         if (loaded->context() != 0) o.max_context = loaded->context();
-        if (o.serve) return basalt::program::serve::run_session(o, model_file, *adapter, *loaded);
+        if (o.serve) return halo::program::serve::run_session(o, model_file, *adapter, *loaded);
         std::vector<int64_t> oracle;
         if (const auto code = cli::load_spec_oracle(o.spec_oracle, oracle)) return *code;
         if (o.diag_teacher && oracle.empty()) return fatal_start_error("--diag-teacher needs --spec-oracle");
@@ -382,4 +382,4 @@ int run_session_model(basalt::program::CommonOptions& o, const basalt::model::Mo
     }
 }
 
-}  // namespace basalt::program::generate
+}  // namespace halo::program::generate

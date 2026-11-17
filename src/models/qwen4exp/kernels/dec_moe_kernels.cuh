@@ -1,7 +1,7 @@
 // src/models/qwen4exp/kernels/dec_moe_kernels.cuh - the decode MoE tail's route, stage, wait and test kernels (one TU: dec_moe.cu), on dec_moe.cuh's device code.
 #pragma once
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 // Block 0 plans CUDA0's groups and publishes the ring's header; the other blocks quantize the FFN input (256 values
@@ -295,4 +295,4 @@ __global__ void dm_wait_kernel(const DmPlan* plan, const volatile uint32_t* host
 }
 
 }  // namespace
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

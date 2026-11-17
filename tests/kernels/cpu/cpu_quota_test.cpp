@@ -1,6 +1,6 @@
 // Parity of cgroup_cpu_quota against fake cgroup trees (v2, v1, hybrid, hidden paths).
-#include "basalt/kernels/cpu/cpu_quota.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/kernels/cpu/cpu_quota.hpp"
+#include "halo/platform/system.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -10,7 +10,7 @@
 #include <string>
 
 namespace fs = std::filesystem;
-using basalt::kernels::cpu::cgroup_cpu_quota;
+using halo::kernels::cpu::cgroup_cpu_quota;
 
 static int g_fail = 0;
 static void require(bool ok, const char* what) {
@@ -21,7 +21,7 @@ static void require(bool ok, const char* what) {
 }
 
 int main() {
-    const fs::path dir = fs::temp_directory_path() / ("cpu_quota_test_" + std::to_string(basalt::platform::process_id()));
+    const fs::path dir = fs::temp_directory_path() / ("cpu_quota_test_" + std::to_string(halo::platform::process_id()));
     fs::remove_all(dir);
     fs::create_directories(dir);
     auto put = [&](const std::string& rel, const std::string& text) {

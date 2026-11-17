@@ -1,19 +1,19 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // A host-to-device upload in pieces of at most kSmallCopy bytes: a copy that small passes the expert copies queued on
@@ -112,4 +112,4 @@ bool Verifier::dm_fence(cudaStream_t s) {
     return cudaEventRecord(fence_ev_, cs_) == cudaSuccess && cudaStreamWaitEvent(s, fence_ev_, 0) == cudaSuccess;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

@@ -1,4 +1,4 @@
-// basalt/program/serve/reply_rows.hpp - which rows of a verify window the session keeps.
+// halo/program/serve/reply_rows.hpp - which rows of a verify window the session keeps.
 //
 // Row i of a window is fed by window[i]: row 0 by the token carried over (the last prompt token or the previous
 // window's last pick), row i > 0 by the draft the target confirmed as pick i - 1.  Picks e0..a are the reply's; the
@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 struct ReplyRows {
     int emit = 0;        ///< picks the window sends
@@ -36,4 +36,4 @@ inline ReplyRows reply_rows(const int32_t* picks, int e0, int a, int64_t produce
     return r;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

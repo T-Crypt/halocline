@@ -1,11 +1,11 @@
 // tests/program/auto_plan_test.cpp - the start-up picks: RAM sizes, CPU shapes, given or left out.
-#include "basalt/program/auto_plan.hpp"
+#include "halo/program/auto_plan.hpp"
 
 #include <cstdio>
 
 #include <string>
 
-using namespace basalt::program;
+using namespace halo::program;
 
 static int g_fail = 0;
 #define CHECK(c)                                                              \
@@ -140,14 +140,14 @@ int main() {
     // the file (issue #285), and one that fits is not cut.
     {
         AutoInputs in = base(64);            // 60 available, 6 floor, a 60 GiB complement
-        in.file_cache = basalt::core::FileCache{G, 3 * G};
+        in.file_cache = halo::core::FileCache{G, 3 * G};
         AutoPlan p = choose_auto(in);
         CHECK(p.resident_bytes == 50 * G);          // 60 - 6 - the 4 GiB minimum (3 + two layers' sixth)
-        in.file_cache = basalt::core::FileCache{8 * G, 3 * G};
+        in.file_cache = halo::core::FileCache{8 * G, 3 * G};
         p = choose_auto(in);                        // 3 + 2 x 8 x (60 - room) / 60: the floor iterates down to about 6.3 GiB
         CHECK(p.resident_bytes < 50 * G && p.resident_bytes > 47 * G);
         in = base(128);                      // everything fits: the copy is not cut
-        in.file_cache = basalt::core::FileCache{8 * G, 3 * G};
+        in.file_cache = halo::core::FileCache{8 * G, 3 * G};
         CHECK(choose_auto(in).resident_bytes == 60 * G);
     }
     if (g_fail) { std::printf("auto_plan_test: %d failures\n", g_fail); return 1; }

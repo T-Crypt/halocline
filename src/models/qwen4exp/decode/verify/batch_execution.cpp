@@ -1,33 +1,33 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
 #include "diagnostics.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/gdn_window.hpp"
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/kernels/wait_abort.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/gdn_window.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/wait_abort.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <string>
 #include <immintrin.h>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 bool Verifier::stage_batch(const int* slots, const int* lens, int S, int hbase, const int32_t* tokens,
                            const int64_t* pos0, std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     int R = 0;
     for (int s = 0; s < S && s < 9; ++s) R += lens != nullptr ? lens[s] : 1;
     if (S < 1 || S > max_t_ || R < S || R > max_t_ || hbase < 0 || (hbase > 0 && hbase + R > (int) slots_.size())) {
@@ -43,7 +43,7 @@ bool Verifier::stage_batch(const int* slots, const int* lens, int S, int hbase, 
         }
     }
     if (released_.load()) { err = "verify: an earlier window never finished on the GPU; restart the engine"; return false; }
-    if (basalt::kernels::wait_abort_code() != 0) { err = "verify: a device wait timed out in an earlier window; restart the engine"; return false; }
+    if (halo::kernels::wait_abort_code() != 0) { err = "verify: a device wait timed out in an earlier window; restart the engine"; return false; }
     const ModelGeometry& g = *g_;
     for (int s = 0; s < S; ++s)
         if (pos0[s] < 0 || pos0[s] + (lens != nullptr ? lens[s] : 1) > slots_[(size_t) slots[s]]->max_cells) {
@@ -149,7 +149,7 @@ bool Verifier::dm_stage_places(std::string& err) {
 
 bool Verifier::run_slot_segs(const int* rows, const int* lens, int S, const int32_t* tokens, const int64_t* pos,
                              PoolMultiFn pool, void* user, int32_t* out, std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const OnDevice on_device(device_);
     if (!stage_batch(rows, lens, S, 0, tokens, pos, err)) return false;
     const int R = last_t_;   // the window's rows
@@ -196,7 +196,7 @@ bool Verifier::run_slot_segs(const int* rows, const int* lens, int S, const int3
         set_plan_slot();
         progress_at("verify batch: the CPU experts of layer", l);
         if (dm) {   // the ring's own rows and tiers: the pool computes the CPU's entries only
-            const basalt::kernels::DmRing& Rg = dm_->h_ring[k];
+            const halo::kernels::DmRing& Rg = dm_->h_ring[k];
             sink_.ext_kind = Rg.kind;
             if (pool != nullptr) pool(user, dm_->h_x + (size_t) k * dm_->x_stride, Rg.ids, R, ss_->k, h_ymiss_, l);
             sink_.ext_kind = nullptr;
@@ -282,18 +282,18 @@ bool Verifier::commit_slots_end(std::string& err) {
 bool Verifier::sample_rows(int S, std::string& err) {
     bool any = false, wide = false;
     for (int t = 0; t < S; ++t) {
-        const basalt::kernels::SamplerParams& sp = slot_sp_[(size_t) last_rows_[t]];
+        const halo::kernels::SamplerParams& sp = slot_sp_[(size_t) last_rows_[t]];
         wide = wide || (!sp.greedy && sp.temperature > 0.0f &&
-                        basalt::kernels::sampler_list_len(sp.top_k, (int) n_vocab_) > basalt::kernels::kSamplerNarrowMax);
+                        halo::kernels::sampler_list_len(sp.top_k, (int) n_vocab_) > halo::kernels::kSamplerNarrowMax);
     }
     if (wide && !exact_head_rows(S, err)) return false;
     for (int t = 0; t < S; ++t) {
-        basalt::kernels::SamplerParams sp = slot_sp_[(size_t) last_rows_[t]];
+        halo::kernels::SamplerParams sp = slot_sp_[(size_t) last_rows_[t]];
         const bool pen = bh_d_ != nullptr && sp.penalty_last_n > 0;
         if ((sp.greedy || sp.temperature <= 0.0f) && !pen) continue;   // the recorded greedy pick stands
         sp.counter = (uint64_t) last_pos_b_[t];   // Philox(seed, position): the solo window's draw for this position
         if (!pen) sp.penalty_last_n = 0;
-        basalt::kernels::sample_tokens(head_logits_ + (size_t) t * (size_t) n_vocab_, 1, (int) n_vocab_,
+        halo::kernels::sample_tokens(head_logits_ + (size_t) t * (size_t) n_vocab_, 1, (int) n_vocab_,
                                        pen ? bh_d_ + (size_t) t * (size_t) bh_len_ : nullptr, pen ? bh_len_ : 0, sp,
                                        m_out_ + t, cs_);
         any = true;
@@ -396,4 +396,4 @@ int Verifier::batch_poll(PoolMultiFn pool, void* user, std::string& err) {
     return 1;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

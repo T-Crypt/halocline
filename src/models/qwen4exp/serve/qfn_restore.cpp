@@ -1,11 +1,11 @@
 // src/models/qwen4exp/serve/qfn_restore.cpp - what restoring a conversation does to Flash-Next's sessions.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
-bool QfnRequest::cvec_wanted() const { return basalt::kernels::cvec().loaded() ? req_cvec != 0 : true; }
-void QfnRequest::set_cvec() { if (basalt::kernels::cvec().loaded()) basalt::kernels::cvec_set_enabled(want_cvec); }
+bool QfnRequest::cvec_wanted() const { return halo::kernels::cvec().loaded() ? req_cvec != 0 : true; }
+void QfnRequest::set_cvec() { if (halo::kernels::cvec().loaded()) halo::kernels::cvec_set_enabled(want_cvec); }
 void QfnRequest::select_view() { rview = &(runtime_.rviews[(size_t) std::max(slot_b, 0)]); }
 bool QfnRequest::slot_draft_in(int slot) {
     if (runtime_.batch_spec && !runtime_.mtp.copy_store(slot, runtime_.mtp.main_store(), (int64_t) runtime_.live.size(), runtime_.err)) {
@@ -57,9 +57,9 @@ Flow QfnRequest::slot_bind() {
 void QfnRequest::validate_incoming() {
     // Reject the entire image before parking/overwriting the outgoing
     // state. Invalid entries can safely fall back to its existing prefix.
-    if (incoming && !basalt::core::conversation_snapshot_validate(*incoming, *runtime_.rsp, runtime_.g,
+    if (incoming && !halo::core::conversation_snapshot_validate(*incoming, *runtime_.rsp, runtime_.g,
             runtime_.mtp_kv, runtime_.err)) {
-        basalt::log::warn("basalt serve", "conversation cache: discard invalid snapshot (%s)", runtime_.err.c_str());
+        halo::log::warn("halo serve", "conversation cache: discard invalid snapshot (%s)", runtime_.err.c_str());
         incoming.reset();
         runtime_.err.clear();
     }
@@ -91,15 +91,15 @@ Flow QfnRequest::make_room() {
     if (!kv_ok && runtime_.kv_short && slot_source >= 0 && !runtime_.bs[(size_t) slot_source].active &&
         (runtime_.bslot_ss[0][(size_t) slot_source].get() != &runtime_.ss || in_slot) &&
         runtime_.bslot_ss[0][(size_t) slot_source]->gdn_state != runtime_.rsp->gdn_state) {
-        basalt::core::SessionState& from = *runtime_.bslot_ss[0][(size_t) slot_source];
-        const int64_t had = basalt::core::session_kv_cells(from);
+        halo::core::SessionState& from = *runtime_.bslot_ss[0][(size_t) slot_source];
+        const int64_t had = halo::core::session_kv_cells(from);
         std::string he;
         if (runtime_.hold_slot(slot_source, slot_ck, he) && runtime_.kv_release(from, 0, he)) {
             runtime_.bs[(size_t) slot_source].cached = false;   // its cells are this request's now
             solo_moved = &from == &runtime_.ss;
             if (solo_moved) runtime_.solo_out = nullptr;
-            basalt::log::info("basalt batch", "slot %d's conversation waits in RAM while its %lld KV cells back "
-                              "this request", slot_source, (long long) (had - basalt::core::session_kv_cells(from)));
+            halo::log::info("halo batch", "slot %d's conversation waits in RAM while its %lld KV cells back "
+                              "this request", slot_source, (long long) (had - halo::core::session_kv_cells(from)));
             runtime_.err.clear();
             kv_ok = runtime_.kv_fit(*runtime_.rsp, kv_need + runtime_.kKvGrowCells, runtime_.err, true, kv_need + runtime_.kKvWindowCells);
         } else {
@@ -111,7 +111,7 @@ Flow QfnRequest::make_room() {
     if (!kv_ok && runtime_.kv_short) {
         // declined: the engine stays up, the solo session and its bookkeeping as they were
         runtime_.slot_held = SlotHeld{};
-        basalt::log::warn("basalt serve", "prompt of %lld tokens refused: %s", (long long) n, runtime_.err.c_str());
+        halo::log::warn("halo serve", "prompt of %lld tokens refused: %s", (long long) n, runtime_.err.c_str());
         std::printf("ERR %s\n", runtime_.err.c_str());
         std::fflush(stdout);
         if (in_slot) {
@@ -153,11 +153,11 @@ Flow QfnRequest::restore_image() {
             return Flow::error;
         }
         // a snapshot that cannot be restored is dropped and the prompt read from the start
-        bool restored = basalt::core::conversation_snapshot_restore(*incoming, *runtime_.rsp,
-                runtime_.g, runtime_.mtp_kv, runtime_.err) == basalt::core::ConversationRestore::restored;
+        bool restored = halo::core::conversation_snapshot_restore(*incoming, *runtime_.rsp,
+                runtime_.g, runtime_.mtp_kv, runtime_.err) == halo::core::ConversationRestore::restored;
         if (restored && runtime_.mtp_on) runtime_.mtp.wrote(0, (int64_t) incoming->live.ids.size());
         if (!restored) {
-            basalt::log::warn("basalt serve", "conversation cache: restoring a parked conversation failed "
+            halo::log::warn("halo serve", "conversation cache: restoring a parked conversation failed "
                          "(%s); reading the prompt from the start", runtime_.err.c_str());
             (void) cudaGetLastError();
             if (cudaDeviceSynchronize() != cudaSuccess) { std::printf("ERR restore sync\n"); return Flow::error; }
@@ -181,7 +181,7 @@ void QfnRequest::retain_image() {
 }
 
 bool QfnRequest::session_reset() {
-        basalt::core::session_zero(*runtime_.rsp, runtime_.g, nullptr, runtime_.main_cs);
+        halo::core::session_zero(*runtime_.rsp, runtime_.g, nullptr, runtime_.main_cs);
         cudaStreamSynchronize(runtime_.main_stream);
     return true;
 }
@@ -200,4 +200,4 @@ void QfnRequest::prompt_parts_reset() {
     runtime_.pp_next_check = resume + runtime_.o.prompt_cache_every;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

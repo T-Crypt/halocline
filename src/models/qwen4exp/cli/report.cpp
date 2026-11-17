@@ -1,16 +1,16 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "report.hpp"
 
 #include "../load/engine_local.hpp"
-#include "basalt/core/expert_source.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
+#include "halo/core/expert_source.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/options.hpp"
 
 #include <algorithm>
 #include <cstdio>
 
-namespace basalt::models::qwen4exp::cli {
+namespace halo::models::qwen4exp::cli {
 
 void print_routing_dump(const std::string& path, int64_t records) {
     std::printf("%-24s %s (%lld records of layer, k, ids, weights)\n", "routing dumped",
@@ -167,4 +167,4 @@ double print_generation(const Options& o, const std::vector<int64_t>& produced, 
     return decode_ms;
 }
 
-}  // namespace basalt::models::qwen4exp::cli
+}  // namespace halo::models::qwen4exp::cli

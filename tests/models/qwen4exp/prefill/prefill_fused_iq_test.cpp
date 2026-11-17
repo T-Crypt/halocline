@@ -17,10 +17,10 @@
 // (the v2 kernels: IQ3_XXS gate/up, IQ4_NL down) in both parts where a pair has them: against the reference as
 // above, within a tenth of the fused path's own error of its outputs, and timed next to it.  --no-ref, --no-timing,
 // --only=NAME, --chunks=A,B.  Exit 77 without a CUDA device with int8 tensor cores.
-#include "basalt/models/qwen4exp/prefill/moe_fused_iq.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused_iq.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cuda_runtime.h>
 
@@ -38,8 +38,8 @@
 #include <vector>
 
 namespace {
-namespace mmq = basalt::prefill::mmq;
-namespace fused = basalt::prefill::fused;
+namespace mmq = halo::prefill::mmq;
+namespace fused = halo::prefill::fused;
 
 constexpr int N = 2560, FF = 640, K = 10, GROUP = 16;
 

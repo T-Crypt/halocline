@@ -5,8 +5,8 @@
 // time per launch of each kernel and the time from the kernel before the ring to its doorbell.
 //
 //     build/dm_route_ada_parity [iters] [--bench-only]
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_runtime.h>
 
@@ -18,7 +18,7 @@
 #include <random>
 #include <vector>
 
-namespace K = basalt::kernels;
+namespace K = halo::kernels;
 
 namespace {
 constexpr int H = 2560, NE = 512, KK = 10, MT = 8, RINGS = 48;

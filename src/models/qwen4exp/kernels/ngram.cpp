@@ -1,14 +1,14 @@
 // src/models/qwen4exp/kernels/ngram.cpp - the PLE n-gram hash and the IQ4_NL table read.
 //
-// See include/basalt/models/qwen4exp/kernels/ngram.hpp for the semantics, the rival readings, and the note on MADV_RANDOM.
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/artifact/dequant.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/ngram/ple_reader.hpp"
-#include "basalt/platform/mapped_file.hpp"
-#include "basalt/platform/memory.hpp"
+// See include/halo/models/qwen4exp/kernels/ngram.hpp for the semantics, the rival readings, and the note on MADV_RANDOM.
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/artifact/dequant.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/ngram/ple_reader.hpp"
+#include "halo/platform/mapped_file.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cerrno>
 #include <cmath>
@@ -18,10 +18,10 @@
 #include <mutex>
 #include <vector>
 #include <stdexcept>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 
-namespace basalt::kernels {
+namespace halo::kernels {
 
 PleConsts ple_artifact_consts() {
     // the GGUF metadata, verbatim.  Written once here rather than derived, because `head_offsets` is
@@ -114,29 +114,29 @@ struct PleTable::Impl {
     // Direct mode: the mapping above is released after the header parse and every row comes
     // from an SSD read into `raw` (see PleReader).
     PleIo mode = PleIo::Mmap;
-    basalt::ngram::PleReader reader;
+    halo::ngram::PleReader reader;
     // `ring_mu` guards the single-token slot (ticket, pending, rows) and the prefetch ring (n_prefetch,
     // prefetch_tickets, prefetch_keys). It is held only to read or change those fields, never across a reader
     // wait or an SSD read. The ring and the slot belong to the decode path; the prompt path uses `gather_rows`.
     std::mutex ring_mu;
-    basalt::ngram::PleReader::Ticket ticket;
+    halo::ngram::PleReader::Ticket ticket;
     bool pending = false;
     bool locked = false;
     uint32_t rows[PLE_N_HEADS] = {};
     uint8_t raw[PLE_N_HEADS * PLE_ROW_BYTES_MAX] = {};
     static constexpr size_t kMaxPrefetch = 16;
     size_t n_prefetch = 0;
-    basalt::ngram::PleReader::Ticket prefetch_tickets[kMaxPrefetch] = {};
+    halo::ngram::PleReader::Ticket prefetch_tickets[kMaxPrefetch] = {};
     uint32_t prefetch_keys[kMaxPrefetch][PLE_N_HEADS] = {};
     uint8_t prefetch_raw[kMaxPrefetch][PLE_N_HEADS * PLE_ROW_BYTES_MAX] = {};
     uint32_t rb = PLE_ROW_BYTES;      // bytes per row
     void decode(const uint8_t* row, float* out160) const {
         switch (fmt) {
         case PleFormat::Q5_0:
-            for (int b = 0; b < PLE_HEAD_DIM / 32; ++b) basalt::dequantize_q5_0(row + (size_t) b * 22, out160 + b * 32);
+            for (int b = 0; b < PLE_HEAD_DIM / 32; ++b) halo::dequantize_q5_0(row + (size_t) b * 22, out160 + b * 32);
             break;
         case PleFormat::Q8_0:
-            for (int b = 0; b < PLE_HEAD_DIM / 32; ++b) basalt::dequantize_q8_0(row + (size_t) b * 34, out160 + b * 32);
+            for (int b = 0; b < PLE_HEAD_DIM / 32; ++b) halo::dequantize_q8_0(row + (size_t) b * 34, out160 + b * 32);
             break;
         case PleFormat::BF16:
             for (int j = 0; j < PLE_HEAD_DIM; ++j) {
@@ -244,13 +244,13 @@ bool PleTable::open(const std::string& gguf_path, std::string& err, const PleIoO
         // The pages are asked for ahead and locked; where the OS refuses, touching them gets them resident, which is
         // what the decode path needs.
         // The bytes placed go out as the engine's load lines, under their own target (outside the model total).
-        basalt::core::LoadProgress prog("ngram", a1 - a0);
+        halo::core::LoadProgress prog("ngram", a1 - a0);
         uint64_t reported = 0;
-        const basalt::platform::LockResult lr = basalt::platform::lock_view(
+        const halo::platform::LockResult lr = halo::platform::lock_view(
             (void*) a0, a1 - a0, [&](uint64_t done) { prog.add(done - reported); reported = done; });
         impl_->locked = lr.ok && lr.locked_bytes >= a1 - a0;
         if (!impl_->locked) {
-            basalt::log::warn("basalt", "PLE table lock incomplete (%s): touching its pages instead",
+            halo::log::warn("halo", "PLE table lock incomplete (%s): touching its pages instead",
                          lr.note.c_str());
             volatile uint8_t sink = 0;
             for (uintptr_t p = a0 + (uintptr_t) reported; p < a1; p += page) {
@@ -266,7 +266,7 @@ bool PleTable::open(const std::string& gguf_path, std::string& err, const PleIoO
 }
 
 void PleTable::wait_prefetches() {
-    basalt::ngram::PleReader::Ticket claimed[Impl::kMaxPrefetch];
+    halo::ngram::PleReader::Ticket claimed[Impl::kMaxPrefetch];
     size_t n = 0;
     {
         std::lock_guard<std::mutex> lk(impl_->ring_mu);
@@ -356,7 +356,7 @@ bool PleTable::issue(const uint32_t* rows16) {
 }
 
 bool PleTable::collect(float* out2560, std::string& err) {
-    basalt::ngram::PleReader::Ticket t;
+    halo::ngram::PleReader::Ticket t;
     {
         std::lock_guard<std::mutex> lk(impl_->ring_mu);
         if (!impl_->pending) { err = "PleTable::collect without issue"; return false; }
@@ -407,7 +407,7 @@ bool PleTable::gather_batch(const uint32_t* rows, size_t n_tokens, float* out, s
     }
     // Fast path: the requested tokens are exactly the in-flight prefetches, so collect those instead of issuing
     // a second request. The tickets are claimed under the lock and collected outside it.
-    basalt::ngram::PleReader::Ticket claimed[Impl::kMaxPrefetch];
+    halo::ngram::PleReader::Ticket claimed[Impl::kMaxPrefetch];
     size_t n_claimed = 0;
     {
         std::lock_guard<std::mutex> lk(impl_->ring_mu);
@@ -442,7 +442,7 @@ void PleTable::rearm_keepalive() { impl_->reader.rearm_keepalive(); }
 
 std::string PleTable::io_report() const {
     if (impl_->mode != PleIo::Direct || !impl_->reader.is_open()) return {};
-    const basalt::ngram::ReaderStats s = impl_->reader.snapshot();
+    const halo::ngram::ReaderStats s = impl_->reader.snapshot();
     char buf[400];
     int n = std::snprintf(buf, sizeof buf,
                   "ple io: %llu rows, %.1f%% row-cache hits, %llu SSD reads (%.1f MB), read p50 %.0f us p99 %.0f us, "
@@ -463,7 +463,7 @@ void PleTable::gather(const uint32_t* rows16, float* out2560) const {
         PleTable* self = const_cast<PleTable*>(this);
         std::string err;
         if (!self->issue(rows16) || !self->collect(out2560, err)) {
-            basalt::log::error("basalt", "PleTable::gather: %s", err.empty() ? "a token is already in flight" : err.c_str());
+            halo::log::error("halo", "PleTable::gather: %s", err.empty() ? "a token is already in flight" : err.c_str());
             std::memset(out2560, 0, (size_t) NG_N_EMBD * sizeof(float));
         }
         return;
@@ -484,4 +484,4 @@ void PleTable::gather(const uint32_t* rows16, float* out2560) const {
     for (int h = 0; h < PLE_N_HEADS; ++h) read_row(rows16[h], out2560 + (size_t) h * PLE_HEAD_DIM);
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

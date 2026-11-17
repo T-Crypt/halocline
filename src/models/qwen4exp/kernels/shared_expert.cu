@@ -18,15 +18,15 @@
 // The canonical projections use their explicit Q8_0/Q8_K activation images. The scalar gate reads the original F32
 // input and uses the BF16 MMVF plus an FP32 sigmoid. Native projection overrides independently select CUDA Q8_1
 // MMVQ and FP32 SwiGLU.
-#include "basalt/models/qwen4exp/kernels/shared_expert.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/kernels/bf16_bits.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/models/qwen4exp/kernels/s2_gemv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/s_gemv.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/shared_expert.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/kernels/bf16_bits.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/models/qwen4exp/kernels/s2_gemv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/s_gemv.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/pdl.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -38,9 +38,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int THREADS = 128;
@@ -175,7 +175,7 @@ void shared_expert(const uint8_t* x_q8_0, const uint8_t* x_q8k, const SForm& gat
         if (native_down) native_mmvq_weight_bytes(native->down_type, (int) n_ff, (int) n_embd);
     }
     if (scratch == nullptr) {
-        basalt::log::error("basalt", "shared_expert: scratch is null; the caller owns it "
+        halo::log::error("halo", "shared_expert: scratch is null; the caller owns it "
                              "(see shared_expert_scratch_bytes)");
         std::exit(1);
     }
@@ -234,7 +234,7 @@ void shared_expert(const uint8_t* x_q8_0, const uint8_t* x_q8k, const SForm& gat
             native_mmvq(native->down_type, native->down_data, native->q8_1, out, (int) n_ff, (int) n_embd, 1, stream);
         } else if (down_form.act_kind == 1) {
             if (n_ff % 256 != 0) {
-                basalt::log::error("basalt", "shared_expert: the down weight wants Q8_K but n_ff %lld is not a multiple "
+                halo::log::error("halo", "shared_expert: the down weight wants Q8_K but n_ff %lld is not a multiple "
                                      "of 256; Q8_K is structurally impossible here", (long long) n_ff);
                 std::exit(1);
             }
@@ -257,7 +257,7 @@ void shared_expert(const uint8_t* x_q8_0, const uint8_t* x_q8k, const SForm& gat
     if (stream == nullptr) {
         const cudaError_t e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
-            basalt::log::error("basalt", "shared_expert: %s", cudaGetErrorString(e));
+            halo::log::error("halo", "shared_expert: %s", cudaGetErrorString(e));
             std::exit(1);
         }
     }
@@ -269,7 +269,7 @@ void moe_combine(const float* parts, const float* weights, const float* shared, 
     // k > 64 is refused rather than truncated: silently summing the first 64 of a longer list would be a
     // wrong answer that looks like a right one, and no geometry in this artifact comes close to it.
     if (k > 64) {
-        basalt::log::error("basalt", "moe_combine: k = %lld exceeds 64", (long long) k);
+        halo::log::error("halo", "moe_combine: k = %lld exceeds 64", (long long) k);
         std::exit(1);
     }
     const unsigned grid = (unsigned) ((n_embd + THREADS - 1) / THREADS);
@@ -278,10 +278,10 @@ void moe_combine(const float* parts, const float* weights, const float* shared, 
     if (stream == nullptr) {
         const cudaError_t e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
-            basalt::log::error("basalt", "moe_combine: %s", cudaGetErrorString(e));
+            halo::log::error("halo", "moe_combine: %s", cudaGetErrorString(e));
             std::exit(1);
         }
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

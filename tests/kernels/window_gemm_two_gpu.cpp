@@ -2,8 +2,8 @@
 // call a decode window of Qwen3.8-27B layers makes (NVFP4 planes: the GDN and attention groups, their AddBf16 outputs, the
 // SwiGLU pair with its bf16 rows, the down product), at T = 1..16, gives the main card's bits.  The same calls planned by
 // the second card's own SM count are reported (they may round differently).  Exit 77 without two GPUs.
-#include "basalt/kernels/nvfp4_planes.hpp"
-#include "basalt/kernels/window_gemm.hpp"
+#include "halo/kernels/nvfp4_planes.hpp"
+#include "halo/kernels/window_gemm.hpp"
 
 #include <cuda_runtime.h>
 
@@ -14,8 +14,8 @@
 #include <random>
 #include <vector>
 
-namespace wg = basalt::kernels::wgemm;
-namespace np = basalt::kernels::nvfp4p;
+namespace wg = halo::kernels::wgemm;
+namespace np = halo::kernels::nvfp4p;
 
 namespace {
 

@@ -1,10 +1,10 @@
 // tests/model/adapter_builtin_test.cpp - the program's own registration: every adapter the build holds, once each, DeepSeek's
 // load error and the flags each model reports as lossy. Linking the models needs the CUDA runtime, so this runs where
 // that is installed; no GPU work.
-#include "basalt/model/adapter.hpp"
-#include "basalt/model/flags.hpp"
-#include "basalt/models/builtin.hpp"
-#include "basalt/program/options.hpp"
+#include "halo/model/adapter.hpp"
+#include "halo/model/flags.hpp"
+#include "halo/models/builtin.hpp"
+#include "halo/program/options.hpp"
 
 #include <cstdio>
 #include <memory>
@@ -12,7 +12,7 @@
 #include <vector>
 
 int main() {
-    using namespace basalt;
+    using namespace halo;
     int failures = 0;
     const auto check = [&](bool ok, const char* what) {
         std::printf("%s %s\n", ok ? "ok  " : "FAIL", what);
@@ -20,24 +20,24 @@ int main() {
     };
     models::register_builtin_models();
     models::register_builtin_models();
-    // BASALT_MODELS decides which adapters exist: each built model is registered once, each left out is refused by name
+    // HALO_MODELS decides which adapters exist: each built model is registered once, each left out is refused by name
     size_t built = 0;
     const auto expect = [&](const char* arch, bool is_built) {
         built += is_built ? 1 : 0;
         check((model::find_adapter(arch) != nullptr) == is_built, is_built ? "a built model is registered" : "a model left out is not registered");
         if (!is_built) {
             const std::string why = model::unavailable_architecture(arch);
-            check(why.find("left out") != std::string::npos && why.find("BASALT_MODELS=") != std::string::npos &&
-                      why.find(std::string("-DBASALT_MODELS=\"")) != std::string::npos && why.find(arch) != std::string::npos,
+            check(why.find("left out") != std::string::npos && why.find("HALO_MODELS=") != std::string::npos &&
+                      why.find(std::string("-DHALO_MODELS=\"")) != std::string::npos && why.find(arch) != std::string::npos,
                   "a model left out is refused with the option that adds it");
         }
     };
-#ifdef BASALT_MODEL_QWEN4EXP
+#ifdef HALO_MODEL_QWEN4EXP
     expect("qwen4exp", true);
 #else
     expect("qwen4exp", false);
 #endif
-#ifdef BASALT_MODEL_QWEN35
+#ifdef HALO_MODEL_QWEN35
     expect("qwen35", true);
 #else
     expect("qwen35", false);
@@ -50,7 +50,7 @@ int main() {
     // the flags as the command line gives them, through the model's own parser and finish_flags
     const auto lossy_of = [](const model::ModelAdapter& a, std::vector<std::string> words) {
         const auto o = a.make_options();
-        words.insert(words.begin(), "basalt");
+        words.insert(words.begin(), "halo");
         std::vector<char*> argv;
         for (auto& w : words) argv.push_back(w.data());
         for (int i = 1; i < (int) argv.size(); ++i) {

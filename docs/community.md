@@ -1,10 +1,13 @@
 # Community runs
 
-[basalt.jgulfo.com/community](https://basalt.jgulfo.com/community/) lists benchmark runs submitted by users, all taken with the same preset so the rows compare. The data is `docs/community/benchmarks.json`; the page reads it from `main`, so a merged row shows up within minutes.
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
+
+[halo.jgulfo.com/community](https://basalt.jgulfo.com/community/) lists benchmark runs submitted by users, all taken with the same preset so the rows compare. The data is `docs/community/benchmarks.json`; the page reads it from `main`, so a merged row shows up within minutes.
 
 ## Add your run
 
-1. Stop any running Basalt server (the GPUs must be free), then run `basalt-bench --community --model PACK` (a Flash-Next, a 27B or a DeepSeek pack). It starts its own engine (three times, once per measurement), shows the load progress on stderr while each one starts, adds its row to `docs/community/benchmarks.json` and prints it. It uses every visible Blackwell GPU: a second card is the peer, and `CUDA_VISIBLE_DEVICES=0` gives a single-card row.
+1. Stop any running Halocline server (the GPUs must be free), then run `halo-bench --community --model PACK` (a Flash-Next, a 27B or a DeepSeek pack). It starts its own engine (three times, once per measurement), shows the load progress on stderr while each one starts, adds its row to `docs/community/benchmarks.json` and prints it. It uses every visible Blackwell GPU: a second card is the peer, and `CUDA_VISIBLE_DEVICES=0` gives a single-card row.
 2. `--submitter NAME` is required: the name you want shown (one name with no spaces, up to 40 characters; it is not verified). `notes` (up to 200 characters) is optional and added by hand.
 3. Review the row in `docs/community/benchmarks.json`, commit it and open a pull request. If the file already has a row of your setup (see below), the bench replaces that row in place, keeps its `notes` and says so; check the notes still apply. If the bench could not write the file, it prints the row and says where to paste it.
 
@@ -12,7 +15,7 @@ The row records `model` (`Qwen3.8-Flash-Next`, `Qwen3.8-27B` or `DeepSeek-V4.1-F
 
 You need enough free RAM that no expert is read from the SSD; the bench checks this and refuses to print a row otherwise. The 27B has no experts: the bench instead refuses a row if any of its weights sit in host RAM; its token embedding, which the engine keeps in page-locked RAM by design, and the `--vision dynamic` encoder, which waits in RAM and loads per request, do not count.
 
-Optional fields, recorded by `--community` before the engine starts (`basalt-bench --hardware` prints them alone):
+Optional fields, recorded by `--community` before the engine starts (`halo-bench --hardware` prints them alone):
 
 - `cpu`: the processor and its physical core count, e.g. "AMD Ryzen 9 9950X, 16 cores".
 - `ram_gbps`: host RAM read speed in GB/s, one thread per physical core streaming a 2 GiB buffer, best of several passes.

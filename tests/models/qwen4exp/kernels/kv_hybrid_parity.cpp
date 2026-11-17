@@ -8,12 +8,12 @@
 //   3. the composed gathers bitwise vs the host dequantization of those codes;
 //   4. qsa_decode_attn<3> + output fwht vs a host attention over the SAME dequantized K/V (fp32 math), and
 //      bounded against the fp32-true attention from the unquantized K/V.
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_prompt_attn.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_prompt_attn.hpp"
 
 #include <cuda_runtime.h>
 
@@ -25,7 +25,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 int g_fail = 0;

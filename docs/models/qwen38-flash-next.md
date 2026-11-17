@@ -1,6 +1,9 @@
 # Qwen3.8-Flash-Next
 
-Runs with the same command as any model: `basalt serve PACK`. What it supports next to the others: [models](index.md). Rounding and
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
+Runs with the same command as any model: `halo serve PACK`. What it supports next to the others: [models](index.md). Rounding and
 quality: [precision](../precision/qwen38-flash-next.md).
 
 ## Pack

@@ -1,39 +1,39 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "control_vectors.hpp"
 
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/log.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/log.hpp"
+#include "halo/models/qwen4exp/options.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <vector>
 
-namespace basalt::models::qwen4exp::cli {
+namespace halo::models::qwen4exp::cli {
 
 // --control-vector-scaled: llama.cpp's `common_control_vector_load` (every file's `direction.<l>` times its scale,
 // summed; layer 0 has none) and `llama_adapter_cvec::apply` with the projection-mode patch (project: the unit
 // direction and its norm as the scale), into the tables `cvec_upload` takes.  `summary` is what INFO reports.
-bool load_control_vectors(const Options& o, const basalt::core::ModelGeometry& g, std::string& summary, std::string& err) {
+bool load_control_vectors(const Options& o, const halo::core::ModelGeometry& g, std::string& summary, std::string& err) {
     const int64_t L = g.n_layers, N = g.n_embd;
     std::vector<float> data((size_t) (L * N), 0.0f);
     std::vector<bool> have((size_t) L, false);
     for (const auto& [path, scale] : o.cvec_files) {
         try {
-            basalt::GgufFile f(path);
-            const basalt::MetaValue* arch = f.get("general.architecture");
+            halo::GgufFile f(path);
+            const halo::MetaValue* arch = f.get("general.architecture");
             if (arch == nullptr || arch->s != "controlvector") {
                 err = path + ": not a control vector GGUF (general.architecture is not 'controlvector')";
                 return false;
             }
-            const basalt::MetaValue* hint = f.get("controlvector.model_hint");
+            const halo::MetaValue* hint = f.get("controlvector.model_hint");
             if (hint != nullptr && hint->s != "qwen4exp")
-                basalt::log::warn("basalt generate", "%s was made for '%s', not qwen4exp", path.c_str(), hint->s.c_str());
+                halo::log::warn("halo generate", "%s was made for '%s', not qwen4exp", path.c_str(), hint->s.c_str());
             int found = 0;
-            for (const basalt::TensorInfo& t : f.tensors()) {
+            for (const halo::TensorInfo& t : f.tensors()) {
                 if (t.name.rfind("direction.", 0) != 0) continue;
                 const long l = std::strtol(t.name.c_str() + 10, nullptr, 10);
                 if (l < 1 || l >= L) continue;   // layer 0 has no vector; past the model is ignored, as in llama.cpp
@@ -79,13 +79,13 @@ bool load_control_vectors(const Options& o, const basalt::core::ModelGeometry& g
         ++steered;
     }
     if (steered == 0) { err = "the control vector has no direction in layers " + std::to_string(first) + ".." + std::to_string(last); return false; }
-    if (!basalt::kernels::cvec_upload(dir, s, o.cvec_mode, first, last, N, g.hc, err)) return false;
+    if (!halo::kernels::cvec_upload(dir, s, o.cvec_mode, first, last, N, g.hc, err)) return false;
     summary = std::string(o.cvec_mode == 0 ? "project" : "add") + ":" + std::to_string(first) + "-" + std::to_string(last) +
               (single >= 0 ? ":single" + std::to_string(single) : "");
     // the line llama.cpp's patched build prints, so a log shows the same thing
-    basalt::log::info("basalt generate", "control vector mode = %s, dir = %s, layers %d..%d (%d steered)",
+    halo::log::info("halo generate", "control vector mode = %s, dir = %s, layers %d..%d (%d steered)",
                  o.cvec_mode == 0 ? "project" : "add", single >= 0 ? "single" : "per-layer", first, last, steered);
     return true;
 }
 
-}  // namespace basalt::models::qwen4exp::cli
+}  // namespace halo::models::qwen4exp::cli

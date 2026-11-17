@@ -3,15 +3,15 @@
 // head's own kernel rescored exactly.  Each including file gets its own copy of these kernels.
 #pragma once
 
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/pdl.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #include <cstdint>
 
-namespace basalt::kernels::px {
+namespace halo::kernels::px {
 namespace {
 
 constexpr int kNw4 = 2560 / 64;   // uint4 of weight words per row
@@ -319,4 +319,4 @@ __device__ __forceinline__ void pick(const Final& f, int n, int n_tiles, const i
 }
 
 }  // namespace
-}  // namespace basalt::kernels::px
+}  // namespace halo::kernels::px

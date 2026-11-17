@@ -4,11 +4,11 @@
 // copy, the two-stage argmax, the one-column head, and the copy's 2..8-column head against the row map one column at a
 // time.
 //   q6k_head_parity [rows] [iters]
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/q5k_head.hpp"
-#include "basalt/models/qwen4exp/kernels/q6k_head.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/q5k_head.hpp"
+#include "halo/models/qwen4exp/kernels/q6k_head.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -21,7 +21,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

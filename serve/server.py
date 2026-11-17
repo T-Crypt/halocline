@@ -1,12 +1,12 @@
 """OpenAI, Anthropic and Responses endpoints over engines that map token ids to tokens, one model loaded at a time.
 
-    basalt serve --model FILE.basalt [--alias NAME] [--host H] [--port P] [--gpu 0,1] [--api-key KEY] ...
-    python -m serve.server --model FILE.basalt --engine-bin bin/basalt ...
+    halo serve --model FILE.basalt [--alias NAME] [--host H] [--port P] [--gpu 0,1] [--api-key KEY] ...
+    python -m serve.server --model FILE.basalt --engine-bin bin/halo ...
     python -m serve.server --config config.json          (each entry of its "models" is one model)
     python -m serve.server --mock-engine --port 8080
 
 The engine boundary is `Engine.generate(prompt_ids, max_new, sampling, cancel)` -> token ids. ProcessEngine keeps
-one `basalt --serve` process resident; MockEngine is a scripted stand-in for tests. Prompts that do not fit the
+one `halo --serve` process resident; MockEngine is a scripted stand-in for tests. Prompts that do not fit the
 context are rejected with a 400, never truncated.
 """
 from __future__ import annotations
@@ -130,7 +130,7 @@ def check_model(a, file_engine: list[str], cli_engine: list[str], used_argv: lis
     except ValueError:
         fail(f"--gpu {gpu_text(a.gpu)}: expected numbers like 0 or 0,1, or auto")
     if not a.mock_engine and not (a.model and a.engine_bin):
-        fail("the server needs --model and the engine binary: run it as basalt serve --config FILE (or --mock-engine)")
+        fail("the server needs --model and the engine binary: run it as halo serve --config FILE (or --mock-engine)")
     if (file_engine or cli_engine) and not a.model:
         fail("engine flags need --model")
     pack = bool(a.model) and not (a.mock_engine and a.config)   # the scripted engine of a config file reads no model files
@@ -264,7 +264,7 @@ def build_model(a, cfg: dict, logs, multi: bool, known) -> Service:
     template = files["chat_template.jinja"].decode("utf-8") if "chat_template.jinja" in files else \
         (ROOT / "serve/chat_template.jinja").read_text(encoding="utf-8")
     svc = Service(engine, tok, dialect.template(template),
-                  model_name=cfg.get("model_name", "basalt"), vision=vision,
+                  model_name=cfg.get("model_name", "halo"), vision=vision,
                   sampling_defaults=sampling_defaults, fit_max_tokens=a.fit_max_tokens, grammar=a.grammar,
                   grammar_engine=bool(a.mock_engine or has_grammar), dialect=dialect, video_max_tokens=a.video_max_tokens)
     svc.logs = logs

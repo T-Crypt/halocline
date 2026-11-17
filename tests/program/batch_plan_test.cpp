@@ -31,8 +31,8 @@ bool sound(const std::vector<int>& rows, const Groups& g, int cap) {
 }  // namespace
 
 int main() {
-    using basalt::program::serve::batch_groups;
-    using basalt::program::serve::batch_share;
+    using halo::program::serve::batch_groups;
+    using halo::program::serve::batch_share;
 
     check(batch_share(0, 1, 16) == 16, "one slot takes the whole cap");
     check(batch_share(0, 2, 16) == 8 && batch_share(1, 2, 16) == 8, "two slots take half each");

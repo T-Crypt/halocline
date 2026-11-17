@@ -2,12 +2,12 @@
 // addresses (`repin_start` / `repin_wait` / `repin_finish`), twice, with the device alias still mapping the
 // same bytes and the bytes unchanged; then a copy out of it into the GPU cache and back.  A synthetic expert file and a
 // small GPU expert cache; needs a CUDA device (exits 77 without one).
-#include "basalt/core/expert_cache.hpp"
-#include "basalt/core/expert_source.hpp"
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/elementwise.hpp"
+#include "halo/core/expert_cache.hpp"
+#include "halo/core/expert_source.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/elementwise.hpp"
 
 #include <cuda_runtime.h>
 
@@ -23,7 +23,7 @@
 #include <vector>
 
 namespace fs = std::filesystem;
-using namespace basalt::core;
+using namespace halo::core;
 
 namespace {
 
@@ -35,7 +35,7 @@ struct TempDirectory {
     fs::path path;
     TempDirectory() {
         const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-        path = fs::temp_directory_path() / ("basalt-repin-test-" + std::to_string(stamp));
+        path = fs::temp_directory_path() / ("halo-repin-test-" + std::to_string(stamp));
         fs::create_directories(path);
     }
     ~TempDirectory() {
@@ -63,9 +63,9 @@ bool registered(const void* p) {
 int run() {
     constexpr int64_t layers = 2, experts = 128, held = 20;   // the GPU cache holds experts [0, held) of each layer
     TempDirectory dir;
-    basalt::kernels::cpu::NativeFmt fmt;
+    halo::kernels::cpu::NativeFmt fmt;
     std::string err;
-    require(basalt::kernels::cpu::native_fmt(GGML_TYPE_IQ3_XXS, GGML_TYPE_IQ4_NL, 2560, 640, fmt, err), err);
+    require(halo::kernels::cpu::native_fmt(GGML_TYPE_IQ3_XXS, GGML_TYPE_IQ4_NL, 2560, 640, fmt, err), err);
     const uint64_t blob = (uint64_t) fmt.bytes, layer_bytes = blob * experts;
     std::ostringstream text;
     for (int64_t l = 0; l < layers; ++l)
@@ -80,7 +80,7 @@ int run() {
         }
         require((bool) out, "could not write the synthetic experts");
     }
-    require(basalt::kernels::cpu::expert_layout_load_text(text.str(), layers, experts, err, 2560, 640), err);
+    require(halo::kernels::cpu::expert_layout_load_text(text.str(), layers, experts, err, 2560, 640), err);
 
     FileExpertSource src;
     require(src.open(FileRange((dir.path / "experts.bin").string()), layers, experts, err), err);
@@ -123,7 +123,7 @@ int run() {
                 const auto& [l, e] = probe[k];
                 require(src.device_alias(l, e) == alias[k] && src.pinned(l, e), "allocation-backed wake changed aliases");
                 require(std::memcmp(src.blob(l, e), bytes[k].data(), (size_t) blob) == 0, "wake changed expert weights");
-                basalt::kernels::copy_i32_from_mapped(gpu, (const int32_t*) src.device_alias(l, e), 32, nullptr);
+                halo::kernels::copy_i32_from_mapped(gpu, (const int32_t*) src.device_alias(l, e), 32, nullptr);
                 int32_t back[32]{};
                 require(cudaMemcpy(back, gpu, sizeof back, cudaMemcpyDeviceToHost) == cudaSuccess, "mapped kernel read");
                 require(std::memcmp(back, bytes[k].data(), sizeof back) == 0, "mapped kernel changed expert bytes");

@@ -12,14 +12,14 @@
 // CPU: native_gu_rows on a mixed layer (the AVX-512 or AVX2 row kernels, as the CPU has them) BITWISE the uniform
 // row kernels of each half with native_gu_rows' SwiGLU, 1 to 8 tokens, every token as alone; and against the double
 // reference.
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/iq_avx2.hpp"
-#include "basalt/kernels/cpu/iq_avx512.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/iq_avx2.hpp"
+#include "halo/kernels/cpu/iq_avx512.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_runtime.h>
 
@@ -33,8 +33,8 @@
 #include <string>
 #include <vector>
 
-namespace k = basalt::kernels;
-namespace cpu = basalt::kernels::cpu;
+namespace k = halo::kernels;
+namespace cpu = halo::kernels::cpu;
 
 namespace {
 

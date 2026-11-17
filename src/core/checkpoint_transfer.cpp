@@ -1,11 +1,11 @@
 // src/core/checkpoint_transfer.cpp - a conversation checkpoint's running state between the device and the host.
-#include "basalt/core/checkpoint_transfer.hpp"
+#include "halo/core/checkpoint_transfer.hpp"
 
-#include "basalt/core/ram_load.hpp"
+#include "halo/core/ram_load.hpp"
 
 #include <cstring>
 
-namespace basalt::core {
+namespace halo::core {
 namespace {
 
 bool lock_block(void* p, size_t bytes) {
@@ -182,4 +182,4 @@ bool CheckpointDeferral::finish(std::string& error) {
     return false;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

@@ -1,18 +1,18 @@
 #include "experts.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused_iq.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused_iq.hpp"
 #include <algorithm>
 #include <cmath>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::Experts::fused() {
     if (static bool said = false; !said) {
         said = true;
-        basalt::log::info("basalt", "prompt experts on the fused int8 kernels");
+        halo::log::info("halo", "prompt experts on the fused int8 kernels");
     }
     // the layer's input to int8 once per token; the rows of each expert from the router's ids
     if (fused_nat) fused::quantize_act_native(m.mixed, T, N, m.Xq, m.cs);
@@ -66,4 +66,4 @@ bool Prefill::Run::Chunk::Experts::fused() {
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

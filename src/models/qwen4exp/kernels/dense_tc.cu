@@ -1,4 +1,4 @@
-// src/models/qwen4exp/kernels/dense_tc.cu - see include/basalt/models/qwen4exp/kernels/dense_tc.hpp.
+// src/models/qwen4exp/kernels/dense_tc.cu - see include/halo/models/qwen4exp/kernels/dense_tc.hpp.
 //
 // A tile is 16 MT rows; its 512-value chunks (two super-blocks of each row) are one ring slot each.  Warp w of a
 // tile takes m-tile (w / 4) % MT (16 rows) and half super-block w % 4 of every chunk (4 blocks of 32 values, whose
@@ -11,15 +11,15 @@
 // Persistent: block b takes tiles b, b + G, ...; their chunks stream through one ring of S slots (16-byte cp.async
 // per thread, issued S - 1 chunks ahead across tile boundaries, the first ones before the grid dependency wait:
 // weights are constant).  The q8_1 columns are read through L1.
-#include "basalt/models/qwen4exp/kernels/dense_tc.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/dense_tc.hpp"
+#include "halo/kernels/pdl.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #define GGML_COMMON_DECL_CUDA
 #define GGML_COMMON_IMPL_CUDA
-#include "basalt/ggml/ggml_common.h"
+#include "halo/ggml/ggml_common.h"
 
 #include <algorithm>
 #include <atomic>
@@ -27,9 +27,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <type_traits>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int kMaxCols = 8;
@@ -1012,14 +1012,14 @@ static int opt_in_device(const char* who) {
     int dev = 0;
     cudaGetDevice(&dev);
     if (dev < 0 || dev >= 64) {
-        basalt::log::error("basalt", "%s: device %d out of range", who, dev);
+        halo::log::error("halo", "%s: device %d out of range", who, dev);
         std::abort();
     }
     return dev;
 }
 static void opt_in_check(cudaError_t e, const char* who) {
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s: shared-memory opt-in failed: %s", who, cudaGetErrorString(e));
+        halo::log::error("halo", "%s: shared-memory opt-in failed: %s", who, cudaGetErrorString(e));
         std::abort();
     }
 }
@@ -1118,7 +1118,7 @@ void launch(const void* w, const void* x, float* y, int n_in, int n_out, int nco
         return;
     }
     if constexpr (TYPE == 21) {
-        basalt::log::error("basalt", "dense_tc: IQ3_S n_in %d n_out %d needs the one-tile path", n_in, n_out);
+        halo::log::error("halo", "dense_tc: IQ3_S n_in %d n_out %d needs the one-tile path", n_in, n_out);
         std::exit(1);
     } else {
     if (bulk && aligned && 2 * 16 * (n_in / 256) * Fmt<TYPE>::SB <= 90 * 1024) {
@@ -1152,7 +1152,7 @@ bool dense_tc_type_on(int t) noexcept {
 void dense_tc(int type, const void* w, const void* x, float* y, int n_in, int n_out, int ncols, void* stream) {
     if (!dense_tc_supported(type, n_in, n_out, w) || ncols < 1 || ncols > kMaxCols || n_out < 1 || ((uintptr_t) w & 3) != 0 ||
         ((uintptr_t) x & 3) != 0) {
-        basalt::log::error("basalt", "dense_tc: type %d n_in %d n_out %d ncols %d not supported", type, n_in, n_out, ncols);
+        halo::log::error("halo", "dense_tc: type %d n_in %d n_out %d ncols %d not supported", type, n_in, n_out, ncols);
         std::exit(1);
     }
     const auto s = (cudaStream_t) stream;
@@ -1168,7 +1168,7 @@ void dense_tc(int type, const void* w, const void* x, float* y, int n_in, int n_
     }
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "dense_tc: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "dense_tc: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -1184,7 +1184,7 @@ void dense_tc_pair(int t0, const void* w0, float* y0, int n_out0, int t1, const 
                    const void* x_q8_1, int n_in, int ncols, void* stream) {
     if (!dense_tc_pair_supported(t0, t1, n_in) || ncols < 1 || ncols > kMaxCols || n_out0 < 1 || n_out1 < 1 ||
         ((uintptr_t) w0 & 15) != 0 || ((uintptr_t) w1 & 15) != 0 || ((uintptr_t) x_q8_1 & 3) != 0) {
-        basalt::log::error("basalt", "dense_tc_pair: types %d/%d n_in %d not supported", t0, t1, n_in);
+        halo::log::error("halo", "dense_tc_pair: types %d/%d n_in %d not supported", t0, t1, n_in);
         std::exit(1);
     }
     int smem = 128 + 8 * 16 * kMaxCols * 4 + 2048 + 2 * 16 * (n_in / 256) * std::max(sb_bytes_lq(t0), sb_bytes_lq(t1));
@@ -1222,7 +1222,7 @@ void dense_tc_pair(int t0, const void* w0, float* y0, int n_out0, int t1, const 
                (const uint8_t*) x_q8_1, n_in, ncols);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "dense_tc_pair: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "dense_tc_pair: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -1237,4 +1237,4 @@ int dense_tc_pair_mask() { return tc_bulk_ok() ? g_pair : 0; }
 int dense_tc_mask() { return 29; }   // DEC_DTC 1 | 4 | 8 | 16 (see src/core/verify/)
 
 #endif
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

@@ -9,10 +9,10 @@
 // tiles - an all-zero token, per-expert blobs at unrelated addresses, three launches of different expert ranges.
 // Part 2 (timing): one layer at a real chunk (2048 tokens, 512 experts, top 10) on both paths, with their agreement.
 // Exit 77 without a CUDA device with int8 tensor cores.
-#include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cuda_runtime.h>
 
@@ -29,8 +29,8 @@
 #include <vector>
 
 namespace {
-namespace mmq = basalt::prefill::mmq;
-namespace fused = basalt::prefill::fused;
+namespace mmq = halo::prefill::mmq;
+namespace fused = halo::prefill::fused;
 
 constexpr int N = 2560, FF = 640, K = 10, GROUP = 16, Q2 = 42;   // GGML_TYPE_Q2_0
 constexpr size_t BLOB = 1382400, O_D_CODES = (size_t) 1280 * 640, O_GU_SC = O_D_CODES + (size_t) 2560 * 160,

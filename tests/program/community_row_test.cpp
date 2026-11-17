@@ -5,15 +5,15 @@
 //                                              compares it with what tools/check_benchmarks.py --fix writes)
 //   community_row_test --dup FILE              prints "I J" for each row I of FILE that has the setup of an earlier row J
 //                                              (the first such J), for community_row_fix_test.py to compare with the checker
-#include "basalt/program/community_row.hpp"
-#include "basalt/program/host_rates.hpp"
+#include "halo/program/community_row.hpp"
+#include "halo/program/host_rates.hpp"
 
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
 
-using namespace basalt::program;
+using namespace halo::program;
 
 namespace {
 int failures = 0;
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     std::string out, err;
     check(community_row_text(plain_row()) == one, "the row text", community_row_text(plain_row()));
 
-    const std::string head = "{\n  \"preset\": \"basalt-bench --community\",\n  \"runs\": [\n";
+    const std::string head = "{\n  \"preset\": \"halo-bench --community\",\n  \"runs\": [\n";
     const std::string prev = "    {\n      \"submitter\": \"a\"\n    }";
     check(community_add_row(head + prev + "\n  ]\n}", plain_row(), out, err) && out == head + prev + ",\n" + one + "\n  ]\n}",
           "a row is added after the last one with a comma", out);

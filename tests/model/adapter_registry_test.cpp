@@ -1,7 +1,7 @@
 // tests/model/adapter_registry_test.cpp - the adapter registry: lookup by architecture, the replaced guard and DeepSeek
 // the deepseek41 cases went with that adapter (Halocline, 2026-11-16). Host only: no model and no runtime are linked.
 #include "../core/gguf_fixture.hpp"
-#include "basalt/model/adapter.hpp"
+#include "halo/model/adapter.hpp"
 #include "meta_adapters.hpp"
 
 #include <cstdio>
@@ -16,12 +16,12 @@ void check(bool ok, const char* what) {
 }  // namespace
 
 int main() {
-    using namespace basalt;
+    using namespace halo;
     test::register_meta_adapters();
     check(model::find_adapter("qwen4exp") != nullptr, "the qwen4exp adapter is registered");
     check(model::find_adapter("llama") == nullptr, "an unknown architecture has no adapter");
 
-    const auto dir = std::filesystem::temp_directory_path() / "basalt_adapter_registry_test";
+    const auto dir = std::filesystem::temp_directory_path() / "halo_adapter_registry_test";
     std::filesystem::create_directories(dir);
     using namespace fixture;
 

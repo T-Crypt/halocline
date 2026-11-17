@@ -1,27 +1,27 @@
 #include "common.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
-bool hc8_table_has(const std::string& name, int rows, int cols) { return basalt::core::hc8_find(name, rows, cols) != nullptr; }
+bool hc8_table_has(const std::string& name, int rows, int cols) { return halo::core::hc8_find(name, rows, cols) != nullptr; }
 
 const void* hc8_table_adopt(const std::string& name, const uint16_t* w, int rows, int cols) {
     const Hc8Copy* c = hc8_find(name, rows, cols);
     if (c == nullptr) return nullptr;
-    return basalt::kernels::hc8_upload(w, c->q(), c->s(), rows, cols);
+    return halo::kernels::hc8_upload(w, c->q(), c->s(), rows, cols);
 }
 
 namespace {
@@ -48,7 +48,7 @@ uint64_t hc8_copy_bytes(const Hc8Tensor& t) { return (uint64_t) t.rows * (uint64
 }  // namespace
 
 uint64_t Verifier::hc8_plan_bytes(const std::function<bool(const std::string&)>& has, const ModelGeometry& g) {
-    if (!basalt::kernels::hc8_enabled()) return 0;
+    if (!halo::kernels::hc8_enabled()) return 0;
     uint64_t total = 0;
     for (const Hc8Tensor& t : hc8_tensors(g))
         if (has(t.name)) total += hc8_copy_bytes(t);
@@ -56,7 +56,7 @@ uint64_t Verifier::hc8_plan_bytes(const std::function<bool(const std::string&)>&
 }
 
 bool Verifier::prepare_hc8(const WeightTable& wt, const ModelGeometry& g, std::string& err) {
-    if (!basalt::kernels::hc8_enabled()) return true;
+    if (!halo::kernels::hc8_enabled()) return true;
     const std::vector<Hc8Tensor> tensors = hc8_tensors(g);
     const uint64_t total = hc8_plan_bytes([&](const std::string& n) { return wt.find(n) != nullptr; }, g);
     int dev = 0;
@@ -72,9 +72,9 @@ bool Verifier::prepare_hc8(const WeightTable& wt, const ModelGeometry& g, std::s
         progress.add(hc8_copy_bytes(t));
     }
     progress.finish();
-    basalt::log::info("basalt hc8", "8-bit hyper-connection copies, %.0f MiB of VRAM",
-                 (double) basalt::kernels::hc8_bytes() / 1048576.0);
+    halo::log::info("halo hc8", "8-bit hyper-connection copies, %.0f MiB of VRAM",
+                 (double) halo::kernels::hc8_bytes() / 1048576.0);
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

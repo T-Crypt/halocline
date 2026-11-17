@@ -6,11 +6,11 @@
 // Modes are EXP_MODE values.  A group is one expert (distinct blobs, ~2 MB each, so G >= 8 does not fit
 // in L2); its entries read distinct tokens of an 8-token window.  The output must be bitwise equal to the
 // reference mode's: the verify window's text depends on it.
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/iq_kernels.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cuda_runtime.h>
 
@@ -23,8 +23,8 @@
 #include <string>
 #include <vector>
 
-namespace cpu = basalt::kernels::cpu;
-namespace K = basalt::kernels;
+namespace cpu = halo::kernels::cpu;
+namespace K = halo::kernels;
 
 int main(int argc, char** argv) {
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "usage: native_expert_bench <shard1.gguf> <layer[,layer]> <groups> <tokens> <ref mode> <mode> [iters]\n");
         return 2;
     }
-    basalt::GgufFile gguf(argv[1]);
+    halo::GgufFile gguf(argv[1]);
     std::vector<int> layers;
     {
         std::stringstream ss(argv[2]);
@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     cudaEventCreate(&e0);
     cudaEventCreate(&e1);
     for (int l : layers) {
-        const basalt::TensorInfo* t[3] = {};
+        const halo::TensorInfo* t[3] = {};
         const char* roles[3] = {"gate", "up", "down"};
         for (const auto& ti : gguf.tensors())
             for (int r = 0; r < 3; ++r)

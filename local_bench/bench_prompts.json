@@ -1,5 +1,5 @@
 {
- "source": "basalt data/bench (conv, struct, prose, prefill), decoded with the pack tokenizer",
+ "source": "halo data/bench (conv, struct, prose, prefill), decoded with the pack tokenizer",
  "decode": {
   "conv": "Explain how a B-tree differs from an LSM tree, with a worked example of each. About 600 words.",
   "struct": "Output a JSON array of 200 objects, no prose, no fence. Keys in order: \"id\" (1..200), \"name\" (\"item_\"+id), \"category\" (cycle alpha,beta,gamma,delta), \"value\" (id*7), \"active\" (true if id even), \"tags\" ([\"t1\",\"t2\"]). Start with [ end with ].",

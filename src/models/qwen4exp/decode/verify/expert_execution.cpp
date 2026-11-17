@@ -1,16 +1,16 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
 #include <atomic>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // The device-planned tail's window start: residency tables and the flag words.
@@ -24,4 +24,4 @@ bool Verifier::dm_begin(std::string& err, DecodeGaps* gm) {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

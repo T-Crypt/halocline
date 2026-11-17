@@ -1,9 +1,9 @@
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "helpers.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 // Startup phases keep their resources on the stack until the following phases return.
 // This view borrows those resources without changing their construction or destruction order.
@@ -11,15 +11,15 @@ struct Context {
     Options* o = nullptr;
     std::string* ppl_base = nullptr;
     std::string* ppl_out = nullptr;
-    std::vector<basalt::program::GpuCard>* chosen_cards = nullptr;
-    basalt::core::ModelSources* srcs = nullptr;
-    basalt::core::ModelFile* model_file = nullptr;
-    const basalt::core::PackFiles* pack_files = nullptr;
-    const basalt::core::ExpertFiles* expert_files = nullptr;
+    std::vector<halo::program::GpuCard>* chosen_cards = nullptr;
+    halo::core::ModelSources* srcs = nullptr;
+    halo::core::ModelFile* model_file = nullptr;
+    const halo::core::PackFiles* pack_files = nullptr;
+    const halo::core::ExpertFiles* expert_files = nullptr;
     const bool* no_spec = nullptr;
-    basalt::kernels::RopeScaling* rope_cfg = nullptr;
+    halo::kernels::RopeScaling* rope_cfg = nullptr;
     std::string* err = nullptr;
-    basalt::core::ModelGeometry* g = nullptr;
+    halo::core::ModelGeometry* g = nullptr;
     int64_t* K = nullptr;
     std::set<std::string>* skip = nullptr;
     std::vector<std::pair<int32_t, int32_t>>* profile = nullptr;
@@ -34,45 +34,45 @@ struct Context {
     uint64_t* expert_total_bytes = nullptr;
     uint64_t* cuda0_fixed_bytes = nullptr;
     void ** arena = nullptr;
-    basalt::core::WeightTable* wt = nullptr;
+    halo::core::WeightTable* wt = nullptr;
     int32_t ** d_mrope = nullptr;
     std::vector<int32_t>* mrope_host = nullptr;
     std::string* cvec_summary = nullptr;
-    basalt::core::SessionState* ss = nullptr;
+    halo::core::SessionState* ss = nullptr;
     void ** sbuf = nullptr;
     cudaStream_t* main_stream = nullptr;
     void *const* main_cs = nullptr;
-    basalt::core::Doorbell* db = nullptr;
-    basalt::kernels::PleTable* ple_table = nullptr;
-    basalt::vision::CudaEncoder* vis_enc = nullptr;
+    halo::core::Doorbell* db = nullptr;
+    halo::kernels::PleTable* ple_table = nullptr;
+    halo::vision::CudaEncoder* vis_enc = nullptr;
     float ** d_parts = nullptr;
     const int64_t* kv_floor = nullptr;
     std::vector<std::vector<SlotSession>>* bslot_ss = nullptr;
     std::vector<int64_t>* slot_cap = nullptr;
     uint64_t* slot_kv_cuda0 = nullptr;
     bool* slot0_is_solo = nullptr;
-    basalt::core::MtpDrafter* mtp = nullptr;
+    halo::core::MtpDrafter* mtp = nullptr;
     const bool* mtp_on = nullptr;
-    const basalt::core::QsaState *const* mtp_kv = nullptr;
+    const halo::core::QsaState *const* mtp_kv = nullptr;
     const int64_t* n_vocab = nullptr;
-    std::optional<basalt::program::grammar::PackVocab>* grammar_vocab = nullptr;
-    basalt::core::NativeHead* native_head = nullptr;
+    std::optional<halo::program::grammar::PackVocab>* grammar_vocab = nullptr;
+    halo::core::NativeHead* native_head = nullptr;
     float ** d_logits = nullptr;
-    basalt::core::FileExpertSource* src = nullptr;
-    basalt::core::ArenaExpertSource* arena_src = nullptr;
-    basalt::core::ExpertSource ** srcp = nullptr;
-    std::optional<basalt::kernels::cpu::ExpertPool>* pool_store = nullptr;
+    halo::core::FileExpertSource* src = nullptr;
+    halo::core::ArenaExpertSource* arena_src = nullptr;
+    halo::core::ExpertSource ** srcp = nullptr;
+    std::optional<halo::kernels::cpu::ExpertPool>* pool_store = nullptr;
     uint64_t* auto_resident_bytes = nullptr;
-    const basalt::core::FileCache* file_cache = nullptr;
-    basalt::core::ExpertCache* xcache = nullptr;
+    const halo::core::FileCache* file_cache = nullptr;
+    halo::core::ExpertCache* xcache = nullptr;
     const int64_t* kv_tail_slots = nullptr;
     uint64_t* cache_fill_bytes = nullptr;
     Drive* drive = nullptr;
     std::FILE ** routing = nullptr;
-    basalt::core::SessionGraphs* gr = nullptr;
+    halo::core::SessionGraphs* gr = nullptr;
     float ** d_emb = nullptr;
     int ** d_next = nullptr;
-    const basalt::kernels::SamplerParams* sp = nullptr;
+    const halo::kernels::SamplerParams* sp = nullptr;
     std::vector<int64_t>* produced = nullptr;
     double* total_ms = nullptr;
     double* prefill_ms = nullptr;
@@ -80,11 +80,11 @@ struct Context {
     double* ttft_ms = nullptr;
     const int64_t* n_prompt = nullptr;
     int64_t* tok = nullptr;
-    basalt::core::TokenGraph* tgraph = nullptr;
+    halo::core::TokenGraph* tgraph = nullptr;
     std::vector<int32_t>* host_res = nullptr;
     std::function<cudaError_t(int32_t *)> res_put;
     int32_t ** d_res = nullptr;
-    basalt::core::TokenHits* thits = nullptr;
+    halo::core::TokenHits* thits = nullptr;
     const bool* graph_hits = nullptr;
     double* ms_ple = nullptr;
     double* ms_embed = nullptr;
@@ -100,7 +100,7 @@ struct Context {
     int64_t* auto_ceiling = nullptr;
     const bool* adapt_fast_on = nullptr;
     int64_t* lend_from = nullptr;
-    basalt::kernels::cpu::ExpertPool* pool = nullptr;
+    halo::kernels::cpu::ExpertPool* pool = nullptr;
     std::function<int64_t()> read_cap;
     int64_t* spec_pos = nullptr;
 };

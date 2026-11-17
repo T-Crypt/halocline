@@ -2,16 +2,16 @@
 //
 // A token is known by its raw bytes (the GPT-2 byte alphabet undone at load). A merge is an id pair with a rank and the
 // id of the token it makes; a piece is merged by lowest rank first, the leftmost pair on a tie.
-#include "basalt/program/tokenizer.hpp"
+#include "halo/program/tokenizer.hpp"
 
 #include <algorithm>
 #include <cstring>
 #include <unordered_map>
 
-#include "basalt/program/json_scan.hpp"
+#include "halo/program/json_scan.hpp"
 #include "unicode_flags.hpp"
 
-namespace basalt::program {
+namespace halo::program {
 
 namespace {
 
@@ -387,4 +387,4 @@ bool Tokenizer::encode(std::string_view text, bool parse_special, const std::vec
     return true;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

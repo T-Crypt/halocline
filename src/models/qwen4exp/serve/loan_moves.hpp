@@ -1,4 +1,4 @@
-// basalt/program/serve/loan_moves.hpp - the residency-table side of a prompt loan beside decoding slots.
+// halo/program/serve/loan_moves.hpp - the residency-table side of a prompt loan beside decoding slots.
 //
 // A loan that does not cover the next one gives back the entries the next loan leaves alone and keeps the rest; before
 // a loan (or the KV) takes the expert cache's last slots, the experts there the decoding slots routed lately trade
@@ -6,12 +6,12 @@
 // so a trade never reads it: that expert comes from its RAM copy.  Plain tables in, decisions out; no engine state.
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include <cstdint>
 #include <utility>
 #include <vector>
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 /// A residency-table entry the prompt path borrowed: (layer * n_expert + expert, cache slot).
 using LentEntry = std::pair<int32_t, int32_t>;
@@ -52,4 +52,4 @@ struct IssuedTrade {
 /// whose slot `to` an issued copy may have overwritten, becomes `miss`.
 void settle_trades(int32_t* table, int32_t n, const std::vector<IssuedTrade>& issued, bool landed, int32_t miss);
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

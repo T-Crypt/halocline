@@ -39,15 +39,15 @@ class BusyHeartbeat(unittest.TestCase):
             out = io.StringIO()
             t, done = self._start(log, out)
             with open(log, "a") as f:
-                f.write(f"basalt load: total {total}\nbasalt load: plan ram {total}\n")
-                f.write(f"basalt load: plan cuda0 {PLAN}\n")
+                f.write(f"halo load: total {total}\nhalo load: plan ram {total}\n")
+                f.write(f"halo load: plan cuda0 {PLAN}\n")
                 for i in range(1, 13):                   # a streaming copy: 3 s in 12 steps
-                    f.write(f"basalt load: ram {total * i // 17} {total}\n")
-                    f.write(f"basalt load: copy cuda0 {PLAN * i // 24} {PLAN}\n")
+                    f.write(f"halo load: ram {total * i // 17} {total}\n")
+                    f.write(f"halo load: copy cuda0 {PLAN * i // 24} {PLAN}\n")
                     f.flush()
                     time.sleep(0.25)
                 for i in range(13, 18):                  # ram moves on, the cuda0 copy stands still
-                    f.write(f"basalt load: ram {total * i // 17} {total}\n")
+                    f.write(f"halo load: ram {total * i // 17} {total}\n")
                     f.flush()
                     time.sleep(0.25)
                 time.sleep(1.3)                          # silence: the idle heartbeat must still fire
@@ -74,9 +74,9 @@ class BusyHeartbeat(unittest.TestCase):
             out = Tty()
             t, done = self._start(log, out)
             with open(log, "a") as f:
-                f.write(f"basalt load: total {PLAN}\nbasalt load: plan ram {PLAN}\n")
+                f.write(f"halo load: total {PLAN}\nhalo load: plan ram {PLAN}\n")
                 for i in range(1, 9):
-                    f.write(f"basalt load: ram {PLAN * i // 8} {PLAN}\n")
+                    f.write(f"halo load: ram {PLAN * i // 8} {PLAN}\n")
                     f.flush()
                     time.sleep(0.25)
             done.set()
@@ -149,9 +149,9 @@ class SparseLines(unittest.TestCase):
                                  kwargs={"heartbeat": 0.5, "out": out, "gpus": [0]}, daemon=True)
             t.start()
             with open(log, "a") as f:
-                f.write(f"basalt load: total {total}\nbasalt load: plan ram {total}\n")
+                f.write(f"halo load: total {total}\nhalo load: plan ram {total}\n")
                 for i in range(1, steps + 1):          # one 1%-line per gap, the last completes the row
-                    f.write(f"basalt load: ram {total * i // steps} {total}\n")
+                    f.write(f"halo load: ram {total * i // steps} {total}\n")
                     f.flush()
                     time.sleep(gap)
             done.set()
@@ -186,13 +186,13 @@ class BurstyLines(unittest.TestCase):
                                  kwargs={"heartbeat": 0.5, "out": out, "gpus": [0]}, daemon=True)
             t.start()
             with open(log, "a") as f:
-                f.write(f"basalt load: total {total}\nbasalt load: plan ram {total}\n")
+                f.write(f"halo load: total {total}\nhalo load: plan ram {total}\n")
                 for i in range(1, 5):               # the first percent fills in one cluster of reads
-                    f.write(f"basalt load: ram {total * i // 16} {total}\n")
+                    f.write(f"halo load: ram {total * i // 16} {total}\n")
                     f.flush()
                     time.sleep(burst)
                 for i in range(5, 8):               # then the size rule reads the row out, interval apart
-                    f.write(f"basalt load: ram {total * i // 8} {total}\n")
+                    f.write(f"halo load: ram {total * i // 8} {total}\n")
                     f.flush()
                     time.sleep(gap)
             done.set()
@@ -227,13 +227,13 @@ class DroughtLockLines(unittest.TestCase):
                                  kwargs={"heartbeat": 0.4, "out": out, "gpus": [0]}, daemon=True)
             t.start()
             with open(log, "a") as f:
-                f.write(f"basalt load: total {total}\nbasalt load: plan ram {total}\n")
+                f.write(f"halo load: total {total}\nhalo load: plan ram {total}\n")
                 for i in range(1, 3):              # the read-out starts tighter than it settles
-                    f.write(f"basalt load: ram {total * i // 20} {total}\n")
+                    f.write(f"halo load: ram {total * i // 20} {total}\n")
                     f.flush()
                     time.sleep(seed)
                 for i in range(3, 7):              # the steady 1%-read-out: gap > STALL x cadence
-                    f.write(f"basalt load: ram {total * i // 8} {total}\n")
+                    f.write(f"halo load: ram {total * i // 8} {total}\n")
                     f.flush()
                     time.sleep(gap)
             done.set()
@@ -265,12 +265,12 @@ class TerminalRates(unittest.TestCase):
                                  kwargs={"out": out, "gpus": [0, 1]}, daemon=True)
             t.start()
             with open(log, "a") as f:
-                f.write(f"basalt load: total {CUDA + RAM}\nbasalt load: plan cuda0 {CUDA}\n"
-                        f"basalt load: plan ram {RAM}\nbasalt load: plan copy cuda1 {COPY}\n")
+                f.write(f"halo load: total {CUDA + RAM}\nhalo load: plan cuda0 {CUDA}\n"
+                        f"halo load: plan ram {RAM}\nhalo load: plan copy cuda1 {COPY}\n")
                 for target, size, steps in STREAM:
                     times[target] = [time.monotonic()]
                     for i in range(steps + 1):
-                        f.write(f"basalt load: {target} {size * i // steps} {size}\n")
+                        f.write(f"halo load: {target} {size * i // steps} {size}\n")
                         f.flush()
                         if i < steps:
                             time.sleep(0.1)
@@ -342,20 +342,20 @@ class PhaseBoundaryBeat(unittest.TestCase):
                                  kwargs={"heartbeat": 0.5, "out": out, "gpus": [0]}, daemon=True)
             t.start()
             with open(log, "a") as f:
-                f.write(f"basalt load: total {total}\nbasalt load: plan ram {total}\n")
+                f.write(f"halo load: total {total}\nhalo load: plan ram {total}\n")
                 for i in range(1, 7):                # phase 1 streams under its own total
-                    f.write(f"basalt load: ram {step * i} {8 * 2**30}\n")
+                    f.write(f"halo load: ram {step * i} {8 * 2**30}\n")
                     f.flush()
                     time.sleep(0.3)
                 time.sleep(0.4)                      # a heartbeat prints phase 1's tail
-                f.write(f"basalt load: ram 0 {total2}\n")             # the engine re-plans: counter reset
-                f.write(f"basalt load: ram {total2 // 2} {total2}\n")  # bytes move in the young phase
+                f.write(f"halo load: ram 0 {total2}\n")             # the engine re-plans: counter reset
+                f.write(f"halo load: ram {total2 // 2} {total2}\n")  # bytes move in the young phase
                 f.flush()
                 time.sleep(0.4)                      # a heartbeat lands here: young window, moved bytes
-                f.write(f"basalt load: ram {total2 * 3 // 4} {total2}\n")
+                f.write(f"halo load: ram {total2 * 3 // 4} {total2}\n")
                 f.flush()
                 time.sleep(0.3)
-                f.write(f"basalt load: ram {total2} {total2}\n")      # the copy completes
+                f.write(f"halo load: ram {total2} {total2}\n")      # the copy completes
                 f.flush()
                 time.sleep(0.3)
             done.set()

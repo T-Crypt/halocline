@@ -1,7 +1,7 @@
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/nvfp4_avx2.hpp"
-#include "basalt/kernels/cpu/nvfp4_avx512.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/nvfp4_avx2.hpp"
+#include "halo/kernels/cpu/nvfp4_avx512.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,7 +10,7 @@
 #include <random>
 #include <vector>
 
-namespace cpu = basalt::kernels::cpu;
+namespace cpu = halo::kernels::cpu;
 
 namespace {
 enum class Mode { Avx2Base, Avx2Vnni, Avx2Disp, Avx512 };

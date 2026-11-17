@@ -2,7 +2,7 @@
 #include "prefix_anchor.hpp"
 #include "state.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 const std::vector<int32_t>* Runtime::idle_ids(int b) const {
     if (b < 0 || (size_t) b >= bs.size() || bs[(size_t) b].active) return nullptr;
@@ -79,4 +79,4 @@ void Runtime::prompt_command(const std::string& cmd) {
     std::fflush(stdout);
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

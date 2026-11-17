@@ -1,11 +1,11 @@
 // tests/models/qwen4exp/kernels/qsa_dec_attn_parity.cpp - qsa_dec_attn against qsa_decode_attn_batch (+ native_qsa_gate_apply), bitwise,
 // on random INT8 and FP16 pools through a permuted page table with masked pages; then a microbench of both.
 //   qsa_dec_attn_parity [iters]
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -18,7 +18,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 int g_fail = 0;

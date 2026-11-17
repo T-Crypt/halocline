@@ -3,29 +3,29 @@
 #include "common.hpp"
 #include "staging.hpp"
 #include "layout.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/prefill/moe_mmq.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <utility>
 #include <vector>
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/kv_stream.hpp"
 #include <future>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 struct Prefill::Impl {
@@ -128,7 +128,7 @@ struct Prefill::Impl {
     uint64_t region_bytes = 0;
     PrefillStats* stats = nullptr;
     // KV streaming: one layer's whole K/V, staged from the host copy per layer and chunk (identity layout)
-    basalt::kernels::KvHostPools stage;
+    halo::kernels::KvHostPools stage;
     int32_t* ident_table = nullptr;
     int device = -1;
     // the chunk's token ids on the device, for one batched embedding gather
@@ -143,4 +143,4 @@ struct Prefill::Impl {
     } warm;
 };
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

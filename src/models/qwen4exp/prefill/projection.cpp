@@ -1,13 +1,13 @@
 #include "state.hpp"
 #include "layout.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/log.hpp"
 #include <string>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 namespace detail {
@@ -41,4 +41,4 @@ bool bf16_proj(Gemm& gm, const core::WeightRef* w, const uint16_t* X, float* Y, 
 
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

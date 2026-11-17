@@ -1,27 +1,27 @@
 #include "common.hpp"
 #include "record.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_read_ada.hpp"
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/q5k_head.hpp"
-#include "basalt/models/qwen4exp/kernels/q6k_head.hpp"
-#include "basalt/models/qwen4exp/kernels/q80_vhead.hpp"
-#include "basalt/kernels/sampler.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/hc_read_ada.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/q5k_head.hpp"
+#include "halo/models/qwen4exp/kernels/q6k_head.hpp"
+#include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
+#include "halo/kernels/sampler.hpp"
 #include <algorithm>
 #include <exception>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 bool Verifier::WindowRecorder::head() {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     // ---- the head, T columns, and the argmax of each
     stamp(g.n_layers, 0);
     {
@@ -102,4 +102,4 @@ bool Verifier::WindowRecorder::head() {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

@@ -1,25 +1,25 @@
 // src/dense/forward.cpp - the layer loop of a decode window and of a prompt chunk, and the drafter's passes.
 #include "internal.hpp"
 
-#include "basalt/kernels/gdn_prompt.hpp"
-#include "basalt/kernels/gqa_attn.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/logprobs.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/nvfp4_planes.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/window_gemm.hpp"
-#include "basalt/prefill/fp4_dense.hpp"
-#include "basalt/prefill/fp8_gemm.hpp"
+#include "halo/kernels/gdn_prompt.hpp"
+#include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/logprobs.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/nvfp4_planes.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/window_gemm.hpp"
+#include "halo/prefill/fp4_dense.hpp"
+#include "halo/prefill/fp8_gemm.hpp"
 
-#include "basalt/kernels/elementwise.hpp"
+#include "halo/kernels/elementwise.hpp"
 
 #include <algorithm>
 #include <initializer_list>
 #include <cstddef>
 #include <vector>
 
-namespace basalt::dense {
+namespace halo::dense {
 namespace {
 
 
@@ -1167,4 +1167,4 @@ bool mtp_window(Model& m, SessionState& st, const float* hid, const int32_t* tok
     return cuda_ok("drafter", err);
 }
 
-}  // namespace basalt::dense
+}  // namespace halo::dense

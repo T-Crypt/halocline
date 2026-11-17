@@ -1,11 +1,11 @@
 // tests/models/qwen35/checkpoint_round_trip.cpp - the dense session's running state through the shared checkpoint
 // transfer: saved after a prompt and a few decoded tokens, changed by decoding on, written back, the same greedy tokens
-// again and the same bytes when saved a second time. Needs a 27B pack (argument or BASALT_QWEN35_PACK) and its GPU;
+// again and the same bytes when saved a second time. Needs a 27B pack (argument or HALO_QWEN35_PACK) and its GPU;
 // exits 77 without either. Runs once with the pack's drafter on (its waiting row or block context in the state) and once
 // plain.
-#include "basalt/core/checkpoint_transfer.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/model/adapter.hpp"
+#include "halo/core/checkpoint_transfer.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/model/adapter.hpp"
 #include "models/qwen35/adapter.hpp"
 
 #include <cstdio>
@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt;
+using namespace halo;
 
 namespace {
 int failures = 0;
@@ -111,11 +111,11 @@ void round_trip(const model::ModelAdapter& a, const std::string& pack, bool draf
 }  // namespace
 
 int main(int argc, char** argv) {
-    const char* env = std::getenv("BASALT_QWEN35_PACK");
+    const char* env = std::getenv("HALO_QWEN35_PACK");
     const std::string pack = argc > 1 ? argv[1] : env ? env : "";
     int devices = 0;
     if (pack.empty() || cudaGetDeviceCount(&devices) != cudaSuccess || devices == 0) {
-        std::printf("skip: no 27B pack (argument or BASALT_QWEN35_PACK) or no GPU\n");
+        std::printf("skip: no 27B pack (argument or HALO_QWEN35_PACK) or no GPU\n");
         return 77;
     }
     // the pack's GGUF view, as the program opens it

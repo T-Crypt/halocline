@@ -9,10 +9,10 @@
 //   C. THE BLOCK against ggml's own graph, captured in two binary files (`--in` / `--out`).  The capture
 //      records EVERY intermediate (key, value, gate, gated, normalized, conv_out, result), so a mismatch can be
 //      attributed to a stage instead of guessed at.
-#include "basalt/models/qwen4exp/kernels/ple.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/ple.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/kernels/native_mmvq.hpp"
 #include "ple_oracle_vectors.inc"
 
 #include <cuda_runtime.h>
@@ -27,8 +27,8 @@
 #include <stdexcept>
 #include <vector>
 
-namespace k = basalt::kernels;
-namespace o = basalt::kernels::ple_oracle;
+namespace k = halo::kernels;
+namespace o = halo::kernels::ple_oracle;
 
 namespace {
 

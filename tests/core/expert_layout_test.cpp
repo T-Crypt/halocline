@@ -7,15 +7,15 @@
 //      the formats are refused; columns past the fifth are ignored before v7.
 //   3. v7's sixth column, the up rows' type: a mixed layer's offsets and sizes, a missing column and a mix that
 //      cannot share a layer refused.
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
 
 #include <cstdio>
 #include <fstream>
 #include <sstream>
 #include <string>
 
-using basalt::kernels::cpu::ExpertLayout;
+using halo::kernels::cpu::ExpertLayout;
 
 namespace {
 int g_fail = 0;
@@ -26,7 +26,7 @@ void check(bool ok, const std::string& what) {
 
 bool load(const std::string& text, int64_t n_layers, int64_t n_expert, std::string& err) {
     err.clear();
-    return basalt::kernels::cpu::expert_layout_load_text(text, n_layers, n_expert, err, 2560, 640);
+    return halo::kernels::cpu::expert_layout_load_text(text, n_layers, n_expert, err, 2560, 640);
 }
 
 std::string read_file(const std::string& path) {
@@ -44,7 +44,7 @@ void real_layouts(const std::string& data) {
         const bool ok = load(text, 48, 512, err);
         check(ok, std::string(name) + ": loads" + (ok ? "" : ": " + err));
         if (!ok) continue;
-        const ExpertLayout& L = basalt::kernels::cpu::expert_layout();
+        const ExpertLayout& L = halo::kernels::cpu::expert_layout();
         std::istringstream in(text);
         std::string line;
         long long hdr_n = -1, hdr_total = -1;
@@ -85,9 +85,9 @@ std::string layout(int version, int64_t blob, const std::string& extra_column, i
 }
 
 void refusals() {
-    basalt::kernels::cpu::NativeFmt f;
+    halo::kernels::cpu::NativeFmt f;
     std::string err;
-    if (!basalt::kernels::cpu::native_fmt(12, 7, 2560, 640, f, err)) {
+    if (!halo::kernels::cpu::native_fmt(12, 7, 2560, 640, f, err)) {
         check(false, "Q4_K/Q5_1 native format: " + err);
         return;
     }
@@ -97,15 +97,15 @@ void refusals() {
           "columns past the fifth are ignored" + (err.empty() ? "" : ": " + err));
     check(!load(layout(8, blob, ""), 2, 512, err) && err.find("v8") != std::string::npos, "v8 is refused");
     // NVFP4: the blob carries a 16-byte FP32 scale tail after down, counted in the blob size
-    basalt::kernels::cpu::NativeFmt nv;
-    check(basalt::kernels::cpu::native_fmt(40, 40, 2560, 640, nv, err) && nv.tail == 16 &&
+    halo::kernels::cpu::NativeFmt nv;
+    check(halo::kernels::cpu::native_fmt(40, 40, 2560, 640, nv, err) && nv.tail == 16 &&
               nv.bytes == 2 * 640 * (2560 / 64 * 36) + 2560 * (640 / 64 * 36) + 16,
           "NVFP4 blob is 2,764,816 B with its scale tail" + (err.empty() ? "" : ": " + err));
     check(load(layout(6, (int64_t) nv.bytes, "", 2, "40 40"), 2, 512, err),
           "a v6 NVFP4 layout loads" + (err.empty() ? "" : ": " + err));
     check(!load(layout(6, (int64_t) nv.bytes - 16, "", 2, "40 40"), 2, 512, err),
           "an NVFP4 blob without its tail is refused");
-    check(!basalt::kernels::cpu::native_fmt(40, 7, 2560, 640, nv, err), "NVFP4 gate/up with a Q5_1 down is refused");
+    check(!halo::kernels::cpu::native_fmt(40, 7, 2560, 640, nv, err), "NVFP4 gate/up with a Q5_1 down is refused");
     check(!load(std::string(), 2, 512, err), "an empty layout is refused");
     check(!load(layout(5, blob, "").substr(0, layout(5, blob, "").rfind("1 12 7")), 2, 512, err),
           "a missing layer is refused");
@@ -115,7 +115,7 @@ void refusals() {
 
 // ---- 3. v7: gate and up of their own types
 void mixed() {
-    namespace c = basalt::kernels::cpu;
+    namespace c = halo::kernels::cpu;
     std::string err;
     c::NativeFmt m, s, x;
     const bool ok = c::native_fmt(22, 42, 2560, 640, m, err, 0.f, 16) && c::native_fmt(22, 42, 2560, 640, s, err) &&

@@ -18,10 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
-#include "basalt/models/qwen4exp/kernels/native_gr_norm.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/models/qwen4exp/kernels/native_gr_norm.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 #include <cmath>
@@ -31,7 +31,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 constexpr int N = 2560, H = 4, D = N * H, HISTORY = 9;
 __device__ float warp_sum(float x) {
@@ -395,4 +395,4 @@ void native_ple_postops_batch(float* key, float* hidden, const float* value, flo
     history_batch_kernel<<<D / 256, 256, 0, st>>>(history, query_norm, T);
     launch_check();
 }
-} // namespace basalt::kernels
+} // namespace halo::kernels

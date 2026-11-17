@@ -1,8 +1,8 @@
 // tests/platform/mapped_file_test.cpp - platform::MappedFile, file_size and pread_all on one scratch file. CPU only,
 // no model. The same assertions hold on every platform: a whole-file view, a section at an offset, the refusals, and
 // the view's hints (which may do nothing, but must not fault).
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/mapped_file.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/mapped_file.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -25,14 +25,14 @@ uint8_t byte_at(uint64_t i) { return (uint8_t) ((i * 2654435761ull) >> 13); }
 }  // namespace
 
 int main() {
-    using basalt::platform::MapOptions;
-    using basalt::platform::MappedFile;
+    using halo::platform::MapOptions;
+    using halo::platform::MappedFile;
 
-    const std::string path = basalt::platform::temp_dir() + "/basalt_mapped_file_test.bin";
+    const std::string path = halo::platform::temp_dir() + "/halo_mapped_file_test.bin";
     // an odd size, past two granularity units, so a section can start inside the file and end short of it
     const uint64_t total = 3 * 65536 + 1234;
     {
-        std::FILE* f = basalt::platform::open_file_utf8(path, "wb");
+        std::FILE* f = halo::platform::open_file_utf8(path, "wb");
         if (!f) { std::printf("mapped_file: cannot create %s\n", path.c_str()); return 1; }
         std::vector<uint8_t> buf(total);
         for (uint64_t i = 0; i < total; ++i) buf[i] = byte_at(i);
@@ -41,9 +41,9 @@ int main() {
     }
 
     uint64_t sz = 0;
-    check(basalt::platform::file_size(path, sz) && sz == total, "file_size of a regular file");
-    check(!basalt::platform::file_size(path + ".missing", sz), "file_size of a missing file fails");
-    check(!basalt::platform::file_size(basalt::platform::temp_dir(), sz), "file_size of a directory fails");
+    check(halo::platform::file_size(path, sz) && sz == total, "file_size of a regular file");
+    check(!halo::platform::file_size(path + ".missing", sz), "file_size of a missing file fails");
+    check(!halo::platform::file_size(halo::platform::temp_dir(), sz), "file_size of a directory fails");
 
     std::string err;
     {
@@ -91,15 +91,15 @@ int main() {
         check(!MappedFile::open_ro(path + ".missing", &err).has_value() && !err.empty(), "a missing file is refused");
     }
     {
-        const int fd = basalt::platform::open_fd_utf8(path);
+        const int fd = halo::platform::open_fd_utf8(path);
         std::vector<uint8_t> got(total);
-        check(fd >= 0 && basalt::platform::pread_all(fd, got.data(), total, 0), "pread_all reads the whole file");
+        check(fd >= 0 && halo::platform::pread_all(fd, got.data(), total, 0), "pread_all reads the whole file");
         bool same = true;
         for (uint64_t i = 0; same && i < total; ++i) same = got[i] == byte_at(i);
         check(same, "pread_all: every byte");
         std::vector<uint8_t> past(8);
-        check(!basalt::platform::pread_all(fd, past.data(), 8, total - 4), "pread_all past the end fails");
-        basalt::platform::close_fd(fd);
+        check(!halo::platform::pread_all(fd, past.data(), 8, total - 4), "pread_all past the end fails");
+        halo::platform::close_fd(fd);
     }
     std::remove(path.c_str());
 

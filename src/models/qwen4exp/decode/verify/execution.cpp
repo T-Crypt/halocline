@@ -1,22 +1,22 @@
 #include "common.hpp"
-#include "basalt/models/qwen4exp/kernels/q80_vhead.hpp"
+#include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
 #include "expert_plan.hpp"
 #include "diagnostics.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/kernels/wait_abort.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/wait_abort.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -26,11 +26,11 @@
 #include <vector>
 #include <immintrin.h>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 void Verifier::stage_inputs(int T, const int32_t* tokens, int64_t pos0) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const ModelGeometry& g = *g_;
     const QsaShapes s = shapes_of(g);
     int32_t* const pk = h_pos_ + (size_t) max_t_ * g.n_head;
@@ -67,7 +67,7 @@ bool Verifier::run(int T, const int32_t* tokens, int64_t pos0, PoolMultiFn pool,
 
 // The window's staging and launch, and the flags that need no host service.
 bool Verifier::run_begin(int T, const int32_t* tokens, int64_t pos0, std::string& err, cudaEvent_t after) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const OnDevice on_device(device_);
     last_batch_ = false;
     if (T < 1 || T > max_t_) { err = "verify: window size out of range"; return false; }
@@ -187,7 +187,7 @@ bool Verifier::run_serve(PoolMultiFn pool, void* user, std::string& err) {
 }
 
 int Verifier::serve_poll(PoolMultiFn pool, void* user, std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     if (ar_on()) return 1;   // the graph plans every layer on the device
     const OnDevice on_device(device_);
     const ModelGeometry& g = *g_;
@@ -237,7 +237,7 @@ int Verifier::serve_poll(PoolMultiFn pool, void* user, std::string& err) {
         const int n = T;
         progress_at("verify window: the CPU experts of layer", l);
         if (dm_ != nullptr) {   // the ring's own rows and tiers: the pool computes the CPU's entries only
-            const basalt::kernels::DmRing& R = dm_->h_ring[k];
+            const halo::kernels::DmRing& R = dm_->h_ring[k];
             sink_.ext_kind = R.kind;
             if (pool != nullptr)
                 pool(user, dm_->h_x + (size_t) k * dm_->x_stride, R.ids, n, ss.k, h_ymiss_, l);
@@ -292,9 +292,9 @@ int Verifier::serve_poll(PoolMultiFn pool, void* user, std::string& err) {
 
 // The window's results are garbage when one of its bounded device waits timed out (wait_abort.hpp).
 bool Verifier::window_intact(std::string& err) {
-    const unsigned long long code = basalt::kernels::wait_abort_code();
+    const unsigned long long code = halo::kernels::wait_abort_code();
     if (code == 0) return true;
-    err = "verify: a device wait timed out (" + basalt::kernels::wait_abort_text(code) + "); the window is discarded; restart the engine";
+    err = "verify: a device wait timed out (" + halo::kernels::wait_abort_text(code) + "); the window is discarded; restart the engine";
     return false;
 }
 
@@ -316,7 +316,7 @@ bool Verifier::ar_plan_intact(std::string& err) {
 
 // The window's end: the GPU's finish, the profile, and on the last stage the head's picks.
 bool Verifier::run_end(int32_t* out, std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const OnDevice on_device(device_);
     const ModelGeometry& g = *g_;
     DecodeGaps& gm = decode_gaps();
@@ -340,8 +340,8 @@ bool Verifier::run_end(int32_t* out, std::string& err) {
         cudaMemcpy(w.data(), dm_->wstat, w.size() * 8, cudaMemcpyDeviceToHost);
         cudaMemset(dm_->wstat, 0, w.size() * 8);
         const double nw = (double) dm_->wstat_windows;
-        basalt::log::raw("basalt verify: dm_wait over %lld windows (avg T %.2f):\n%s", (long long) dm_->wstat_windows,
-                     dm_->wstat_t / nw, basalt::kernels::dec_moe_stats_text(w.data(), nw).c_str());
+        halo::log::raw("halo verify: dm_wait over %lld windows (avg T %.2f):\n%s", (long long) dm_->wstat_windows,
+                     dm_->wstat_t / nw, halo::kernels::dec_moe_stats_text(w.data(), nw).c_str());
         dm_->wstat_windows = 0;
         dm_->wstat_t = 0;
     }
@@ -416,4 +416,4 @@ void Verifier::publish_plan(void* ctx) {
     *(volatile uint32_t*) v->h_flagA_ = v->cur_layer_ + 1;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

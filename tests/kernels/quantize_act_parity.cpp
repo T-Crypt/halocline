@@ -11,8 +11,8 @@
 //     d16 = fp16(d32)                           (stored, and used to DEQUANTIZE)
 //     q   = clip(rint(x / (double)d32), -128, 127)
 //     round trip = q * d16
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/kernels/f16_bits.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/kernels/f16_bits.hpp"
 
 #include <cuda_runtime.h>
 
@@ -38,8 +38,8 @@ void check(cudaError_t e, const char* what) {
 // returns NaN for finite fp16 overflow is invisible with an O(1) fixture.  The shared pair is validated against
 // 395 numpy float16 vectors and all 65,536 reverse patterns, so the test shares the implementation it is
 // checking.  Thin aliases keep the body below unchanged.
-using basalt::kernels::f16_from_f32;
-using basalt::kernels::f32_from_f16;
+using halo::kernels::f16_from_f32;
+using halo::kernels::f32_from_f16;
 inline uint16_t f32_to_f16_bits(float f) { return f16_from_f32(f); }
 inline float f16_bits_to_f32(uint16_t h) { return f32_from_f16(h); }
 
@@ -90,8 +90,8 @@ int run_case(const char* name, const std::vector<float>& x, bool check_bytes) {
         for (long long i = 0; i < n; ++i) if (std::memcmp(&rt[(size_t) i], &x[(size_t) i], 4) != 0) ++diff;
         if (diff) std::printf("    PROBE: device x differs from host x in %lld of %lld elements\n", diff, n);
     }
-    basalt::kernels::quantize_q8_0(d_x, d_b, n, nullptr);
-    basalt::kernels::dequant_q8_0(d_b, d_back, n, nullptr);
+    halo::kernels::quantize_q8_0(d_x, d_b, n, nullptr);
+    halo::kernels::dequant_q8_0(d_b, d_back, n, nullptr);
     check(cudaMemcpy(g_blocks.data(), d_b, g_blocks.size(), cudaMemcpyDeviceToHost), "back blocks");
     check(cudaMemcpy(g_back.data(), d_back, (size_t) n * sizeof(float), cudaMemcpyDeviceToHost), "back vals");
 
@@ -187,8 +187,8 @@ int run_case_k(const char* name, const std::vector<float>& x, bool check_bytes, 
     check(cudaMalloc(&d_b, g_blocks.size()), "malloc blocks");
     check(cudaMalloc(&d_back, (size_t) n * sizeof(float)), "malloc back");
     check(cudaMemcpy(d_x, x.data(), (size_t) n * sizeof(float), cudaMemcpyHostToDevice), "copy x");
-    basalt::kernels::quantize_q8_K(d_x, d_b, n, nullptr);
-    basalt::kernels::dequant_q8_K(d_b, d_back, n, nullptr);
+    halo::kernels::quantize_q8_K(d_x, d_b, n, nullptr);
+    halo::kernels::dequant_q8_K(d_b, d_back, n, nullptr);
     check(cudaMemcpy(g_blocks.data(), d_b, g_blocks.size(), cudaMemcpyDeviceToHost), "back blocks");
     check(cudaMemcpy(g_back.data(), d_back, (size_t) n * sizeof(float), cudaMemcpyDeviceToHost), "back vals");
 
@@ -318,14 +318,14 @@ int main(int argc, char** argv) {
         };
         int fp16_bad = 0;
         for (const F16Case& c : cases) {
-            const uint16_t got = basalt::kernels::f16_from_f32(c.in);
+            const uint16_t got = halo::kernels::f16_from_f32(c.in);
             if (got != c.want) {
                 std::printf("    *** %s: want 0x%04X got 0x%04X\n", c.what, c.want, got);
                 ++fp16_bad;
             }
         }
         // and the reverse direction on the pattern that was flushed
-        const float sub = basalt::kernels::f32_from_f16(0x0001u);
+        const float sub = halo::kernels::f32_from_f16(0x0001u);
         const bool sub_ok = (sub == 5.9604645e-8f);
         std::printf("  %-44s %s (%d of %d wrong)\n", "f32->f16 overflow saturates, not NaN",
                     fp16_bad ? "*** NO ***" : "yes", fp16_bad, (int) (sizeof cases / sizeof cases[0]));

@@ -1,9 +1,9 @@
 // tests/kernels/dense_window_bench.cpp - a decode window's products at a dense model's widths: MMVQ (iq_mmvq) at 1 and
 // 8 columns against MMQ with an 8-row tile, for Q8_0 and NVFP4.  Prints us per call and GB/s of weights, and whether
 // MMQ's rows are bitwise the same whatever the rows given (1..8).  Exit 77 without a GPU.
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
 #include <cuda_runtime.h>
 
@@ -13,7 +13,7 @@
 #include <random>
 #include <vector>
 
-namespace mmq = basalt::prefill::mmq;
+namespace mmq = halo::prefill::mmq;
 
 int main() {
     int n = 0;
@@ -43,14 +43,14 @@ int main() {
         for (auto& v : x) v = nd(rng);
         cudaMalloc(&d_x, x.size() * 4);
         cudaMemcpy(d_x, x.data(), x.size() * 4, cudaMemcpyHostToDevice);
-        cudaMalloc(&d_xq, basalt::kernels::native_q8_1_bytes(sh.cols, 8));
+        cudaMalloc(&d_xq, halo::kernels::native_q8_1_bytes(sh.cols, 8));
         cudaMalloc(&d_xm, mmq::q8_bytes(8, sh.cols));
         cudaMalloc(&d_y, (size_t) 8 * sh.rows * 4);
         cudaMalloc(&d_y2, (size_t) 8 * sh.rows * 4);
         cudaMalloc(&d_ids, 64 * 4);
         cudaMalloc(&d_b, 8);
         mmq::iota(d_ids, 64, st);
-        basalt::kernels::native_quantize_q8_1(d_x, d_xq, sh.cols, 8, st);
+        halo::kernels::native_quantize_q8_1(d_x, d_xq, sh.cols, 8, st);
         mmq::quantize(d_x, nullptr, d_xm, sh.type, sh.cols, sh.cols, 8, st);
         mmq::load(sh.type, sh.rows);
         auto run_mmq = [&](int T, float* y) {
@@ -75,8 +75,8 @@ int main() {
             cudaEventElapsedTime(&ms, a, e);
             return 1000.0 * ms / 50;
         };
-        const double t1 = time([&] { basalt::kernels::iq_mmvq(sh.type, d_w, d_xq, d_y, sh.cols, sh.rows, 1, st); });
-        const double t8 = time([&] { basalt::kernels::iq_mmvq(sh.type, d_w, d_xq, d_y, sh.cols, sh.rows, 8, st); });
+        const double t1 = time([&] { halo::kernels::iq_mmvq(sh.type, d_w, d_xq, d_y, sh.cols, sh.rows, 1, st); });
+        const double t8 = time([&] { halo::kernels::iq_mmvq(sh.type, d_w, d_xq, d_y, sh.cols, sh.rows, 8, st); });
         const double tq = time([&] { run_mmq(8, d_y); });
         // MMQ rows given 1 vs 8: row 0 bitwise?
         run_mmq(8, d_y);
@@ -85,7 +85,7 @@ int main() {
         std::vector<float> y8(sh.rows), y1(sh.rows), yv((size_t) sh.rows);
         cudaMemcpy(y8.data(), d_y, sh.rows * 4, cudaMemcpyDeviceToHost);
         cudaMemcpy(y1.data(), d_y2, sh.rows * 4, cudaMemcpyDeviceToHost);
-        basalt::kernels::iq_mmvq(sh.type, d_w, d_xq, d_y, sh.cols, sh.rows, 1, st);
+        halo::kernels::iq_mmvq(sh.type, d_w, d_xq, d_y, sh.cols, sh.rows, 1, st);
         cudaStreamSynchronize(st);
         cudaMemcpy(yv.data(), d_y, sh.rows * 4, cudaMemcpyDeviceToHost);
         double md = 0, mv = 0;

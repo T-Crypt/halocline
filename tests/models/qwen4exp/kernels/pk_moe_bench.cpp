@@ -9,13 +9,13 @@
 // Per layer, reference: hc_fused_read (router, q8_1 rows) -> dec_moe_glue (gate/up, SwiGLU, down) with the shared
 // expert on a side stream -> dec_moe_wait -> dec_moe_combine.  pk: hc_fused_read -> pk_moe_experts with the shared
 // expert on the side stream and its end flagged to the experts kernel.
-#include "basalt/core/diag.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/pk_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/shared_expert.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/pk_moe.hpp"
+#include "halo/models/qwen4exp/kernels/shared_expert.hpp"
 
 #include <cuda_runtime.h>
 
@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 
-namespace K = basalt::kernels;
+namespace K = halo::kernels;
 
 namespace {
 
@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
         else if (a == "--exp" && i + 1 < argc) {
             const std::string kv = argv[++i];
             const size_t eq = kv.find('=');
-            basalt::core::diagnostics().exp[kv.substr(0, eq)] = std::atof(kv.c_str() + eq + 1);
+            halo::core::diagnostics().exp[kv.substr(0, eq)] = std::atof(kv.c_str() + eq + 1);
         }
     }
     if (!K::hc_fused_supported()) { std::printf("pk_moe_bench: no fused hc read on this device\n"); return 1; }

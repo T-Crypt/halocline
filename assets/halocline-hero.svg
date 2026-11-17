@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" role="img" aria-labelledby="t d">
+  <title id="t">Halocline: the engine that hides nothing</title>
+  <desc id="d">A water column split by one bright boundary. The boundary is labelled with Halocline's measured distance from the
+BF16 model: mean KLD 0.0820 with int8 KV over 100 chunks. Particles sink through the upper layer and settle on the
+boundary. A depth gauge on the right reads context length in tokens, with the decode speed measured at each needle depth
+on one RTX 4090: 148 to 182 tokens per second warm, 123 at 36K, 121 at 137K.</desc>
+  <defs>
+    <linearGradient id="upper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0e5d6e"/>
+      <stop offset="0.6" stop-color="#0a4357"/>
+      <stop offset="1" stop-color="#083548"/>
+    </linearGradient>
+    <linearGradient id="lower" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#041d29"/>
+      <stop offset="0.55" stop-color="#021019"/>
+      <stop offset="1" stop-color="#01060a"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7ff7e8" stop-opacity="0"/>
+      <stop offset="0.18" stop-color="#bafcf3" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#f2fffd"/>
+      <stop offset="0.82" stop-color="#bafcf3" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#7ff7e8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="caustic" cx="0.35" cy="0" r="0.85">
+      <stop offset="0" stop-color="#a6f4ff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#a6f4ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pool" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7ff7e8" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#7ff7e8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-5%" y="-300%" width="110%" height="700%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.2"/>
+    </filter>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#9ff3ff" stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+    <clipPath id="upperClip"><rect x="0" y="0" width="1200" height="318"/></clipPath>
+  </defs>
+
+  <!-- water column -->
+  <rect width="1200" height="520" fill="url(#lower)"/>
+  <rect width="1200" height="318" fill="url(#upper)"/>
+  <rect width="1200" height="318" fill="url(#caustic)"/>
+  <rect width="1200" height="520" fill="url(#grid)"/>
+
+  <!-- slow caustic bands in the upper layer -->
+  <g clip-path="url(#upperClip)" opacity="0.5">
+    <path d="M-50 60 C 200 30, 420 95, 700 55 S 1100 40, 1260 70" fill="none" stroke="#a6f4ff" stroke-opacity="0.12" stroke-width="18">
+      <animate attributeName="d" dur="14s" repeatCount="indefinite"
+        values="M-50 60 C 200 30, 420 95, 700 55 S 1100 40, 1260 70;M-50 70 C 220 95, 440 35, 720 75 S 1080 85, 1260 55;M-50 60 C 200 30, 420 95, 700 55 S 1100 40, 1260 70"/>
+    </path>
+    <path d="M-50 150 C 260 120, 520 185, 820 140 S 1120 130, 1260 160" fill="none" stroke="#a6f4ff" stroke-opacity="0.08" stroke-width="26">
+      <animate attributeName="d" dur="19s" repeatCount="indefinite"
+        values="M-50 150 C 260 120, 520 185, 820 140 S 1120 130, 1260 160;M-50 160 C 240 190, 540 120, 800 165 S 1140 175, 1260 140;M-50 150 C 260 120, 520 185, 820 140 S 1120 130, 1260 160"/>
+    </path>
+  </g>
+
+  <!-- sinking particles: they come to rest on the boundary -->
+  <g fill="#d8fffa">
+    <circle cx="96" r="2.2" opacity="0"><animate attributeName="cy" values="-10;316" dur="9s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.9;0.9;0.25" keyTimes="0;0.1;0.85;1" dur="9s" repeatCount="indefinite"/></circle>
+    <circle cx="188" r="1.6" opacity="0"><animate attributeName="cy" values="-10;316" dur="12s" begin="-3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.8;0.8;0.2" keyTimes="0;0.1;0.85;1" dur="12s" begin="-3s" repeatCount="indefinite"/></circle>
+    <circle cx="262" r="2.6" opacity="0"><animate attributeName="cy" values="-10;316" dur="10s" begin="-6s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.9;0.9;0.25" keyTimes="0;0.1;0.85;1" dur="10s" begin="-6s" repeatCount="indefinite"/></circle>
+    <circle cx="355" r="1.4" opacity="0"><animate attributeName="cy" values="-10;316" dur="14s" begin="-1s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.7;0.7;0.2" keyTimes="0;0.1;0.85;1" dur="14s" begin="-1s" repeatCount="indefinite"/></circle>
+    <circle cx="448" r="2" opacity="0"><animate attributeName="cy" values="-10;316" dur="11s" begin="-8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.85;0.85;0.25" keyTimes="0;0.1;0.85;1" dur="11s" begin="-8s" repeatCount="indefinite"/></circle>
+    <circle cx="530" r="1.8" opacity="0"><animate attributeName="cy" values="-10;316" dur="13s" begin="-4s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.8;0.8;0.2" keyTimes="0;0.1;0.85;1" dur="13s" begin="-4s" repeatCount="indefinite"/></circle>
+    <circle cx="612" r="2.4" opacity="0"><animate attributeName="cy" values="-10;316" dur="9.5s" begin="-7s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.9;0.9;0.25" keyTimes="0;0.1;0.85;1" dur="9.5s" begin="-7s" repeatCount="indefinite"/></circle>
+    <circle cx="704" r="1.5" opacity="0"><animate attributeName="cy" values="-10;316" dur="15s" begin="-10s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.7;0.7;0.2" keyTimes="0;0.1;0.85;1" dur="15s" begin="-10s" repeatCount="indefinite"/></circle>
+    <circle cx="786" r="2.1" opacity="0"><animate attributeName="cy" values="-10;316" dur="10.5s" begin="-2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.85;0.85;0.25" keyTimes="0;0.1;0.85;1" dur="10.5s" begin="-2s" repeatCount="indefinite"/></circle>
+    <circle cx="862" r="1.7" opacity="0"><animate attributeName="cy" values="-10;316" dur="12.5s" begin="-9s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;0.8;0.8;0.2" keyTimes="0;0.1;0.85;1" dur="12.5s" begin="-9s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- resting layer on the boundary -->
+  <ellipse cx="520" cy="318" rx="460" ry="22" fill="url(#pool)"/>
+  <g fill="#e9fffb" opacity="0.55" filter="url(#soft)">
+    <circle cx="118" cy="314" r="1.6"/><circle cx="204" cy="315" r="1.3"/><circle cx="276" cy="313" r="1.9"/>
+    <circle cx="371" cy="315" r="1.2"/><circle cx="463" cy="314" r="1.5"/><circle cx="548" cy="313" r="1.4"/>
+    <circle cx="627" cy="315" r="1.8"/><circle cx="719" cy="314" r="1.2"/><circle cx="803" cy="313" r="1.6"/>
+  </g>
+
+  <!-- the boundary -->
+  <g filter="url(#glow)">
+    <path d="M0 318 C 200 314, 400 322, 600 318 S 1000 314, 1200 318" fill="none" stroke="url(#line)" stroke-width="2.6">
+      <animate attributeName="d" dur="8s" repeatCount="indefinite"
+        values="M0 318 C 200 314, 400 322, 600 318 S 1000 314, 1200 318;M0 318 C 200 321, 400 315, 600 318 S 1000 321, 1200 318;M0 318 C 200 314, 400 322, 600 318 S 1000 314, 1200 318"/>
+    </path>
+  </g>
+  <rect x="-240" y="315" width="240" height="6" fill="url(#shimmer)" opacity="0.55">
+    <animate attributeName="x" values="-240;1200" dur="7s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- boundary label: the measured distance from BF16 -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#bafcf3">
+    <text x="64" y="345" opacity="0.95">mean KLD 0.0820 to BF16</text>
+    <text x="64" y="364" fill="#7fb9c2">int8 KV · 100 chunks · top-1 90.45% · evals/2026-11-17/halocline-kv-kld</text>
+  </g>
+
+  <!-- wordmark -->
+  <g font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="64" y="150" font-size="84" font-weight="600" letter-spacing="-2" fill="#effffc">halocline</text>
+    <text x="68" y="196" font-size="26" font-weight="400" fill="#bafcf3">the engine that hides nothing</text>
+    <text x="68" y="236" font-size="15" fill="#86c4cc" letter-spacing="0.6">QWEN4 FAMILY · ONE RTX 4090 · SM_89 ONLY</text>
+  </g>
+
+  <!-- depth gauge: context length, with the decode speed measured at each depth -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12">
+    <line x1="1040" y1="60" x2="1040" y2="470" stroke="#9ff3ff" stroke-opacity="0.35" stroke-width="1.5"/>
+    <g stroke="#9ff3ff" stroke-opacity="0.35">
+      <line x1="1034" y1="60" x2="1046" y2="60"/><line x1="1034" y1="117" x2="1046" y2="117"/>
+      <line x1="1034" y1="275" x2="1046" y2="275"/><line x1="1034" y1="470" x2="1046" y2="470"/>
+    </g>
+    <text x="1056" y="64" fill="#86c4cc">short</text>
+    <text x="1056" y="121" fill="#86c4cc">36K</text>
+    <text x="1056" y="279" fill="#86c4cc">137K</text>
+    <text x="1056" y="474" fill="#86c4cc">262K</text>
+    <text x="1028" y="64" text-anchor="end" fill="#d8fffa">148-182 tok/s</text>
+    <text x="1028" y="121" text-anchor="end" fill="#d8fffa">123 tok/s</text>
+    <text x="1028" y="279" text-anchor="end" fill="#d8fffa">121 tok/s</text>
+    <text x="1028" y="474" text-anchor="end" fill="#5f8f97">context, to scale</text>
+    <circle cx="1040" cy="117" r="3.5" fill="#bafcf3"><animate attributeName="opacity" values="1;0.35;1" dur="3s" repeatCount="indefinite"/></circle>
+    <circle cx="1040" cy="275" r="3.5" fill="#bafcf3"><animate attributeName="opacity" values="1;0.35;1" dur="3s" begin="-1.5s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- footer -->
+  <text x="64" y="488" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#5f8f97">decode at each depth: needle tests through llama-swap · every number in this repo links to its eval</text>
+</svg>

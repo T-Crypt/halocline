@@ -1,12 +1,12 @@
-// src/prefill/fp4_dense.cu - see include/basalt/prefill/fp4_dense.hpp.
+// src/prefill/fp4_dense.cu - see include/halo/prefill/fp4_dense.hpp.
 // The dense W4A4 product on sm_89: kernel_ada, on the f16 tensor cores (see its comment).  Upstream's TMA kernel
 // (adapted from Infernix's nvfp4_a4_tma_kernel, Apache-2.0, see THIRD_PARTY_LICENSES) needs compute capability 9.0 and
 // was removed; the activation layout below (256-token scale tiles) is still that kernel's, and the quantizer rounds to
 // E2M1 without the FP4 convert.
-#include "basalt/prefill/fp4_dense.hpp"
+#include "halo/prefill/fp4_dense.hpp"
 
-#include "basalt/kernels/narrow_bf16.cuh"
-#include "basalt/kernels/silu.cuh"
+#include "halo/kernels/narrow_bf16.cuh"
+#include "halo/kernels/silu.cuh"
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
@@ -18,10 +18,10 @@
 #include <cstdlib>
 #include <type_traits>
 
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 
-namespace basalt::prefill::fp4_dense {
+namespace halo::prefill::fp4_dense {
 namespace {
 
 constexpr int kBT = 256;                  // tokens per block
@@ -29,7 +29,7 @@ constexpr int kScaleTileBytes = kBT * 16;        // 256 tokens x 16 groups
 
 void ck(cudaError_t e, const char* what) {
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "fp4 dense: %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "fp4 dense: %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -439,7 +439,7 @@ void check(const void* a, const void* b, int64_t rows, int64_t K, int64_t tokens
     const auto al = [](const void* v, size_t n) { return (reinterpret_cast<uintptr_t>(v) & (n - 1)) == 0; };
     if (rows <= 0 || rows % 128 || K <= 0 || K % 256 || tokens <= 0 || ld < rows || (ld & (bf16 ? 7 : 1)) || !al(a, 16) || !al(b, 16) ||
         !al(act, 16) || !al(dst, bf16 ? 16 : 8) || (bf16 && !al(gs, 16))) {
-        basalt::log::error("basalt", "fp4 dense: %s: rows %lld K %lld tokens %lld ld %lld", what, (long long) rows, (long long) K,
+        halo::log::error("halo", "fp4 dense: %s: rows %lld K %lld tokens %lld ld %lld", what, (long long) rows, (long long) K,
                            (long long) tokens, (long long) ld);
         std::exit(1);
     }
@@ -454,7 +454,7 @@ size_t act_bytes(int64_t rows, int64_t cols) {
 void quantize(const float* x, int64_t rows, int64_t cols, int64_t ld, void* act, float* gs, void* stream) {
     if (rows <= 0) return;
     if (cols % 256 || (ld & 3) || (reinterpret_cast<uintptr_t>(x) & 15) || (reinterpret_cast<uintptr_t>(act) & 15)) {
-        basalt::log::error("basalt", "fp4 dense: quantize %lld columns, ld %lld", (long long) cols, (long long) ld);
+        halo::log::error("halo", "fp4 dense: quantize %lld columns, ld %lld", (long long) cols, (long long) ld);
         std::exit(1);
     }
     uint8_t* codes = (uint8_t*) act;
@@ -468,7 +468,7 @@ void quantize_amax(const uint16_t* x, const float* rowmax, int64_t rows, int64_t
                    void* stream) {
     if (rows <= 0) return;
     if (cols % 256 || (ld & 3) || (reinterpret_cast<uintptr_t>(x) & 15) || (reinterpret_cast<uintptr_t>(act) & 15)) {
-        basalt::log::error("basalt", "fp4 dense: quantize %lld columns, ld %lld", (long long) cols, (long long) ld);
+        halo::log::error("halo", "fp4 dense: quantize %lld columns, ld %lld", (long long) cols, (long long) ld);
         std::exit(1);
     }
     uint8_t* codes = (uint8_t*) act;
@@ -483,7 +483,7 @@ void rms_norm_quantize(const float* x, const float* w, float eps, int64_t rows, 
                        void* stream) {
     if (rows <= 0) return;
     if (cols % 256 || (reinterpret_cast<uintptr_t>(x) & 15) || (reinterpret_cast<uintptr_t>(act) & 15)) {
-        basalt::log::error("basalt", "fp4 dense: rms_norm_quantize %lld columns", (long long) cols);
+        halo::log::error("halo", "fp4 dense: rms_norm_quantize %lld columns", (long long) cols);
         std::exit(1);
     }
     uint8_t* codes = (uint8_t*) act;
@@ -532,7 +532,7 @@ void rms_norm_quantize(const uint16_t* x, const float* w, float eps, int64_t row
     if (rows <= 0) return;
     if (cols % 256 || (reinterpret_cast<uintptr_t>(x) & 15) || (reinterpret_cast<uintptr_t>(act) & 15) ||
         (xn && (reinterpret_cast<uintptr_t>(xn) & 15))) {
-        basalt::log::error("basalt", "fp4 dense: rms_norm_quantize %lld columns", (long long) cols);
+        halo::log::error("halo", "fp4 dense: rms_norm_quantize %lld columns", (long long) cols);
         std::exit(1);
     }
     uint8_t* codes = (uint8_t*) act;
@@ -559,4 +559,4 @@ void swiglu(const void* w_gate, const void* w_up, const float* s_gate, const flo
     launch<true, false>(p, w_gate, w_up, rows, K, act, tokens, (cudaStream_t) stream);
 }
 
-}  // namespace basalt::prefill::fp4_dense
+}  // namespace halo::prefill::fp4_dense

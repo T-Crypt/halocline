@@ -1,9 +1,9 @@
-// src/models/qwen4exp/kernels/q6k_head.cu - see include/basalt/models/qwen4exp/kernels/q6k_head.hpp.
+// src/models/qwen4exp/kernels/q6k_head.cu - see include/halo/models/qwen4exp/kernels/q6k_head.hpp.
 //
 // Built with --use_fast_math like native_mmvq.cu, whose Q6_K x q8_1 dot this repeats.
-#include "basalt/models/qwen4exp/kernels/q6k_head.hpp"
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/q6k_head.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/pdl.hpp"
 #include "head_proxy.cuh"
 #include "smem_opt_in.cuh"
 
@@ -14,9 +14,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int QK = 256, Q8K = 32, WARP = 32;
@@ -683,7 +683,7 @@ bool q6k_head_top1(const void* weights, const void* x_q8_1, float* y, int n_in, 
                                                                          out_prob, part, count);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q6k_head_top1: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q6k_head_top1: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     return true;
@@ -691,7 +691,7 @@ bool q6k_head_top1(const void* weights, const void* x_q8_1, float* y, int n_in, 
 
 void q6k_head_mmvq(const void* weights, const void* x_q8_1, float* y, int n_in, int n_out, int ncols, void* stream) {
     if (!q6k_head_supported(n_in, ncols) || n_out <= 0 || !weights || !x_q8_1 || !y) {
-        basalt::log::error("basalt", "q6k_head_mmvq: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
+        halo::log::error("halo", "q6k_head_mmvq: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
         std::exit(1);
     }
     const auto s = (cudaStream_t) stream;
@@ -707,7 +707,7 @@ void q6k_head_mmvq(const void* weights, const void* x_q8_1, float* y, int n_in, 
     }
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q6k_head_mmvq: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q6k_head_mmvq: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -720,7 +720,7 @@ void q6k_proxy_pack(const void* q6k_rows, int64_t row0, int64_t n, void* proxy, 
         (const Q6KBlock*) q6k_rows, row0, n, (uint4*) proxy, px::scales(proxy, n_cap), rows);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q6k_proxy_pack: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q6k_proxy_pack: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -741,7 +741,7 @@ bool q6k_proxy_top1(const void* proxy, const void* q6k_rows, const void* x_q8_1,
                rows_by_map ? 1 : 0);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q6k_proxy_top1: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q6k_proxy_top1: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     return true;
@@ -751,7 +751,7 @@ size_t q6k_vproxy_bytes(int64_t n) { return n > 0 && n % 16 == 0 ? vlevels_bytes
 
 void q6k_vproxy_pack(const void* q6k_rows, int64_t n, void* proxy, void* stream) {
     if (n <= 0 || n % 16 != 0) {
-        basalt::log::error("basalt", "q6k_vproxy_pack: %lld rows (a positive multiple of 16)", (long long) n);
+        halo::log::error("halo", "q6k_vproxy_pack: %lld rows (a positive multiple of 16)", (long long) n);
         std::exit(1);
     }
     const auto s = (cudaStream_t) stream;
@@ -761,7 +761,7 @@ void q6k_vproxy_pack(const void* q6k_rows, int64_t n, void* proxy, void* stream)
         (const Q6KBlock*) q6k_rows, n, (uint32_t*) proxy, (__half*) ((char*) proxy + vlevels_bytes(n)));
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q6k_vproxy_pack: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q6k_vproxy_pack: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -775,7 +775,7 @@ bool q6k_vhead_supported(int n_in, int n_out, int ncols) {
 void q6k_vhead(const void* proxy, const void* weights, const void* x_q8_1, float* y, int n_in, int n_out, int ncols,
                void* scratch, void* stream, const int* col_from) {
     if (!q6k_vhead_supported(n_in, n_out, ncols) || !proxy || !weights || !x_q8_1 || !y || !scratch) {
-        basalt::log::error("basalt", "q6k_vhead: unsupported shape (n_in %d, n_out %d, ncols %d)", n_in, n_out, ncols);
+        halo::log::error("halo", "q6k_vhead: unsupported shape (n_in %d, n_out %d, ncols %d)", n_in, n_out, ncols);
         std::exit(1);
     }
     const auto s = (cudaStream_t) stream;
@@ -808,9 +808,9 @@ void q6k_vhead(const void* proxy, const void* weights, const void* x_q8_1, float
                (const Q6KBlock*) weights, (const Q81Block*) x_q8_1, y, n_out, ncols, (const VScratch*) vs, col_from);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q6k_vhead: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q6k_vhead: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

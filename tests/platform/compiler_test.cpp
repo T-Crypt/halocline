@@ -1,6 +1,6 @@
-// tests/platform/compiler_test.cpp - the compiler-facing helpers in basalt/platform/compiler.hpp, and the
+// tests/platform/compiler_test.cpp - the compiler-facing helpers in halo/platform/compiler.hpp, and the
 // std::atomic_ref max-update the verifier uses for its flags. CPU only.
-#include "basalt/platform/compiler.hpp"
+#include "halo/platform/compiler.hpp"
 
 #include <atomic>
 #include <bit>
@@ -20,7 +20,7 @@ void check(bool ok, const std::string& what) {
 }  // namespace
 
 int main() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     unsigned r[4] = {};
     cpuid(0, 0, r);
     char vendor[13] = {};

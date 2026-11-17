@@ -1,5 +1,8 @@
 # Sampling and thinking
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
 A request's sampling fields win. A field it leaves out takes the server option of the same name, then the model file's `sampling`
 default, then the engine's. `/props` reports what is in effect. An out-of-range value is a 400 that names the field.
 
@@ -36,13 +39,13 @@ them, and decode speed stays within a few percent.
 - **Chat Completions:** `logprobs: true` and `top_logprobs` (0 to 20). `choices[0].logprobs.content` has one entry per answer
   token, `{token, logprob, bytes, top_logprobs: [{token, logprob, bytes}]}`, likeliest first. Streaming: each chunk carries the
   entries of its tokens.
-- **Thinking and tool calls:** Basalt adds `logprobs.reasoning_content` (the thinking's tokens) and `logprobs.tool_calls`
+- **Thinking and tool calls:** Halocline adds `logprobs.reasoning_content` (the thinking's tokens) and `logprobs.tool_calls`
   (`[{index, content}]`, each call's tokens as the model wrote them, markup included): the least likely token of a call is where
   the model guessed.
 - **Responses:** `include: ["message.output_text.logprobs"]` with `top_logprobs` fills `output_text.logprobs` and each
-  `response.output_text.delta`; Basalt adds `logprobs` to reasoning and call items (and to `response.reasoning_text.delta` and
+  `response.output_text.delta`; Halocline adds `logprobs` to reasoning and call items (and to `response.reasoning_text.delta` and
   `response.function_call_arguments.delta`).
-- **Anthropic Messages** (a Basalt extension; the API has no such field): the same `logprobs` and `top_logprobs`. Each
+- **Anthropic Messages** (a Halocline extension; the API has no such field): the same `logprobs` and `top_logprobs`. Each
   `content_block_delta` carries `logprobs`, the entries of its tokens; the message, or else `message_delta`, carries the
   `logprobs` object above.
 - **Uses:** with `response_format` set to a schema whose field is an `enum`, the `top_logprobs` at the value's first
@@ -87,10 +90,10 @@ curl -s localhost:8080/v1/answer_now -H 'Content-Type: application/json' -d '{"r
 
 The call takes the API key like every `/v1` route. A page on another origin reads `X-Request-Id` through `--cors-origin`.
 
-### Detecting Basalt
+### Detecting Halocline
 
-`/props` (llama.cpp's route, unchanged for its clients) carries one extra key, `basalt`: `{"version": "...", "capabilities":
-["answer_now", "logprobs", "documents"]}`. A client that finds `basalt` there talks to Basalt; `"answer_now" in basalt.capabilities` says the
+`/props` (llama.cpp's route, unchanged for its clients) carries one extra key, `halo`: `{"version": "...", "capabilities":
+["answer_now", "logprobs", "documents"]}`. A client that finds `halo` there talks to Halocline; `"answer_now" in halo.capabilities` says the
 endpoint above is served, `"logprobs"` that logprobs come back on all three APIs with the thinking's and tool calls' tokens
 ([logprobs](#logprobs)), `"documents"` that messages may carry PDF and text documents ([documents](documents.md)), and `"video"` (only
 while video is on) that this model takes video parts now (image input on, a model that reads video, FFmpeg found:

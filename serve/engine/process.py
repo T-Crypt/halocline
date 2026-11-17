@@ -1,4 +1,4 @@
-"""ProcessEngine: one resident `basalt --serve` child process, driven over stdin and stdout.
+"""ProcessEngine: one resident `halo --serve` child process, driven over stdin and stdout.
 
 Protocol (one line each):
   * start: stdout `INFO k=v ...` lines, then `READY <ctx> [stop]` (stop: STOP is honoured mid-request).
@@ -483,7 +483,7 @@ class ProcessEngine:
         err = next((x for x in reversed(lines) if ": error: " in x or x.startswith("ERR")), "")
         if err:
             return f"{status}, last error in its log: {err}"
-        last = next((x for x in reversed(lines) if x.startswith("basalt")), "")
+        last = next((x for x in reversed(lines) if x.startswith("halo")), "")
         return f"{status}, last log line: {last}" if last else f"{status}, nothing in its log"
 
     def alive(self) -> bool:

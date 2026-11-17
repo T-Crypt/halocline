@@ -1,23 +1,23 @@
-// src/models/qwen4exp/kernels/kv_stream.cu - see include/basalt/models/qwen4exp/kernels/kv_stream.hpp.
-#include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_seg.hpp"
+// src/models/qwen4exp/kernels/kv_stream.cu - see include/halo/models/qwen4exp/kernels/kv_stream.hpp.
+#include "halo/models/qwen4exp/kernels/kv_stream.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_seg.hpp"
 
 #include <cuda_runtime.h>
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "kv_stream: %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "kv_stream: %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -246,14 +246,14 @@ void kv_stream_resolve(const KvStreamMap& m, const QsaAttnPools& slots, const Kv
                        void* stream) {
     if (n_q <= 0) return;
     if (s.n_head_kv * s.page_size * (s.head_dim / KV_Q8_GROUP) * 2 % 16 != 0) {
-        basalt::log::error("basalt", "kv_stream: a block's scale run must be a multiple of 16 bytes");
+        halo::log::error("halo", "kv_stream: a block's scale run must be a multiple of 16 bytes");
         std::exit(1);
     }
     // one sweep step looks at RT consecutive slots `(hand + thread) % n_slots`; with fewer slots than RT two
     // threads see the same slot and may both take it for two different misses.  The engine never streams with fewer
     // than qsa_kv_resident_min() / page_size = 5,120 slots, so this is a guard, not a limit.
     if (m.n_slots < kKvStreamMinSlots) {
-        basalt::log::error("basalt", "kv_stream: %lld slots is fewer than the resolve block (%d): the clock sweep would take a "
+        halo::log::error("halo", "kv_stream: %lld slots is fewer than the resolve block (%d): the clock sweep would take a "
                              "slot twice", (long long) m.n_slots, RT);
         std::exit(1);
     }
@@ -268,7 +268,7 @@ void kv_stream_resolve_seg(const QsaSegTable& t, const int32_t* ids, const int32
     static_assert(kKvStreamMinSlots == RT, "a streamed slot's pool holds at least one sweep step");
     if (t.n_seg <= 0) return;
     if (s.n_head_kv * s.page_size * (s.head_dim / KV_Q8_GROUP) * 2 % 16 != 0) {
-        basalt::log::error("basalt", "kv_stream: a block's scale run must be a multiple of 16 bytes");
+        halo::log::error("halo", "kv_stream: a block's scale run must be a multiple of 16 bytes");
         std::exit(1);
     }
     // the slots' pool sizes live in the device table: the caller holds every streamed slot to kKvStreamMinSlots
@@ -331,4 +331,4 @@ KvStreamCounters kv_stream_counters(const KvStreamMap& m) {
     return r;
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

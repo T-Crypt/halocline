@@ -22,8 +22,8 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-#include "basalt/models/qwen4exp/kernels/native_rope.hpp"
-#include "basalt/models/qwen4exp/kernels/mrope.hpp"
+#include "halo/models/qwen4exp/kernels/native_rope.hpp"
+#include "halo/models/qwen4exp/kernels/mrope.hpp"
 #include <cuda_runtime.h>
 #include <atomic>
 #include <cmath>
@@ -32,7 +32,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 bool overlaps(const void* a, size_t an, const void* b, size_t bn) {
     auto x = reinterpret_cast<uintptr_t>(a), y = reinterpret_cast<uintptr_t>(b);

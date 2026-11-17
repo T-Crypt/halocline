@@ -1,11 +1,11 @@
 #include "experts.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -13,7 +13,7 @@
 #include <vector>
 #include <future>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::Experts::Group::cpu_download() {
@@ -57,7 +57,7 @@ void Prefill::Run::Chunk::Experts::Group::cpu_select() {
             ++n_stream;
             int fd = -1;
             uint64_t fo = 0;
-            if (c <= basalt::kernels::cpu::MAXT && (m.src->pinned(l, e) || !m.src->file_extent(l, e, fd, fo)))
+            if (c <= halo::kernels::cpu::MAXT && (m.src->pinned(l, e) || !m.src->file_extent(l, e, fd, fo)))
                 cand.emplace_back(c, e);
         }
         std::sort(cand.begin(), cand.end());
@@ -90,8 +90,8 @@ bool Prefill::Run::Chunk::Experts::Group::cpu_start() {
             m.cpu_rows_n = cap;
         }
         const int64_t r0c = T * K - rows_cpu;
-        const basalt::kernels::cpu::NativeFmt& cf = lay.fmt[(size_t) l];
-        namespace kc = basalt::kernels::cpu;
+        const halo::kernels::cpu::NativeFmt& cf = lay.fmt[(size_t) l];
+        namespace kc = halo::kernels::cpu;
         const bool q2 = kc::q2_native_kernels(cf.gu_type);
         if (q2 && m.cpu_actq.size() < (size_t) T) m.cpu_actq.resize((size_t) T);
         if (!q2 && m.cpu_nact.size() < (size_t) T * kc::kNativeActBytes) m.cpu_nact.resize((size_t) T * kc::kNativeActBytes);
@@ -130,4 +130,4 @@ bool Prefill::Run::Chunk::Experts::Group::cpu_start() {
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

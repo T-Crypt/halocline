@@ -1,8 +1,8 @@
-// src/platform/file.cpp - see include/basalt/platform/file.hpp.
+// src/platform/file.cpp - see include/halo/platform/file.hpp.
 //
 // One implementation per platform behind one spelling per call. The Linux half is the plain POSIX call the engine
 // made there before; the Windows half is the wide-call form of it, plus what reading a CRT descriptor needs there.
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <cerrno>
 #include <chrono>
@@ -16,7 +16,7 @@
 #include <sys/stat.h>  // ::stat
 #include <unistd.h>   // ::open, ::close, ::pread, ::access, ::chdir, ::readlink, fileno
 
-namespace basalt::platform {
+namespace halo::platform {
 
 // ----------------------------------------------------------------------------------------------- POSIX
 
@@ -228,4 +228,4 @@ std::string install_root() {
     return dir;
 }
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

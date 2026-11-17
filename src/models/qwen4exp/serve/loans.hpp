@@ -1,27 +1,27 @@
-// basalt/program/serve/loans.hpp - the prompt path's chunk sizes and the expert-cache slots it borrows.
+// halo/program/serve/loans.hpp - the prompt path's chunk sizes and the expert-cache slots it borrows.
 //
 // The prompt path lends the tail of the expert cache to its own buffers, so a chunk is sized by what the cache can
 // spare: `bytes_needed` for a chunk of T tokens, rounded up to whole blobs, against the slots left.  The cache, the
 // geometry and the session arrive as arguments; nothing here reads or holds engine state.
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include <cstdint>
 #include <utility>
 #include <vector>
 
-#include "basalt/core/expert_cache.hpp"   // ExpertCache
-#include "basalt/models/qwen4exp/decode/layout.hpp"         // ModelGeometry
-#include "basalt/models/qwen4exp/decode/session.hpp"        // SessionState
+#include "halo/core/expert_cache.hpp"   // ExpertCache
+#include "halo/models/qwen4exp/decode/layout.hpp"         // ModelGeometry
+#include "halo/models/qwen4exp/decode/session.hpp"        // SessionState
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 /// How many of `xc`'s slots `need` bytes take, measured from the end (sized slots) or in whole blobs.
-int64_t cache_slots_for(const basalt::core::ExpertCache& xc, uint64_t need);
+int64_t cache_slots_for(const halo::core::ExpertCache& xc, uint64_t need);
 
 /// The slots a prompt chunk of `cells` tokens needs from `xc`'s tail.
-int64_t lend_slots(const basalt::core::ExpertCache& xc, const basalt::core::ModelGeometry& g,
-                   const basalt::core::SessionState& ss, int64_t cells);
+int64_t lend_slots(const halo::core::ExpertCache& xc, const halo::core::ModelGeometry& g,
+                   const halo::core::SessionState& ss, int64_t cells);
 
 /// One card's chunk request rounded up to the 256-token grid the prompt path works on, capped at `max_chunk`.
 int64_t request_chunk(int64_t tokens, int64_t max_chunk);
@@ -35,7 +35,7 @@ std::vector<int64_t> chunk_list(int64_t tokens, int64_t chunk, int64_t head);
 
 /// The largest chunk the lend can fund (with `prefill_auto`, the largest on the 256-token grid under the caps),
 /// written to `chunk`; returns the slots it needs, 0 when nothing fits.
-int64_t plan_lend(int64_t& chunk, const basalt::core::ExpertCache& xc, const basalt::core::ModelGeometry& g,
-                  const basalt::core::SessionState& ss, bool prefill_auto, int64_t auto_ceiling, int auto_lend_pct);
+int64_t plan_lend(int64_t& chunk, const halo::core::ExpertCache& xc, const halo::core::ModelGeometry& g,
+                  const halo::core::SessionState& ss, bool prefill_auto, int64_t auto_ceiling, int auto_lend_pct);
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

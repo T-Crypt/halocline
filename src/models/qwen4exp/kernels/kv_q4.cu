@@ -1,22 +1,22 @@
-// src/models/qwen4exp/kernels/kv_q4.cu - see include/basalt/models/qwen4exp/kernels/kv_q4.hpp. Q4_0 KV with Walsh-Hadamard rotation
+// src/models/qwen4exp/kernels/kv_q4.cu - see include/halo/models/qwen4exp/kernels/kv_q4.hpp. Q4_0 KV with Walsh-Hadamard rotation
 // (with KV-streaming integration and a deterministic group maximum).
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/models/qwen4exp/kernels/kv_stream.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "kv_q4: %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "kv_q4: %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -175,7 +175,7 @@ __global__ void kv_gather_q4_kernel(const uint8_t* __restrict__ k_q4, const uint
 
 void need_256(const QsaShapes& s, const char* what) {
     if (s.head_dim != 256) {
-        basalt::log::error("basalt", "%s: head_dim must be 256 (the Hadamard transform's size)", what);
+        halo::log::error("halo", "%s: head_dim must be 256 (the Hadamard transform's size)", what);
         std::exit(1);
     }
 }
@@ -229,4 +229,4 @@ void kv_gather_q4_step(const uint8_t* k_q4, const uint8_t* v_q4, const int32_t* 
     check("kv_gather_q4 launch");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

@@ -1,13 +1,13 @@
-// tests/program/grammar_llama_state_test.cpp - llama.cpp's tests/test-llama-grammar.cpp against Basalt's grammar
+// tests/program/grammar_llama_state_test.cpp - llama.cpp's tests/test-llama-grammar.cpp against Halocline's grammar
 // state. The rules are the same hand-built element lists; the checks are the same facts: the initial stacks (compared
 // as a set, element by element) and which candidate characters each stack rejects (llama.cpp checks them one stack at
-// a time; Basalt exposes the union, so the check is that a character is accepted exactly when some stack accepts it).
+// a time; Halocline exposes the union, so the check is that a character is accepted exactly when some stack accepts it).
 // Data copied from llama.cpp (MIT, see THIRD_PARTY_LICENSES).
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 
-#include "basalt/program/grammar/grammar.hpp"
+#include "halo/program/grammar/grammar.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::program::grammar;
+using namespace halo::program::grammar;
 
 enum llama_gretype {
     LLAMA_GRETYPE_END = 0,

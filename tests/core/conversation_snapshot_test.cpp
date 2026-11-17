@@ -1,7 +1,7 @@
 #include <algorithm>
-#include "basalt/models/qwen4exp/decode/conversation_snapshot.hpp"
-#include "basalt/models/qwen4exp/decode/kv_arena.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/decode/conversation_snapshot.hpp"
+#include "halo/models/qwen4exp/decode/kv_arena.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
 #include <cuda_runtime.h>
 
 #include <array>
@@ -10,8 +10,8 @@
 #include <limits>
 #include <vector>
 
-using namespace basalt::core;
-using namespace basalt::kernels;
+using namespace halo::core;
+using namespace halo::kernels;
 
 namespace {
 int checks = 0;

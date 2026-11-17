@@ -38,16 +38,16 @@
 //     which IS "stable descending argsort, ties by ascending index" - the same order a repeated-maximum loop
 //     produces - computed in ONE parallel pass over the experts instead of k serial ones.  It is O(n^2)
 //     comparisons and that is the right trade here: n = 512 and every comparison is independent.
-#include "basalt/models/qwen4exp/kernels/router_top10.hpp"
+#include "halo/models/qwen4exp/kernels/router_top10.hpp"
 
 #include <cuda_runtime.h>
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int RT_MAX_THREADS = 512;
@@ -182,11 +182,11 @@ void router_top10(const float* logits, int n_tokens, int n_expert, int k, int* i
                   void* stream) {
     if (n_tokens <= 0 || n_expert <= 0 || k <= 0) return;
     if (k > 64) {
-        basalt::log::error("basalt", "router_top10: k %d exceeds the kernel's 64", k);
+        halo::log::error("halo", "router_top10: k %d exceeds the kernel's 64", k);
         std::exit(1);
     }
     if (n_expert > RT_MAX_THREADS * 64) {
-        basalt::log::error("basalt", "router_top10: n_expert %d is past the kernel's %d", n_expert,
+        halo::log::error("halo", "router_top10: n_expert %d is past the kernel's %d", n_expert,
                      RT_MAX_THREADS * 64);
         std::exit(1);
     }
@@ -201,16 +201,16 @@ void router_top10(const float* logits, int n_tokens, int n_expert, int k, int* i
         logits, n_tokens, n_expert, k, ids, weights);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "router_top10 launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "router_top10 launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) {
         const cudaError_t s = cudaDeviceSynchronize();
         if (s != cudaSuccess) {
-            basalt::log::error("basalt", "router_top10: %s", cudaGetErrorString(s));
+            halo::log::error("halo", "router_top10: %s", cudaGetErrorString(s));
             std::exit(1);
         }
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

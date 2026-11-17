@@ -1,5 +1,5 @@
-// src/vision/preprocess.cpp - see basalt/vision/preprocess.hpp.
-#include "basalt/vision/preprocess.hpp"
+// src/vision/preprocess.cpp - see halo/vision/preprocess.hpp.
+#include "halo/vision/preprocess.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +13,7 @@
 #define STBI_NO_STDIO
 #include "stb_image.h"
 
-namespace basalt::vision {
+namespace halo::vision {
 
 bool decode_image(const uint8_t* data, size_t len, Image& out, std::string& err, int64_t max_pixels) {
     if (data == nullptr || len == 0) { err = "empty image"; return false; }
@@ -208,4 +208,4 @@ void patchify(const std::vector<float>& planar, Size canvas, const Geometry& g, 
                 }
 }
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

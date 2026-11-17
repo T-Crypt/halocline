@@ -51,8 +51,8 @@ def modelopt_values(codes: np.ndarray, scales: np.ndarray) -> np.ndarray:
     return mag * np.vectorize(ue4m3)(scales).repeat(16, axis=1)
 
 
-def basalt_values(blocks: np.ndarray, cols: int) -> np.ndarray:
-    """Basalt's NVFP4 block decode (dequantize_nvfp4): sub-block s reads byte 8 s + j, low nibble value j,
+def halo_values(blocks: np.ndarray, cols: int) -> np.ndarray:
+    """Halocline's NVFP4 block decode (dequantize_nvfp4): sub-block s reads byte 8 s + j, low nibble value j,
     high nibble value j + 8."""
     b = blocks.reshape(-1, cols // 64, 36)
     out = np.empty((b.shape[0], cols // 64, 64))
@@ -71,7 +71,7 @@ class Nvfp4RepackTest(unittest.TestCase):
         scales = rng.integers(1, 0x7F, size=(5, 8), dtype=np.uint8)
         got = C.nvfp4_rows(codes, scales)
         self.assertEqual(got.size, 5 * S.nvfp4_row_bytes(128))
-        np.testing.assert_array_equal(basalt_values(got, 128), modelopt_values(codes, scales))
+        np.testing.assert_array_equal(halo_values(got, 128), modelopt_values(codes, scales))
 
     def test_expert_blob_and_tail(self):
         rng = np.random.default_rng(1)

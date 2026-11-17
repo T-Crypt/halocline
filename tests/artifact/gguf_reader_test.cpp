@@ -8,7 +8,7 @@
 //
 // The fixture is a minimal GGUF v3 written here (header, no metadata, two F32[8] tensors, 32-byte
 // alignment), so the test needs neither gguf-py nor a shard.  The file is closed before it is removed.
-#include "basalt/artifact/gguf_reader.hpp"
+#include "halo/artifact/gguf_reader.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -64,7 +64,7 @@ int main() {
         size_t n = 0;
         bool both = false;
         try {
-            basalt::GgufFile g(path.string());
+            halo::GgufFile g(path.string());
             n = g.tensors().size();
             both = g.find("blk.0.attn_q.weight") && g.find("blk.0.attn_k.weight");
         } catch (const std::exception& e) {
@@ -77,7 +77,7 @@ int main() {
         const auto path = write_gguf({"blk.0.attn_q.weight", "blk.0.attn_q.weight"});
         std::string err;
         try {
-            basalt::GgufFile g(path.string());
+            halo::GgufFile g(path.string());
         } catch (const std::exception& e) {
             err = e.what();
         }

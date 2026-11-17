@@ -1,8 +1,8 @@
 // src/core/expert_cache.cpp - R4's slot storage and residency table.  Read the header first.
-#include "basalt/core/expert_cache.hpp"
+#include "halo/core/expert_cache.hpp"
 
 #include <cuda_runtime.h>
-#include "basalt/core/vmm.hpp"
+#include "halo/core/vmm.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -10,7 +10,7 @@
 #include <utility>
 #include <cstring>
 
-namespace basalt::core {
+namespace halo::core {
 
 bool read_expert_profile(const FileRange& range, int64_t n_layers, int64_t n_expert,
                          std::vector<std::pair<int32_t, int32_t>>& ranked, int64_t& slots, std::string& err) {
@@ -540,4 +540,4 @@ bool ExpertCache::verify_slot(int32_t slot, const uint8_t* host_blob, std::strin
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

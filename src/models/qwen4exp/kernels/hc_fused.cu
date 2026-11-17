@@ -1,12 +1,12 @@
-// src/models/qwen4exp/kernels/hc_fused.cu - see include/basalt/models/qwen4exp/kernels/hc_fused.hpp.
+// src/models/qwen4exp/kernels/hc_fused.cu - see include/halo/models/qwen4exp/kernels/hc_fused.hpp.
 //
 // Built WITHOUT fast math, like fused_gr.cu, so the hc arithmetic below is fused_gr.cu's expressions compiled the
 // same way.  The router part reproduces kernels built WITH fast math (the MMVF GEMV and the native top-10): those
 // operations are spelled out as the flush-to-zero PTX instructions that build emits.
-#include "basalt/core/diag.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/q8_1_finite.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/q8_1_finite.hpp"
 
 #include <cooperative_groups.h>
 #include <cuda.h>
@@ -24,9 +24,9 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int N = 2560;              // n_embd
@@ -1301,7 +1301,7 @@ bool hc8_make(const uint16_t* w, int rows, int cols, Hc8Copy& c) {
     c.srow = srow;
     if (hc8_alloc((void**) &c.q, c.bytes) != cudaSuccess) {
         cudaGetLastError();
-        basalt::log::error("basalt hc8", "no VRAM for an 8-bit copy (%zu bytes)", c.bytes);
+        halo::log::error("halo hc8", "no VRAM for an 8-bit copy (%zu bytes)", c.bytes);
         return false;
     }
     c.s = reinterpret_cast<uint16_t*>(c.q + n);
@@ -1374,7 +1374,7 @@ const void* hc8_upload(const uint16_t* w, const int8_t* q, const uint16_t* s, in
     c.bytes = (size_t) n + (size_t) rows * c.srow * 2;
     if (hc8_alloc((void**) &c.q, c.bytes) != cudaSuccess) {
         cudaGetLastError();
-        basalt::log::error("basalt hc8", "no VRAM for an 8-bit copy (%zu bytes)", c.bytes);
+        halo::log::error("halo hc8", "no VRAM for an 8-bit copy (%zu bytes)", c.bytes);
         return nullptr;
     }
     c.s = reinterpret_cast<uint16_t*>(c.q + n);
@@ -1497,7 +1497,7 @@ void hc_fused_read(const HcFusedArgs& a, void* stream) {
         (a.pub_ctr && (!a.w_router || !a.xq)) ||
         (a.w_gate_sh && (!a.w_router || !a.gate_sh || (reinterpret_cast<uintptr_t>(a.w_gate_sh) & 15u) != 0)) ||
         (a.xq_sh && !a.w_router)) {
-        basalt::log::error("basalt", "hc_fused_read: invalid arguments or unsupported device");
+        halo::log::error("halo", "hc_fused_read: invalid arguments or unsupported device");
         std::exit(1);
     }
     HcLaunch L{};
@@ -1527,7 +1527,7 @@ void hc_fused_read(const HcFusedArgs& a, void* stream) {
                  (a.w_inject == nullptr || (h.q_inject != nullptr && h.s_inject != nullptr));
         }
         if (!q8) {
-            basalt::log::error("basalt", "hc_fused_read: the matrices need their 8-bit copies (hc8_prepare)");
+            halo::log::error("halo", "hc_fused_read: the matrices need their 8-bit copies (hc8_prepare)");
             std::exit(1);
         }
         if (a.w_inject == nullptr) h.q_inject = nullptr;
@@ -1537,7 +1537,7 @@ void hc_fused_read(const HcFusedArgs& a, void* stream) {
     L.lg64 = d.lg + (size_t) L.slot * MAXT * NE;
     CUtensorMap maps[6];
     if (!cn_maps(L.a, maps)) {
-        basalt::log::error("basalt", "hc_fused_read: the tensor maps of the 8-bit matrices failed");
+        halo::log::error("halo", "hc_fused_read: the tensor maps of the 8-bit matrices failed");
         std::exit(1);
     }
     std::memcpy(L.tm, maps, sizeof L.tm);
@@ -1546,7 +1546,7 @@ void hc_fused_read(const HcFusedArgs& a, void* stream) {
                (cudaStream_t) stream, L);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "hc_fused_read: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "hc_fused_read: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -1569,4 +1569,4 @@ void hc_test_hold_sms(int k, int* go, int* started, void* stream) {
 }
 
 #endif
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

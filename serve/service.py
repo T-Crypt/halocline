@@ -76,7 +76,7 @@ class Service:
     def model_entry(self) -> dict:
         """This model's row in /v1/models."""
         value = "loading" if self.loading else "loaded" if self.loaded() else "unloaded"
-        return {"id": self.model, "object": "model", "created": int(self.started_at), "owned_by": "basalt",
+        return {"id": self.model, "object": "model", "created": int(self.started_at), "owned_by": "halo",
                 "status": {"value": value},
                 "asleep": getattr(self.engine, "asleep", False) is True,
                 "meta": {"n_ctx": self.engine.max_context},
@@ -92,7 +92,7 @@ class Service:
             names.append(path.replace("\\", "/").rsplit("/", 1)[-1])
         return names
 
-    def __init__(self, engine: Engine, tokenizer, template: ChatTemplate, model_name: str = "basalt",
+    def __init__(self, engine: Engine, tokenizer, template: ChatTemplate, model_name: str = "halo",
                  vision: Vision | None = None, sampling_defaults: dict | None = None,
                  fit_max_tokens: bool = False, grammar: bool = GRAMMAR_DEFAULT, grammar_engine: bool = True,
                  dialect: Dialect | None = None, video_max_tokens: int = VIDEO_MAX_TOKENS):
@@ -739,7 +739,7 @@ class Service:
         busy, ctx = bool(s.get("busy")), self.engine.max_context
         images = self.vision is not None
         return {
-            "service": "basalt", "model": self.model,
+            "service": "halo", "model": self.model,
             "loaded": self.loaded(), "loading": self.loading, "load": self.load_progress(), "asleep": getattr(self.engine, "asleep", False) is True,
             "auto_load": hasattr(self.engine, "restart"),
             "structured_output": {"formats": ["json_object", "json_schema"], "method": "grammar",

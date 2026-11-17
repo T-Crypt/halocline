@@ -1,9 +1,9 @@
 // tests/kernels/e4m3_producers_test.cpp - the prompt chunk's producers that round their rows to E4M3 for an F8 output
 // projection themselves (kernels::attn_gate_e4m3, gdn_recurrence's y8) give prefill::fp8::quantize's codes and scales
 // of the rows they would have written, bitwise.
-#include "basalt/kernels/dense_ops.hpp"
-#include "basalt/kernels/gdn_prompt.hpp"
-#include "basalt/prefill/fp8_gemm.hpp"
+#include "halo/kernels/dense_ops.hpp"
+#include "halo/kernels/gdn_prompt.hpp"
+#include "halo/prefill/fp8_gemm.hpp"
 
 #include <cuda_runtime.h>
 
@@ -12,8 +12,8 @@
 #include <random>
 #include <vector>
 
-namespace fp8 = basalt::prefill::fp8;
-namespace k = basalt::kernels;
+namespace fp8 = halo::prefill::fp8;
+namespace k = halo::kernels;
 
 namespace {
 template <class T> T* dev(const std::vector<T>& v) {

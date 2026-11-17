@@ -1,10 +1,10 @@
 // tests/program/probe_derive_test.cpp - the worker pick, the balance share and the suggestion lines.
-#include "basalt/program/probe_derive.hpp"
+#include "halo/program/probe_derive.hpp"
 
 #include <cmath>
 #include <cstdio>
 
-using namespace basalt::program;
+using namespace halo::program;
 
 static int g_fail = 0;
 #define CHECK(c)                                                              \

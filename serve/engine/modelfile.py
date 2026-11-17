@@ -15,7 +15,7 @@ from model_file import ModelFile  # noqa: E402
 from serve.models import dialect_for  # noqa: E402
 from serve.engine.flags import flag_value  # noqa: E402
 
-VISION_EXE = "basalt-vision"
+VISION_EXE = "halo-vision"
 # llama.cpp's sampling keys in the GGUF metadata -> the request field each one defaults
 GGUF_SAMPLING = {"general.sampling.temp": "temperature", "general.sampling.top_p": "top_p",
                  "general.sampling.top_k": "top_k", "general.sampling.min_p": "min_p",
@@ -24,7 +24,7 @@ GGUF_SAMPLING = {"general.sampling.temp": "temperature", "general.sampling.top_p
 
 
 def cache_root() -> Path:
-    return Path.home() / ".cache" / "basalt"
+    return Path.home() / ".cache" / "halo"
 
 
 def cache_dir(mf: ModelFile) -> Path:
@@ -73,7 +73,7 @@ def vision_config(mf: ModelFile, engine_bin: str, sidecar: bool = True) -> dict:
     """The vision sidecar's config, which names the model file (the sidecar opens `vision/mmproj` inside it);
     ValueError names what is missing."""
     engine = Path(engine_bin).resolve()
-    side = engine.parent / (VISION_EXE + engine.suffix)   # with the engine's suffix: basalt-vision.exe on Windows
+    side = engine.parent / (VISION_EXE + engine.suffix)   # with the engine's suffix: halo-vision.exe on Windows
     if "vision/mmproj" not in mf.sections:
         raise ValueError("this model file has no vision projector (vision/mmproj); drop --vision")
     if sidecar and not side.is_file():
@@ -105,7 +105,7 @@ def model_config(spec: ModelSpec, engine_bin: str) -> dict:
     args = ["--model", path]   # settings come from the engine defaults and the server
     args += words
     cdir.mkdir(parents=True, exist_ok=True)
-    cfg = {"engine_bin": os.path.abspath(engine_bin), "args": args, "model_name": spec.alias or meta.get("name") or "basalt",
+    cfg = {"engine_bin": os.path.abspath(engine_bin), "args": args, "model_name": spec.alias or meta.get("name") or "halo",
            "sampling": sampling_defaults(meta),
            "arch": (meta.get("gguf_kv") or {}).get("general.architecture"), "log": str(cdir / "engine.log"),
            "tokenizer": tokenizer_files(mf)}

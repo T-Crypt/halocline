@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The MMQ kernel: quantized weights times q8_1 activations on int8 tensor cores, grouped by expert (stream-k work
-// partitioning), for the formats Basalt uses.
+// partitioning), for the formats Halocline uses.
 // llama.cpp commit 3cf03257f219afbe7334045ff7c6a06ac68c627d (https://github.com/ggml-org/llama.cpp),
 // ggml/src/ggml-cuda/mmq.cuh.  Copyright (c) 2023-2026 The ggml authors.  MIT licence: see THIRD_PARTY_LICENSES.
 #pragma once
@@ -9,7 +9,7 @@
 
 #include <climits>
 #include <cstdint>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 #define MMQ_ITER_K             256
 #define MMQ_NWARPS               8
@@ -998,7 +998,7 @@ void mul_mat_q_switch_J(ggml_backend_cuda_context & ctx, const mmq_args & args, 
             launch_mul_mat_q<type, 128, fallback>(ctx, args, stream);
             break;
         default:
-            basalt::log::error("basalt", "J_best=%d", J_best);
+            halo::log::error("halo", "J_best=%d", J_best);
             GGML_ABORT("fatal error");
             break;
     }

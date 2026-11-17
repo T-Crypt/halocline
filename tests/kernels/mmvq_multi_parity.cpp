@@ -2,11 +2,11 @@
 //
 //     build/mmvq_multi_parity
 //
-// WHY IT EXISTS.  `include/basalt/kernels/native_mmvq.hpp` says of `native_mmvq_set_multi_exact`:
+// WHY IT EXISTS.  `include/halo/kernels/native_mmvq.hpp` says of `native_mmvq_set_multi_exact`:
 //
 //     "true (default): the ncols == 1 layout, every column bitwise equal to a single-column call"
 //
-// and `include/basalt/models/qwen4exp/decode/verify.hpp` counts "multi-column MMVQ in exact mode" among the reasons the verify window
+// and `include/halo/models/qwen4exp/decode/verify.hpp` counts "multi-column MMVQ in exact mode" among the reasons the verify window
 // produces what greedy decode would, bit for bit.  Nothing tested that sentence: `iq_parity` calls `native_mmvq`
 // with two columns and compares against a float64 reference at 2e-2, which cannot see a difference between one
 // column and T columns.
@@ -38,8 +38,8 @@
 // MMVQ_MMA=1 in the environment the sweeps above take it for their IQ4_XS case as well.
 //
 //     build/mmvq_multi_parity [--bench]      --bench: the dp4a and tensor-core kernels timed at the model's shapes
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/native_mmvq.hpp"
 
 #include <cuda_runtime.h>
 
@@ -97,11 +97,11 @@ bool ck(cudaError_t e, const char* what) {
 // outputs that are finite in both paths.
 long long compare(const Case& c, int T, cudaStream_t s, long long& nonfinite, long long& diff_finite, bool& ran) {
     ran = false;
-    if (!basalt::kernels::native_mmvq_supported(c.type)) return -1;
+    if (!halo::kernels::native_mmvq_supported(c.type)) return -1;
 
-    const std::size_t wbytes = basalt::kernels::native_mmvq_weight_bytes(c.type, c.n_in, c.n_out);
-    const std::size_t qcol = basalt::kernels::native_q8_1_bytes(c.n_in, 1);   // Q8_1 bytes of ONE column
-    const std::size_t qall = basalt::kernels::native_q8_1_bytes(c.n_in, T);
+    const std::size_t wbytes = halo::kernels::native_mmvq_weight_bytes(c.type, c.n_in, c.n_out);
+    const std::size_t qcol = halo::kernels::native_q8_1_bytes(c.n_in, 1);   // Q8_1 bytes of ONE column
+    const std::size_t qall = halo::kernels::native_q8_1_bytes(c.n_in, T);
     if (qall != qcol * (std::size_t) T) {
         std::printf("%-12s T=%d: the Q8_1 bytes of T columns (%zu) are not T times those of one (%zu): the test "
                     "assumes contiguous columns and they are not\n", c.name, T, qall, qcol);
@@ -142,13 +142,13 @@ long long compare(const Case& c, int T, cudaStream_t s, long long& nonfinite, lo
         return -1;
 
     // ONE quantization, shared by both paths: the quantization is not under test
-    basalt::kernels::quantize_q8_1_rows(dx, T, c.n_in, xq, s);
+    halo::kernels::quantize_q8_1_rows(dx, T, c.n_in, xq, s);
     if (!ck(cudaStreamSynchronize(s), "quantize")) return -1;
 
     try {
-        basalt::kernels::native_mmvq(c.type, dw, xq, dmulti, c.n_in, c.n_out, T, s);
+        halo::kernels::native_mmvq(c.type, dw, xq, dmulti, c.n_in, c.n_out, T, s);
         for (int j = 0; j < T; ++j)
-            basalt::kernels::native_mmvq(c.type, dw, (const uint8_t*) xq + (std::size_t) j * qcol,
+            halo::kernels::native_mmvq(c.type, dw, (const uint8_t*) xq + (std::size_t) j * qcol,
                                          dsingle + (std::size_t) j * c.n_out, c.n_in, c.n_out, 1, s);
     } catch (const std::exception& e) {
         std::printf("%-12s T=%d: %s\n", c.name, T, e.what());
@@ -187,8 +187,8 @@ struct Totals {
 };
 
 int sweep(bool exact, cudaStream_t s, Totals& t) {
-    basalt::kernels::native_mmvq_set_multi_exact(exact);
-    if (basalt::kernels::native_mmvq_multi_exact() != exact) {
+    halo::kernels::native_mmvq_set_multi_exact(exact);
+    if (halo::kernels::native_mmvq_multi_exact() != exact) {
         std::printf("native_mmvq_multi_exact() does not reflect what was set\n");
         return 1;
     }
@@ -247,8 +247,8 @@ struct Buffers {
 
 // random IQ4_XS weights with sane fp16 scales and normal activations, quantized once; offsets in bytes (multiples of 4)
 bool fill(Buffers& b, int n_in, int n_out, int T, int w_off, int x_off, unsigned seed, cudaStream_t s) {
-    const std::size_t wbytes = basalt::kernels::native_mmvq_weight_bytes(IQ4XS, n_in, n_out);
-    const std::size_t qall = basalt::kernels::native_q8_1_bytes(n_in, T);
+    const std::size_t wbytes = halo::kernels::native_mmvq_weight_bytes(IQ4XS, n_in, n_out);
+    const std::size_t qall = halo::kernels::native_q8_1_bytes(n_in, T);
     const std::size_t ybytes = (std::size_t) T * n_out * 4;
     std::mt19937 rng(seed);
     std::vector<uint8_t> w(wbytes);
@@ -271,7 +271,7 @@ bool fill(Buffers& b, int n_in, int n_out, int T, int w_off, int x_off, unsigned
     if (!ck(cudaMemset(b.y_mma, 0xff, ybytes), "memset") || !ck(cudaMemset(b.y_old, 0xfe, ybytes), "memset") ||
         !ck(cudaMemset(b.y_one, 0xfd, ybytes), "memset"))
         return false;
-    basalt::kernels::quantize_q8_1_rows(b.x, T, n_in, b.xq + x_off, s);
+    halo::kernels::quantize_q8_1_rows(b.x, T, n_in, b.xq + x_off, s);
     return ck(cudaStreamSynchronize(s), "quantize");
 }
 
@@ -290,7 +290,7 @@ long long count_diff(const std::vector<uint32_t>& a, const std::vector<uint32_t>
 // One case: the tensor-core call against the dp4a multi-column call and T single-column calls.  False on a
 // difference, a non-finite output, a call that did not take the tensor-core kernel, or an error.
 bool compare_mma(const MmaCase& c, int T, int w_off, int x_off, cudaStream_t s) {
-    namespace k = basalt::kernels;
+    namespace k = halo::kernels;
     Buffers b;
     if (!fill(b, c.n_in, c.n_out, T, w_off, x_off, 777u + (unsigned) c.n_in * 3u + (unsigned) c.n_out + (unsigned) T,
               s))
@@ -332,7 +332,7 @@ bool compare_mma(const MmaCase& c, int T, int w_off, int x_off, cudaStream_t s) 
 }
 
 int mma_section(cudaStream_t s) {
-    namespace k = basalt::kernels;
+    namespace k = halo::kernels;
     std::printf("\n=== tensor-core IQ4_XS (MMVQ_MMA) ===\n");
     if (!k::native_mmvq_mma_available()) {
         std::printf("not available on this device or build (needs int8 tensor cores): skipped\n");
@@ -349,7 +349,7 @@ int mma_section(cudaStream_t s) {
 }
 
 void bench(cudaStream_t s) {
-    namespace k = basalt::kernels;
+    namespace k = halo::kernels;
     if (!k::native_mmvq_mma_available()) {
         std::printf("\n--bench: the tensor-core kernel is not available here\n");
         return;
@@ -404,7 +404,7 @@ double half_to_double(uint16_t h) {
 }
 
 bool compare_q80(const Q80Geom& g, cudaStream_t s) {
-    namespace k = basalt::kernels;
+    namespace k = halo::kernels;
     constexpr int Q8_0 = 8, BYTES = 34;
     const std::size_t wbytes = k::native_mmvq_weight_bytes(Q8_0, g.n_in, g.n_out);
     const std::size_t qcol = k::native_q8_1_bytes(g.n_in, 1);
@@ -482,7 +482,7 @@ int q80_section(cudaStream_t s) {
 // The one-column Q8_0 kernel's time per call and its weight bytes' rate, at the shapes above (warm L2 excluded by
 // cycling through enough distinct weights).
 void bench_q80(cudaStream_t s) {
-    namespace k = basalt::kernels;
+    namespace k = halo::kernels;
     std::printf("\n=== --bench: Q8_0 one column, us per call (weights cycled past L2) ===\n");
     cudaEvent_t e0, e1;
     cudaEventCreate(&e0);
@@ -534,7 +534,7 @@ int main(int argc, char** argv) {
     Totals on, off;
     const int bad = sweep(true, s, on);
     const int bad_off = sweep(false, s, off);
-    basalt::kernels::native_mmvq_set_multi_exact(true);   // back to the default
+    halo::kernels::native_mmvq_set_multi_exact(true);   // back to the default
     const int bad_mma = mma_section(s);
     const int bad_q80 = q80_section(s);
     if (do_bench) { bench(s); bench_q80(s); }

@@ -8,12 +8,12 @@
 // experts (more than the pool's buffers too), 1 to 8 tokens per expert, at several active worker counts, with a
 // pause longer than the workers' spin in the middle, and fails on the first differing word or untouched output.
 // `--bench` prints the time and rate of one layer of 15 experts.
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/cpu/pool.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -26,7 +26,7 @@
 #include <thread>
 #include <vector>
 
-namespace cpu = basalt::kernels::cpu;
+namespace cpu = halo::kernels::cpu;
 
 namespace {
 

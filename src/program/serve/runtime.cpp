@@ -2,22 +2,22 @@
 #include "state.hpp"
 
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 void Runtime::start_guard() {
-    basalt::platform::stop_memory_watchdog();
-    guard_floor = basalt::platform::ram_reserve();
-    if (guard_floor > 0) basalt::platform::start_ram_guard(guard_floor);
+    halo::platform::stop_memory_watchdog();
+    guard_floor = halo::platform::ram_reserve();
+    if (guard_floor > 0) halo::platform::start_ram_guard(guard_floor);
     disk_floor = guard_floor + (1ull << 30);
     // what a stop's error compares against, to tell the engine's own growth from other programs'
-    ready_avail = basalt::platform::available_memory();
-    ready_rss = (uint64_t) basalt::platform::process_memory().rss_mib << 20;
+    ready_avail = halo::platform::available_memory();
+    ready_rss = (uint64_t) halo::platform::process_memory().rss_mib << 20;
     shed_drop = 0;
 }
 
 void Runtime::shed_if_low() {
-    if (basalt::platform::ram_guard_level() == basalt::platform::RamLevel::Ok) return;
-    const uint64_t drop = basalt::platform::ram_guard_drops();
+    if (halo::platform::ram_guard_level() == halo::platform::RamLevel::Ok) return;
+    const uint64_t drop = halo::platform::ram_guard_drops();
     if (drop == shed_drop) return;
     shed_drop = drop;
     if (conversations) {
@@ -29,16 +29,16 @@ void Runtime::shed_if_low() {
                 disk.put(std::move(sc), kDiskQueueCap))
                 ++to_disk;
         if (freed > 0)
-            basalt::log::info("basalt serve", "RAM guard: %zu parked conversations (%zu MiB) leave RAM, %zu of them "
+            halo::log::info("halo serve", "RAM guard: %zu parked conversations (%zu MiB) leave RAM, %zu of them "
                               "to disk", parked, freed >> 20, to_disk);
     }
-    if (const size_t pooled = basalt::core::CheckpointBytes::allocator_type::release_pooled(); pooled > 0)
-        basalt::log::info("basalt serve", "RAM guard: freed %zu MiB of checkpoint blocks kept for reuse",
+    if (const size_t pooled = halo::core::CheckpointBytes::allocator_type::release_pooled(); pooled > 0)
+        halo::log::info("halo serve", "RAM guard: freed %zu MiB of checkpoint blocks kept for reuse",
                           pooled >> 20);
-    const uint64_t before = basalt::platform::available_memory();
-    basalt::platform::release_free_heap();
-    const uint64_t after = basalt::platform::available_memory();
-    basalt::log::info("basalt serve", "RAM guard: free heap returned to the OS, %lld MiB free now (%+lld MiB)",
+    const uint64_t before = halo::platform::available_memory();
+    halo::platform::release_free_heap();
+    const uint64_t after = halo::platform::available_memory();
+    halo::log::info("halo serve", "RAM guard: free heap returned to the OS, %lld MiB free now (%+lld MiB)",
                       (long long) (after >> 20), ((long long) after - (long long) before) / (1ll << 20));
 }
 
@@ -47,7 +47,7 @@ void Runtime::ckd_finish() {
     if (dst == nullptr) return;
     std::string ce;
     if (ckd.finish(ce)) return;
-    basalt::log::error("basalt serve", "%s", ce.c_str());
+    halo::log::error("halo serve", "%s", ce.c_str());
     checks.erase(std::remove_if(checks.begin(), checks.end(),
                                 [&](const ConvCheckpoint& k) { return k.state_a.data() == dst; }), checks.end());
 }
@@ -69,7 +69,7 @@ void Runtime::keep_check(ConvCheckpoint&& c) {
         std::vector<uint64_t> stamps;
         stamps.reserve(checks.size());
         for (const ConvCheckpoint& k : checks) stamps.push_back(k.used);
-        const size_t victim = basalt::program::conv_cache::eviction_victim(stamps.data(), stamps.size(), o.prompt_cache);
+        const size_t victim = halo::program::conv_cache::eviction_victim(stamps.data(), stamps.size(), o.prompt_cache);
         if (checks[victim].state_a.data() == ckd.pending()) {
             ckd_finish();   // a failed save drops its own checkpoint: look again
             continue;
@@ -90,8 +90,8 @@ int Runtime::run_requests() {
     for (;;) {
         const Flow flow = dispatch();
         if (flow == Flow::error) {
-            if (basalt::core::gpu_left_running().load()) {   // the teardown would wait for the stuck window forever
-                basalt::log::error("basalt serve", "the GPU did not finish a released window: ending without the CUDA teardown");
+            if (halo::core::gpu_left_running().load()) {   // the teardown would wait for the stuck window forever
+                halo::log::error("halo serve", "the GPU did not finish a released window: ending without the CUDA teardown");
                 std::fflush(stdout);
                 std::_Exit(1);
             }
@@ -120,7 +120,7 @@ int Runtime::shutdown() {
         const auto t0 = Clock::now();
         const size_t written = spill_to_disk(true, SIZE_MAX);
         const auto st = disk.stats();
-        basalt::log::info("basalt serve", "conversation cache: %zu conversations written to disk at exit in %.0f ms; "
+        halo::log::info("halo serve", "conversation cache: %zu conversations written to disk at exit in %.0f ms; "
                           "on disk %zu (%.2f GiB); since the start written %zu (%.2f GiB, %.2f GiB with the shared "
                           "files they reuse), read back %zu (%.2f GiB), evicted %zu, dropped %zu", written,
                           std::chrono::duration<double, std::milli>(Clock::now() - t0).count(), st.files,
@@ -132,4 +132,4 @@ int Runtime::shutdown() {
     return 0;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

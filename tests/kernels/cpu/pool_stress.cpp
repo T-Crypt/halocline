@@ -14,11 +14,11 @@
 //
 // More workers than cores makes the OS deschedule workers in the middle of a batch, the case the claim protocol must
 // survive without any wait for the workers to park.
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -31,7 +31,7 @@
 #include <thread>
 #include <vector>
 
-namespace cpu = basalt::kernels::cpu;
+namespace cpu = halo::kernels::cpu;
 
 constexpr int kWidth = 2560, kFF = 640;
 

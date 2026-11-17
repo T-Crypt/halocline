@@ -1,7 +1,7 @@
-// tests/kernels/silu_parity.cu - kernels::silu_quotient (basalt/kernels/silu.cuh) against the plain expression
+// tests/kernels/silu_parity.cu - kernels::silu_quotient (halo/kernels/silu.cuh) against the plain expression
 // g / (1 + exp(-g)) as a kernel compiles it, on every one of the 2^32 float bit patterns: the two must agree bit for
 // bit, NaNs included.  Exit 77 without a GPU.
-#include "basalt/kernels/silu.cuh"
+#include "halo/kernels/silu.cuh"
 
 #include <cuda_runtime.h>
 
@@ -19,7 +19,7 @@ __global__ void compare(unsigned long long start, unsigned long long* n_bad, Bad
     if (i >> 32) return;
     const float g = __uint_as_float((unsigned) i);
     const unsigned want = __float_as_uint(g / (1.0f + __expf(-g)));
-    const unsigned got = __float_as_uint(basalt::kernels::silu_quotient(g));
+    const unsigned got = __float_as_uint(halo::kernels::silu_quotient(g));
     if (want != got) {
         const unsigned long long k = atomicAdd(n_bad, 1ull);
         if (k < 8) bad[k] = {(unsigned) i, want, got};

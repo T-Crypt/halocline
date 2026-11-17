@@ -1,5 +1,8 @@
 # Models
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
 A model is one `.basalt` file, mixture-of-experts or dense. The server reads the architecture from the
 file and picks the chat format, tool syntax and thinking switch. Several models can share one address ([router](../configuration/models.md)). What each model supports:
 
@@ -21,6 +24,6 @@ file and picks the chat format, tool syntax and thinking switch. Several models 
 | Lossy flags | `--relaxed-drafting`, `--route-prior`, `--route-tail-skip` (off) | none | none |
 | Prompt skip | no | yes (`--no-prompt-skip` turns it off) | no |
 | Idle sleep, wake | yes (Linux) | yes (Linux); a second-card sleep may be refused | no |
-| `basalt-bench --quality` | yes | yes, one row per window | yes |
+| `halo-bench --quality` | yes | yes, one row per window | yes |
 | Guide | [guide](qwen38-flash-next.md) | [guide](deepseek41.md) | [guide](qwen38-27b.md) |
 | Precision | [precision](../precision/qwen38-flash-next.md) | [precision](../precision/deepseek41.md) | [precision](../precision/qwen38-27b.md) |

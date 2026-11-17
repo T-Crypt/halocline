@@ -1,5 +1,5 @@
-// src/ngram/ple_reader.cpp - see include/basalt/ngram/ple_reader.hpp.
-#include "basalt/ngram/ple_reader.hpp"
+// src/ngram/ple_reader.cpp - see include/halo/ngram/ple_reader.hpp.
+#include "halo/ngram/ple_reader.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -12,7 +12,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace basalt::ngram {
+namespace halo::ngram {
 
 using platform::Completion;
 using platform::DirectFile;
@@ -601,4 +601,4 @@ void PleReader::reset_stats() {
 uint64_t PleReader::cache_capacity() const { return impl_->cache.sets * WAYS; }
 uint64_t PleReader::cache_size() const { return impl_->cache.used; }
 
-}  // namespace basalt::ngram
+}  // namespace halo::ngram

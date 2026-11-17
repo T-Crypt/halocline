@@ -1,9 +1,9 @@
-// src/models/qwen4exp/kernels/q80_vhead.cu - see include/basalt/models/qwen4exp/kernels/q80_vhead.hpp.
+// src/models/qwen4exp/kernels/q80_vhead.cu - see include/halo/models/qwen4exp/kernels/q80_vhead.hpp.
 //
 // Built with --use_fast_math like native_mmvq.cu, whose Q8_0 x q8_1 dot the exact rows repeat.
-#include "basalt/models/qwen4exp/kernels/q80_vhead.hpp"
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/pdl.hpp"
 #include "q80p.cuh"
 #include "smem_opt_in.cuh"
 
@@ -15,9 +15,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 using q80p::kBlocks;
@@ -677,7 +677,7 @@ void launch_list(const float* y, int n_out, const int* k, VScratch* vs, unsigned
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -686,7 +686,7 @@ void dispatch(const void* w, const void* x, float* y, int n_in, int n_out, int n
               void* stream, const char* who, int n_scr, unsigned* pub = nullptr, const unsigned* sub = nullptr) {
     if (!q80p_supported(n_in, ncols) || n_out <= 0 || !w || !x || !y || (k != nullptr && scratch == nullptr) ||
         n_scr <= 0 || n_scr > n_out) {
-        basalt::log::error("basalt", "%s: unsupported shape (n_in %d, n_out %d, ncols %d)", who, n_in, n_out, ncols);
+        halo::log::error("halo", "%s: unsupported shape (n_in %d, n_out %d, ncols %d)", who, n_in, n_out, ncols);
         std::exit(1);
     }
     const auto s = (cudaStream_t) stream;
@@ -729,7 +729,7 @@ size_t q80p_vhead_scratch_bytes() { return sizeof(VScratch); }
 void q80p_vhead(const void* weights, const void* x_q8_1, float* y, int n_in, int n_out, int ncols, const int* k,
                 void* scratch, void* stream, int n_screen, unsigned* link_pub, const unsigned* link_sub) {
     if (k == nullptr) {
-        basalt::log::error("basalt", "q80p_vhead: no list length");
+        halo::log::error("halo", "q80p_vhead: no list length");
         std::exit(1);
     }
     dispatch(weights, x_q8_1, y, n_in, n_out, ncols, k, scratch, stream, "q80p_vhead", n_screen < 0 ? n_out : n_screen,
@@ -742,7 +742,7 @@ size_t q80p_vhead_input_bytes(int n_in, int ncols) { return input_k_offset(n_in,
 
 void q80p_vhead_post(const void* x_q8_1, int n_in, int ncols, const int* k, void* input, void* link, void* stream) {
     if (!q80p_supported(n_in, ncols) || !x_q8_1 || !k || !input || !link) {
-        basalt::log::error("basalt", "q80p_vhead_post: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
+        halo::log::error("halo", "q80p_vhead_post: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
         std::exit(1);
     }
     const int n16 = (int) ((size_t) ncols * (n_in / 32) * sizeof(Q81Block) / 16);
@@ -754,7 +754,7 @@ void q80p_vhead_post(const void* x_q8_1, int n_in, int ncols, const int* k, void
 void q80p_vhead_fetch(const void* input, const void* link, void* x_q8_1, int* k, int n_in, int ncols, void* scratch,
                       void* stream) {
     if (!q80p_supported(n_in, ncols) || !input || !link || !x_q8_1 || !k || !scratch) {
-        basalt::log::error("basalt", "q80p_vhead_fetch: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
+        halo::log::error("halo", "q80p_vhead_fetch: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
         std::exit(1);
     }
     const int n16 = (int) ((size_t) ncols * (n_in / 32) * sizeof(Q81Block) / 16);
@@ -792,7 +792,7 @@ bool q80p_vhead_link_failed(const void* link) {
 void q80p_vhead_list(const float* y, int n_out, int ncols, const int* k, void* scratch, void* list, void* link,
                      void* stream) {
     if (ncols < 1 || ncols > 8 || n_out <= 0 || !y || !k || !scratch || !list || !link) {
-        basalt::log::error("basalt", "q80p_vhead_list: unsupported shape (n_out %d, ncols %d)", n_out, ncols);
+        halo::log::error("halo", "q80p_vhead_list: unsupported shape (n_out %d, ncols %d)", n_out, ncols);
         std::exit(1);
     }
     const auto s = (cudaStream_t) stream;
@@ -814,7 +814,7 @@ void q80p_vhead_list(const float* y, int n_out, int ncols, const int* k, void* s
 void q80p_vhead_merge(float* y, int n_out, int first, int ncols, int list_rows, const int* k, const void* list,
                       void* link, void* stream) {
     if (ncols < 1 || ncols > 8 || first < 0 || first + list_rows > n_out || !y || !k || !list || !link) {
-        basalt::log::error("basalt", "q80p_vhead_merge: unsupported shape (n_out %d, first %d, rows %d, ncols %d)", n_out,
+        halo::log::error("halo", "q80p_vhead_merge: unsupported shape (n_out %d, first %d, rows %d, ncols %d)", n_out,
                            first, list_rows, ncols);
         std::exit(1);
     }
@@ -823,4 +823,4 @@ void q80p_vhead_merge(float* y, int n_out, int first, int ncols, int list_rows, 
     check("q80p_vhead_merge");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

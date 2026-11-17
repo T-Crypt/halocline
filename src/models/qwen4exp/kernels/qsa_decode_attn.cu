@@ -1,8 +1,8 @@
-// src/models/qwen4exp/kernels/qsa_decode_attn.cu - see include/basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp.
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/kernels/packed_byte.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
+// src/models/qwen4exp/kernels/qsa_decode_attn.cu - see include/halo/models/qwen4exp/kernels/qsa_decode_attn.hpp.
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/kernels/packed_byte.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -10,9 +10,9 @@
 #include <cfloat>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int HD = 256;          // head_dim
@@ -216,7 +216,7 @@ void qsa_decode_attn_batch(const float* q, const QsaAttnPools& pools, const int3
     if (n_q <= 0) return;
     if (s.head_dim != HD || s.n_head != (int64_t) G * s.n_head_kv || cap <= 0 || !scratch || !ids || !steps ||
         !pools.page_table || n_q > 65535) {
-        basalt::log::error("basalt", "qsa_decode_attn_batch: unsupported geometry or missing buffers");
+        halo::log::error("halo", "qsa_decode_attn_batch: unsupported geometry or missing buffers");
         std::exit(1);
     }
     const int kv_mode = pools.k_q4 != nullptr ? 2 : (pools.k_q != nullptr && pools.v_q4 != nullptr ? 3
@@ -246,7 +246,7 @@ void qsa_decode_attn_batch(const float* q, const QsaAttnPools& pools, const int3
                                                                                   attn, stride);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "qsa_decode_attn_batch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "qsa_decode_attn_batch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -260,7 +260,7 @@ void qsa_decode_attn_step(const float* q, const QsaAttnPools& pools, const int32
                           int64_t cap, const QsaShapes& s, float* scratch, float* attn, void* stream) {
     if (s.head_dim != HD || s.n_head != (int64_t) G * s.n_head_kv || cap <= 0 || !scratch || !ids || !step ||
         !pools.page_table) {
-        basalt::log::error("basalt", "qsa_decode_attn: unsupported geometry or missing buffers");
+        halo::log::error("halo", "qsa_decode_attn: unsupported geometry or missing buffers");
         std::exit(1);
     }
     const int kv_mode = pools.k_q4 != nullptr ? 2 : (pools.k_q != nullptr && pools.v_q4 != nullptr ? 3
@@ -268,7 +268,7 @@ void qsa_decode_attn_step(const float* q, const QsaAttnPools& pools, const int32
     if (kv_mode == 3 ? (!pools.k_scale || !pools.v_q4)
                      : (kv_mode == 2 ? (!pools.v_q4) : (kv_mode == 1 ? (!pools.v_q || !pools.k_scale || !pools.v_scale)
                                                                      : (!pools.k_pool || !pools.v_pool)))) {
-        basalt::log::error("basalt", "qsa_decode_attn: incomplete KV pools");
+        halo::log::error("halo", "qsa_decode_attn: incomplete KV pools");
         std::exit(1);
     }
     const int n_chunks = (int) ((cap + CHUNK - 1) / CHUNK);
@@ -293,9 +293,9 @@ void qsa_decode_attn_step(const float* q, const QsaAttnPools& pools, const int32
     attn_merge_kernel<<<(unsigned) s.n_head, HD, 0, st>>>(part_acc, part_m, part_l, n_chunks, attn);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "qsa_decode_attn: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "qsa_decode_attn: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

@@ -1,25 +1,25 @@
 // src/models/qwen4exp/serve/qfn_runtime.hpp - the persistent driver over startup's loaded engine.
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "../../../program/serve/state.hpp"
 #include "../load/engine_local.hpp"
-#include "basalt/program/expert_spill.hpp"
-#include "basalt/program/grammar/guard.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/program/expert_spill.hpp"
+#include "halo/program/grammar/guard.hpp"
+#include "halo/platform/system.hpp"
 
 #include <functional>
 #include <optional>
 
-namespace basalt::core {
+namespace halo::core {
 class ModelFile;
 class MtpDrafter;
-}  // namespace basalt::core
-namespace basalt::kernels { class PleTable; }
-namespace basalt::kernels::cpu { class ExpertPool; }
-namespace basalt::vision { class CudaEncoder; }
+}  // namespace halo::core
+namespace halo::kernels { class PleTable; }
+namespace halo::kernels::cpu { class ExpertPool; }
+namespace halo::vision { class CudaEncoder; }
 
-namespace basalt::models::qwen4exp {
+namespace halo::models::qwen4exp {
 struct Options;
 namespace serve {
 
@@ -28,47 +28,47 @@ struct Context {
     Options& o;
     std::string& ppl_base;
     std::string& ppl_out;
-    basalt::core::ModelFile& model_file;
+    halo::core::ModelFile& model_file;
     const bool& no_spec;
     std::string& err;
-    basalt::core::ModelGeometry& g;
+    halo::core::ModelGeometry& g;
     int64_t& K;
     std::vector<std::pair<int32_t, int32_t>>& profile;
     std::vector<std::pair<int32_t, int32_t>>& profile_loaded;
     const bool& pf_borrow;
-    basalt::core::WeightTable& wt;
+    halo::core::WeightTable& wt;
     int32_t*& d_mrope;
     std::vector<int32_t>& mrope_host;
     std::string& cvec_summary;
-    basalt::core::SessionState& ss;
+    halo::core::SessionState& ss;
     cudaStream_t& main_stream;
     void* const& main_cs;
-    basalt::kernels::PleTable& ple_table;
-    basalt::vision::CudaEncoder& vis_enc;
+    halo::kernels::PleTable& ple_table;
+    halo::vision::CudaEncoder& vis_enc;
     const int64_t& kv_floor;
     std::vector<std::vector<engine_local::SlotSession>>& bslot_ss;
     std::vector<int64_t>& slot_cap;
     bool& slot0_is_solo;
-    basalt::core::MtpDrafter& mtp;
+    halo::core::MtpDrafter& mtp;
     const bool& mtp_on;
-    const basalt::core::QsaState* const& mtp_kv;
+    const halo::core::QsaState* const& mtp_kv;
     const int64_t& n_vocab;
-    std::optional<basalt::program::grammar::PackVocab>& grammar_vocab;
-    basalt::core::NativeHead& native_head;
-    basalt::core::FileExpertSource& src;
-    basalt::core::ExpertSource*& srcp;
-    basalt::core::ExpertCache& xcache;
+    std::optional<halo::program::grammar::PackVocab>& grammar_vocab;
+    halo::core::NativeHead& native_head;
+    halo::core::FileExpertSource& src;
+    halo::core::ExpertSource*& srcp;
+    halo::core::ExpertCache& xcache;
     engine_local::Drive& drive;
     std::vector<int32_t>& host_res;
     std::function<cudaError_t(int32_t*)> res_put;
     int32_t*& d_res;
-    basalt::core::TokenHits& thits;
+    halo::core::TokenHits& thits;
     const bool& graph_hits;
     int64_t& auto_lend_pct;
     int64_t& auto_ceiling;
-    basalt::kernels::cpu::ExpertPool& pool;
+    halo::kernels::cpu::ExpertPool& pool;
     std::function<int64_t()> read_cap;
-    basalt::program::ExpertSpill& tier_spill;
+    halo::program::ExpertSpill& tier_spill;
     std::function<void()> report_expert_tiers;
 };
 
@@ -76,4 +76,4 @@ struct Context {
 int run(Context& context);
 
 }  // namespace serve
-}  // namespace basalt::models::qwen4exp
+}  // namespace halo::models::qwen4exp

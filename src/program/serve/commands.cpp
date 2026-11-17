@@ -2,7 +2,7 @@
 #include "state.hpp"
 #include "../cli/tokens.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 namespace {
 // the busy clock runs while a request or a batch window does
@@ -77,7 +77,7 @@ Flow Runtime::dispatch() {
         enc_command(line);
         return Flow::next;
     }
-    if (line.rfind("PROBE", 0) == 0) {   // between requests, not a request (basalt-probe's commands)
+    if (line.rfind("PROBE", 0) == 0) {   // between requests, not a request (halo-probe's commands)
         std::string perr;
         if (batch_on()) perr = "PROBE: not while batch slots are decoding";
         else probe_command(line, perr);
@@ -106,8 +106,8 @@ Flow Runtime::dispatch() {
         }
         // asleep, the driver holds the engine's GPU state in RAM until the wake: the RAM guard judges no reading
         // then (no shed, no admission wait from it), and judges a fresh one at the wake
-        if (down && verr.empty()) basalt::platform::ram_guard_pause(true);
-        if (!down) basalt::platform::ram_guard_pause(false);
+        if (down && verr.empty()) halo::platform::ram_guard_pause(true);
+        if (!down) halo::platform::ram_guard_pause(false);
         if (!verr.empty()) std::printf("ERR %s\n", verr.c_str());
         std::fflush(stdout);
         return Flow::next;
@@ -121,7 +121,7 @@ Flow Runtime::dispatch() {
         std::fflush(stdout);
         return Flow::next;
     }
-    basalt::platform::ram_guard_pause(false);   // a request without a WAKE first: the guard judges again
+    halo::platform::ram_guard_pause(false);   // a request without a WAKE first: the guard judges again
     admit_slot = -1;
     solo_slot = -1;
     if (line.rfind("SGEN ", 0) == 0 || line.rfind("SGENI ", 0) == 0) {   // SGEN <slot> <max_new> ...: a GEN in that slot
@@ -155,11 +155,11 @@ Flow Runtime::dispatch() {
     if (line == "QUIT") return Flow::quit;
     // the watchdog watches a request from here until this iteration ends, whichever way it ends
     struct BusyScope {
-        BusyScope() { basalt::core::progress().busy.store(true); basalt::core::progress_at("request"); }
-        ~BusyScope() { basalt::core::progress().busy.store(false); basalt::core::progress_at("idle"); }
+        BusyScope() { halo::core::progress().busy.store(true); halo::core::progress_at("request"); }
+        ~BusyScope() { halo::core::progress().busy.store(false); halo::core::progress_at("idle"); }
     } busy_scope;
     const BusyClock busy(busy_s, busy_on, busy_from);
     return run_request();
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

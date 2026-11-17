@@ -1,13 +1,13 @@
 // src/core/vmm.cpp - the driver's virtual memory functions through the runtime's entry points (no link against the
 // driver library).  Read the header first.
-#include "basalt/core/vmm.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/vmm.hpp"
+#include "halo/log.hpp"
 
 #include <cuda_runtime.h>
 #include <cuda.h>
 #include <algorithm>
 
-namespace basalt::core::vmm {
+namespace halo::core::vmm {
 namespace {
 struct Fns {
     CUresult (CUDAAPI* device_get)(CUdevice*, int) = nullptr;
@@ -120,7 +120,7 @@ uint8_t* alloc_host(uint64_t bytes, uint64_t& mapped) {
     size_t n = (bytes + g - 1) / g * g;
     CUdeviceptr p = 0;
     const auto refused = [&](const char* op, CUresult error, uint64_t off) {
-        basalt::log::warn("basalt memory", "host VMM %s at %.2f of %.2f GiB on CUDA%d failed (driver code %d)",
+        halo::log::warn("halo memory", "host VMM %s at %.2f of %.2f GiB on CUDA%d failed (driver code %d)",
                           op, off / 1073741824.0, n / 1073741824.0, dev, (int) error);
     };
     CUresult error = v.reserve(&p, n, 0, 0, 0);
@@ -206,4 +206,4 @@ bool unmap(uint8_t* va, uint64_t bytes, unsigned long long handle) {
     return a && b;
 }
 
-}  // namespace basalt::core::vmm
+}  // namespace halo::core::vmm

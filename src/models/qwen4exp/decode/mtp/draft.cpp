@@ -1,7 +1,7 @@
 #include "common.hpp"
-#include "basalt/core/spin_wait.hpp"
+#include "halo/core/spin_wait.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -21,7 +21,7 @@ bool MtpDrafter::draft(int T, const int32_t* tokens, int64_t p, int a, int32_t* 
 bool MtpDrafter::draft_rows(int T, const int32_t* tokens, int64_t p, int a, int32_t* drafts, std::string& err,
                             float* probs, int* n_drafts) {
     const OnDevice on_device(device_);
-    if (T < 1 || T > std::min(max_t_, basalt::kernels::kVerifyMaxT) || a < 0 || a >= T) {
+    if (T < 1 || T > std::min(max_t_, halo::kernels::kVerifyMaxT) || a < 0 || a >= T) {
         err = "mtp: draft arguments out of range";
         return false;
     }
@@ -73,8 +73,8 @@ bool MtpDrafter::draft_rows(int T, const int32_t* tokens, int64_t p, int a, int3
     int32_t ple_prev[2] = {do_ple ? pss->ple_prev[0] : 0, do_ple ? pss->ple_prev[1] : 0};
     auto prefetch_ple = [&](int32_t tok) {
         if (!do_ple || tok < 0) return;
-        uint32_t rows16[basalt::kernels::PLE_N_HEADS];
-        basalt::kernels::ngram_rows(&tok, ple_prev, 1, pss->ple.consts, rows16);
+        uint32_t rows16[halo::kernels::PLE_N_HEADS];
+        halo::kernels::ngram_rows(&tok, ple_prev, 1, pss->ple.consts, rows16);
         ple_prev[0] = ple_prev[1];
         ple_prev[1] = tok;
         pss->ple.table->prefetch_rows(rows16);
@@ -231,4 +231,4 @@ bool MtpDrafter::draft_first(int T, const float* R_row, int32_t token, int64_t c
 }
 
 
-}  // namespace basalt::core
+}  // namespace halo::core

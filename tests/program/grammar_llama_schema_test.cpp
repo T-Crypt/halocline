@@ -1,12 +1,12 @@
-// tests/program/grammar_llama_schema_test.cpp - llama.cpp's tests/test-json-schema-to-grammar.cpp run against Basalt's
+// tests/program/grammar_llama_schema_test.cpp - llama.cpp's tests/test-json-schema-to-grammar.cpp run against Halocline's
 // schema converter: every case's grammar text must equal llama.cpp's expected text (up to the whitespace its own
 // trim() ignores). Cases are copied from llama.cpp (MIT, see THIRD_PARTY_LICENSES).
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 
-#include "basalt/program/grammar/grammar.hpp"
-#include "basalt/program/grammar/schema.hpp"
+#include "halo/program/grammar/grammar.hpp"
+#include "halo/program/grammar/schema.hpp"
 #include "schema_internal.hpp"
 
 #include <cassert>
@@ -16,7 +16,7 @@
 #include <stdexcept>
 #include <string>
 
-using namespace basalt::program::grammar;
+using namespace halo::program::grammar;
 
 static int g_cases = 0;
 

@@ -1,7 +1,7 @@
 // src/core/device.cu - the CUDA side of the runtime core.
-#include "basalt/core/device.hpp"
-#include "basalt/build_archs.hpp"
-#include "basalt/platform/dynlib.hpp"
+#include "halo/core/device.hpp"
+#include "halo/build_archs.hpp"
+#include "halo/platform/dynlib.hpp"
 
 #include <cuda_runtime.h>
 
@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace basalt::core {
+namespace halo::core {
 
 namespace {
 
@@ -190,10 +190,10 @@ double device_h2d_gbps(int ordinal) {
     return best;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core
 
 
-namespace basalt::core {
+namespace halo::core {
 
 std::string device_code_error() {
     // every .cu of the engine is compiled for the same CMAKE_CUDA_ARCHITECTURES, so this kernel stands for all
@@ -208,7 +208,7 @@ DeviceInfo device_info(int ordinal) {
     int count = 0;
     check(cudaGetDeviceCount(&count), "cudaGetDeviceCount");
     if (count == 0) {
-        throw CudaError("no CUDA device is present; basalt needs an NVIDIA GPU of compute capability 12.0 or 8.9", -1);
+        throw CudaError("no CUDA device is present; halo needs an NVIDIA GPU of compute capability 12.0 or 8.9", -1);
     }
     if (ordinal < 0 || ordinal >= count) {
         throw CudaError("device ordinal " + std::to_string(ordinal) + " is out of range (have " +
@@ -239,14 +239,14 @@ DeviceInfo device_info(int ordinal) {
     const bool cc_ok = (d.cc_major == 12 && d.cc_minor == 0) || (d.cc_major == 8 && d.cc_minor == 9);
     if (!cc_ok) {
         throw CudaError("device " + d.name + " reports compute capability " + std::to_string(d.cc_major) + "." +
-                            std::to_string(d.cc_minor) + "; basalt needs an NVIDIA GPU of compute capability 12.0 or 8.9",
+                            std::to_string(d.cc_minor) + "; halo needs an NVIDIA GPU of compute capability 12.0 or 8.9",
                         -1);
     }
     // and only for the architectures it was built for (build_archs.hpp): another one would run lower PTX with the
     // code its paths need compiled out
-    if (!basalt::build_has_arch(d.cc_major, d.cc_minor)) {
+    if (!halo::build_has_arch(d.cc_major, d.cc_minor)) {
         throw CudaError("device " + d.name + " is sm_" + std::to_string(d.cc_major) + std::to_string(d.cc_minor) +
-                            " and this build has device code for " + basalt::build_archs() +
+                            " and this build has device code for " + halo::build_archs() +
                             " only; build with -DCMAKE_CUDA_ARCHITECTURES=\"120;89\" for Blackwell and Ada cards together",
                         -1);
     }
@@ -299,4 +299,4 @@ void* DeviceArena::alloc(uint64_t bytes, uint64_t align) {
     return (char*) base_ + start;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

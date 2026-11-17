@@ -1,6 +1,6 @@
-// src/kernels/cuda/gqa_attn.cu - see include/basalt/kernels/gqa_attn.hpp.
-#include "basalt/kernels/gqa_attn.hpp"
-#include "basalt/kernels/pdl.hpp"
+// src/kernels/cuda/gqa_attn.cu - see include/halo/kernels/gqa_attn.hpp.
+#include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/pdl.hpp"
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
@@ -10,9 +10,9 @@
 #include <atomic>
 #include <cmath>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int GMAX = 8;               // query heads per KV head
@@ -24,7 +24,7 @@ constexpr float kNeg = -1e30f;
 
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
-    if (e != cudaSuccess) { basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(e)); std::exit(1); }
+    if (e != cudaSuccess) { halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e)); std::exit(1); }
 }
 
 __device__ __forceinline__ float warp_sum(float v) {
@@ -549,7 +549,7 @@ __global__ void __launch_bounds__(PNW * 32) prompt_f16_kernel(const float* __res
 
 // ---------------------------------------------------------------- prompt, int8 cache
 // Adapted from Infernix (Ian Ranson and contributors), Apache-2.0: see THIRD_PARTY_LICENSES.  The structure follows
-// Infernix's fast int8 prompt kernel (src/ops/softmax_attention/dense/causal_cache/int8/fast_tiled_mma.cuh); Basalt's
+// Infernix's fast int8 prompt kernel (src/ops/softmax_attention/dense/causal_cache/int8/fast_tiled_mma.cuh); Halocline's
 // cache is unrotated and unpaged, so the queries are rounded to int8 per 64 dims directly and a key tile is gathered
 // cell by cell.
 //
@@ -893,7 +893,7 @@ int opt_in_device() {
     int dev = 0;
     cudaGetDevice(&dev);
     if (dev < 0 || dev >= 64) {
-        basalt::log::error("basalt", "gqa_prompt_attn: device %d out of range", dev);
+        halo::log::error("halo", "gqa_prompt_attn: device %d out of range", dev);
         std::exit(1);
     }
     return dev;
@@ -907,7 +907,7 @@ void launch_prompt_i8(const IO* q, int n_head, int n_kv, int pos0, int T, IO* ou
     if (!raised[dev].load(std::memory_order_acquire)) {
         if (cudaFuncSetAttribute(prompt_i8_kernel<W, Split, IO>, cudaFuncAttributeMaxDynamicSharedMemorySize, i8_smem<W>()) !=
             cudaSuccess) {
-            basalt::log::error("basalt", "gqa_prompt_attn: shared-memory opt-in failed");
+            halo::log::error("halo", "gqa_prompt_attn: shared-memory opt-in failed");
             std::exit(1);
         }
         raised[dev].store(true, std::memory_order_release);
@@ -964,7 +964,7 @@ void gqa_decode_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
                      int64_t pos0, int T, float* scratch, int64_t max_cells, float* out, void* stream,
                      const int32_t* pos_dev, KvInt8 q8, const float* gate_q, uint16_t* gated16, KvFar far_kv) {
     if (T < 1 || T > kGqaMaxWindow || n_kv < 1 || n_head % n_kv || n_head / n_kv > GMAX || pos0 + T > max_cells) {
-        basalt::log::error("basalt", "gqa_decode_attn: invalid arguments");
+        halo::log::error("halo", "gqa_decode_attn: invalid arguments");
         std::exit(1);
     }
     Range r;
@@ -979,7 +979,7 @@ void gqa_decode_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
 void gqa_decode_attn_segs(const float* q, int n_head, int n_kv, const GqaSeg* segs, int n_seg, float* scratch,
                           int64_t max_cells, float* out, void* stream, const float* gate_q, uint16_t* gated16) {
     if (n_seg < 1 || n_seg > kMaxSegs || n_kv < 1 || n_head % n_kv || n_head / n_kv > GMAX) {
-        basalt::log::error("basalt", "gqa_decode_attn_segs: invalid arguments");
+        halo::log::error("halo", "gqa_decode_attn_segs: invalid arguments");
         std::exit(1);
     }
     DecSegs d;
@@ -987,7 +987,7 @@ void gqa_decode_attn_segs(const float* q, int n_head, int n_kv, const GqaSeg* se
     for (int k = 0; k < n_seg; ++k) {
         const GqaSeg& g = segs[k];
         if (g.T < 1 || g.pos0 + g.T > max_cells || d.row0[k] + g.T > kGqaMaxWindow) {
-            basalt::log::error("basalt", "gqa_decode_attn_segs: invalid segment");
+            halo::log::error("halo", "gqa_decode_attn_segs: invalid segment");
             std::exit(1);
         }
         d.row0[k + 1] = d.row0[k] + g.T;
@@ -1008,7 +1008,7 @@ void gqa_window_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
                      float* out, void* stream) {
     if (T < 1 || T > kGqaMaxWindow || n_kv < 1 || n_head % n_kv || n_head / n_kv > GMAX || window <= 0 ||
         (head_dim != 128 && head_dim != 256) || hi < pos0 + T) {
-        basalt::log::error("basalt", "gqa_window_attn: invalid arguments");
+        halo::log::error("halo", "gqa_window_attn: invalid arguments");
         std::exit(1);
     }
     Range r;
@@ -1022,7 +1022,7 @@ void gqa_window_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
     const int used = (int) ((hi + CHUNK - 1) / CHUNK) - r.base;
     const int n_chunks = (int) ((scratch_cells + CHUNK - 1) / CHUNK) + 1;
     if (used > n_chunks) {
-        basalt::log::error("basalt", "gqa_window_attn: the window passes its scratch");
+        halo::log::error("halo", "gqa_window_attn: the window passes its scratch");
         std::exit(1);
     }
     if (head_dim == 128) launch_window<128>(q, k_cache, v_cache, n_head, n_kv, r, T, scratch, n_chunks, out, (cudaStream_t) stream);
@@ -1039,7 +1039,7 @@ void gqa_prompt_attn_bf16(const uint16_t* q, int n_head, int n_kv, int64_t pos0,
                           KvInt8 q8, float* split_scratch, size_t split_floats, KvFar far_kv) {
     if (T <= 0) return;
     if (!q8.k || n_kv < 1 || n_head % n_kv || pos0 + T > INT32_MAX) {
-        basalt::log::error("basalt", "gqa_prompt_attn_bf16: an int8 cache and a supported head layout");
+        halo::log::error("halo", "gqa_prompt_attn_bf16: an int8 cache and a supported head layout");
         std::exit(1);
     }
     const cudaStream_t st = (cudaStream_t) stream;
@@ -1057,7 +1057,7 @@ void gqa_prompt_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
                      KvFar far_kv) {
     if (T <= 0) return;
     if (n_kv < 1 || n_head % n_kv || (!q8.k && PROWS % (n_head / n_kv)) || pos0 + T > INT32_MAX) {
-        basalt::log::error("basalt", "gqa_prompt_attn: unsupported head layout or cell count");
+        halo::log::error("halo", "gqa_prompt_attn: unsupported head layout or cell count");
         std::exit(1);
     }
     const cudaStream_t st = (cudaStream_t) stream;
@@ -1072,7 +1072,7 @@ void gqa_prompt_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
         if (!raised[dev].load(std::memory_order_acquire)) {
             if (cudaFuncSetAttribute(prompt_f16_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, (int) sizeof(PromptSmem16)) !=
                 cudaSuccess) {
-                basalt::log::error("basalt", "gqa_prompt_attn: shared-memory opt-in failed");
+                halo::log::error("halo", "gqa_prompt_attn: shared-memory opt-in failed");
                 std::exit(1);
             }
             raised[dev].store(true, std::memory_order_release);
@@ -1085,4 +1085,4 @@ void gqa_prompt_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
     check("gqa_prompt_attn");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

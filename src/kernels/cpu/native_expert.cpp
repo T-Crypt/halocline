@@ -1,22 +1,22 @@
 // src/kernels/cpu/native_expert.cpp - native (GGUF-form) experts on the CPU through the extracted ggml dot products.
 // See the header.  The activation quantizers and the row dot products here are ggml's (src/kernels/cpu/ggml), so an
 // IQ expert computes what llama.cpp's CPU backend computes for it.
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/iq_avx512.hpp"
-#include "basalt/kernels/cpu/iq_avx2.hpp"
-#include "basalt/kernels/cpu/kq_avx2.hpp"
-#include "basalt/kernels/cpu/nvfp4_avx512.hpp"
-#include "basalt/kernels/cpu/nvfp4_avx2.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/iq_avx512.hpp"
+#include "halo/kernels/cpu/iq_avx2.hpp"
+#include "halo/kernels/cpu/kq_avx2.hpp"
+#include "halo/kernels/cpu/nvfp4_avx512.hpp"
+#include "halo/kernels/cpu/nvfp4_avx2.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 namespace {
 
 const ggml_type_traits_cpu* traits(int type) { return ggml_get_type_traits_cpu((ggml_type) type); }
@@ -256,4 +256,4 @@ void native_down_rows(const NativeFmt& f, const uint8_t* blob, const void* const
     }
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

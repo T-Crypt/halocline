@@ -1,16 +1,16 @@
 #include "run.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 #include <algorithm>
 #include <future>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::inputs() {
@@ -42,7 +42,7 @@ bool Prefill::Run::Chunk::inputs() {
             const auto* scales = (const float*) (codes + wemb->codes_bytes);
             const auto* offsets = wemb->has_offset ? (const float*) (codes + wemb->codes_bytes + wemb->scales_bytes)
                                                    : nullptr;
-            basalt::kernels::embedding_gather_dev(codes, scales, offsets, m.tok_dev, (int) T, wemb->ne0,
+            halo::kernels::embedding_gather_dev(codes, scales, offsets, m.tok_dev, (int) T, wemb->ne0,
                                                   wemb->code_bits, wemb->code_bias, wemb->group_elems,
                                                   (uint64_t) (wemb->ne0 / (8 / wemb->code_bits)),
                                                   (uint64_t) (wemb->ne0 / wemb->group_elems), m.emb, m.cs);
@@ -69,11 +69,11 @@ bool Prefill::Run::Chunk::inputs() {
         });
     for (int64_t t = 0; t < T; ++t) { prev[0] = prev[1]; prev[1] = (int32_t) tokens[c0 + t]; }
     // ---- the QSA step records of every position in the chunk
-    for (int64_t t = 0; t < T; ++t) basalt::kernels::qsa_step_fill(m.steps_host.data() + t * basalt::kernels::kStepCount, p0 + t, s);
-    cudaMemcpyAsync(m.steps_dev, m.steps_host.data(), (size_t) T * basalt::kernels::kStepCount * 4,
+    for (int64_t t = 0; t < T; ++t) halo::kernels::qsa_step_fill(m.steps_host.data() + t * halo::kernels::kStepCount, p0 + t, s);
+    cudaMemcpyAsync(m.steps_dev, m.steps_host.data(), (size_t) T * halo::kernels::kStepCount * 4,
                     cudaMemcpyHostToDevice, m.cs);
     for (int64_t l = 0; l < LB; ++l) (core::is_qsa_layer(g, l) ? qsa_index : gdn_index) += 1;
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

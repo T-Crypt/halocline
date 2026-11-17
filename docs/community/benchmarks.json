@@ -1,5 +1,5 @@
 {
-  "preset": "basalt-bench --community",
+  "preset": "halo-bench --community",
   "runs": [
     {
       "submitter": "lindworm-hermes2026",

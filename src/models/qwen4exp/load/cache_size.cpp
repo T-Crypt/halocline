@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int cache_size(Context& context) {
     auto& o = *context.o;
@@ -25,19 +25,19 @@ int cache_size(Context& context) {
     // ---- R4's slot storage.  Allocated AFTER the weights and the session, so `cudaMemGetInfo` inside `open`
     // sees the memory this process actually has left rather than the card's idle figure - and refuses with both
     // numbers if the slots do not fit, instead of handing back a cache smaller than it was asked for.
-    if (!basalt::core::Verifier::prepare_hc8(wt, g, err)) {   // before the cache sizes itself
-        basalt::log::error("basalt generate", "%s", err.c_str());
+    if (!halo::core::Verifier::prepare_hc8(wt, g, err)) {   // before the cache sizes itself
+        halo::log::error("halo generate", "%s", err.c_str());
         return 1;
     }
-    basalt::core::ExpertCache xcache;
+    halo::core::ExpertCache xcache;
     // THE HEAD BEFORE THE CACHE: the native head and the logits are allocated above, before the expert arena
     // Profiled slots are padded; sizing and allocation must charge the same stride.
-    const uint64_t max_cache_blob = basalt::kernels::cpu::expert_layout().max_blob;
+    const uint64_t max_cache_blob = halo::kernels::cpu::expert_layout().max_blob;
     const uint64_t cache_slot_bytes = profile.empty() ? max_cache_blob : (max_cache_blob + 255) / 256 * 256;
     const bool auto_cache = o.expert_cache < 0;
     if (o.expert_cache < 0) {
         // the prompt path's cuBLAS handle is made now, so the free figure below already has its device memory out
-        if (o.serve && o.prefill_chunk > 0 && !basalt::prefill::Gemm::prepare_handle(err)) return fatal_start_error(err);
+        if (o.serve && o.prefill_chunk > 0 && !halo::prefill::Gemm::prepare_handle(err)) return fatal_start_error(err);
         size_t free_b = 0, total_b = 0;
         cudaMemGetInfo(&free_b, &total_b);
         // The batched prompt path's chunk buffers are allocated later, so they are reserved here - an over-subscribed
@@ -45,7 +45,7 @@ int cache_size(Context& context) {
         // path lends cache slots instead (`pf_borrow`, hoisted above so both cache-size branches read the same one).
         const int64_t prefill_mib = (o.prefill_chunk > 0 && !pf_borrow) ? 160 + (o.prefill_chunk * 680) / 1024 : 0;
         // the draft layer's head and logits are allocated when it binds, after this, so they come out of the reserve
-        const basalt::core::NativeHead& draft_head = native_head;
+        const halo::core::NativeHead& draft_head = native_head;
         const int64_t mtp_bind = (!o.mtp.empty() && draft_head.loaded())
                                      ? (int64_t) mtp.bind_bytes(draft_head.row_bytes(), draft_head.type(), n_vocab) : 0;
         // a server allocates its verify windows after the cache is sized: they come out of the reserve too, so the
@@ -68,9 +68,9 @@ int cache_size(Context& context) {
                                                     late_room + ((int64_t) vram_floor_mib() << 20));
         // the deferred checkpoint copy's spare device buffer is allocated after the cache, so it comes out of the reserve
         if (o.serve && o.prompt_cache > 0) {
-            basalt::core::ConversationStateSizes zc;
+            halo::core::ConversationStateSizes zc;
             std::string ce;
-            if (basalt::core::conversation_state_sizes(g, zc, ce)) late_b += (int64_t) zc.gdn;
+            if (halo::core::conversation_state_sizes(g, zc, ce)) late_b += (int64_t) zc.gdn;
         }
         const int64_t base_b = reserve_b + ((int64_t) prefill_mib << 20) + mtp_bind + late_b;
         // the RAM copy of the experts the cache does not hold is page-locked and mapped, which takes device memory per
@@ -101,7 +101,7 @@ int cache_size(Context& context) {
             ? " (" + std::to_string(o.vram_reserve_mib) + " asked, raised to hold " + std::to_string(late_room >> 20) +
                   " MiB that loads into it and the " + std::to_string(vram_floor_mib()) + " MiB floor)"
             : std::string();
-        basalt::log::info("basalt generate", "expert cache auto: %.2f GiB free, %d MiB reserved%s (+%lld MiB for the "
+        halo::log::info("halo generate", "expert cache auto: %.2f GiB free, %d MiB reserved%s (+%lld MiB for the "
                              "draft head, +%lld MiB for what loads after) -> %d slots",
                      (double) free_b / 1073741824.0, (int) (reserve_b >> 20), raised.c_str(), (long long) (mtp_bind >> 20),
                      (long long) (late_b >> 20), o.expert_cache);
@@ -112,7 +112,7 @@ int cache_size(Context& context) {
             if (!profile.empty()) without = std::min<int64_t>(without, (int64_t) profile.size());
             const bool swaps = !profile.empty() && o.expert_cache < (int64_t) profile.size() && without >= (int64_t) profile.size();
             if (without > 0 && (swaps || o.expert_cache * 2 < without))
-                basalt::log::warn("basalt", "the %d batch slots' sessions (the first is the solo one) take %.1f GiB of CUDA0 beyond it, leaving an "
+                halo::log::warn("halo", "the %d batch slots' sessions (the first is the solo one) take %.1f GiB of CUDA0 beyond it, leaving an "
                                      "expert cache of %d slots (%.1f GiB) where %lld would fit without them%s. Lower "
                                      "--max-context or drop --slot-full-context (or use fewer --parallel slots)",
                              o.batch, (double) slot_kv_cuda0 / 1073741824.0, o.expert_cache,
@@ -129,7 +129,7 @@ int cache_size(Context& context) {
         // room.  A card the default reserve leaves that much is sized as before.
         constexpr int kSmallReserveMib = 300;
         const int64_t min_slots = (o.prefill_chunk > 0 && pf_borrow)
-            ? ((int64_t) basalt::prefill::Prefill::bytes_needed(g, ss, 256) + blob - 1) / blob + 128 : 1;
+            ? ((int64_t) halo::prefill::Prefill::bytes_needed(g, ss, 256) + blob - 1) / blob + 128 : 1;
         if (o.expert_cache < min_slots && !o.vram_reserve_given && o.vram_reserve_mib > kSmallReserveMib) {
             // the largest reserve (in MiB) that still leaves min_slots
             const int64_t fit_mib = ((int64_t) free_b - mtp_bind - late_b - min_slots * blob) / (1 << 20) - prefill_mib;
@@ -138,7 +138,7 @@ int cache_size(Context& context) {
                 const int64_t rb = std::max<int64_t>((int64_t) r << 20, late_room + ((int64_t) vram_floor_mib() << 20));
                 int64_t s2 = ((int64_t) free_b - (rb + ((int64_t) prefill_mib << 20) + mtp_bind + late_b)) / blob;
                 if (!profile.empty()) s2 = std::min<int64_t>(s2, (int64_t) profile.size());
-                basalt::log::warn("basalt generate", "expert cache auto: the %d MiB reserve leaves too few slots on "
+                halo::log::warn("halo generate", "expert cache auto: the %d MiB reserve leaves too few slots on "
                                      "this card (a working cache needs %lld): a %d MiB reserve instead -> %lld slots",
                              o.vram_reserve_mib, (long long) min_slots, r, (long long) s2);
                 o.vram_reserve_mib = r;
@@ -153,13 +153,13 @@ int cache_size(Context& context) {
                                    ((int64_t) prefill_mib << 20) + mtp_bind + late_b + min_slots * blob;
             const int64_t short_mib = std::max<int64_t>(1, (need_b - (int64_t) free_b + (1 << 20) - 1) >> 20);
             const int64_t session_mib =
-                (int64_t) (basalt::core::session_bytes(g, o.max_context, K, 0, g.n_layers) >> 20);
+                (int64_t) (halo::core::session_bytes(g, o.max_context, K, 0, g.n_layers) >> 20);
             const std::string reserve_tip =
                 o.vram_reserve_given && o.vram_reserve_mib > kSmallReserveMib
                     ? ", a smaller --vram-reserve-mib (" + std::to_string(o.vram_reserve_mib) + " now; " +
                           std::to_string(kSmallReserveMib) + " is enough on a small card)"
                     : std::string();
-            basalt::log::error("basalt generate", "no VRAM is left for the expert cache: it needs at least %lld slots "
+            halo::log::error("halo generate", "no VRAM is left for the expert cache: it needs at least %lld slots "
                                  "(%lld MiB), about %lld MiB more than this card has free. To make room: a smaller "
                                  "--max-context (the session, mostly its KV cache, takes %lld MiB at %lld tokens), "
                                  "--kv q4_0, a smaller draft vocabulary (the draft head takes "
@@ -177,7 +177,7 @@ int cache_size(Context& context) {
     if (o.expert_cache > 0 && !profile.empty()) {
         size_t free_b = 0, total_b = 0;
         cudaMemGetInfo(&free_b, &total_b);
-        const auto& lay = basalt::kernels::cpu::expert_layout();
+        const auto& lay = halo::kernels::cpu::expert_layout();
         const uint64_t budget = (uint64_t) o.expert_cache * cache_slot_bytes;   // what the uniform sizing granted
         uint64_t used = 0;
         size_t free_room = free_b > ((size_t) o.vram_reserve_mib << 20) ? free_b - ((size_t) o.vram_reserve_mib << 20) : 0;
@@ -196,7 +196,7 @@ int cache_size(Context& context) {
         const char* why = !o.serve ? "it works between requests of --serve"
                         : o.vram_segment_mib < 64 ? "--vram-segment-mib is below 64" : nullptr;
         if (why != nullptr) {
-            basalt::log::warn("basalt generate", "--vram-elastic is off: %s", why);
+            halo::log::warn("halo generate", "--vram-elastic is off: %s", why);
             o.vram_elastic = false;
         } else {
             xcache.set_segment_bytes(o.vram_segment_mib << 20);
@@ -205,8 +205,8 @@ int cache_size(Context& context) {
     // the elastic KV: what the sessions' unbacked cells would take is the cache's tail, lent back to them on demand
     uint64_t kv_tail_bytes = 0;
     if (kv_floor > 0) {
-        auto add = [&](const basalt::core::SessionState& s) {
-            kv_tail_bytes += basalt::core::session_kv_bytes_for(s, s.max_cells) - basalt::core::session_kv_bytes_for(s, kv_floor);
+        auto add = [&](const halo::core::SessionState& s) {
+            kv_tail_bytes += halo::core::session_kv_bytes_for(s, s.max_cells) - halo::core::session_kv_bytes_for(s, kv_floor);
         };
         add(ss);
         if (!bslot_ss.empty())
@@ -248,7 +248,7 @@ int cache_size(Context& context) {
             bool ok = false;
             {
                 ok = sized_slots.empty()
-                    ? xcache.open(o.expert_cache, g.n_layers, g.n_expert, (int64_t) basalt::kernels::cpu::expert_layout().max_blob, err)
+                    ? xcache.open(o.expert_cache, g.n_layers, g.n_expert, (int64_t) halo::kernels::cpu::expert_layout().max_blob, err)
                     : xcache.open_sized(sized_slots, g.n_layers, g.n_expert, err);
             }
             if (!ok) {
@@ -258,7 +258,7 @@ int cache_size(Context& context) {
                 char commit[96] = "";
                 if (auto_cache && failed < 8 && shrink_to(cache_bytes() / 4 * 3)) {
                     ++failed;
-                    basalt::log::warn("basalt generate", "%s%s; trying a smaller expert cache: %d slots", err.c_str(),
+                    halo::log::warn("halo generate", "%s%s; trying a smaller expert cache: %d slots", err.c_str(),
                                  commit, o.expert_cache);
                     continue;
                 }
@@ -277,13 +277,13 @@ int cache_size(Context& context) {
             if (free_b < ((size_t) 16 << 20))
                 give = std::max<int64_t>(give, ++zero_reads <= 2 ? 1ll << 30 : xcache.bytes() / 4);
             const int64_t keep_bytes = xcache.bytes() - give;
-            basalt::log::warn("basalt generate", "only %lld MiB free once the slots are written (reserve %d MiB); "
+            halo::log::warn("halo generate", "only %lld MiB free once the slots are written (reserve %d MiB); "
                                  "shrinking the expert cache", (long long) (free_b >> 20), o.vram_reserve_mib);
             xcache.close();
             if (!shrink_to(keep_bytes)) break;
         }
         if (failed > 0 && o.expert_cache > 0)
-            basalt::log::warn("basalt generate", "expert cache: %d slots (%.2f GiB) after %d smaller tries - a bigger "
+            halo::log::warn("halo generate", "expert cache: %d slots (%.2f GiB) after %d smaller tries - a bigger "
                                  "page file lets it use more of the free VRAM",
                          o.expert_cache, (double) xcache.bytes() / 1073741824.0, failed);
     }
@@ -291,22 +291,22 @@ int cache_size(Context& context) {
     const int64_t kv_tail_slots = xcache.valid() && xcache.elastic_bytes() > 0
         ? xcache.full_slots() - xcache.slots_within(xcache.full_bytes() - xcache.elastic_bytes()) : 0;
     if (kv_tail_slots > 0)
-        basalt::log::info("basalt generate", "elastic KV: %lld cells backed per session, the other %.2f GiB of KV are "
+        halo::log::info("halo generate", "elastic KV: %lld cells backed per session, the other %.2f GiB of KV are "
                              "the expert cache's last %lld slots until a request needs them",
                      (long long) kv_floor, (double) kv_tail_bytes / 1073741824.0, (long long) kv_tail_slots);
     if (o.expert_cache > 0) {
-        basalt::log::info("basalt generate", "expert cache %lld slots, %.2f GiB of VRAM; policy is",
+        halo::log::info("halo generate", "expert cache %lld slots, %.2f GiB of VRAM; policy is",
                      (long long) xcache.slots(), xcache.gib());
         xcache.set_per_layer_admission(false);
         // A GPU expert and the CPU's compute the same quantized expert with different float order, so a near-tie can
         // flip against a cache-off run; neither output is more correct than the other.  (native_expert_parity,
         // expert_parity and the grouped kernels' tests check the kernels themselves.)
-        basalt::log::info("basalt generate", "the GPU computes the experts in the cache; it rounds differently from the CPU,\n"
+        halo::log::info("halo generate", "the GPU computes the experts in the cache; it rounds differently from the CPU,\n"
                      "                 so a reply can differ slightly from a run without the cache (same quality).");
         if (profile.empty()) {
-            basalt::log::raw("                 compulsory-miss (fills with whatever the run routes first).\n");
+            halo::log::raw("                 compulsory-miss (fills with whatever the run routes first).\n");
         } else {
-            basalt::log::raw("                 PROFILE, ranked by routing frequency, no eviction.\n");
+            halo::log::raw("                 PROFILE, ranked by routing frequency, no eviction.\n");
         }
     }
 

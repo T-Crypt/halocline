@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -12,7 +12,7 @@ void MtpDrafter::pf_fork(cudaStream_t from) {
     const ModelGeometry& g = *g_;
     const int64_t N = g.n_embd, NH = g.n_head, HD = g.head_dim, NKV = g.n_head_kv;
     auto q8_bytes = [&](int64_t rows, int64_t cols) { return (size_t) (rows * (cols / 32) * 34); };
-    auto pf = [&](const void* w, size_t bytes) { basalt::kernels::dense_tc_l2_prefetch(w, bytes, cs3_); };
+    auto pf = [&](const void* w, size_t bytes) { halo::kernels::dense_tc_l2_prefetch(w, bytes, cs3_); };
     cudaEventRecord(ev_pf_, from);
     cudaStreamWaitEvent(cs3_, ev_pf_, 0);
     pf(q8("fc_embedding.weight"), q8_bytes(N, N));
@@ -33,7 +33,7 @@ void MtpDrafter::prefetch_end(cudaStream_t cs) {
 // that also sets the conditional handles this step ends with (the next step's input residual is the hidden input
 // already computed beside the head, so the residual is not carried).
 bool MtpDrafter::step_end(int j) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const CondTail* c = ctail_;
     if (!mtp_step_end(out_ids_, row_ + 1, tok_, m_out_, j, probs_, m_prob_, c ? c->h : nullptr, c ? c->n : 0, row_ + 3,
                       m_prob_, cs_))

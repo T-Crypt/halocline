@@ -1,9 +1,9 @@
-// src/spec/suffix_drafter.cpp - see include/basalt/spec/suffix_drafter.hpp.
-#include "basalt/spec/suffix_drafter.hpp"
+// src/spec/suffix_drafter.cpp - see include/halo/spec/suffix_drafter.hpp.
+#include "halo/spec/suffix_drafter.hpp"
 
 #include <algorithm>
 
-namespace basalt::spec {
+namespace halo::spec {
 
 namespace {
 uint64_t mix(uint64_t x) {
@@ -85,4 +85,4 @@ int SuffixDrafter::propose(int max_k, int32_t* out) {
     return k;
 }
 
-}  // namespace basalt::spec
+}  // namespace halo::spec

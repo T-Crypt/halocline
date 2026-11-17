@@ -1,8 +1,8 @@
 // src/core/pinned.cu - the pinned host arena.
-#include "basalt/core/pinned.hpp"
-#include "basalt/core/ram_load.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/core/pinned.hpp"
+#include "halo/core/ram_load.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cuda_runtime.h>
 
@@ -14,9 +14,9 @@
 #include <fstream>
 #include <mutex>
 #include <thread>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 uint64_t fnv1a64(const uint8_t* p, uint64_t n, uint64_t seed) {
     uint64_t h = seed;
@@ -44,10 +44,10 @@ PinnedArena::PinnedArena(uint64_t bytes, uint64_t slice) : PinnedArena(bytes, un
 PinnedArena::PinnedArena(uint64_t bytes, const std::vector<uint64_t>& bounds,
                          const std::string& shared_file, uint64_t shared_hash) : capacity(bytes) {
     if (bytes == 0) return;
-    basalt::platform::RegionBacking region_backing = basalt::platform::RegionBacking::NormalPages;
-    base = basalt::platform::alloc_region(bytes, region_backing, note, shared_file, shared_hash, mapping_base,
+    halo::platform::RegionBacking region_backing = halo::platform::RegionBacking::NormalPages;
+    base = halo::platform::alloc_region(bytes, region_backing, note, shared_file, shared_hash, mapping_base,
                                           mapping_bytes);
-    backing = region_backing == basalt::platform::RegionBacking::LargePages ? PageBacking::LargePages
+    backing = region_backing == halo::platform::RegionBacking::LargePages ? PageBacking::LargePages
                                                                              : PageBacking::NormalPages;
 
     // Register with CUDA BEFORE any page is touched: cudaHostRegister pins what is resident now, and a region
@@ -78,13 +78,13 @@ PinnedArena::PinnedArena(uint64_t bytes, const std::vector<uint64_t>& bounds,
 
 PinnedArena::~PinnedArena() {
     if (base) {
-        if (locked_bytes) basalt::platform::unlock_resident((uint8_t*) base + (slice_bytes ? registered_bytes : 0), locked_bytes);
+        if (locked_bytes) halo::platform::unlock_resident((uint8_t*) base + (slice_bytes ? registered_bytes : 0), locked_bytes);
         if (slice_bytes) {
             for (uint64_t off : slice_starts) cudaHostUnregister((uint8_t*) base + off);
         } else if (!platform::kBoundHostRegistration || registered_bytes > 0) {
             cudaHostUnregister(base);
         }
-        basalt::platform::free_region(mapping_base ? mapping_base : base, mapping_bytes ? mapping_bytes : capacity);
+        halo::platform::free_region(mapping_base ? mapping_base : base, mapping_bytes ? mapping_bytes : capacity);
         base = nullptr;
         mapping_base = nullptr;
         mapping_bytes = 0;
@@ -98,7 +98,7 @@ StreamStats stream_bandwidth(const uint8_t* src, uint64_t bytes, uint64_t chunk,
     uint8_t* dst = nullptr;
     cudaStream_t s{};
     if (cudaMalloc(&dst, (size_t) chunk) != cudaSuccess) {
-        basalt::log::error("basalt", "stream_bandwidth: cudaMalloc failed for %llu B", (unsigned long long) chunk);
+        halo::log::error("halo", "stream_bandwidth: cudaMalloc failed for %llu B", (unsigned long long) chunk);
         st.seconds = -1.0;
         return st;
     }
@@ -124,4 +124,4 @@ StreamStats stream_bandwidth(const uint8_t* src, uint64_t bytes, uint64_t chunk,
     return st;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

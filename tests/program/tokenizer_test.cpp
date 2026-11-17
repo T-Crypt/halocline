@@ -9,25 +9,25 @@
 #include <sstream>
 #include <string>
 
-#include "basalt/program/tokenizer.hpp"
+#include "halo/program/tokenizer.hpp"
 #include "unicode_flags.hpp"
 
 // The Qwen pre-tokenizer is shared (the tokenizer library); the others belong to the models this build contains.
-#ifdef BASALT_MODEL_DEEPSEEK41
+#ifdef HALO_MODEL_DEEPSEEK41
 #include "models/deepseek41/adapter.hpp"
 #endif
-namespace basalt::program::tokenizer { void pretok_qwen35(const char* text, size_t size, std::vector<size_t>& ends); }
+namespace halo::program::tokenizer { void pretok_qwen35(const char* text, size_t size, std::vector<size_t>& ends); }
 
-using basalt::program::Tokenizer;
+using halo::program::Tokenizer;
 
 namespace {
 using PreTok = void (*)(const char*, size_t, std::vector<size_t>&);
-#ifdef BASALT_MODEL_DEEPSEEK41
-constexpr PreTok kJoyai = basalt::models::deepseek41::pretok_joyai;
+#ifdef HALO_MODEL_DEEPSEEK41
+constexpr PreTok kJoyai = halo::models::deepseek41::pretok_joyai;
 #else
 constexpr PreTok kJoyai = nullptr;
 #endif
-constexpr PreTok kQwen35 = basalt::program::tokenizer::pretok_qwen35;
+constexpr PreTok kQwen35 = halo::program::tokenizer::pretok_qwen35;
 }  // namespace
 
 namespace {

@@ -1,7 +1,7 @@
 // src/models/qwen4exp/kernels/dec_moe_host.cuh - the decode MoE tail's launchers, on dec_moe.cuh and dec_moe_kernels.cuh (one TU: dec_moe.cu).
 #pragma once
 
-namespace basalt::kernels {
+namespace halo::kernels {
 
 int dec_moe_route_blocks(int n_tok, int n_embd) { return 1 + (n_tok * n_embd + kDmThreads - 1) / kDmThreads; }
 
@@ -36,7 +36,7 @@ bool dec_moe_route_ada(const DmRouteArgs& a) { return dm_ada_args(a); }
 
 void dec_moe_route(const DmRouteArgs& a, void* stream) {
     if (a.n_tok * a.k > kDmCap || a.n_embd % kDmThreads != 0) {
-        basalt::log::error("basalt", "dec_moe_route: %d entries / n_embd %d", a.n_tok * a.k, a.n_embd);
+        halo::log::error("halo", "dec_moe_route: %d entries / n_embd %d", a.n_tok * a.k, a.n_embd);
         std::exit(1);
     }
     const dim3 grid((unsigned) dec_moe_route_blocks(a.n_tok, a.n_embd));
@@ -52,7 +52,7 @@ void dec_moe_route(const DmRouteArgs& a, void* stream) {
 void dec_moe_stage(const DmRouteArgs& a, uint8_t* staging, int64_t stride, int64_t blob_bytes, int blocks, void* stream) {
     if (a.n_tok * a.k > kDmCap || a.stage_src == nullptr || a.stage_k == nullptr || blob_bytes % 16 != 0 ||
         stride % 128 != 0 || stride < dec_moe_stage_stride(blob_bytes) || blocks < 1) {
-        basalt::log::error("basalt", "dec_moe_stage: %d entries, blob %lld, stride %lld", a.n_tok * a.k,
+        halo::log::error("halo", "dec_moe_stage: %d entries, blob %lld, stride %lld", a.n_tok * a.k,
                            (long long) blob_bytes, (long long) stride);
         std::exit(1);
     }
@@ -89,7 +89,7 @@ void dec_moe_glue(const NativeExpertLayout& L, const DmGlueArgs& a_in, void* scr
     const DmGlueArgs& a = a_in;
     if (a.n_tok * a.k > kDmCap || cap < 1 || cap > kDmCap || a.n_tok > kDmGlueTokens || a.n_expert > kDmGlueExperts ||
         (a.ring_on && a.ring.pub_ctr != nullptr && 2 * a.n_expert > kDmGlueExperts)) {
-        basalt::log::error("basalt", "dec_moe_glue: %d entries, cap %d, %d tokens, %d experts", a.n_tok * a.k, cap, a.n_tok,
+        halo::log::error("halo", "dec_moe_glue: %d entries, cap %d, %d tokens, %d experts", a.n_tok * a.k, cap, a.n_tok,
                      a.n_expert);
         std::exit(1);
     }
@@ -110,7 +110,7 @@ void dec_moe_glue(const NativeExpertLayout& L, const DmGlueArgs& a_in, void* scr
 #define GLUE_MIX(TG, TU) case TG * 100 + TU: go(dm_glue_gu_kernel<TG, TU>, dm_glue_blocks<TG, TU>()); break;
             GU_MIX(GLUE_MIX)
 #undef GLUE_MIX
-            default: basalt::log::error("basalt", "dec_moe_glue: gate %d / up %d", L.gu_type, L.up_type); std::exit(1);
+            default: halo::log::error("halo", "dec_moe_glue: gate %d / up %d", L.gu_type, L.up_type); std::exit(1);
         }
     } else
     switch (L.gu_type) {
@@ -124,7 +124,7 @@ void dec_moe_glue(const NativeExpertLayout& L, const DmGlueArgs& a_in, void* scr
         case 22: go(dm_glue_gu_kernel<22>, dm_glue_blocks<22>()); break;
         case 23: go(dm_glue_gu_kernel<23>, dm_glue_blocks<23>()); break;
         case 42: go(dm_glue_gu_kernel<42>, dm_glue_blocks<42>()); break;
-        default: basalt::log::error("basalt", "dec_moe_glue: gate/up %d", L.gu_type); std::exit(1);
+        default: halo::log::error("halo", "dec_moe_glue: gate/up %d", L.gu_type); std::exit(1);
     }
     check("dec_moe_glue/gu");
     const DmPlan* P = a.plan;
@@ -138,7 +138,7 @@ void dec_moe_glue(const NativeExpertLayout& L, const DmGlueArgs& a_in, void* scr
 #define DM_DOWN(T) case T: launch_down<T>(gd, s, P->ptr, P->start, P->counts, P->dst, hq, L, out, true); break;
         DM_D_FMTS(DM_DOWN)
 #undef DM_DOWN
-        default: basalt::log::error("basalt", "dec_moe_glue: down %d", L.d_type); std::exit(1);
+        default: halo::log::error("halo", "dec_moe_glue: down %d", L.d_type); std::exit(1);
     }
     check("dec_moe_glue/down");
 }
@@ -249,7 +249,7 @@ void dm_vram_launch(F kernel, int blocks, void* stream, const DmPlan* plan, cons
     cfg.numAttrs = 1;
     const cudaError_t e = cudaLaunchKernelEx(&cfg, kernel, plan, xq, L, gate, up, out, sync);
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "dec_moe_vram: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "dec_moe_vram: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -261,7 +261,7 @@ size_t dec_moe_vram_scratch_bytes(int n_ff) {
 void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* xq, void* scratch, float* out,
                   unsigned int* sync, void* stream, int kind, int cap) {
     if (L.up_type != L.gu_type) {   // the A/B kernels below take one gate/up type
-        basalt::log::error("basalt", "dec_moe_vram: gate %d / up %d", L.gu_type, L.up_type);
+        halo::log::error("halo", "dec_moe_vram: gate %d / up %d", L.gu_type, L.up_type);
         std::exit(1);
     }
     float* gate = (float*) scratch;
@@ -278,7 +278,7 @@ void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* x
             case TG * 10 + 2: dm_gu_kernel<TG, 2><<<ggu, 256, 0, s>>>(plan, X, L, gate, up); break;
             DM_GU_FMTS(DM_G)
 #undef DM_G
-            default: basalt::log::error("basalt", "dec_moe_vram: gate/up %d rows %d", L.gu_type, NR); std::exit(1);
+            default: halo::log::error("halo", "dec_moe_vram: gate/up %d rows %d", L.gu_type, NR); std::exit(1);
         }
         block_q8_1* hq = (block_q8_1*) (up + (size_t) kDmCap * L.n_ff);
         const long long nh = (long long) cap * L.n_ff;
@@ -290,7 +290,7 @@ void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* x
 #define DM_DOWN(T) case T: launch_down<T>(gd, s, plan->ptr, plan->start, plan->counts, plan->dst, hq, L, out); break;
             DM_D_FMTS(DM_DOWN)
 #undef DM_DOWN
-            default: basalt::log::error("basalt", "dec_moe_vram: down %d", L.d_type); std::exit(1);
+            default: halo::log::error("halo", "dec_moe_vram: down %d", L.d_type); std::exit(1);
         }
         check("dec_moe_vram");
         return;
@@ -299,7 +299,7 @@ void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* x
         if (L.gu_row * kTmaGuRows > (size_t) kTmaStage || L.d_row * kTmaDownRows > (size_t) kTmaStage ||
             (L.gu_row * kTmaGuRows) % 16 != 0 || (L.d_row * kTmaDownRows) % 16 != 0 || L.down_off % 16 != 0 ||
             L.n_embd % kTmaDownRows != 0) {
-            basalt::log::error("basalt", "dec_moe_vram: the TMA kernel does not take formats %d / %d", L.gu_type, L.d_type);
+            halo::log::error("halo", "dec_moe_vram: the TMA kernel does not take formats %d / %d", L.gu_type, L.d_type);
             std::exit(1);
         }
         switch (L.gu_type * 100 + L.d_type) {
@@ -313,7 +313,7 @@ void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* x
             default: break;
         }
         if (blocks <= 0) {
-            basalt::log::error("basalt", "dec_moe_vram: formats %d / %d", L.gu_type, L.d_type);
+            halo::log::error("halo", "dec_moe_vram: formats %d / %d", L.gu_type, L.d_type);
             std::exit(1);
         }
         check("dec_moe_vram");
@@ -330,10 +330,10 @@ void dec_moe_vram(const NativeExpertLayout& L, const DmPlan* plan, const void* x
         default: break;
     }
     if (blocks <= 0) {
-        basalt::log::error("basalt", "dec_moe_vram: formats %d / %d", L.gu_type, L.d_type);
+        halo::log::error("halo", "dec_moe_vram: formats %d / %d", L.gu_type, L.d_type);
         std::exit(1);
     }
     check("dec_moe_vram");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

@@ -1,23 +1,23 @@
 #include "common.hpp"
 #include "record.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <exception>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // layer 1's PLE projections on their side branch: the host-gated rows' wait, their copy and the two GEMVs; layer 1
 // joins it before its PLE window
 bool Verifier::WindowRecorder::ple_fork() {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     try {
         cudaEventRecord(v_.ev_ple_fork_, cs);
         cudaStreamWaitEvent(v_.ple_s_, v_.ev_ple_fork_, 0);
@@ -35,7 +35,7 @@ bool Verifier::WindowRecorder::ple_fork() {
 }
 
 bool Verifier::WindowRecorder::inputs() {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     if (v_.prof_on_ && !v_.batch_rec_) gpu_stamp(v_.prof_, (int) (g.n_layers * kProfPer + 2), cs);
     // layer 1's PLE projections read only the host-gated rows: they run on a side branch, forked once no mid chain is
     // left before layer 1's join (ple_fork), so its spin kernel never holds an SM the mid chain needs
@@ -107,4 +107,4 @@ bool Verifier::WindowRecorder::inputs() {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

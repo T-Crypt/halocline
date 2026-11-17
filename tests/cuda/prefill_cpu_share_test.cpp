@@ -7,12 +7,12 @@
 // the activations carry a few large values, which cost the coarser Q8_K blocks more).  A
 // token's output must not depend on how many tokens share its expert's job: every row is also run alone and must match
 // bitwise.  Prints the pool's time per expert and the bytes it read per second.  Exit 77 without a CUDA device.
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cuda_runtime.h>
 
@@ -31,7 +31,7 @@
 #include <vector>
 
 namespace {
-namespace mmq = basalt::prefill::mmq;
+namespace mmq = halo::prefill::mmq;
 
 constexpr int N = 2560, FF = 640, K = 10, GROUP = 16;
 
@@ -243,8 +243,8 @@ std::vector<float> download(const Dev& d, size_t n) {
 
 
 // part 1: the CPU pool and MMQ against the reference
-void run_pair(const Pair& p, bool outliers, basalt::kernels::cpu::ExpertPool& pool, cudaStream_t s) {
-    namespace cpu = basalt::kernels::cpu;
+void run_pair(const Pair& p, bool outliers, halo::kernels::cpu::ExpertPool& pool, cudaStream_t s) {
+    namespace cpu = halo::kernels::cpu;
     constexpr int T = 12, E = 64;
     const Geo geo(p);
     std::mt19937 rng(7 + (unsigned) p.gu * 5 + (unsigned) p.d);
@@ -390,8 +390,8 @@ int main(int argc, char** argv) {
                               {GGML_TYPE_IQ4_XS, GGML_TYPE_Q2_0, "IQ4_XS / Q2_0"}};
         cudaStream_t s = nullptr;
         ck(cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking), "stream");
-        basalt::kernels::cpu::ExpertPool pool((std::max)(1, (int) basalt::kernels::cpu::physical_cores(true).size()),
-                                                    basalt::kernels::cpu::PoolAffinity::All);
+        halo::kernels::cpu::ExpertPool pool((std::max)(1, (int) halo::kernels::cpu::physical_cores(true).size()),
+                                                    halo::kernels::cpu::PoolAffinity::All);
         for (const Pair& p : pairs)
             for (bool outliers : {false, true}) run_pair(p, outliers, pool, s);
         ck(cudaStreamDestroy(s), "destroy");

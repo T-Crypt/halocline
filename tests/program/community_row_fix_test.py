@@ -51,7 +51,7 @@ def load(p):
 failed = 0
 with tempfile.TemporaryDirectory() as d:
     empty = os.path.join(d, "empty.json")
-    write(empty, json.dumps({"preset": "basalt-bench --community", "runs": []}, indent=2))
+    write(empty, json.dumps({"preset": "halo-bench --community", "runs": []}, indent=2))
     # the real file with CRLF line endings, as a checkout that translates them gives
     crlf = os.path.join(d, "real_crlf.json")
     with open(crlf, "wb") as f:
@@ -178,7 +178,7 @@ def cpp_pairs(path):
 def dup_fixture(change):
     r = row(False)
     change(r)
-    return {"preset": "basalt-bench --community", "runs": [row(False), r]}
+    return {"preset": "halo-bench --community", "runs": [row(False), r]}
 
 
 with tempfile.TemporaryDirectory() as d:

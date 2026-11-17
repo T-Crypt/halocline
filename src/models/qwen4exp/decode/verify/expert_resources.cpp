@@ -1,20 +1,20 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/diag.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -22,13 +22,13 @@
 #include <utility>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 bool Verifier::dm_init(std::string& err) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const ModelGeometry& g = *g_;
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     const char* why = nullptr;
     if (!lay.native) why = "the experts are not a native pack";
     else if (all_resident_) why = "every expert is resident";
@@ -39,9 +39,9 @@ bool Verifier::dm_init(std::string& err) {
         if (!dec_moe_formats_ok(f.gu_type, f.d_type, f.n_embd, f.n_ff, f.up_type)) why = "an expert format the kernels do not cover";
     }
     if (why != nullptr) {
-        basalt::log::warn("basalt verify", "the device-planned MoE tail is off: %s", why);
-        if (route_tail_skip_ > 0) basalt::log::info("basalt verify", "route-tail-skip is off: it needs the device-planned MoE tail");
-        if (route_prior_ > 0.0f) basalt::log::info("basalt verify", "route-prior is off: it needs the device-planned MoE tail");
+        halo::log::warn("halo verify", "the device-planned MoE tail is off: %s", why);
+        if (route_tail_skip_ > 0) halo::log::info("halo verify", "route-tail-skip is off: it needs the device-planned MoE tail");
+        if (route_prior_ > 0.0f) halo::log::info("halo verify", "route-prior is off: it needs the device-planned MoE tail");
         route_tail_skip_ = 0;
         route_prior_ = 0.0f;
         return true;
@@ -94,7 +94,7 @@ bool Verifier::dm_init(std::string& err) {
     }
     // the CPU pool's warm-up predictor, quantized once: every layer's router in 4-bit
     const bool cpu_warm = warm_pool_ != nullptr && warm_src_ != nullptr && K <= 16 &&
-                          std::all_of(lay.fmt.begin(), lay.fmt.end(), [&](const basalt::kernels::cpu::NativeFmt& f) {
+                          std::all_of(lay.fmt.begin(), lay.fmt.end(), [&](const halo::kernels::cpu::NativeFmt& f) {
                               return f.bytes == lay.fmt[0].bytes && f.down_off == lay.fmt[0].down_off;
                           });
     std::vector<uint8_t> rq4_h;
@@ -151,9 +151,9 @@ bool Verifier::dm_init(std::string& err) {
         d->stage_min = 1;
         while (d->stage_min < kDmCap && kt[(size_t) d->stage_min] == 0) ++d->stage_min;
     }
-    basalt::log::info("basalt verify", "the MoE tail planned on the device");
+    halo::log::info("halo verify", "the MoE tail planned on the device");
     if (d->warm != nullptr)
-        basalt::log::info("basalt verify", "the CPU pool warms its likeliest next-layer expert between doorbells");
+        halo::log::info("halo verify", "the CPU pool warms its likeliest next-layer expert between doorbells");
     return true;
 }
 
@@ -206,4 +206,4 @@ std::vector<std::string> Verifier::route_report() const {
     return out;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

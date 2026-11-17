@@ -1,17 +1,17 @@
-// src/models/qwen4exp/plan/load_main.cpp - `basalt-load`: the expert arena load, measurable at any scale.
+// src/models/qwen4exp/plan/load_main.cpp - `halo-load`: the expert arena load, measurable at any scale.
 //
 // It loads with several threads in large chunks and checksums each layer.  The size is a FLAG rather than hard-coded because the honest way to measure a 34 GB
 // load is to measure a smaller one first and project - and because pinning 34 GB evicts every page of page
 // cache on the machine, which is not something a test should do while other work is running.
-#include "basalt/core/pinned.hpp"
-#include "basalt/core/ram_load.hpp"
-#include "basalt/platform/file.hpp"
+#include "halo/core/pinned.hpp"
+#include "halo/core/ram_load.hpp"
+#include "halo/platform/file.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 int main(int argc, char** argv) {
     std::string path;
@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         auto val = [&]() -> const char* {
-            if (i + 1 >= argc) { basalt::log::error("basalt", "%s needs a value", a.c_str()); std::exit(2); }
+            if (i + 1 >= argc) { halo::log::error("halo", "%s needs a value", a.c_str()); std::exit(2); }
             return argv[++i];
         };
         if (a == "--file") path = val();
@@ -36,40 +36,40 @@ int main(int argc, char** argv) {
         else if (a == "--no-pin") pin = false;
         else if (a == "--stream") stream = true;
         else if (a == "--help" || a == "-h") {
-            std::printf("usage: basalt-load --file experts.bin [--layers N] [--threads N] [--chunk-mb N]\n"
+            std::printf("usage: halo-load --file experts.bin [--layers N] [--threads N] [--chunk-mb N]\n"
                         "                   [--no-pin]\n");
             return 0;
         } else {
-            basalt::log::error("basalt", "unknown argument: %s", a.c_str());
+            halo::log::error("halo", "unknown argument: %s", a.c_str());
             return 2;
         }
     }
-    if (path.empty()) { basalt::log::error("basalt", "--file is required"); return 2; }
+    if (path.empty()) { halo::log::error("halo", "--file is required"); return 2; }
 
     const uint64_t bytes = layers * blobs_per_layer * blob_bytes;
     std::printf("expert arena: %llu layers x %llu blobs x %llu B = %.3f GiB\n", (unsigned long long) layers,
                 (unsigned long long) blobs_per_layer, (unsigned long long) blob_bytes,
                 (double) bytes / (1024.0 * 1024 * 1024));
 
-    basalt::core::PinnedArena arena;
+    halo::core::PinnedArena arena;
     uint8_t* dst = nullptr;
     if (pin) {
         // constructed in place so the note from the constructor can be printed before the load
-        new (&arena) basalt::core::PinnedArena(bytes);
+        new (&arena) halo::core::PinnedArena(bytes);
         std::printf("backing: %s\n", arena.note.c_str());
-        if (!arena.valid()) { basalt::log::error("basalt", "arena allocation failed"); return 1; }
+        if (!arena.valid()) { halo::log::error("halo", "arena allocation failed"); return 1; }
         dst = arena.data();
     } else {
         dst = (uint8_t*) std::malloc((size_t) bytes);
-        if (!dst) { basalt::log::error("basalt", "malloc failed"); return 1; }
+        if (!dst) { halo::log::error("halo", "malloc failed"); return 1; }
         std::printf("backing: malloc, NOT pinned (--no-pin)\n");
     }
 
-    const int fd = basalt::platform::open_fd_utf8(path);
-    if (fd < 0) { basalt::log::error("basalt", "cannot open %s", path.c_str()); return 1; }
+    const int fd = halo::platform::open_fd_utf8(path);
+    if (fd < 0) { halo::log::error("halo", "cannot open %s", path.c_str()); return 1; }
     const uint64_t layer_bytes = blobs_per_layer * blob_bytes;
-    basalt::core::LoadProgress progress("ram", bytes);
-    basalt::core::RamLoad load;
+    halo::core::LoadProgress progress("ram", bytes);
+    halo::core::RamLoad load;
     load.fd = fd;
     load.unbuffered = false;
     load.threads = threads;
@@ -78,21 +78,21 @@ int main(int argc, char** argv) {
     load.groups.resize((size_t) layers);
     for (uint64_t l = 0; l < layers; ++l)
         for (uint64_t pos = 0; pos < layer_bytes; pos += chunk) {
-            basalt::core::RamRun r;
+            halo::core::RamRun r;
             r.dst = dst + (size_t) (l * layer_bytes + pos);
             r.file_pos = l * layer_bytes + pos;
             r.bytes = layer_bytes - pos < chunk ? layer_bytes - pos : chunk;
             r.progress = r.bytes;
             load.groups[(size_t) l].push_back(r);
         }
-    basalt::core::RamLoadStats st;
+    halo::core::RamLoadStats st;
     std::string err;
-    if (!basalt::core::read_ram_runs(load, st, err)) {
-        basalt::log::error("basalt", "loading the experts failed: %s", err.c_str());
+    if (!halo::core::read_ram_runs(load, st, err)) {
+        halo::log::error("halo", "loading the experts failed: %s", err.c_str());
         return 1;
     }
     progress.finish();
-    basalt::platform::close_fd(fd);
+    halo::platform::close_fd(fd);
     const double gib_per_s = st.seconds > 0 ? (double) st.copied / (1024.0 * 1024 * 1024) / st.seconds : 0.0;
 
     std::printf("loaded %.3f GiB in %.3f s with %d threads and %llu MiB chunks  ->  %.2f GiB/s\n",
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     std::printf("per-layer checksums (FNV-1a 64):\n");
     for (uint64_t i = 0; i < layers && i < 4; ++i) {
         std::printf("  layer %llu  %016llx\n", (unsigned long long) i,
-                    (unsigned long long) basalt::core::fnv1a64(dst + (size_t) (i * layer_bytes), layer_bytes));
+                    (unsigned long long) halo::core::fnv1a64(dst + (size_t) (i * layer_bytes), layer_bytes));
     }
     if (layers > 4) {
         std::printf("  ... %llu more (all layers loaded)\n", (unsigned long long) layers - 4);
@@ -116,8 +116,8 @@ int main(int argc, char** argv) {
             const uint64_t g = granularities[i];
             if (g > bytes) continue;
             const int iters = (int) (g >= bytes ? 3 : (bytes / g >= 8 ? 8 : 3));
-            const basalt::core::StreamStats ss =
-                basalt::core::stream_bandwidth(dst, (bytes / g) * g, g, iters);
+            const halo::core::StreamStats ss =
+                halo::core::stream_bandwidth(dst, (bytes / g) * g, g, iters);
             if (ss.seconds < 0) continue;
             std::printf("  %-18s chunk %8.2f MB  %6.2f GB/s  (%.3f GiB in %.3f s)\n", names[i],
                         (double) g / 1e6, ss.gib_per_second() * 1.073741824,
@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
         (void) best;
         std::printf("\nper-token expert stream at E = 663.6 MB and hit rate h (VRAM-resident fraction):\n");
         std::printf("  %-8s %-14s %-14s %s\n", "h", "miss MB/token", "ms at 1 blob", "tok/s ceiling");
-        const basalt::core::StreamStats one = basalt::core::stream_bandwidth(dst, blob_bytes, blob_bytes, 64);
+        const halo::core::StreamStats one = halo::core::stream_bandwidth(dst, blob_bytes, blob_bytes, 64);
         for (double h : {0.0, 0.5, 0.833, 0.9, 0.95}) {
             const double miss_mb = (1.0 - h) * 663.6;
             const double ms = miss_mb / 1000.0 / (one.gib_per_second() * 1.073741824) * 1000.0;

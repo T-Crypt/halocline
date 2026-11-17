@@ -4,13 +4,13 @@
 // per-row chain (native_gr_post, ple_block, ple_history_advance, the history copy), bitwise, for windows of 1..8 rows;
 // then both forms captured as graphs and timed.
 //   ple_key_rows_parity [iters]
-#include "basalt/models/qwen4exp/kernels/native_gr_postops.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/ple.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/native_gr_postops.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/ple.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -22,7 +22,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

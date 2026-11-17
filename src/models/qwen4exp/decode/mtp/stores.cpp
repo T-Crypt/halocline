@@ -1,22 +1,22 @@
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
 int MtpDrafter::kv_layout(KvArr* out) const {
-    const basalt::kernels::QsaShapes s = shapes_of(*g_);
+    const halo::kernels::QsaShapes s = shapes_of(*g_);
     const uint64_t rows = (uint64_t) s.n_head_kv * (uint64_t) s.page_size;
     const uint64_t hd = (uint64_t) s.head_dim;
     if (st_.kv_hybrid) return 0;
     if (st_.kv_q4) {
-        const uint64_t q4 = rows * basalt::kernels::kv_q4_bytes_per_head((int) s.head_dim);
+        const uint64_t q4 = rows * halo::kernels::kv_q4_bytes_per_head((int) s.head_dim);
         out[0] = {st_.k_q4, q4};
         out[1] = {st_.v_q4, q4};
         return 2;
     }
     if (st_.kv_int8) {
-        const uint64_t sc = rows * (hd / basalt::kernels::KV_Q8_GROUP) * 2;
+        const uint64_t sc = rows * (hd / halo::kernels::KV_Q8_GROUP) * 2;
         out[0] = {st_.k_q, rows * hd};
         out[1] = {st_.v_q, rows * hd};
         out[2] = {st_.k_scale, sc};
@@ -145,10 +145,10 @@ bool MtpDrafter::save_store(int id, int64_t cells, ConversationKv& out, std::str
 bool MtpDrafter::ring_to_host(std::string& err) {
     if (st_.kv_mode != 2 || n_stores_ == 0) return true;
     const OnDevice on_device(device_);
-    const basalt::kernels::QsaShapes s = shapes_of(*g_);
+    const halo::kernels::QsaShapes s = shapes_of(*g_);
     const size_t c = (size_t) cur_;
     const int64_t n1 = std::min<int64_t>(store_pages_[c], (store_hi_[c] + s.page_size - 1) / s.page_size);
-    basalt::kernels::kv_ring_save(qsa_attn_pools(st_), st_.host, qsa_kv_format(st_),
+    halo::kernels::kv_ring_save(qsa_attn_pools(st_), st_.host, qsa_kv_format(st_),
                                   std::max<int64_t>(0, n1 - store_ring_[c]), n1, st_.n_slots, s, cs_);
     if (cudaStreamSynchronize(cs_) != cudaSuccess) { err = "mtp: saving the draft ring failed"; return false; }
     return true;
@@ -156,7 +156,7 @@ bool MtpDrafter::ring_to_host(std::string& err) {
 
 QsaState& MtpDrafter::kv_state_rw() {
     std::string e;
-    if (!use_main(e)) basalt::log::error("basalt mtp", "%s", e.c_str());
+    if (!use_main(e)) halo::log::error("halo mtp", "%s", e.c_str());
     return st_;
 }
 

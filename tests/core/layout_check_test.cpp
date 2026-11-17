@@ -1,11 +1,11 @@
 // check_all over a synthetic weight table (host only): the canonical shapes pass; a wrong dimension, a wrong
 // engine form, a missing tensor and a tensor of the wrong layer family each fail with a message naming it.
-#include "basalt/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 
-namespace basalt::core {
+namespace halo::core {
 
 struct WeightTableFixture {
     static void put(WeightTable& t, const std::string& name, int64_t ne0, int64_t ne1, WeightKind kind) {
@@ -21,9 +21,9 @@ struct WeightTableFixture {
     static WeightRef* row(WeightTable& t, const std::string& name) { return &t.table_.at(name); }
 };
 
-}  // namespace basalt::core
+}  // namespace halo::core
 
-using namespace basalt::core;
+using namespace halo::core;
 
 static void build(WeightTable& t, const ModelGeometry& g) {
     for (int64_t l = 0; l < g.n_layers; ++l) {

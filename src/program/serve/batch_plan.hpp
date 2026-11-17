@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 /// The most rows the i-th of n active slots' window may take in a batch of `cap` rows: with no more slots than rows each
 /// takes its share (the first cap % n one more), so one pass serves them all; with more slots each may take the cap.
@@ -33,4 +33,4 @@ inline std::vector<std::vector<size_t>> batch_groups(const std::vector<int>& row
     return out;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

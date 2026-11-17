@@ -4,10 +4,10 @@
 // or the identity differs, written again a turn on with only its new state, stored as of its last checkpoint when its
 // live end is a reply past it, the directory kept to its budget, and only a chat's root and last three turn-end states
 // written (a cut at a state not written goes back to the nearest one before it, refcounts of a shared root kept).
-#include "basalt/core/conversation_store.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/system.hpp"
+#include "halo/core/conversation_store.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/system.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-using namespace basalt::core;
+using namespace halo::core;
 
 namespace {
 int failures = 0;
@@ -59,7 +59,7 @@ ConversationKv kv_layer(int64_t tokens, bool index) {
     k.head_dim = kDim;
     k.page_size = kPage;
     k.idx_dim = kIdx;
-    k.pooled_rows = index ? tokens / basalt::kernels::qsa_real_shapes().idx_block + 1 : 0;
+    k.pooled_rows = index ? tokens / halo::kernels::qsa_real_shapes().idx_block + 1 : 0;
     fill(k.k, (size_t) (k.cells * kHeads * kDim));
     fill(k.v, (size_t) (k.cells * kHeads * kDim));
     fill(k.k_scale, (size_t) (k.cells * kHeads * 4));
@@ -88,9 +88,9 @@ bool prefix_of(const ConversationBuffer& part, const ConversationBuffer& whole) 
 }
 
 uint64_t dir_bytes(const std::string& dir, size_t* count = nullptr) {
-    std::vector<basalt::platform::DirFile> files;
+    std::vector<halo::platform::DirFile> files;
     uint64_t n = 0;
-    if (basalt::platform::list_files(dir, files))
+    if (halo::platform::list_files(dir, files))
         for (const auto& f : files) n += f.bytes;
     if (count) *count = files.size();
     return n;
@@ -113,7 +113,7 @@ void check_cut(const SavedConversation& got, const SavedConversation& src, int64
         CHECK(k.k.size() == (size_t) (k.cells * kHeads * kDim) && prefix_of(k.k, src.kv[i].k));
         CHECK(k.v.size() == (size_t) (k.cells * kHeads * kDim) && prefix_of(k.v, src.kv[i].v));
         CHECK(prefix_of(k.k_scale, src.kv[i].k_scale) && prefix_of(k.v_scale, src.kv[i].v_scale));
-        const int64_t rows = src.kv[i].pooled_rows > 0 ? at / basalt::kernels::qsa_real_shapes().idx_block + 1 : 0;
+        const int64_t rows = src.kv[i].pooled_rows > 0 ? at / halo::kernels::qsa_real_shapes().idx_block + 1 : 0;
         CHECK(k.pooled_rows == rows && k.pooled.size() == (size_t) (rows * kIdx * 4) && prefix_of(k.pooled, src.kv[i].pooled));
     }
     // the chain: the root, then the state at the match once more when it is a checkpoint
@@ -145,18 +145,18 @@ void copy_state_bytes(ConversationCheckpoint& to, const ConversationCheckpoint& 
 
 // state files in `dir` ("<identity>-s<key>.bcs")
 size_t state_files(const std::string& dir) {
-    std::vector<basalt::platform::DirFile> files;
+    std::vector<halo::platform::DirFile> files;
     size_t n = 0;
-    if (basalt::platform::list_files(dir, files))
+    if (halo::platform::list_files(dir, files))
         for (const auto& f : files) n += f.name.size() > 18 && f.name[17] == 's';
     return n;
 }
 
 void remove_dir(const std::string& dir) {
-    std::vector<basalt::platform::DirFile> left;
-    if (basalt::platform::list_files(dir, left))
-        for (const auto& f : left) basalt::platform::remove_file(dir + "/" + f.name);
-    basalt::platform::remove_file(dir);
+    std::vector<halo::platform::DirFile> left;
+    if (halo::platform::list_files(dir, left))
+        for (const auto& f : left) halo::platform::remove_file(dir + "/" + f.name);
+    halo::platform::remove_file(dir);
 }
 }  // namespace
 
@@ -230,8 +230,8 @@ void compressed_rows(const std::string& dir) {
 }
 
 int main() {
-    const std::string dir = basalt::platform::temp_dir() + "/basalt-store-test-" +
-                            std::to_string((long long) basalt::platform::process_id());
+    const std::string dir = halo::platform::temp_dir() + "/halo-store-test-" +
+                            std::to_string((long long) halo::platform::process_id());
     std::vector<int32_t> ids(10000);
     for (size_t i = 0; i < ids.size(); ++i) ids[i] = (int32_t) (i * 7 + 3);
     const SavedConversation src = [&] {   // its live end far past the last checkpoint
@@ -369,20 +369,20 @@ int main() {
     }
     {
         // one changed payload byte of a shared block: the read fails, the conversation and the block go
-        std::vector<basalt::platform::DirFile> files;
-        CHECK(basalt::platform::list_files(dir, files));
+        std::vector<halo::platform::DirFile> files;
+        CHECK(halo::platform::list_files(dir, files));
         std::string block;
         uint64_t block_bytes = 0;
         for (const auto& f : files)
             if (f.name.size() > 18 && f.name[17] == 'b') { block = f.name; block_bytes = f.bytes; }
         CHECK(!block.empty());
         const std::string path = dir + "/" + block;
-        std::FILE* f = block.empty() ? nullptr : basalt::platform::open_file_utf8(path, "r+b");
+        std::FILE* f = block.empty() ? nullptr : halo::platform::open_file_utf8(path, "r+b");
         CHECK(f != nullptr);
         if (f) {
-            basalt::platform::fseek64(f, (int64_t) block_bytes - 8192, SEEK_SET);
+            halo::platform::fseek64(f, (int64_t) block_bytes - 8192, SEEK_SET);
             const int c = std::fgetc(f);
-            basalt::platform::fseek64(f, (int64_t) block_bytes - 8192, SEEK_SET);
+            halo::platform::fseek64(f, (int64_t) block_bytes - 8192, SEEK_SET);
             std::fputc(c ^ 0x5a, f);
             std::fclose(f);
         }
@@ -399,7 +399,7 @@ int main() {
         CHECK(!st.load(m, got, err));
         CHECK(st.stats().files == 0);
         uint64_t sz = 0;
-        CHECK(!basalt::platform::file_size(path, sz));
+        CHECK(!halo::platform::file_size(path, sz));
     }
     {
         // the budget: a second conversation pushes the least recently used one out
@@ -525,15 +525,15 @@ int main() {
     {
         const std::string dir2 = dir + "-rows";
         compressed_rows(dir2);
-        std::vector<basalt::platform::DirFile> rows_left;
-        if (basalt::platform::list_files(dir2, rows_left))
-            for (const auto& f : rows_left) basalt::platform::remove_file(dir2 + "/" + f.name);
-        basalt::platform::remove_file(dir2);
+        std::vector<halo::platform::DirFile> rows_left;
+        if (halo::platform::list_files(dir2, rows_left))
+            for (const auto& f : rows_left) halo::platform::remove_file(dir2 + "/" + f.name);
+        halo::platform::remove_file(dir2);
     }
-    std::vector<basalt::platform::DirFile> left;
-    if (basalt::platform::list_files(dir, left))
-        for (const auto& f : left) basalt::platform::remove_file(dir + "/" + f.name);
-    basalt::platform::remove_file(dir);
+    std::vector<halo::platform::DirFile> left;
+    if (halo::platform::list_files(dir, left))
+        for (const auto& f : left) halo::platform::remove_file(dir + "/" + f.name);
+    halo::platform::remove_file(dir);
     if (failures) {
         std::fprintf(stderr, "conversation_store_test: %d failures\n", failures);
         return 1;

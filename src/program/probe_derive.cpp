@@ -1,12 +1,12 @@
 // src/program/probe_derive.cpp - see probe_derive.hpp.
-#include "basalt/program/probe_derive.hpp"
+#include "halo/program/probe_derive.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
 
-namespace basalt::program {
+namespace halo::program {
 
 namespace {
 std::string fmt(const char* f, ...) {
@@ -115,4 +115,4 @@ std::string format_adapt_line(const std::vector<AdaptTrial>& trials, double band
     return s + fmt(" tok/s (band %.1f%%)", band * 100.0);
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

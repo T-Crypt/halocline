@@ -1,14 +1,17 @@
 # `.basalt` model file
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
+
 One file holds everything the engine, the server and the vision sidecar load: weights, tokenizer and chat template, MTP or DSpark
 drafter, 8-bit hyper-connection copies, vision projector, and the GGUF metadata with default sampling. Flags and the expert profile are
 not in it.
 
 - **Layout:** a 64 KiB header (magic `BASALTMF`, version 2, up to 511 named sections with offset, size and SHA-256), then sections aligned
-  to 2 MiB. Authoritative: [model_format.hpp](../include/basalt/core/model_format.hpp).
+  to 2 MiB. Authoritative: [model_format.hpp](../include/halo/core/model_format.hpp).
 - **Versions:** the engine reads version 2 only. Version 1 files convert with
-  [tools/migrations/basalt_v1_to_v2.py](../tools/migrations/README.md), without a download. What changed:
-  [file format changes](basalt-file-changelog.md).
+  [tools/migrations/halo_v1_to_v2.py](../tools/migrations/README.md), without a download. What changed:
+  [file format changes](halo-file-changelog.md).
 
 ## Build a pack from a GGUF
 
@@ -24,7 +27,7 @@ without the official tuned drafter is slower than the official file.
 
 - `dense`: F32 and BF16 tensors. `gguf`: quantized non-expert tensors. `experts`: routed experts per layer.
 - `engram`: the Engram table alone (IQ4_NL rows of 144 bytes, or MXFP4 rows of 136 in the NVFP4 pack), 2 MiB aligned.
-- `vision/mmproj`: present only when built with `--mmproj`; the engine and `basalt-vision --model FILE.basalt` read it in place.
+- `vision/mmproj`: present only when built with `--mmproj`; the engine and `halo-vision --model FILE.basalt` read it in place.
 - `dspark/gguf`: DeepSeek's DSpark drafter. Attach it to an existing pack without copying weights:
 
 ```sh
@@ -88,7 +91,7 @@ python3 tools/convert/convert.py --checkpoint quasar --drafter dflash2 --out Qwe
   the checkpoint, 48 rows) become BF16 of their values, rounded once to nearest. The MTP layer's and the drafter's BF16
   projections Q8_0; token embedding BF16 as stored; norms F32 with the offset folded in (exact); GDN value heads in the GGUF
   order (rows of qkv and z, columns of the out projection, moved whole).
-- The BF16 output head becomes `F8_E4M3` rows (type 44: one byte per value, Basalt's own type id), each row's FP32 scale (its
+- The BF16 output head becomes `F8_E4M3` rows (type 44: one byte per value, Halocline's own type id), each row's FP32 scale (its
   amax / 448) in `output.scale` (F32 [rows]), each value the nearest E4M3 code. `--head nvfp4` rounds it to `NVFP4_PLANES`
   instead (tensor scale amax / (6 x 448), per 16 values the UE4M3 scale with the least squared error among half to four times
   amax / 6): 0.72 GB instead of 1.27 GB, nine times the squared error ([precision](precision/qwen38-27b.md#quality-against-bf16)).
@@ -123,4 +126,4 @@ ggml's NVFP4 blocks, the layout the dense products read with TMA (NInfer's and I
   `((r / 128) * (K / 64) + g / 4) * 512 + (r % 32) * 16 + ((r % 128) / 32) * 4 + g % 4`.
 - The matrix's FP32 scale is a separate F32 [1] tensor `<name>.scale`; a value is `e2m1 * ue4m3 * scale`.
 
-[nvfp4_planes.hpp](../include/basalt/kernels/nvfp4_planes.hpp) is the engine's copy of this layout.
+[nvfp4_planes.hpp](../include/halo/kernels/nvfp4_planes.hpp) is the engine's copy of this layout.

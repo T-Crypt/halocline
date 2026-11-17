@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "basalt/models/qwen4exp/kernels/native_qsa.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa.hpp"
 #include <cuda_runtime.h>
 #include <cmath>
 #include <cstddef>
@@ -31,7 +31,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 __device__ __forceinline__ float warp_sum(float value) {
 #pragma unroll
@@ -120,4 +120,4 @@ void native_qsa_gate_apply(const float* attn, const float* q_full, float* output
     gate<<<unsigned((count + 255) / 256), 256, 0, static_cast<cudaStream_t>(stream)>>>(attn, q_full, output, n_head, head_dim);
     check_launch();
 }
-} // namespace basalt::kernels
+} // namespace halo::kernels

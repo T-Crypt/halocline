@@ -1,7 +1,7 @@
 // DirectUploader: ranges at unaligned offsets and lengths, smaller and larger than a chunk, land byte for byte.
-#include "basalt/core/direct_upload.hpp"
+#include "halo/core/direct_upload.hpp"
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <cuda_runtime.h>
 
@@ -18,7 +18,7 @@ int main() {
     std::vector<uint8_t> data(size);
     std::mt19937_64 rng(7);
     for (auto& b : data) b = (uint8_t) rng();
-    if (FILE* f = basalt::platform::open_file_utf8(path, "wb")) {
+    if (FILE* f = halo::platform::open_file_utf8(path, "wb")) {
         std::fwrite(data.data(), 1, size, f);
         std::fclose(f);
     } else {
@@ -28,7 +28,7 @@ int main() {
     struct Range { uint64_t off, len; };
     const Range ranges[] = {{0, 4096}, {1, 5}, {4095, 2}, {12345, 3 << 20}, {4096, 16 << 20}, {777, (17 << 20) + 13},
                             {(5u << 20) + 3, (35u << 20)}, {size - 100, 100}, {0, size}};
-    basalt::core::DirectUploader up;
+    halo::core::DirectUploader up;
     int bad = 0;
     for (const Range& r : ranges) {
         void* d = nullptr;
@@ -40,7 +40,7 @@ int main() {
                         std::memcmp(back.data(), data.data() + r.off, r.len) == 0;
         cudaFree(d);
         if (!ok) { std::fprintf(stderr, "upload off %llu len %llu: %s\n", (unsigned long long) r.off, (unsigned long long) r.len, err.empty() ? "bytes differ" : err.c_str()); ++bad; }
-        if (r.len <= basalt::core::DirectUploader::kChunk) {
+        if (r.len <= halo::core::DirectUploader::kChunk) {
             const uint8_t* s = up.staged(path, r.off, r.len, err);
             if (s == nullptr || std::memcmp(s, data.data() + r.off, r.len) != 0) {
                 std::fprintf(stderr, "staged off %llu len %llu: %s\n", (unsigned long long) r.off, (unsigned long long) r.len, err.c_str());

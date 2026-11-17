@@ -27,7 +27,7 @@ Inputs
 From an NVFP4 checkpoint (--sections-from with --checkpoint)
   --checkpoint DIR   NVIDIA Model Optimizer's NVFP4 safetensors (config.json, the model-NNNNN-of-NNNNN shards, the FP8
                      n-gram table file, tokenizer files, generation_config.json, README.md). The routed experts keep
-                     their E2M1 codes and UE4M3 scales, moved into Basalt's blocks with the FP32 tail {s_gate, s_up,
+                     their E2M1 codes and UE4M3 scales, moved into Halocline's blocks with the FP32 tail {s_gate, s_up,
                      s_down, 0} from weight_scale_2; the projections are quantized once from BF16 to Q6_K (Q8_0 where
                      rows are not whole 256-value blocks, and for the output head and token embedding); the other
                      tensors keep BF16 or become F32/F16 as the engine reads them; the n-gram table is FP8 code x scale
@@ -73,7 +73,7 @@ Options
   --force            overwrite --out
 
 Every mode writes a version 2 file; its `hc8` section is computed from the file's own hyper-connection matrices
-(tools/convert/hc8.py). Sections are listed in include/basalt/core/model_format.hpp. Everything is streamed.
+(tools/convert/hc8.py). Sections are listed in include/halo/core/model_format.hpp. Everything is streamed.
 """
 from __future__ import annotations
 
@@ -481,7 +481,7 @@ def convert(a) -> None:
 
             sources = [source_record(p) for p in model.paths + ([mmproj] if vision and base is None else []) + ([dspark] if dspark else [])]
             meta = {
-                "format": "basalt", "version": 2, "name": a.name,
+                "format": "halo", "version": 2, "name": a.name,
                 "converter": {"tool": "tools/convert/convert.py"},
                 "sources": sources,
                 "gguf_kv": kv,
@@ -541,7 +541,7 @@ def warn_unofficial():
 
 
 def from_checkpoint(a) -> None:
-    """The language model straight from an NVFP4 safetensors checkpoint (routed experts moved into Basalt's layout,
+    """The language model straight from an NVFP4 safetensors checkpoint (routed experts moved into Halocline's layout,
     every other tensor converted once from BF16, the n-gram table from FP8, metadata and tokenizer from the
     checkpoint's files); drafter and vision are copied from BASE byte for byte."""
     import multiprocessing
@@ -631,7 +631,7 @@ def from_checkpoint(a) -> None:
                                                   "bytes": ple.nbytes, "offset": tensor_offsets["per_layer_token_embd.weight"]}
             ck_files = sorted(set(ck.shards) | {ple_path})
             meta = {
-                "format": "basalt", "version": 2, "name": a.name or base_meta.get("name"),
+                "format": "halo", "version": 2, "name": a.name or base_meta.get("name"),
                 "converter": {"tool": "tools/convert/convert.py"},
                 "sources": [{"path": p.name, "size": p.stat().st_size,
                              "fingerprint_sha256_first_last_64mib_and_size": fingerprint(p)} for p in ck_files],

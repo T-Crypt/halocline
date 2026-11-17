@@ -1,5 +1,5 @@
 // src/kernels/cuda/window_gemm.cuh - the decode window products' kernel for NVFP4, BF16 and Q8 matrices (see
-// include/basalt/kernels/window_gemm.hpp; FP8 runs window_gemm_sliced.cuh).  No kernel is instantiated here.
+// include/halo/kernels/window_gemm.hpp; FP8 runs window_gemm_sliced.cuh).  No kernel is instantiated here.
 //
 // A work item is RS rows of each of NM matrices (NM 2: a SwiGLU pair, gate rows in the first warps, up rows in the
 // others) over one slice of K; a warp owns 16 MW rows.  The grid is at most one wave of blocks, each taking items
@@ -16,15 +16,15 @@
 // see THIRD_PARTY_LICENSES): weights staged before the PDL wait, dependents started once the weights are read.
 #pragma once
 
-#include "basalt/kernels/narrow_bf16.cuh"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/window_gemm.hpp"
+#include "halo/kernels/narrow_bf16.cuh"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/window_gemm.hpp"
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
-namespace basalt::kernels::wgemm::detail {
+namespace halo::kernels::wgemm::detail {
 
 struct Args {
     const uint8_t* w[kMaxMatrices];
@@ -419,4 +419,4 @@ struct Kernel {
     int threads = 0, smem = 0, rs = 0, ch = 0, nm = 1;
 };
 
-}  // namespace basalt::kernels::wgemm::detail
+}  // namespace halo::kernels::wgemm::detail

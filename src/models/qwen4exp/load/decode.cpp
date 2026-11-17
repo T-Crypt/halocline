@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int decode(Context& context) {
     auto& o = *context.o;
@@ -60,12 +60,12 @@ int decode(Context& context) {
         std::vector<int64_t> oracle;
         if (const auto code = cli::load_spec_oracle(o.spec_oracle, oracle)) return *code;
         if (thits.d_res == nullptr) {
-            basalt::log::error("basalt generate", "--spec needs the device residency table (an expert profile, "
+            halo::log::error("halo generate", "--spec needs the device residency table (an expert profile, "
                                  "--expert-cache and the token graph)");
             return 2;
         }
-        basalt::core::Verifier ver;
-        basalt::core::VerifyHits vh;
+        halo::core::Verifier ver;
+        halo::core::VerifyHits vh;
         vh.d_res = thits.d_res;
         vh.h_res = host_res.empty() ? nullptr : host_res.data();
         vh.cache_base = thits.cache_base;
@@ -97,7 +97,7 @@ int decode(Context& context) {
         double ms_adapt = 0;
         cudaStream_t adapt_stream = nullptr;
         if (!drive.d.usage.empty() && cudaStreamCreateWithFlags(&adapt_stream, cudaStreamNonBlocking) != cudaSuccess) {
-            basalt::log::error("basalt generate", "cannot create the refill stream");
+            halo::log::error("halo generate", "cannot create the refill stream");
             return 1;
         }
         // swaps in flight - (residency index, slot) admitted when adapt_ev has completed
@@ -155,12 +155,12 @@ int decode(Context& context) {
             if ((int) swaps.size() > o.adapt_swaps) swaps.resize((size_t) o.adapt_swaps);
             const auto copy_back = [&](int32_t layer, int32_t slot, uint8_t* dst) -> bool {
                 return cudaMemcpyAsync(dst, xcache.device_slot(slot),
-                                       (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(layer),
+                                       (size_t) halo::kernels::cpu::expert_layout().blob_bytes(layer),
                                        cudaMemcpyDeviceToHost, adapt_stream) == cudaSuccess;
             };
             if (!resident_stage_swaps(src, host_res, g.n_expert, swaps, copy_back,
                                       [&]() { return cudaStreamSynchronize(adapt_stream) == cudaSuccess; })) {
-                basalt::log::error("basalt generate", "an adaptive refill failed (copying evicted experts back)");
+                halo::log::error("halo generate", "an adaptive refill failed (copying evicted experts back)");
                 return false;
             }
             for (const Swap& s : swaps) {
@@ -169,12 +169,12 @@ int decode(Context& context) {
                 const uint8_t* b = srcp->blob(s.layer, s.in);
                 // asynchronous: the copies run while the MTP drafts; the next window waits for them
                 if (slot < 0 || b == nullptr ||
-                    cudaMemcpyAsync(xcache.device_slot(slot), b, (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(s.layer),
+                    cudaMemcpyAsync(xcache.device_slot(slot), b, (size_t) halo::kernels::cpu::expert_layout().blob_bytes(s.layer),
                                     cudaMemcpyHostToDevice, adapt_stream) != cudaSuccess) {
-                    basalt::log::error("basalt generate", "an adaptive refill failed");
+                    halo::log::error("halo generate", "an adaptive refill failed");
                     return false;
                 }
-                host_res[out] = basalt::core::kNotResident;   // evicted now: the CPU computes it meanwhile
+                host_res[out] = halo::core::kNotResident;   // evicted now: the CPU computes it meanwhile
                 srcp->prefetch(s.layer, s.out);   // a file-backed arena released its pages: read them back ahead
                 pending.emplace_back((int32_t) in, slot);      // resident once the copy has landed
             }
@@ -188,7 +188,7 @@ int decode(Context& context) {
         int32_t x = (int32_t) tok;
         std::vector<int32_t> drafts((size_t) o.spec, 0);
         std::vector<float> dprob((size_t) o.spec, 1.0f);
-        basalt::core::DraftCumAdapt cum_adapt;
+        halo::core::DraftCumAdapt cum_adapt;
         std::vector<int64_t> window_hist((size_t) o.spec + 1, 0);
         // the first window is the last prompt token alone (it produces the first generated token and the MTP's
         // first cell)
@@ -199,11 +199,11 @@ int decode(Context& context) {
         const int S_mtp = o.mtp_max_t > 0 ? std::min(o.mtp_max_t, o.spec) : o.spec;
         if (use_mtp && S_mtp < o.spec) mtp.set_max_drafts(S_mtp - 1);
         if (use_mtp && !mtp.prewarm(err)) {
-            basalt::log::error("basalt", "mtp: capturing the draft graphs failed: %s", err.c_str());
+            halo::log::error("halo", "mtp: capturing the draft graphs failed: %s", err.c_str());
             return 1;
         }
-        basalt::spec::SuffixDrafter sfx(std::max(1, o.suffix_draft), 64, (size_t) o.max_context + 4096);
-        basalt::spec::DraftPolicy policy(o.spec);   // MTP or lookup window (see draft_policy.hpp)
+        halo::spec::SuffixDrafter sfx(std::max(1, o.suffix_draft), 64, (size_t) o.max_context + 4096);
+        halo::spec::DraftPolicy policy(o.spec);   // MTP or lookup window (see draft_policy.hpp)
         std::vector<int32_t> sbuf((size_t) o.spec, 0);
         int64_t sfx_windows = 0, sfx_drafts = 0, sfx_ok = 0;
         if (o.suffix_draft > 0) {
@@ -217,7 +217,7 @@ int decode(Context& context) {
             int T = S_mtp;
             if (use_mtp) {
                 T = 1;
-                while (T < S_mtp && basalt::core::draft_keep(dprob.data(), T - 1, cum_adapt.th())) ++T;
+                while (T < S_mtp && halo::core::draft_keep(dprob.data(), T - 1, cum_adapt.th())) ++T;
             }
             if (first_window) T = 1;
             bool from_sfx = false;
@@ -226,14 +226,14 @@ int decode(Context& context) {
                 const int k = sfx.propose(o.spec - 1, sbuf.data());
                 sfx_match = sfx.last_match();
                 if (k > 0 && (!use_mtp || sbuf[0] == drafts[0])) {
-                    const basalt::spec::DraftPolicy::Pick pk = policy.choose(T, k, sfx_match);
+                    const halo::spec::DraftPolicy::Pick pk = policy.choose(T, k, sfx_match);
                     if (pk.lookup) { T = pk.t; from_sfx = true; }
                 }
             }
             const bool timed_round = !first_window;
             ++window_hist[(size_t) T];
             if (p + T > o.max_context) {
-                basalt::log::error("basalt generate", "ran out of context at position %lld", (long long) p);
+                halo::log::error("halo generate", "ran out of context at position %lld", (long long) p);
                 return 2;
             }
             window[0] = x;
@@ -254,7 +254,7 @@ int decode(Context& context) {
                 return fatal_start_error(err);
             }
             if (drive.d.failed) {
-                basalt::log::error("basalt generate", "the expert pool failed at layer %lld expert %lld: %s",
+                halo::log::error("halo generate", "the expert pool failed at layer %lld expert %lld: %s",
                              (long long) drive.d.fail_layer, (long long) drive.d.fail_expert,
                              drive.d.fail ? drive.d.fail : "(no message)");
                 return 1;
@@ -306,7 +306,7 @@ int decode(Context& context) {
             total_ms += round_ms;
             if (timed_round) policy.observe(from_sfx, T, a, sfx_match, round_ms);
             if (rounds % 64 == 0)
-                basalt::log::info("basalt generate", "position %lld, %lld tokens, %lld rounds", (long long) p,
+                halo::log::info("halo generate", "position %lld, %lld tokens, %lld rounds", (long long) p,
                              (long long) produced.size(), (long long) rounds);
         }
         // the last commit (set_commit_async) before anything reads the session again
@@ -331,10 +331,10 @@ int decode(Context& context) {
         drive.routing = nullptr;
         cli::print_routing_dump(o.dump_routing, drive.calls);
     }
-    if (o.stage_timing) basalt::core::stage_timing_report(g.n_layers);
+    if (o.stage_timing) halo::core::stage_timing_report(g.n_layers);
 
     const double decode_ms = cli::print_generation(o, produced, n_prompt, total_ms, prefill_ms, ttft_ms);
-    if (const int rc = basalt::models::qwen4exp::measure::write_host_dumps({&o, &g, &ss}, err); rc != 0) return rc;
+    if (const int rc = halo::models::qwen4exp::measure::write_host_dumps({&o, &g, &ss}, err); rc != 0) return rc;
 
     cli::print_stats({
         .o = o, .g = g, .drive = drive,
@@ -345,8 +345,8 @@ int decode(Context& context) {
         .ms_head = ms_head, .ms_readback = ms_readback, .ms_sample = ms_sample
     });
 
-    basalt::core::session_graphs_free(gr);
-    basalt::core::doorbell_free(db);
+    halo::core::session_graphs_free(gr);
+    halo::core::doorbell_free(db);
     cudaFree(d_next);
     cudaFree(d_logits);
     cudaFree(d_emb);

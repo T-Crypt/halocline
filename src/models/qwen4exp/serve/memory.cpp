@@ -1,10 +1,10 @@
 // src/models/qwen4exp/serve/memory.cpp - memory operations for the persistent engine.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_state.hpp"
 
-#include "basalt/core/host_plan.hpp"
+#include "halo/core/host_plan.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 // the prompt path's loan with `live` slots: its chunk as large as fits, and the first slot it covers
 int32_t QfnRuntime::loan_plan(int64_t live, int64_t& chunk) {
@@ -58,7 +58,7 @@ bool QfnRuntime::home_given_up(int64_t live, std::string& e) {
     std::vector<uint8_t*> dst;
     if (!src.homes_take(give, e, dst)) return false;
     for (size_t k = 0; k < give.size(); ++k) {
-        const size_t bytes = (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(give[k].first);
+        const size_t bytes = (size_t) halo::kernels::cpu::expert_layout().blob_bytes(give[k].first);
         if (cudaMemcpyAsync(dst[k], xcache.device_slot(slots[k]), bytes, cudaMemcpyDeviceToHost, 0) != cudaSuccess) {
             e = std::string("copying an expert to RAM failed: ") + cudaGetErrorString(cudaGetLastError());
             (void) cudaDeviceSynchronize();   // queued copies stop writing before their regions are freed
@@ -75,7 +75,7 @@ bool QfnRuntime::home_given_up(int64_t live, std::string& e) {
         return false;
     }
     src.homes_commit();
-    basalt::log::info("basalt serve", "VRAM: %zu experts moved from the cache to RAM (%.0f MiB held)", give.size(),
+    halo::log::info("halo serve", "VRAM: %zu experts moved from the cache to RAM (%.0f MiB held)", give.size(),
                  (double) src.homes_bytes() / 1048576.0);
     return true;
 }
@@ -130,7 +130,7 @@ bool QfnRuntime::vram_command(const std::string& cmd, std::string& e, bool for_s
         for (size_t i = 0; i < host_res.size(); ++i)
             if (host_res[i] >= live) {
                 vram_evicted.emplace_back((int32_t) i, host_res[i]);
-                host_res[i] = basalt::core::kNotResident;
+                host_res[i] = halo::core::kNotResident;
             }
         res_upload();
         if (!shrunk) return false;
@@ -162,7 +162,7 @@ bool QfnRuntime::vram_command(const std::string& cmd, std::string& e, bool for_s
                 e = "VRAM: refilling the cache failed: an expert has no RAM copy";
                 return false;
             }
-            fills.push_back({slot, b, (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(layer)});
+            fills.push_back({slot, b, (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(layer)});
             host_res[(size_t) pick] = slot;
         }
         // after a SLEEP the RAM copy is registered again in address order (WAKE): the copies follow it
@@ -195,14 +195,14 @@ bool QfnRuntime::vram_command(const std::string& cmd, std::string& e, bool for_s
                     src.home_release((int64_t) j / g.n_expert, (int64_t) j % g.n_expert))
                     ++released;
             const uint64_t freed = src.homes_reclaim() + src.homes_compact();
-            basalt::log::info("basalt serve", "VRAM: %zu RAM homes released, %.0f MiB freed, %.0f MiB kept for the "
+            halo::log::info("halo serve", "VRAM: %zu RAM homes released, %.0f MiB freed, %.0f MiB kept for the "
                               "prompt loan (slots from %lld)", released, (double) freed / 1048576.0,
                               (double) src.homes_bytes() / 1048576.0, (long long) std::min<int64_t>(loan_from, live));
         }
     }
     relend();
     cudaMemGetInfo(&free_b, &total_b);
-    basalt::log::info("basalt serve", "VRAM %lld MiB kept free: the expert cache %lld -> %lld of %lld slots "
+    halo::log::info("halo serve", "VRAM %lld MiB kept free: the expert cache %lld -> %lld of %lld slots "
                          "(%.2f of %.2f GiB), %lld MiB free now, prompt chunk %lld, in %.0f ms%s",
                  reserve, (long long) before, (long long) xcache.slots(), (long long) xcache.full_slots(),
                  (double) xcache.mapped_bytes() / 1073741824.0, (double) xcache.full_bytes() / 1073741824.0,
@@ -222,8 +222,8 @@ bool QfnRuntime::vram_command(const std::string& cmd, std::string& e, bool for_s
 int QfnRuntime::init_memory() {
     // the load's own buffers and the RAM held for buffers nothing made are gone: RAM still free keeps the next-hottest
     // experts the copy left out
-    if (const uint64_t held = basalt::core::host_plan_release(); held > 0)
-        basalt::log::info("basalt serve", "RAM: %.2f GiB held for host buffers not made, given back",
+    if (const uint64_t held = halo::core::host_plan_release(); held > 0)
+        halo::log::info("halo serve", "RAM: %.2f GiB held for host buffers not made, given back",
                           (double) held / 1073741824.0);
     if (srcp == &src && src.complement_ready() && o.resident_budget == 0) {
         int64_t n_top = 0;
@@ -231,8 +231,8 @@ int QfnRuntime::init_memory() {
             return host_res[(size_t) l * g.n_expert + (size_t) e] >= 0;
         }, o.resident_pin, n_top);
         if (add > 0) {
-            basalt::platform::watch_resident_ram(true, src.resident_bytes() + add);
-            basalt::log::info("basalt generate", "RAM top-up: +%.2f GiB, %lld experts (total %.2f GiB)",
+            halo::platform::watch_resident_ram(true, src.resident_bytes() + add);
+            halo::log::info("halo generate", "RAM top-up: +%.2f GiB, %lld experts (total %.2f GiB)",
                          (double) add / 1073741824.0, (long long) n_top,
                          (double) (src.resident_bytes() + add) / 1073741824.0);
         }
@@ -245,10 +245,10 @@ int QfnRuntime::init_memory() {
 
     // a VRAM shrink's RAM homes stop 256 MiB above the reserve
     src.set_homes_reserve(256ull << 20);
-    if (const uint64_t avail = basalt::platform::available_memory(); avail > 0)
-        basalt::log::info("basalt serve", "RAM %.2f GiB free, guard %.2f GiB", (double) avail / 1073741824.0,
+    if (const uint64_t avail = halo::platform::available_memory(); avail > 0)
+        halo::log::info("halo serve", "RAM %.2f GiB free, guard %.2f GiB", (double) avail / 1073741824.0,
                           (double) guard_floor / 1073741824.0);
     return 0;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

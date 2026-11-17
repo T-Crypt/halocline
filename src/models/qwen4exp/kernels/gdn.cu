@@ -1,17 +1,17 @@
 // src/models/qwen4exp/kernels/gdn.cu - the gated delta-net's non-projection parts.
 //
-// See include/basalt/models/qwen4exp/kernels/gdn.hpp for the state layout (S, h_v, S) and for why the recurrence needs no
+// See include/halo/models/qwen4exp/kernels/gdn.hpp for the state layout (S, h_v, S) and for why the recurrence needs no
 // barrier at all: every line of it touches only one (j, h) column, so one thread owns a column end to end.
-#include "basalt/models/qwen4exp/kernels/gdn.hpp"
+#include "halo/models/qwen4exp/kernels/gdn.hpp"
 
 #include <cuda_runtime.h>
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int JTHREADS = 32;   ///< threads along j, the state's fast axis
@@ -153,7 +153,7 @@ void gdn_step(float* state, const float* q, const float* k, const float* v, cons
               const float* beta, float* o, const GdnShapes& s, void* stream) {
     if (s.S <= 0 || s.h_k <= 0 || s.h_v <= 0) return;
     if (s.S > 128) {
-        basalt::log::error("basalt", "gdn_step: S = %lld exceeds the staged 128 (`ks`/`qs` are [8][128])",
+        halo::log::error("halo", "gdn_step: S = %lld exceeds the staged 128 (`ks`/`qs` are [8][128])",
                      (long long) s.S);
         std::exit(1);
     }
@@ -164,7 +164,7 @@ void gdn_step(float* state, const float* q, const float* k, const float* v, cons
     if (stream == nullptr) {
         const cudaError_t e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
-            basalt::log::error("basalt", "gdn_step: %s", cudaGetErrorString(e));
+            halo::log::error("halo", "gdn_step: %s", cudaGetErrorString(e));
             std::exit(1);
         }
     }
@@ -179,7 +179,7 @@ void gdn_conv_step(float* conv_state, const float* x, const float* kW, float* ou
     if (stream == nullptr) {
         const cudaError_t e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
-            basalt::log::error("basalt", "gdn_conv_step: %s", cudaGetErrorString(e));
+            halo::log::error("halo", "gdn_conv_step: %s", cudaGetErrorString(e));
             std::exit(1);
         }
     }
@@ -188,14 +188,14 @@ void gdn_conv_step(float* conv_state, const float* x, const float* kW, float* ou
 void gdn_l2_norm(float* x, int64_t rows, int64_t cols, float eps, void* stream) {
     if (rows <= 0 || cols <= 0) return;
     if (cols > 1024) {
-        basalt::log::error("basalt", "gdn_l2_norm: cols = %lld exceeds the 1024-wide warp reduction", (long long) cols);
+        halo::log::error("halo", "gdn_l2_norm: cols = %lld exceeds the 1024-wide warp reduction", (long long) cols);
         std::exit(1);
     }
     gdn_l2_kernel<<<(unsigned) rows, 32, 0, (cudaStream_t) stream>>>(x, (int) cols, eps);
     if (stream == nullptr) {
         const cudaError_t e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
-            basalt::log::error("basalt", "gdn_l2_norm: %s", cudaGetErrorString(e));
+            halo::log::error("halo", "gdn_l2_norm: %s", cudaGetErrorString(e));
             std::exit(1);
         }
     }
@@ -208,10 +208,10 @@ void gdn_out_norm(const float* o, const float* z, const float* ssm_norm, float* 
     if (stream == nullptr) {
         const cudaError_t e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
-            basalt::log::error("basalt", "gdn_out_norm: %s", cudaGetErrorString(e));
+            halo::log::error("halo", "gdn_out_norm: %s", cudaGetErrorString(e));
             std::exit(1);
         }
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

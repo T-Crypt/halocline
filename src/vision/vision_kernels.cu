@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-namespace basalt::vision {
+namespace halo::vision {
 
 namespace {
 
@@ -282,4 +282,4 @@ void launch_bias_copy(const float* g, const float* bias, float* y, int n, int co
     bias_copy_k<<<blocks((size_t) n * cols, 256), 256, 0, s>>>(g, bias, y, (size_t) n * cols, cols);
 }
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

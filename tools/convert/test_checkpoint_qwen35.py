@@ -23,7 +23,7 @@ import checkpoint_qwen35 as Q  # noqa: E402
 import model_sections as S  # noqa: E402
 from gguf_reader import GGUFFile  # noqa: E402
 from model_file import ModelFile  # noqa: E402
-from test_checkpoint import basalt_values, bf16, modelopt_values, ue4m3, write_safetensors  # noqa: E402
+from test_checkpoint import halo_values, bf16, modelopt_values, ue4m3, write_safetensors  # noqa: E402
 
 H = 256                    # hidden size (Q8_0 rows and 64-value NVFP4 blocks need multiples of 32 and 64)
 FF = 128                   # dense intermediate size

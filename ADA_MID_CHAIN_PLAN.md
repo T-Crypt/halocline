@@ -39,7 +39,7 @@ mid_ada=0` runs the separate kernels, `--exp mid_ada=2` the kernel with z on den
 struct / prose: identical to `mid_ada=0`; `mid_ada=2` differs on conv and prose at the tokens where the first version
 did.
 
-basalt-bench A/B, 450 W, 4 rounds x 2 repetitions, modes rotated in one run (development A/B, tok/s; "n of 8": paired
+halo-bench A/B, 450 W, 4 rounds x 2 repetitions, modes rotated in one run (development A/B, tok/s; "n of 8": paired
 runs where the left mode is faster). "z on dense_tc" is `mid_ada=2`, measured before it was a flag through a
 temporary switch with the same code:
 
@@ -99,7 +99,7 @@ Each candidate on its own, keeping the bits, us per layer (T = 2, cold / hot; ba
 Issuing early moves the stall onto the critical path. A `cp.async` stalls its thread while the queue is full, and every
 thread is needed next. This agrees with the earlier in-layer prefetch measurement under Risks.
 
-The count barrier passed `mid_chain_parity` (0 differing bytes) but gave no gain in the engine. basalt-bench A/B against the
+The count barrier passed `mid_chain_parity` (0 differing bytes) but gave no gain in the engine. halo-bench A/B against the
 current barrier, 4 rounds x 2 repetitions, video decoder idle throughout: conv -0.6 %, struct -0.8 %, prose -0.3 %,
 token-weighted -0.6 %, 8 of 24 paired runs faster, window time -0.5 / +0.8 / -0.2 %. That is within the spread, and 2 us
 per layer is at most a few tenths of a percent of a window. So it was not kept.

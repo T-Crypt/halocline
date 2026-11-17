@@ -1,13 +1,13 @@
 // src/models/qwen4exp/serve/qfn_commands.cpp - the protocol commands that reach Flash-Next's tiers.
-#include "basalt/program/qwen_forms.hpp"
+#include "halo/program/qwen_forms.hpp"
 #include "models/qwen4exp/adapter.hpp"
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
-#include "basalt/vision/ffmpeg_api.hpp"
+#include "halo/vision/ffmpeg_api.hpp"
 #include "../../../program/tokenizer/unicode_flags.hpp"
 #include "../../../program/cli/tokens.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 bool QfnRuntime::next_batch_window() { return batch_step(); }
 
@@ -50,13 +50,13 @@ if (line.rfind("PROBE set ", 0) == 0) {   // PROBE set workers=K share=F: live v
     } else if (line != "PROBE rates") perr = "PROBE: expected PROBE rates, PROBE set or PROBE adapt";
     else {
         if (ba_job) { ba_thr.join(); ba_job = false; }
-        basalt::program::ProbeEnv penv;
+        halo::program::ProbeEnv penv;
         penv.pool = &pool;
         penv.ram_blob = [this](int64_t l, int64_t e) { return srcp->resident_blob(l, e); };
-        if (const basalt::kernels::cpu::ExpertLayout& lay = basalt::kernels::cpu::expert_layout(); lay.native) penv.fmt = lay.fmt;
+        if (const halo::kernels::cpu::ExpertLayout& lay = halo::kernels::cpu::expert_layout(); lay.native) penv.fmt = lay.fmt;
         penv.n_layers = g.n_layers;
         penv.n_expert = g.n_expert;
-        basalt::program::probe_rates(penv, stdout, perr);
+        halo::program::probe_rates(penv, stdout, perr);
     }
 }
 
@@ -71,16 +71,16 @@ void QfnRuntime::sleep_command(bool down, std::string& verr) {
     vram_command(down ? "VRAM " + std::to_string(1ll << 30) : std::string("VRAM"), verr, true, &reply);
     if (repin) {
         if (!src.repin_finish(uerr) && verr.empty()) verr = "WAKE: " + uerr;
-        basalt::log::info("basalt serve", "WAKE: the RAM copy registered again beside the caches' refill "
+        halo::log::info("halo serve", "WAKE: the RAM copy registered again beside the caches' refill "
                           "in %.0f ms", std::chrono::duration<double, std::milli>(Clock::now() - tp).count());
     }
     if (down && verr.empty() && src.complement_ready()) {
         const auto tu = Clock::now();
         if (src.unpin_complement(uerr))
-            basalt::log::info("basalt serve", "SLEEP: the RAM copy's registration dropped in %.0f ms",
+            halo::log::info("halo serve", "SLEEP: the RAM copy's registration dropped in %.0f ms",
                               std::chrono::duration<double, std::milli>(Clock::now() - tu).count());
         else
-            basalt::log::info("basalt serve", "SLEEP: the RAM copy stays registered (%s)", uerr.c_str());
+            halo::log::info("halo serve", "SLEEP: the RAM copy stays registered (%s)", uerr.c_str());
     }
     if (verr.empty()) std::fputs(reply.c_str(), stdout);
 }
@@ -107,8 +107,8 @@ void QfnRuntime::print_info() {
         // bus id of the card this engine computes on: what a benchmark row records
         std::string quant_label, gpu_ids;
         {
-            const basalt::core::Json* nm = model_file.meta().get("name");
-            quant_label = basalt::program::pack_quant_label(nm != nullptr && nm->is_string() ? nm->s : std::string());
+            const halo::core::Json* nm = model_file.meta().get("name");
+            quant_label = halo::program::pack_quant_label(nm != nullptr && nm->is_string() ? nm->s : std::string());
             char bus[32] = {};
             if (cudaDeviceGetPCIBusId(bus, sizeof bus, 0) == cudaSuccess) gpu_ids = bus;
         }
@@ -116,7 +116,7 @@ void QfnRuntime::print_info() {
                     "expert_slots_primary=%lld expert_cache_primary_mib=%lld spec=%d "
                     "mtp_max=%d lookup=%d vram_free_mib=%lld cvec=%s arena_mib=%lld pool_workers=%d pcie_frac=%.2f "
                     "conversation_cache_mib=%lld conversation_cache_slots=%d "
-                    "conversation_cache_min_free_mib=%lld conversation_cache_min_tokens=%d tail_role_token=%lld vram_elastic=%d%s quant=%s gpus=%s engine=" BASALT_VERSION "\n",
+                    "conversation_cache_min_free_mib=%lld conversation_cache_min_tokens=%d tail_role_token=%lld vram_elastic=%d%s quant=%s gpus=%s engine=" HALO_VERSION "\n",
                     (long long) n_vocab, (long long) o.max_context, o.kv.c_str(),
                     (long long) (g.n_qsa_layers() > 0 && ss.qsa_states[ss.qsa_primary()].kv_mode == 1
                                      ? ss.qsa_states[ss.qsa_primary()].n_slots * 4 : 0),
@@ -124,7 +124,7 @@ void QfnRuntime::print_info() {
                     (long long) slots_primary, (long long) mib_primary,
                     o.spec, o.mtp_max_t,
                     o.suffix_draft, (long long) (free_b >> 20), cvec_summary.c_str(),
-                    (long long) ((o.mmap_experts ? src.resident_bytes() : basalt::kernels::cpu::expert_layout().total) >> 20),
+                    (long long) ((o.mmap_experts ? src.resident_bytes() : halo::kernels::cpu::expert_layout().total) >> 20),
                     pool.workers(), o.pcie_frac,
                     (long long) o.conversation_cache_mib, o.conversation_cache_slots,
                     (long long) o.conversation_cache_min_free_mib, o.conversation_cache_min_tokens, (long long) o.tail_role_token, o.vram_elastic && xcache.segmented() ? 1 : 0,
@@ -134,7 +134,7 @@ void QfnRuntime::print_info() {
                                    " solo_any_slot=" + std::to_string(slot0_is_solo ? 1 : 0)).c_str() : "",
                     quant_label.c_str(), gpu_ids.c_str());
         // whether the in-engine encoder reads video (FFmpeg found at run time), for the server's start line
-        if (o.vision_in_engine) std::printf("%s\n", basalt::vision::video_line().c_str());
+        if (o.vision_in_engine) std::printf("%s\n", halo::vision::video_line().c_str());
     }
 }
 
@@ -157,14 +157,14 @@ int QfnRuntime::init_after_input() {
 }
 
 void QfnRuntime::at_exit() {
-    for (const std::string& r : ver.route_report()) basalt::log::info("basalt serve", "%s", r.c_str());
+    for (const std::string& r : ver.route_report()) halo::log::info("halo serve", "%s", r.c_str());
     save_profile("exit");   // QUIT, or the server closed stdin
 }
 
 int run(Context& context) {
     QfnRuntime runtime(context);
-    runtime.pre_ = {"qwen35", basalt::program::tokenizer::pretok_qwen35};
+    runtime.pre_ = {"qwen35", halo::program::tokenizer::pretok_qwen35};
     return runtime.execute();
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

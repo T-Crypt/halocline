@@ -1,9 +1,9 @@
 // tests/models/qwen4exp/kernels/q5k_head_parity.cpp - q5k_head_mmvq against native_mmvq (Q5_K, the exact layout), bitwise, on random
 // Q5_K rows and quantized random columns, 1..8 columns; then a microbench of both at the head's shape.
 //   q5k_head_parity [rows] [iters]
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/q5k_head.hpp"
-#include "basalt/kernels/sampler.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/q5k_head.hpp"
+#include "halo/kernels/sampler.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -16,7 +16,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

@@ -1,15 +1,15 @@
 // src/kernels/cuda/bf16_gemv.cu - the BF16 GEMV.  See the header for why it is not `s_gemv`.
-#include "basalt/kernels/bf16_gemv.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
 
-#include "basalt/kernels/bf16_bits.hpp"
+#include "halo/kernels/bf16_bits.hpp"
 
 #include <cuda_runtime.h>
 
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int THREADS = 256;
@@ -69,13 +69,13 @@ __global__ void bf16_gemv_split_kernel(const uint16_t* __restrict__ x, const uin
 inline void finish(void* stream, const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s launch: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "%s launch: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream != nullptr) return;
     const cudaError_t s = cudaDeviceSynchronize();
     if (s != cudaSuccess) {
-        basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(s));
+        halo::log::error("halo", "%s: %s", what, cudaGetErrorString(s));
         std::exit(1);
     }
 }
@@ -122,7 +122,7 @@ void bf16_gemv_split(const uint16_t* x, const uint16_t* w, float* y, int64_t n_i
         return;
     }
     if (threads_per_row <= 0 || (threads_per_row & (threads_per_row - 1)) != 0) {
-        basalt::log::error("basalt", "bf16_gemv_split: threads_per_row %d must be a power of two (32 selects the "
+        halo::log::error("halo", "bf16_gemv_split: threads_per_row %d must be a power of two (32 selects the "
                              "warp-per-row path)", threads_per_row);
         std::exit(1);
     }
@@ -132,4 +132,4 @@ void bf16_gemv_split(const uint16_t* x, const uint16_t* w, float* y, int64_t n_i
     finish(stream, "bf16_gemv_split");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

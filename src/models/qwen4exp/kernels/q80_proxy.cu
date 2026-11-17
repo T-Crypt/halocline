@@ -1,9 +1,9 @@
-// src/models/qwen4exp/kernels/q80_proxy.cu - see include/basalt/models/qwen4exp/kernels/q80_proxy.hpp.
+// src/models/qwen4exp/kernels/q80_proxy.cu - see include/halo/models/qwen4exp/kernels/q80_proxy.hpp.
 //
 // Built with --use_fast_math like native_mmvq.cu, whose one-column Q8_0 x q8_1 dot the exact rows repeat.
-#include "basalt/models/qwen4exp/kernels/q80_proxy.hpp"
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/q80_proxy.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/pdl.hpp"
 #include "head_proxy.cuh"
 #include "q80p.cuh"
 
@@ -12,9 +12,9 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int WARP = 32, BPR = 80;   // a row of n_in 2560: 80 blocks of 32
@@ -153,7 +153,7 @@ __global__ void __launch_bounds__(kRowWarps * WARP) q80_rows_kernel(const uint8_
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -190,7 +190,7 @@ bool q80_proxy_top1(const void* proxy, const void* q80_rows, const void* x_q8_1,
 void q80_mmvq_rows(const void* weights, const int32_t* rows, const void* x_q8_1, float* y, int n_in, int n_out,
                    void* stream) {
     if (n_in != BPR * 32 || n_out <= 0 || !weights || !rows || !x_q8_1 || !y) {
-        basalt::log::error("basalt", "q80_mmvq_rows: unsupported shape (n_in %d, n_out %d)", n_in, n_out);
+        halo::log::error("halo", "q80_mmvq_rows: unsupported shape (n_in %d, n_out %d)", n_in, n_out);
         std::exit(1);
     }
     launch_pdl(q80_rows_kernel, dim3((unsigned) ((n_out + kRowWarps - 1) / kRowWarps)), dim3(kRowWarps * WARP), 0,
@@ -198,4 +198,4 @@ void q80_mmvq_rows(const void* weights, const int32_t* rows, const void* x_q8_1,
     check("q80_mmvq_rows");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

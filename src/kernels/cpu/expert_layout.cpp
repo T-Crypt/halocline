@@ -1,14 +1,14 @@
 // src/kernels/cpu/expert_layout.cpp - the per-layer expert table.  See the header.
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include "basalt/platform/compiler.hpp"
+#include "halo/platform/compiler.hpp"
 #include <sstream>
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 namespace {
 ExpertLayout g_layout;
 }
@@ -201,4 +201,4 @@ bool expert_layout_load_text(const std::string& text, int64_t n_layers, int64_t 
     return true;
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

@@ -71,10 +71,10 @@ class MaxTokens(unittest.TestCase):
         """-> (status, body, prompt tokens, completion tokens); `budget` is merged into the request as given."""
         msgs = [{"role": "user", "content": text}]
         if api == "openai":
-            s, b = self.post("/v1/chat/completions", {"model": "basalt", "messages": msgs, **budget})
+            s, b = self.post("/v1/chat/completions", {"model": "halo", "messages": msgs, **budget})
             u = b.get("usage", {})
             return s, b, u.get("prompt_tokens"), u.get("completion_tokens")
-        s, b = self.post("/v1/messages", {"model": "basalt", "messages": msgs, **budget})
+        s, b = self.post("/v1/messages", {"model": "halo", "messages": msgs, **budget})
         u = b.get("usage", {})
         return s, b, u.get("input_tokens"), u.get("output_tokens")
 
@@ -95,7 +95,7 @@ class MaxTokens(unittest.TestCase):
     def test_count_tokens_is_the_prompt_messages_reads(self):
         # /v1/messages/count_tokens renders and tokenizes the same prompt /v1/messages would read, without running it
         msgs = [{"role": "user", "content": "how many tokens is this?"}]
-        s, b = self.post("/v1/messages/count_tokens", {"model": "basalt", "messages": msgs})
+        s, b = self.post("/v1/messages/count_tokens", {"model": "halo", "messages": msgs})
         self.assertEqual(s, 200)
         s2, _, n_in, _ = self.call("anthropic", "how many tokens is this?", max_tokens=8)
         self.assertEqual(s2, 200)
@@ -525,7 +525,7 @@ class StopStrings(unittest.TestCase):
     def post(self, api, stream, **extra):
         """-> (status, text, finish or stop_reason, stop_sequence, the streamed text pieces)"""
         path = "/v1/chat/completions" if api == "openai" else "/v1/messages"
-        body = {"model": "basalt", "max_tokens": 200, "stream": stream, "messages": [{"role": "user", "content": "hi"}],
+        body = {"model": "halo", "max_tokens": 200, "stream": stream, "messages": [{"role": "user", "content": "hi"}],
                 **extra}
         req = urllib.request.Request(self.base + path, data=json.dumps(body).encode(), headers={
             "Content-Type": "application/json", "anthropic-version": "2023-06-01"})
@@ -797,7 +797,7 @@ class UnfinishedToolCall(unittest.TestCase):
         try:
             for api, path in (("openai", "/v1/chat/completions"), ("anthropic", "/v1/messages")):
                 for stream in (False, True):
-                    body = {"model": "basalt", "max_tokens": max_tokens, "stream": stream, "tools": tools[api],
+                    body = {"model": "halo", "max_tokens": max_tokens, "stream": stream, "tools": tools[api],
                             "messages": [{"role": "user", "content": "save my notes"}]}
                     req = urllib.request.Request(base + path, data=json.dumps(body).encode(), headers={
                         "Content-Type": "application/json", "anthropic-version": "2023-06-01"})
@@ -893,7 +893,7 @@ class ClientShapes(unittest.TestCase):
         return bytes(i for i in self.engine.last_ids if i < 256).decode("utf-8", "replace")
 
     def test_query_string(self):
-        body = {"model": "basalt", "max_tokens": 20, "messages": [{"role": "user", "content": "hi"}]}
+        body = {"model": "halo", "max_tokens": 20, "messages": [{"role": "user", "content": "hi"}]}
         for path in ("/v1/messages?beta=true", "/v1/chat/completions?api-version=1", "/v1/messages/?beta=true"):
             status, b = self.post(path, body)
             self.assertEqual(status, 200, (path, b))
@@ -902,7 +902,7 @@ class ClientShapes(unittest.TestCase):
 
     def test_anthropic_mid_conversation_system(self):
         status, b = self.post("/v1/messages?beta=true", {
-            "model": "basalt", "max_tokens": 50,
+            "model": "halo", "max_tokens": 50,
             "system": [{"type": "text", "text": "You are terse."}],
             "messages": [
                 {"role": "user", "content": [{"type": "text", "text": "1+1? digits only"}]},
@@ -916,7 +916,7 @@ class ClientShapes(unittest.TestCase):
 
     def test_openai_late_developer_and_system(self):
         status, b = self.post("/v1/chat/completions", {
-            "model": "basalt", "max_tokens": 50,
+            "model": "halo", "max_tokens": 50,
             "messages": [{"role": "system", "content": "Be brief."}, {"role": "user", "content": "hello"},
                          {"role": "assistant", "content": "hi"}, {"role": "developer", "content": "Now use digits."},
                          {"role": "system", "content": "Also this."}, {"role": "user", "content": "1+1?"}]})
@@ -935,12 +935,12 @@ class ClientShapes(unittest.TestCase):
             template, self.svc.template = self.svc.template, ChatTemplate.from_file(tpl)
             try:
                 status, b = self.post("/v1/chat/completions", {
-                    "model": "basalt", "max_tokens": 20, "messages": [{"role": "system", "content": "Only a system."}]})
+                    "model": "halo", "max_tokens": 20, "messages": [{"role": "system", "content": "Only a system."}]})
                 self.assertEqual(status, 400, b)
                 self.assertIn("No user query found", b["error"]["message"])
             finally:
                 self.svc.template = template
-        status, b = self.post("/v1/chat/completions", {"model": "basalt", "max_tokens": 20,
+        status, b = self.post("/v1/chat/completions", {"model": "halo", "max_tokens": 20,
                                                        "messages": [{"role": "user", "content": "hi"}]})
         self.assertEqual(status, 200, b)                            # the server goes on
 
@@ -949,10 +949,10 @@ class ClientShapes(unittest.TestCase):
         encoded = json.dumps([{"role": "user", "content": "1+1?"}])
         for path in ("/v1/chat/completions", "/v1/messages"):
             with self.subTest(path=path):
-                status, b = self.post(path, {"model": "basalt", "max_tokens": 20, "messages": encoded})
+                status, b = self.post(path, {"model": "halo", "max_tokens": 20, "messages": encoded})
                 self.assertEqual(status, 200, b)
                 self.assertIn("1+1?", self.prompt_text())
-                status, b = self.post(path, {"model": "basalt", "max_tokens": 20, "messages": ["hi"]})
+                status, b = self.post(path, {"model": "halo", "max_tokens": 20, "messages": ["hi"]})
                 self.assertEqual(status, 400, b)
                 self.assertIn("messages must be a list of objects", b["error"]["message"])
 
@@ -965,10 +965,10 @@ class ClientShapes(unittest.TestCase):
         for path in ("/v1/chat/completions", "/v1/messages"):
             for tools in bad:
                 with self.subTest(path=path, tools=tools):
-                    status, b = self.post(path, {"model": "basalt", "max_tokens": 8, "messages": msgs, "tools": tools})
+                    status, b = self.post(path, {"model": "halo", "max_tokens": 8, "messages": msgs, "tools": tools})
                     self.assertEqual(status, 400, b)
                     self.assertIn("tools", b["error"]["message"])
-        status, b = self.post("/v1/chat/completions", {"model": "basalt", "max_tokens": 8, "messages": msgs})
+        status, b = self.post("/v1/chat/completions", {"model": "halo", "max_tokens": 8, "messages": msgs})
         self.assertEqual(status, 200, b)                            # the server goes on
 
     def test_a_tool_schema_that_is_not_an_object_is_a_400(self):
@@ -982,7 +982,7 @@ class ClientShapes(unittest.TestCase):
         for path, shapes in bad.items():
             for tools in shapes:
                 with self.subTest(path=path, tools=tools):
-                    status, b = self.post(path, {"model": "basalt", "max_tokens": 8, "messages": msgs, "tools": tools})
+                    status, b = self.post(path, {"model": "halo", "max_tokens": 8, "messages": msgs, "tools": tools})
                     self.assertEqual(status, 400, b)
                     self.assertIn("tools[0] (f)", b["error"]["message"])
                     self.assertIn("must be an object", b["error"]["message"])
@@ -990,7 +990,7 @@ class ClientShapes(unittest.TestCase):
                             ("/v1/chat/completions", [{"name": "f", "parameters": None}]),
                             ("/v1/messages", [{"name": "f", "input_schema": {}}])):
             with self.subTest(path=path, tools=tools):
-                status, b = self.post(path, {"model": "basalt", "max_tokens": 8, "messages": msgs, "tools": tools})
+                status, b = self.post(path, {"model": "halo", "max_tokens": 8, "messages": msgs, "tools": tools})
                 self.assertEqual(status, 200, b)
 
     def test_well_formed_tools_still_work(self):
@@ -1003,7 +1003,7 @@ class ClientShapes(unittest.TestCase):
                             ("/v1/messages", [{"name": "get_weather", "input_schema": {"type": "object"}}]),
                             ("/v1/messages", [])):
             with self.subTest(path=path, tools=tools):
-                status, b = self.post(path, {"model": "basalt", "max_tokens": 8, "messages": msgs, "tools": tools})
+                status, b = self.post(path, {"model": "halo", "max_tokens": 8, "messages": msgs, "tools": tools})
                 self.assertEqual(status, 200, b)
                 if tools:
                     self.assertIn("get_weather", self.prompt_text())
@@ -1017,7 +1017,7 @@ class ClientShapes(unittest.TestCase):
                 raise BrokenPipeError("the encoder is gone")
 
         v = Vision.__new__(Vision)
-        v.dir, v.lock, v.cache, v.cache_bytes, v.pinned = Path(tempfile.mkdtemp(prefix="basalt-vision-test-")), threading.Lock(), {}, 0, {}
+        v.dir, v.lock, v.cache, v.cache_bytes, v.pinned = Path(tempfile.mkdtemp(prefix="halo-vision-test-")), threading.Lock(), {}, 0, {}
         v.proc = mock.Mock(stdin=Gone())
         with self.assertRaises(BrokenPipeError):
             v.encode([b"png"])
@@ -1052,7 +1052,7 @@ class ClientShapes(unittest.TestCase):
             for fn in (openai_to_messages, anthropic_to_messages):
                 with self.subTest(bad=bad, fn=fn.__name__):
                     with self.assertRaisesRegex(ValueError, "messages must be a list of objects"):
-                        fn({"model": "basalt", "messages": bad})
+                        fn({"model": "halo", "messages": bad})
         for calls in (["f"], "[1]", [{"function": "f"}], "{"):
             with self.subTest(calls=calls), self.assertRaisesRegex(ValueError, "tool_calls must be a list of objects"):
                 openai_to_messages({"messages": [{"role": "assistant", "content": "", "tool_calls": calls}]})
@@ -1117,7 +1117,7 @@ class SamplingChecked(unittest.TestCase):
                                ("/v1/responses", {"input": "hi"})):
                 for stream in (False, True):
                     with self.subTest(path=path, stream=stream):
-                        data = {"model": "basalt", "max_tokens": 4, "top_k": -3, "stream": stream, **body}
+                        data = {"model": "halo", "max_tokens": 4, "top_k": -3, "stream": stream, **body}
                         req = urllib.request.Request(base + path, headers={"Content-Type": "application/json"},
                                                      data=json.dumps(data).encode())
                         with self.assertRaises(urllib.error.HTTPError) as cm:
@@ -1126,7 +1126,7 @@ class SamplingChecked(unittest.TestCase):
                             self.assertEqual(e.code, 400)
                             self.assertIn("top_k", e.read().decode())
             self.assertEqual(engine.requests, [])
-            data = {"model": "basalt", "max_tokens": 4, "top_k": 1000, "seed": 0,
+            data = {"model": "halo", "max_tokens": 4, "top_k": 1000, "seed": 0,
                     "messages": [{"role": "user", "content": "hi"}]}
             req = urllib.request.Request(base + "/v1/chat/completions", headers={"Content-Type": "application/json"},
                                          data=json.dumps(data).encode())
@@ -1235,18 +1235,18 @@ class GpuChoice(unittest.TestCase):
         ok = mock.Mock(returncode=0, stderr="",
                        stdout='{"devices":"1,0","cards":[{"smi":1},{"smi":0}],"notes":[],"warning":"","error":""}\n')
         with mock.patch("subprocess.run", return_value=ok) as run:
-            self.assertEqual(model_plan("/x/basalt", "/m.basalt", "1,0", ["--kv", "int8"])["devices"], "1,0")
-            self.assertEqual(run.call_args.args[0], ["/x/basalt", "--model", "/m.basalt", "--kv", "int8", "--gpu-plan", "--gpu", "1,0"])
-            model_plan("/x/basalt", "/m.basalt", None, [])
-            self.assertEqual(run.call_args.args[0], ["/x/basalt", "--model", "/m.basalt", "--gpu-plan"])
+            self.assertEqual(model_plan("/x/halo", "/m.basalt", "1,0", ["--kv", "int8"])["devices"], "1,0")
+            self.assertEqual(run.call_args.args[0], ["/x/halo", "--model", "/m.basalt", "--kv", "int8", "--gpu-plan", "--gpu", "1,0"])
+            model_plan("/x/halo", "/m.basalt", None, [])
+            self.assertEqual(run.call_args.args[0], ["/x/halo", "--model", "/m.basalt", "--gpu-plan"])
         bad = mock.Mock(returncode=2, stderr="", stdout='{"devices":"","cards":[],"notes":[],"warning":"","error":"gpu 2: 2 GPUs are visible (0-1)"}')
         with mock.patch("subprocess.run", return_value=bad), self.assertRaisesRegex(ValueError, "2 GPUs are visible"):
-            model_plan("/x/basalt", "/m.basalt", "2", [])
-        refused = mock.Mock(returncode=2, stdout="", stderr="basalt: error: unknown argument: --kv\nusage: basalt\n")
+            model_plan("/x/halo", "/m.basalt", "2", [])
+        refused = mock.Mock(returncode=2, stdout="", stderr="halo: error: unknown argument: --kv\nusage: halo\n")
         with mock.patch("subprocess.run", return_value=refused), self.assertRaisesRegex(ValueError, "unknown argument: --kv"):
-            model_plan("/x/basalt", "/m.basalt", None, ["--kv", "int8"])
+            model_plan("/x/halo", "/m.basalt", None, ["--kv", "int8"])
         with mock.patch("subprocess.run", side_effect=OSError), self.assertRaisesRegex(ValueError, "could not check"):
-            model_plan("/x/basalt", "/m.basalt", "auto", [])
+            model_plan("/x/halo", "/m.basalt", "auto", [])
 
     def test_vision_modes(self):
         from serve.engine.vision import vision_mode
@@ -1316,7 +1316,7 @@ class SessionOnTheMockEngine(unittest.TestCase):
         url = f"http://127.0.0.1:{httpd.server_address[1]}/v1/chat/completions"
         try:
             for headers, extra in (({"x-session-id": "s1"}, {}), ({}, {"session_id": "s2"}), ({}, {})):
-                body = {"model": "basalt", "max_tokens": 20, "reasoning_effort": "none",
+                body = {"model": "halo", "max_tokens": 20, "reasoning_effort": "none",
                         "messages": [{"role": "user", "content": "hi"}], **extra}
                 req = urllib.request.Request(url, data=json.dumps(body).encode(),
                                              headers={"Content-Type": "application/json", **headers})
@@ -1352,7 +1352,7 @@ class ClientHangUp(unittest.TestCase):
 
     def hang_up(self, stream):
         import socket as so
-        body = json.dumps({"model": "basalt", "max_tokens": 20, "stream": stream,
+        body = json.dumps({"model": "halo", "max_tokens": 20, "stream": stream,
                            "messages": [{"role": "user", "content": "a long prompt"}]}).encode()
         c = so.create_connection(("127.0.0.1", self.port))
         c.sendall(b"POST /v1/chat/completions HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n"
@@ -1392,13 +1392,13 @@ class EngineDeath(unittest.TestCase):
                     with e:
                         return e.code, e.read().decode()
             msgs = [{"role": "user", "content": "hi"}]
-            code, text = post({"model": "basalt", "messages": msgs, "max_tokens": 50, "stream": True})
+            code, text = post({"model": "halo", "messages": msgs, "max_tokens": 50, "stream": True})
             self.assertEqual(code, 200)
             self.assertIn('"error"', text)
             self.assertIn("stopped unexpectedly", text)
             self.assertTrue(text.rstrip().endswith("data: [DONE]"))
             self.assertEqual(svc.metrics()["requests"][0]["finish"], "error")
-            code, text = post({"model": "basalt", "messages": msgs, "max_tokens": 50})
+            code, text = post({"model": "halo", "messages": msgs, "max_tokens": 50})
             self.assertEqual(code, 200, text)
             self.assertEqual(eng.restarts, 1)
             self.assertEqual(json.loads(text)["usage"]["completion_tokens"], 50)
@@ -1418,9 +1418,9 @@ class EngineDeath(unittest.TestCase):
         httpd = serve(svc, port=0)
         base = f"http://127.0.0.1:{httpd.server_address[1]}"
         try:
-            for path, body in [("/v1/chat/completions", {"model": "basalt", "stream": True, "max_tokens": 20,
+            for path, body in [("/v1/chat/completions", {"model": "halo", "stream": True, "max_tokens": 20,
                                                           "messages": [{"role": "user", "content": "hi"}]}),
-                               ("/v1/messages", {"model": "basalt", "stream": True, "max_tokens": 20,
+                               ("/v1/messages", {"model": "halo", "stream": True, "max_tokens": 20,
                                                  "messages": [{"role": "user", "content": "hi"}]})]:
                 req = urllib.request.Request(base + path, data=json.dumps(body).encode(),
                                              headers={"Content-Type": "application/json"})
@@ -1462,7 +1462,7 @@ class DraftCounts(unittest.TestCase):
         base = f"http://127.0.0.1:{httpd.server_address[1]}"
         try:
             for _ in range(3):
-                body = json.dumps({"model": "basalt", "max_tokens": 10, "messages": [{"role": "user", "content": "hi"}]})
+                body = json.dumps({"model": "halo", "max_tokens": 10, "messages": [{"role": "user", "content": "hi"}]})
                 with urllib.request.urlopen(urllib.request.Request(base + "/v1/chat/completions", data=body.encode(),
                                                                    headers={"Content-Type": "application/json"}),
                                             timeout=30) as r:
@@ -1555,24 +1555,24 @@ class DraftHeadHint(unittest.TestCase):
         return str(p), len(before.encode())
 
     def test_the_engines_hint_is_relayed(self):
-        p, off = self.log("basalt mtp: the draft head over 106299 tokens needs 348 MiB of VRAM and 120 MiB is free.\n"
-                          "basalt mtp: hint: free VRAM (...)\n"
-                          "basalt serve: mtp: the draft head does not fit\n")
+        p, off = self.log("halo mtp: the draft head over 106299 tokens needs 348 MiB of VRAM and 120 MiB is free.\n"
+                          "halo mtp: hint: free VRAM (...)\n"
+                          "halo serve: mtp: the draft head does not fit\n")
         h = start_failure_hint(p, off)
         self.assertIn("the draft head does not fit", h)
         self.assertIn("348 MiB", h)
         self.assertIn("free VRAM", h)
 
     def test_without_the_engines_hint_the_server_gives_one(self):
-        p, off = self.log("basalt serve: mtp: the draft head does not fit\n")
+        p, off = self.log("halo serve: mtp: the draft head does not fit\n")
         self.assertIn("--spec 0", start_failure_hint(p, off))
 
     def test_other_failures_and_earlier_starts_add_nothing(self):
-        p, off = self.log("basalt serve: cannot open the pack\n")
+        p, off = self.log("halo serve: cannot open the pack\n")
         self.assertEqual(start_failure_hint(p, off), "")
         # an earlier start's failure (before this start's offset) is not this one's
-        p, off = self.log("basalt serve: cannot open the pack\n",
-                          before="basalt serve: mtp: the draft head does not fit\n")
+        p, off = self.log("halo serve: cannot open the pack\n",
+                          before="halo serve: mtp: the draft head does not fit\n")
         self.assertEqual(start_failure_hint(p, off), "")
         self.assertEqual(start_failure_hint(None, 0), "")
         self.assertEqual(start_failure_hint(str(Path(tempfile.mkdtemp()) / "missing.log"), 0), "")
@@ -1585,16 +1585,16 @@ class StartFailureLog(unittest.TestCase):
         from serve.engine.progress import start_last_line
         d = tempfile.mkdtemp()
         p = Path(d) / "engine.log"
-        before = "basalt serve: an earlier start's line\n"
-        p.write_text(before + "basalt serve: line 1\nbasalt generate: cannot open the pack\n"
-                     "basalt warning: slow disk\n\n", encoding="utf-8")
+        before = "halo serve: an earlier start's line\n"
+        p.write_text(before + "halo serve: line 1\nhalo generate: cannot open the pack\n"
+                     "halo warning: slow disk\n\n", encoding="utf-8")
         self.assertEqual(start_last_line(str(p), len(before.encode())), "cannot open the pack")
         self.assertEqual(start_last_line(str(p), p.stat().st_size), "")   # nothing from this start
         self.assertEqual(start_last_line(None, 0), "")
         self.assertEqual(start_last_line(str(Path(d) / "missing.log"), 0), "")
 
     def test_the_start_error_has_them(self):
-        fake = "import sys\nsys.stderr.write('basalt serve: cannot open the pack packs/x\\n')\nsys.exit(2)\n"
+        fake = "import sys\nsys.stderr.write('halo serve: cannot open the pack packs/x\\n')\nsys.exit(2)\n"
         with tempfile.TemporaryDirectory() as d:
             script, log = Path(d) / "fake_engine.py", Path(d) / "engine.log"
             script.write_text(fake, encoding="utf-8")
@@ -1604,7 +1604,7 @@ class StartFailureLog(unittest.TestCase):
                                    lambda cmd, **kw: real([sys.executable, str(script), *cmd[1:]], **kw)), \
                     mock.patch("serve.engine.process.narrate_start", lambda *a, **k: None):
                 with self.assertRaises(EngineStartError) as cm:
-                    ProcessEngine("basalt", [], log=str(log))
+                    ProcessEngine("halo", [], log=str(log))
             self.assertEqual(str(cm.exception), "cannot open the pack packs/x")
             self.assertEqual(cm.exception.log, str(log))
 
@@ -1617,7 +1617,7 @@ class StartFailureLog(unittest.TestCase):
                                    lambda cmd, **kw: real([sys.executable, str(script), *cmd[1:]], **kw)), \
                     mock.patch("serve.engine.process.narrate_start", lambda *a, **k: None):
                 with self.assertRaises(EngineStartError) as cm:
-                    ProcessEngine("basalt", [], log=str(log))
+                    ProcessEngine("halo", [], log=str(log))
             self.assertIn("exited before it was ready", str(cm.exception))
 
     def test_a_failed_reload_says_so_and_raises_engine_died(self):
@@ -1639,60 +1639,60 @@ class StartFailureLog(unittest.TestCase):
 
 
     def test_the_engines_own_error_is_the_message(self):
-        fake = ("import sys\nsys.stderr.write('basalt generate: GPU 0\\n')\n"
-                "sys.stderr.write('basalt error: the experts need 40.0 GiB of RAM, 27.1 GiB is available; use "
+        fake = ("import sys\nsys.stderr.write('halo generate: GPU 0\\n')\n"
+                "sys.stderr.write('halo error: the experts need 40.0 GiB of RAM, 27.1 GiB is available; use "
                 "--resident-experts or --mmap-experts\\n')\nsys.exit(1)\n")
         with tempfile.TemporaryDirectory() as d:
             script, log = Path(d) / "fake_engine.py", Path(d) / "engine.log"
             script.write_text(fake, encoding="utf-8")
-            log.write_text("basalt error: an earlier start\n", encoding="utf-8")
+            log.write_text("halo error: an earlier start\n", encoding="utf-8")
             real = subprocess.Popen
             with mock.patch.object(subprocess, "Popen",
                                    lambda cmd, **kw: real([sys.executable, str(script), *cmd[1:]], **kw)), \
                     mock.patch("serve.engine.process.narrate_start", lambda *a, **k: None):
                 with self.assertRaises(EngineStartError) as cm:
-                    ProcessEngine("basalt", [], log=str(log))
+                    ProcessEngine("halo", [], log=str(log))
             self.assertEqual(str(cm.exception), "the experts need 40.0 GiB of RAM, 27.1 GiB is available; use "
                                                 "--resident-experts or --mmap-experts")
 
     def test_error_lines(self):
         from serve.engine.progress import engine_error
-        self.assertEqual(engine_error("basalt error: x y"), "x y")
-        self.assertIsNone(engine_error("basalt error: "))
-        self.assertIsNone(engine_error("basalt warning: x"))
+        self.assertEqual(engine_error("halo error: x y"), "x y")
+        self.assertIsNone(engine_error("halo error: "))
+        self.assertIsNone(engine_error("halo warning: x"))
 
     def test_route_warnings_reach_the_start_output(self):
         from serve.engine.progress import engine_warning
         self.assertEqual(
-            engine_warning("basalt: warning: --route-tail-skip 9 drops low-ranked missed experts"),
+            engine_warning("halo: warning: --route-tail-skip 9 drops low-ranked missed experts"),
             "--route-tail-skip 9 drops low-ranked missed experts")
 
     def test_route_prior_warning_reaches_the_start_output(self):
         from serve.engine.progress import engine_warning
         self.assertEqual(
-            engine_warning("basalt: warning: --route-prior 0.5 changes expert routing"),
+            engine_warning("halo: warning: --route-prior 0.5 changes expert routing"),
             "--route-prior 0.5 changes expert routing")
 
     def test_marked_lines_of_any_area(self):
         from serve.engine.progress import engine_error, engine_ram_floor, engine_warning, start_errors
-        self.assertEqual(engine_error("basalt generate: error: the weight arena failed"), "the weight arena failed")
-        self.assertEqual(engine_error("basalt: error: dec_moe_vram: formats 1 / 2"), "dec_moe_vram: formats 1 / 2")
-        self.assertIsNone(engine_error("basalt generate: warning: x"))
-        self.assertIsNone(engine_error("basalt generate: no error here, nothing failed"))
+        self.assertEqual(engine_error("halo generate: error: the weight arena failed"), "the weight arena failed")
+        self.assertEqual(engine_error("halo: error: dec_moe_vram: formats 1 / 2"), "dec_moe_vram: formats 1 / 2")
+        self.assertIsNone(engine_error("halo generate: warning: x"))
+        self.assertIsNone(engine_error("halo generate: no error here, nothing failed"))
         self.assertIsNone(engine_error("CUDA error: out of memory"))
-        self.assertEqual(engine_warning("basalt serve: warning: model 60.0 GiB"), "model 60.0 GiB")
-        self.assertEqual(engine_warning("basalt warning: older form"), "older form")
-        self.assertIsNone(engine_warning("basalt generate: WARNING: not a marker"))
-        self.assertIsNone(engine_warning("basalt serve: warning: "))
-        self.assertEqual(engine_ram_floor("basalt generate: RAM floor 4.0 GiB"), "4.0 GiB")
-        self.assertIsNone(engine_ram_floor("basalt serve: RAM floor 4.0 GiB"))
+        self.assertEqual(engine_warning("halo serve: warning: model 60.0 GiB"), "model 60.0 GiB")
+        self.assertEqual(engine_warning("halo warning: older form"), "older form")
+        self.assertIsNone(engine_warning("halo generate: WARNING: not a marker"))
+        self.assertIsNone(engine_warning("halo serve: warning: "))
+        self.assertEqual(engine_ram_floor("halo generate: RAM floor 4.0 GiB"), "4.0 GiB")
+        self.assertIsNone(engine_ram_floor("halo serve: RAM floor 4.0 GiB"))
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "engine.log"
-            log.write_text("basalt generate: error: an earlier start\n", encoding="utf-8")
+            log.write_text("halo generate: error: an earlier start\n", encoding="utf-8")
             off = log.stat().st_size
             with open(log, "a", encoding="utf-8") as f:
-                f.write("basalt generate: GPU 0\nbasalt generate: warning: slow\nbasalt generate: error: first\n"
-                        "basalt serve: error: second\nbasalt serve: no error\n")
+                f.write("halo generate: GPU 0\nhalo generate: warning: slow\nhalo generate: error: first\n"
+                        "halo serve: error: second\nhalo serve: no error\n")
             self.assertEqual(start_errors(str(log), off), ["first", "second"])
             from serve.engine.progress import start_last_line
             self.assertEqual(start_last_line(str(log), off), "no error")
@@ -1700,9 +1700,9 @@ class StartFailureLog(unittest.TestCase):
     def test_the_draft_head_hint_reads_marked_lines(self):
         d = tempfile.mkdtemp()
         p = Path(d) / "engine.log"
-        p.write_text("basalt mtp: warning: the draft head over 106299 tokens needs 348 MiB of VRAM and 120 MiB is free.\n"
-                     "basalt mtp: hint: free VRAM (...)\n"
-                     "basalt serve: error: mtp: the draft head does not fit\n", encoding="utf-8")
+        p.write_text("halo mtp: warning: the draft head over 106299 tokens needs 348 MiB of VRAM and 120 MiB is free.\n"
+                     "halo mtp: hint: free VRAM (...)\n"
+                     "halo serve: error: mtp: the draft head does not fit\n", encoding="utf-8")
         h = start_failure_hint(str(p), 0)
         self.assertIn("348 MiB", h)
         self.assertIn("free VRAM", h)
@@ -1714,27 +1714,27 @@ class Tty(io.StringIO):
 
 
 class LoadProgress(unittest.TestCase):
-    """The engine's `basalt load:` lines: one bar for the whole start, one line when it is done."""
+    """The engine's `halo load:` lines: one bar for the whole start, one line when it is done."""
 
     def test_parse(self):
         from serve.engine.progress import engine_warning, load_progress, load_total
-        self.assertEqual(load_progress("basalt load: cuda0 10 100"), ("cuda0", 10, 100, False))
-        self.assertEqual(load_progress("basalt load: copy cuda1 10 100"), ("cuda1", 10, 100, True))
-        self.assertIsNone(load_progress("basalt load: total 100"))
-        self.assertIsNone(load_progress("basalt load: cuda0 ten 100"))
-        self.assertIsNone(load_progress("basalt generate: loaded 3 GiB"))
+        self.assertEqual(load_progress("halo load: cuda0 10 100"), ("cuda0", 10, 100, False))
+        self.assertEqual(load_progress("halo load: copy cuda1 10 100"), ("cuda1", 10, 100, True))
+        self.assertIsNone(load_progress("halo load: total 100"))
+        self.assertIsNone(load_progress("halo load: cuda0 ten 100"))
+        self.assertIsNone(load_progress("halo generate: loaded 3 GiB"))
         from serve.engine.progress import load_plan
-        self.assertEqual(load_plan("basalt load: plan cuda0 100"), ("cuda0", 100, False))
-        self.assertEqual(load_plan("basalt load: plan copy cuda1 100"), ("cuda1", 100, True))
-        self.assertIsNone(load_plan("basalt load: plan cuda0 x"))
-        self.assertIsNone(load_plan("basalt load: cuda0 1 2"))
-        self.assertIsNone(load_progress("basalt load: plan cuda0 100"))
-        self.assertEqual(load_total("basalt load: total 4096"), 4096)
-        self.assertIsNone(load_total("basalt load: total many"))
-        self.assertIsNone(load_total("basalt load: cuda0 1 2"))
-        self.assertEqual(engine_warning("basalt warning: model 60.0 GiB, free 40.0 GiB"), "model 60.0 GiB, free 40.0 GiB")
-        self.assertIsNone(engine_warning("basalt warning: "))
-        self.assertIsNone(engine_warning("basalt generate: WARNING: x"))
+        self.assertEqual(load_plan("halo load: plan cuda0 100"), ("cuda0", 100, False))
+        self.assertEqual(load_plan("halo load: plan copy cuda1 100"), ("cuda1", 100, True))
+        self.assertIsNone(load_plan("halo load: plan cuda0 x"))
+        self.assertIsNone(load_plan("halo load: cuda0 1 2"))
+        self.assertIsNone(load_progress("halo load: plan cuda0 100"))
+        self.assertEqual(load_total("halo load: total 4096"), 4096)
+        self.assertIsNone(load_total("halo load: total many"))
+        self.assertIsNone(load_total("halo load: cuda0 1 2"))
+        self.assertEqual(engine_warning("halo warning: model 60.0 GiB, free 40.0 GiB"), "model 60.0 GiB, free 40.0 GiB")
+        self.assertIsNone(engine_warning("halo warning: "))
+        self.assertIsNone(engine_warning("halo generate: WARNING: x"))
 
     def test_log_output_prints_only_the_result(self):
         from serve.engine.progress import LoadBars
@@ -1812,7 +1812,7 @@ class LoadProgress(unittest.TestCase):
 
     def test_the_ngram_table_lock_is_its_own_row_outside_the_total(self):
         from serve.engine.progress import LoadBars, load_progress
-        self.assertEqual(load_progress("basalt load: ngram 1073741824 3221225472"), ("ngram", 1 << 30, 3 << 30, False))
+        self.assertEqual(load_progress("halo load: ngram 1073741824 3221225472"), ("ngram", 1 << 30, 3 << 30, False))
         out = Tty()
         bars = LoadBars(out, gpus=[2, 3])
         bars.set_total(2 << 30)
@@ -1897,13 +1897,13 @@ class LoadProgress(unittest.TestCase):
 
     def test_kv_is_a_line_after_the_result_and_not_a_load(self):
         from serve.engine.progress import LoadBars, load_kv, load_progress
-        self.assertEqual(load_kv("basalt load: kv cuda0 4509715660 262144"), ("cuda0", 4509715660, 262144, "", 4509715660))
-        self.assertEqual(load_kv("basalt load: kv slot cuda1 100 5"), ("cuda1", 100, 5, "slot", 100))
-        self.assertEqual(load_kv("basalt load: kv slot cuda1 100 5 900"), ("cuda1", 100, 5, "slot", 900))
-        self.assertEqual(load_kv("basalt load: kv draft cuda0 100 5"), ("cuda0", 100, 5, "draft", 100))
-        self.assertIsNone(load_kv("basalt load: kv cuda0 x 1"))
-        self.assertIsNone(load_kv("basalt load: kv other cuda0 1 2"))
-        self.assertIsNone(load_progress("basalt load: kv cuda0 100 5"))
+        self.assertEqual(load_kv("halo load: kv cuda0 4509715660 262144"), ("cuda0", 4509715660, 262144, "", 4509715660))
+        self.assertEqual(load_kv("halo load: kv slot cuda1 100 5"), ("cuda1", 100, 5, "slot", 100))
+        self.assertEqual(load_kv("halo load: kv slot cuda1 100 5 900"), ("cuda1", 100, 5, "slot", 900))
+        self.assertEqual(load_kv("halo load: kv draft cuda0 100 5"), ("cuda0", 100, 5, "draft", 100))
+        self.assertIsNone(load_kv("halo load: kv cuda0 x 1"))
+        self.assertIsNone(load_kv("halo load: kv other cuda0 1 2"))
+        self.assertIsNone(load_progress("halo load: kv cuda0 100 5"))
         out = io.StringIO()
         bars = LoadBars(out, gpus=[2, 3])
         bars.set_total(2 << 30)
@@ -1929,8 +1929,8 @@ class LoadProgress(unittest.TestCase):
     def test_an_elastic_kv_line_reads_backed_over_most(self):
         from serve.engine.progress import LoadBars, load_kv
         bars = LoadBars(io.StringIO(), gpus=[2, 3])
-        bars.set_kv(*load_kv("basalt load: kv cuda0 536870912 262144 4294967296"))
-        bars.set_kv(*load_kv("basalt load: kv draft cuda0 107374182 262144 429496729"))
+        bars.set_kv(*load_kv("halo load: kv cuda0 536870912 262144 4294967296"))
+        bars.set_kv(*load_kv("halo load: kv draft cuda0 107374182 262144 429496729"))
         self.assertEqual(bars.kv_lines(), ["[server] kv       0.6/4.4GiB cuda2 elastic"])
         slots = LoadBars(io.StringIO())
         slots.set_kv("cuda0", 1 << 29, 262144, "slot", 4 << 30)
@@ -1968,10 +1968,10 @@ class LoadProgress(unittest.TestCase):
         from serve.engine.progress import narrate_start
         d = tempfile.mkdtemp()
         log = Path(d) / "engine.log"
-        log.write_text("basalt load: total 200\nbasalt load: plan cuda0 100\nbasalt load: plan ram 100\nbasalt load: plan copy cuda1 100\nbasalt warning: model 1.0 GiB, free VRAM + RAM 0.5 GiB: slow\n"
-                       "basalt load: cuda0 0 100\nbasalt generate: expert arena: resident, 31.64 GiB\n"
-                       "basalt load: cuda0 100 100\nbasalt load: ram 0 100\nbasalt load: ram 100 100\n"
-                       "basalt load: copy cuda1 100 100\nbasalt generate: session is up (engine 1)\n", encoding="utf-8")
+        log.write_text("halo load: total 200\nhalo load: plan cuda0 100\nhalo load: plan ram 100\nhalo load: plan copy cuda1 100\nhalo warning: model 1.0 GiB, free VRAM + RAM 0.5 GiB: slow\n"
+                       "halo load: cuda0 0 100\nhalo generate: expert arena: resident, 31.64 GiB\n"
+                       "halo load: cuda0 100 100\nhalo load: ram 0 100\nhalo load: ram 100 100\n"
+                       "halo load: copy cuda1 100 100\nhalo generate: session is up (engine 1)\n", encoding="utf-8")
         done, out = threading.Event(), io.StringIO()
         with contextlib.redirect_stdout(out):
             t = threading.Thread(target=narrate_start, args=(str(log), 0, done))
@@ -1988,12 +1988,12 @@ class LoadProgress(unittest.TestCase):
     def test_narrator_shows_the_ram_floor_line(self):
         from serve.engine.progress import engine_ram_floor, narrate_start
         text = "9.3 GiB (2.0 margin + 7.3 cache), 20.0 GiB experts on SSD, RAM copy <= 12.0 of 30.0 GiB"
-        self.assertEqual(engine_ram_floor("basalt generate: RAM floor " + text), text)
-        self.assertIsNone(engine_ram_floor("basalt generate: RAM floor "))
-        self.assertIsNone(engine_ram_floor("basalt generate: session is up"))
+        self.assertEqual(engine_ram_floor("halo generate: RAM floor " + text), text)
+        self.assertIsNone(engine_ram_floor("halo generate: RAM floor "))
+        self.assertIsNone(engine_ram_floor("halo generate: session is up"))
         d = tempfile.mkdtemp()
         log = Path(d) / "engine.log"
-        log.write_text("basalt generate: RAM floor " + text + "\nbasalt generate: session is up (engine 1)\n", encoding="utf-8")
+        log.write_text("halo generate: RAM floor " + text + "\nhalo generate: session is up (engine 1)\n", encoding="utf-8")
         done, out = threading.Event(), io.StringIO()
         with contextlib.redirect_stdout(out):
             t = threading.Thread(target=narrate_start, args=(str(log), 0, done))
@@ -2007,7 +2007,7 @@ class LoadProgress(unittest.TestCase):
         from serve.engine.progress import narrate_start
         d = tempfile.mkdtemp()
         log = Path(d) / "engine.log"
-        log.write_text("basalt load: cuda0 0 100\nbasalt load: cuda0 100 100\n", encoding="utf-8")
+        log.write_text("halo load: cuda0 0 100\nhalo load: cuda0 100 100\n", encoding="utf-8")
         done, out = threading.Event(), Tty()
         t = threading.Thread(target=narrate_start, args=(str(log), 0, done), kwargs={"out": out})
         t.start()
@@ -2048,7 +2048,7 @@ class CancelledRead(unittest.TestCase):
         base = f"http://127.0.0.1:{httpd.server_address[1]}"
         try:
             for _ in range(3):
-                body = json.dumps({"model": "basalt", "max_tokens": 10, "messages": [{"role": "user", "content": "hi"}]})
+                body = json.dumps({"model": "halo", "max_tokens": 10, "messages": [{"role": "user", "content": "hi"}]})
                 with urllib.request.urlopen(urllib.request.Request(base + "/v1/chat/completions", data=body.encode(),
                                                                    headers={"Content-Type": "application/json"}),
                                             timeout=30) as r:
@@ -2241,7 +2241,7 @@ class LiveRate(unittest.TestCase):
                     live_samples.append((live["generated"], live["tok_s"]))
                 time.sleep(0.01)
 
-        body = json.dumps({"model": "basalt", "max_tokens": self.TOKENS, "temperature": 0,
+        body = json.dumps({"model": "halo", "max_tokens": self.TOKENS, "temperature": 0,
                            "messages": [{"role": "user", "content": "hi"}]}).encode()
         watcher = threading.Thread(target=poll, daemon=True)
         watcher.start()
@@ -2279,7 +2279,7 @@ class LiveRate(unittest.TestCase):
         httpd = serve(svc, port=0)
         base = f"http://127.0.0.1:{httpd.server_address[1]}"
         try:
-            body = json.dumps({"model": "basalt", "max_tokens": self.TOKENS, "stream": True,
+            body = json.dumps({"model": "halo", "max_tokens": self.TOKENS, "stream": True,
                                "messages": [{"role": "user", "content": "hi"}]}).encode()
             with urllib.request.urlopen(urllib.request.Request(base + "/v1/chat/completions", data=body,
                                                                headers={"Content-Type": "application/json"}),
@@ -2404,7 +2404,7 @@ class WebApp(unittest.TestCase):
                 self.assertEqual(self.get(path)[0], 404)
 
     def test_metrics(self):
-        data = json.dumps({"model": "basalt", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}).encode()
+        data = json.dumps({"model": "halo", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}).encode()
         urllib.request.urlopen(urllib.request.Request(self.base + "/v1/chat/completions", data=data,
                                                       headers={"Content-Type": "application/json"}), timeout=10).read()
         code, ctype, body = self.get("/metrics")
@@ -2465,7 +2465,7 @@ class WebApp(unittest.TestCase):
         try:
             props = json.loads(self.get("/props")[2])
             self.assertEqual(props["model_path"], engine.model_path)
-            self.assertEqual(props["build_info"], "basalt 0.1.21")
+            self.assertEqual(props["build_info"], "halo 0.1.21")
             for busy in (True, False):
                 with self.svc.status_lock:
                     self.svc.status["busy"] = busy
@@ -2544,7 +2544,7 @@ class UsageAndStatus(unittest.TestCase):
             return r.status, r.read()
 
     def chat(self, path, stream=False):
-        body = {"model": "basalt", "max_tokens": 20, "messages": [{"role": "user", "content": "hi"}], "stream": stream}
+        body = {"model": "halo", "max_tokens": 20, "messages": [{"role": "user", "content": "hi"}], "stream": stream}
         status, raw = self.request(path, body)
         self.assertEqual(status, 200)
         if not stream:
@@ -2589,7 +2589,7 @@ class UsageAndStatus(unittest.TestCase):
 
     def test_sse_is_not_buffered_by_proxies(self):
         req = urllib.request.Request(self.base + "/v1/chat/completions", headers={"Content-Type": "application/json"},
-                                     data=json.dumps({"model": "basalt", "stream": True,
+                                     data=json.dumps({"model": "halo", "stream": True,
                                                       "messages": [{"role": "user", "content": "hi"}]}).encode())
         with urllib.request.urlopen(req, timeout=30) as r:
             self.assertEqual(r.headers.get("X-Accel-Buffering"), "no")
@@ -2655,7 +2655,7 @@ class UsageAndStatus(unittest.TestCase):
                       ChatTemplate.from_file(ROOT / "serve/chat_template.jinja"))
         httpd = serve(svc, port=0)
         try:
-            data = json.dumps({"model": "basalt", "max_tokens": 5, "messages": [{"role": "user", "content": "hi"}]}).encode()
+            data = json.dumps({"model": "halo", "max_tokens": 5, "messages": [{"role": "user", "content": "hi"}]}).encode()
             req = urllib.request.Request(f"http://127.0.0.1:{httpd.server_address[1]}/v1/chat/completions", data=data,
                                          headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=30) as r:
@@ -2723,7 +2723,7 @@ class SharingTheGpu(unittest.TestCase):
                 return e.code, json.loads(e.read())
 
     def chat(self):
-        return self.req("/v1/chat/completions", {"model": "basalt", "messages": [{"role": "user", "content": "hi"}]})
+        return self.req("/v1/chat/completions", {"model": "halo", "messages": [{"role": "user", "content": "hi"}]})
 
     def test_unload_then_the_next_request_loads(self):
         self.assertEqual(self.req("/unload", {}), (200, {"status": "unloaded"}))
@@ -2887,7 +2887,7 @@ class ThinkingBudget(unittest.TestCase):
                 return e.code, json.loads(e.read())
 
     def openai(self, **extra):
-        return self.post("/v1/chat/completions", {"model": "basalt", "messages": [{"role": "user", "content": "2+2?"}],
+        return self.post("/v1/chat/completions", {"model": "halo", "messages": [{"role": "user", "content": "2+2?"}],
                                                   "max_tokens": 400, **extra})
 
     def test_off_by_default(self):
@@ -3154,7 +3154,7 @@ class ThinkingBudget(unittest.TestCase):
 
     def test_anthropic_stream(self):
         from serve.service import REASONING_CLOSE
-        code, raw = self.post("/v1/messages", {"model": "basalt", "max_tokens": 400, "stream": True,
+        code, raw = self.post("/v1/messages", {"model": "halo", "max_tokens": 400, "stream": True,
                                                "reasoning_budget_tokens": 30,
                                                "messages": [{"role": "user", "content": "2+2?"}]})
         self.assertEqual(code, 200)
@@ -3190,7 +3190,7 @@ class ThinkingBudget(unittest.TestCase):
 
     def test_the_launch_default_applies_on_the_anthropic_path_too(self):
         self.svc.reasoning_budget_tokens = 20
-        code, raw = self.post("/v1/messages", {"model": "basalt", "max_tokens": 400, "stream": True,
+        code, raw = self.post("/v1/messages", {"model": "halo", "max_tokens": 400, "stream": True,
                                                 "messages": [{"role": "user", "content": "2+2?"}]})
         self.assertEqual(code, 200)
         self.assertEqual(self.anthropic_thinking(raw).startswith(ThinkingEngine.THOUGHT[:20]), True)
@@ -3202,7 +3202,7 @@ class ThinkingBudget(unittest.TestCase):
     def test_anthropics_budget_tokens_is_the_same_budget(self):
         from serve.service import REASONING_CLOSE
         wrap = REASONING_CLOSE.split("</think>")[0]
-        body = {"model": "basalt", "max_tokens": 400, "stream": True,
+        body = {"model": "halo", "max_tokens": 400, "stream": True,
                 "messages": [{"role": "user", "content": "2+2?"}]}
         code, raw = self.post("/v1/messages", {**body, "thinking": {"type": "enabled", "budget_tokens": 30}})
         self.assertEqual(code, 200)
@@ -3355,7 +3355,7 @@ class RestartWindow(unittest.TestCase):
             with mock.patch.object(subprocess, "Popen",
                                    lambda cmd, **kw: real([sys.executable, str(script), *cmd[1:]], **kw)):
                 gate.touch()
-                eng = ProcessEngine("basalt", ["--gate", str(gate)])
+                eng = ProcessEngine("halo", ["--gate", str(gate)])
                 try:
                     self.assertEqual(eng.max_context, 4096)
                     self.assertTrue(eng.alive())
@@ -3401,7 +3401,7 @@ class RestartWindow(unittest.TestCase):
                                    lambda cmd, **kw: real([sys.executable, str(script), *cmd[1:]], **kw)), \
                  mock.patch.object(ProcessEngine, "RESTART_RETRY_S", 0.0):
                 gate.touch()
-                eng = ProcessEngine("basalt", ["--gate", str(gate), "--fail", str(fail)])
+                eng = ProcessEngine("halo", ["--gate", str(gate), "--fail", str(fail)])
                 try:
                     self.assertEqual(eng.max_context, 4096)
                     self.assertEqual(eng.known_ctx, 4096)
@@ -3427,7 +3427,7 @@ class RestartWindow(unittest.TestCase):
         base = f"http://127.0.0.1:{httpd.server_address[1]}"
         try:
             req = urllib.request.Request(base + "/v1/chat/completions",
-                                         data=json.dumps({"model": "basalt", "max_tokens": 16,
+                                         data=json.dumps({"model": "halo", "max_tokens": 16,
                                                           "messages": [{"role": "user", "content": "hi"}]}).encode(),
                                          headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=30) as r:
@@ -3442,9 +3442,9 @@ class RestartWindow(unittest.TestCase):
         httpd = serve(svc, port=0)
         base = f"http://127.0.0.1:{httpd.server_address[1]}"
         try:
-            for path, body in (("/v1/chat/completions", {"model": "basalt", "messages": [{"role": "user", "content": "hi"}],
+            for path, body in (("/v1/chat/completions", {"model": "halo", "messages": [{"role": "user", "content": "hi"}],
                                                          "max_tokens": 16}),
-                               ("/v1/messages", {"model": "basalt", "max_tokens": 16,
+                               ("/v1/messages", {"model": "halo", "max_tokens": 16,
                                                  "messages": [{"role": "user", "content": "hi"}]})):
                 req = urllib.request.Request(base + path, data=json.dumps(body).encode(),
                                              headers={"Content-Type": "application/json"})
@@ -3561,13 +3561,13 @@ class LostStep(unittest.TestCase):
             real = subprocess.Popen
             with mock.patch.object(subprocess, "Popen",
                                    lambda cmd, **kw: real([sys.executable, str(script), *cmd[1:]], **kw)):
-                eng = ProcessEngine("basalt", ["--mark", str(mark), "--mode", mode])
+                eng = ProcessEngine("halo", ["--mark", str(mark), "--mode", mode])
                 eng.silence_s = 0.5
                 tok = ByteTokenizer()
                 svc = Service(eng, tok, ChatTemplate.from_file(ROOT / "serve/chat_template.jinja"))
                 httpd = serve(svc, port=0)
                 base = f"http://127.0.0.1:{httpd.server_address[1]}"
-                body = {"model": "basalt", "max_tokens": 2, "reasoning_effort": "none", "stream": stream,
+                body = {"model": "halo", "max_tokens": 2, "reasoning_effort": "none", "stream": stream,
                         "messages": [{"role": "user", "content": "hi"}]}
                 try:
                     first = eng.proc

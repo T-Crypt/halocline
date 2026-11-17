@@ -13,12 +13,12 @@
 // The sign masks of IQ2_XXS, IQ2_XS and IQ3_XXS are built from their 7-bit indices with BMI2 (pdep, and pext for
 // IQ2_XS) and a byte parity rather than eight table loads.  IQ3_S and IQ2_S, whose grid index takes extra high bits,
 // look the grid up with one gather; the grids indexed by a plain byte keep scalar loads, which are faster there.
-#include "basalt/kernels/cpu/iq_avx512.hpp"
+#include "halo/kernels/cpu/iq_avx512.hpp"
 
 #define GGML_COMMON_DECL_CPP
 #define GGML_COMMON_IMPL_CPP
-#include "basalt/ggml/ggml_common.h"
-#include "basalt/platform/compiler.hpp"
+#include "halo/ggml/ggml_common.h"
+#include "halo/platform/compiler.hpp"
 
 #include <immintrin.h>
 
@@ -26,7 +26,7 @@
 #include <cstdlib>
 #include <cstring>
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 namespace {
 
 inline float h2f(uint16_t h) { return _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128((int) h))); }
@@ -580,4 +580,4 @@ void iq_exact_512_rows(int type, const uint8_t* w, size_t row_bytes, int n, cons
     exact_rows_nt(type, w, row_bytes, n, act, nt, out, r0, r1);
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

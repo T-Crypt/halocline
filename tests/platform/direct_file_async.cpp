@@ -1,6 +1,6 @@
-#include "basalt/platform/direct_file.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/mapped_file.hpp"
+#include "halo/platform/direct_file.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/mapped_file.hpp"
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -14,8 +14,8 @@
 #include <thread>
 #include <vector>
 #include <unistd.h>
-using basalt::platform::DirectFile;
-using basalt::platform::Completion;
+using halo::platform::DirectFile;
+using halo::platform::Completion;
 
 static void check(bool ok, const char* why) { if (!ok) throw std::runtime_error(why); }
 struct FileCloser { void operator()(std::FILE* f) const { std::fclose(f); } };
@@ -30,14 +30,14 @@ static void call_ok(bool ok, const std::string& error, const char* what) {
 /// the test needs. The build directory is where CMake points it, since a temporary directory is not always
 /// writable for a test run from a build tree.
 static std::string temp_path() {
-#if defined(BASALT_TEST_TMPDIR)
-    const std::string base = BASALT_TEST_TMPDIR;
+#if defined(HALO_TEST_TMPDIR)
+    const std::string base = HALO_TEST_TMPDIR;
 #else
     const std::string base = "/tmp";
 #endif
     const unsigned long owner = (unsigned long) getpid();
     static std::atomic<unsigned> seq{0};
-    return base + "/basalt-direct-test-" + std::to_string(owner) + "-" + std::to_string(seq++) + ".bin";
+    return base + "/halo-direct-test-" + std::to_string(owner) + "-" + std::to_string(seq++) + ".bin";
 }
 
 /// A test file of `page_count` alignment-sized pages and an aligned buffer with spare pages for reads that start
@@ -70,7 +70,7 @@ struct Fixture {
 /// Two opens of one file with a bounded issuing pool: reads stay positional, stay on the open that queued them,
 /// and a close leaves neither an in-flight read nor a completion behind.
 static void test_bounded_opens() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     const uint32_t page = DirectFile::alignment();
     constexpr unsigned pages = 12;
     Fixture fx(pages, 0);
@@ -136,7 +136,7 @@ static void test_bounded_opens() {
           "reopened read returned incorrect data");
     second.close();
     check(!second.submit(0, fx.at(0), page, 0, error), "closed file accepted a read that cannot complete");
-    check(!second.open("basalt-direct-test-no-such-file.bin", error, 1) && !second.is_open(),
+    check(!second.open("halo-direct-test-no-such-file.bin", error, 1) && !second.is_open(),
           "open of a missing file accepted");
     check(!second.open(fx.name, error, -1) && !second.is_open(), "negative worker count accepted");
     check(!second.open(fx.name, error, 257) && !second.is_open(), "excessive worker count accepted");
@@ -145,7 +145,7 @@ static void test_bounded_opens() {
 /// A file the process also maps and reads through a cached descriptor, read with either open: every read completes
 /// once with the file's bytes, including the short last page and reads past the end.
 static void test_mapped_elsewhere() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     const uint32_t page = DirectFile::alignment();
     constexpr unsigned pages = 40, tail = 123, past_end = 4;
     Fixture fx(pages + 1, 0);

@@ -1,12 +1,12 @@
 #pragma once
 
 #include "common.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
 #include <atomic>
 #include <cstdio>
 #include <string>
 
-namespace basalt::core::verify_detail {
+namespace halo::core::verify_detail {
 constexpr int kLiveMax = 16;
 extern std::atomic<Verifier*> g_live[kLiveMax];
 extern std::atomic<const Verifier*> g_diag_verifier;

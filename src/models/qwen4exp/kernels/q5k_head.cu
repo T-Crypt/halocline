@@ -1,10 +1,10 @@
-// src/models/qwen4exp/kernels/q5k_head.cu - see include/basalt/models/qwen4exp/kernels/q5k_head.hpp.
+// src/models/qwen4exp/kernels/q5k_head.cu - see include/halo/models/qwen4exp/kernels/q5k_head.hpp.
 //
 // Built with --use_fast_math like native_mmvq.cu, whose Q5_K x q8_1 dot this repeats.
-#include "basalt/models/qwen4exp/kernels/q5k_head.hpp"
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/packed_byte.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/q5k_head.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/packed_byte.hpp"
+#include "halo/kernels/pdl.hpp"
 #include "head_proxy.cuh"
 #include "smem_opt_in.cuh"
 
@@ -15,9 +15,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int QK = 256, Q8K = 32, WARP = 32;
@@ -398,7 +398,7 @@ bool q5k_head_top1(const void* weights, const void* x_q8_1, float* y, int n_in, 
                (const Q81Block*) x_q8_1, y, n_out, map, out_id, out_prob, part, count);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q5k_head_top1: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q5k_head_top1: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     return true;
@@ -418,7 +418,7 @@ void q5k_head_mask_unmapped(float* y, const int32_t* map, int n, void* stream) {
 
 void q5k_head_mmvq(const void* weights, const void* x_q8_1, float* y, int n_in, int n_out, int ncols, void* stream) {
     if (!q5k_head_supported(n_in, ncols) || n_out <= 0 || !weights || !x_q8_1 || !y) {
-        basalt::log::error("basalt", "q5k_head_mmvq: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
+        halo::log::error("halo", "q5k_head_mmvq: unsupported shape (n_in %d, ncols %d)", n_in, ncols);
         std::exit(1);
     }
     const auto s = (cudaStream_t) stream;
@@ -434,7 +434,7 @@ void q5k_head_mmvq(const void* weights, const void* x_q8_1, float* y, int n_in, 
     }
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q5k_head_mmvq: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q5k_head_mmvq: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -516,7 +516,7 @@ void q5k_proxy_pack(const void* q5k_rows, int64_t row0, int64_t n, void* proxy, 
         (const uint8_t*) q5k_rows, row0, n, (uint4*) proxy, px::scales(proxy, n_cap));
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q5k_proxy_pack: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q5k_proxy_pack: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -536,10 +536,10 @@ bool q5k_proxy_top1(const void* proxy, const void* q5k_rows, const void* x_q8_1,
                (const Q81Block*) x_q8_1, tiles, map, (const float2*) cand, (const float2*) part, out_id, out_prob);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "q5k_proxy_top1: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "q5k_proxy_top1: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     return true;
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

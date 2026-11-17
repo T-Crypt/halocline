@@ -1,15 +1,15 @@
-// src/model/rope_flags.cpp - see basalt/model/rope_flags.hpp.
-#include "basalt/model/rope_flags.hpp"
+// src/model/rope_flags.cpp - see halo/model/rope_flags.hpp.
+#include "halo/model/rope_flags.hpp"
 
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/log.hpp"
-#include "basalt/model/flags.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/log.hpp"
+#include "halo/model/flags.hpp"
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
-namespace basalt::model {
+namespace halo::model {
 
 bool parse_rope_flag(const std::string& a, FlagArgs& args, RopeFlags& r) {
     if (a == "--rope-scaling") r.type = args.next("--rope-scaling");
@@ -41,26 +41,26 @@ std::string rope_flag_words(const RopeFlags& r) {
 // start here rather than becoming a NaN angle in a rotation.
 std::optional<int> check_rope_flags(const RopeFlags& r, const char* area) {
     if (!r.type.empty() && r.type != "none" && r.type != "linear" && r.type != "yarn") {
-        basalt::log::error(area, "--rope-scaling must be none, linear or yarn (got '%s')", r.type.c_str());
+        halo::log::error(area, "--rope-scaling must be none, linear or yarn (got '%s')", r.type.c_str());
         return 2;
     }
     // every knob FINITE first: `atof("nan")` is NaN, and a NaN passes every range comparison below
     for (const double v : {r.scale, r.freq_base, r.freq_scale, r.orig_ctx, r.ext_factor, r.attn_factor, r.beta_fast, r.beta_slow})
         if (!std::isfinite(v)) {
-            basalt::log::error(area, "a rope scaling knob is not a finite number (%g)", v);
+            halo::log::error(area, "a rope scaling knob is not a finite number (%g)", v);
             return 2;
         }
     // 0 is the absent default; an explicit factor must extend, not shrink
     if (r.scale != 0 && r.scale < 1.0) {
-        basalt::log::error(area, "--rope-scale %g must be >= 1 (it extends the context, not shrinks it)", r.scale);
+        halo::log::error(area, "--rope-scale %g must be >= 1 (it extends the context, not shrinks it)", r.scale);
         return 2;
     }
     if (r.freq_base != 0 && r.freq_base <= 1.0) {
-        basalt::log::error(area, "--rope-freq-base must be a base above 1 (0 = the model's)");
+        halo::log::error(area, "--rope-freq-base must be a base above 1 (0 = the model's)");
         return 2;
     }
     if (r.freq_scale < 0 || r.orig_ctx < 0 || r.ext_factor < -1.0 || r.attn_factor <= 0 || r.beta_fast <= 0 || r.beta_slow <= 0) {
-        basalt::log::error(area, "invalid rope scaling knob (see usage: --yarn-ext-factor <0 = auto, "
+        halo::log::error(area, "invalid rope scaling knob (see usage: --yarn-ext-factor <0 = auto, "
                                  "--yarn-orig-ctx 0 = default, the rest positive)");
         return 2;
     }
@@ -111,7 +111,7 @@ bool resolve_rope_scaling(const RopeFlags& f, const RopeKeys& k, int64_t max_con
         c.freq_base = base;
         c.orig_ctx = orig;
         if (knobs)
-            basalt::log::info(area, "note: no rope scaling is active (none), so --rope-scale, --rope-freq-scale and the "
+            halo::log::info(area, "note: no rope scaling is active (none), so --rope-scale, --rope-freq-scale and the "
                                     "--yarn-* knobs have no effect");
     }
     // the resolved config as a whole, with the one rule every rotation site also applies: the ranges cannot see a model
@@ -126,17 +126,17 @@ bool resolve_rope_scaling(const RopeFlags& f, const RopeKeys& k, int64_t max_con
     }
     out = c;
     if (c.type == RST::None) return true;
-    basalt::log::info(area, "rope scaling %s, factor %.6g (freq_scale %.6g, base %.6g, mscale %.6f), --max-context %lld "
+    halo::log::info(area, "rope scaling %s, factor %.6g (freq_scale %.6g, base %.6g, mscale %.6f), --max-context %lld "
                             "against a trained context of %.0f", c.type == RST::YaRN ? "yarn" : "linear", c.factor,
                       c.freq_scale(), c.freq_base, c.mscale(), (long long) max_context, c.orig_ctx);
     if ((double) max_context <= c.orig_ctx)
-        basalt::log::info(area, "note: the context is within the trained %.0f - no position needs the extension, and the "
+        halo::log::info(area, "note: the context is within the trained %.0f - no position needs the extension, and the "
                                 "resolved scaling still applies to every angle", c.orig_ctx);
     // only when there IS a magnitude correction: YaRN's log term (ext_factor != 0) or an explicit --yarn-attn-factor
     if (c.mscale() != 1.0)
-        basalt::log::info(area, "note: the %s magnitude correction scales cos and sin by %.6f at every position",
+        halo::log::info(area, "note: the %s magnitude correction scales cos and sin by %.6f at every position",
                           c.type == RST::YaRN ? "YaRN" : "--yarn-attn-factor", c.mscale());
     return true;
 }
 
-}  // namespace basalt::model
+}  // namespace halo::model

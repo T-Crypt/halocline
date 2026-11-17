@@ -1,13 +1,13 @@
 #pragma once
 
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <string>
 
-namespace basalt::core::verify_detail {
+namespace halo::core::verify_detail {
 
 constexpr float EPS = 1e-6f;
 using Clock = std::chrono::steady_clock;
@@ -29,8 +29,8 @@ inline bool mapped(size_t bytes, void** h, void** d) {
     return cudaHostGetDevicePointer(d, *h, 0) == cudaSuccess;
 }
 
-inline basalt::kernels::QsaShapes shapes_of(const ModelGeometry& g) {
-    basalt::kernels::QsaShapes s = basalt::kernels::qsa_real_shapes();
+inline halo::kernels::QsaShapes shapes_of(const ModelGeometry& g) {
+    halo::kernels::QsaShapes s = halo::kernels::qsa_real_shapes();
     s.n_head = g.n_head;
     s.n_head_kv = g.n_head_kv;
     s.head_dim = g.head_dim;
@@ -62,4 +62,4 @@ void note_fallback(const char* what, int a, int b);
 void dense_proj(int bit, int type, const void* w, const void* xq, float* y, int n_in, int n_out, int n, void* s);
 double card_bandwidth(int dev);
 
-}  // namespace basalt::core::verify_detail
+}  // namespace halo::core::verify_detail

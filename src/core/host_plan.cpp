@@ -1,14 +1,14 @@
-// src/core/host_plan.cpp - see include/basalt/core/host_plan.hpp.
-#include "basalt/core/host_plan.hpp"
+// src/core/host_plan.cpp - see include/halo/core/host_plan.hpp.
+#include "halo/core/host_plan.hpp"
 
-#include "basalt/platform/memory.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cstring>
 #include <mutex>
 #include <utility>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 
 namespace {
 std::mutex g_mu;
@@ -61,4 +61,4 @@ uint64_t host_plan_release() {
     return n;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

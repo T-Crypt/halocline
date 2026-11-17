@@ -1,6 +1,6 @@
-"""`basalt serve` hands the Python server what was typed, with only a leading MODEL.basalt turned into --model.
+"""`halo serve` hands the Python server what was typed, with only a leading MODEL.basalt turned into --model.
 
-    BASALT_BIN=bin/basalt python3 -m unittest tools.test_serve_launcher
+    HALO_BIN=bin/halo python3 -m unittest tools.test_serve_launcher
 """
 import os
 import subprocess
@@ -9,10 +9,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE = Path(os.environ.get("BASALT_BIN", ROOT / "bin" / "basalt")).resolve()
+ENGINE = Path(os.environ.get("HALO_BIN", ROOT / "bin" / "halo")).resolve()
 
 
-@unittest.skipUnless(ENGINE.is_file(), "build bin/basalt first")
+@unittest.skipUnless(ENGINE.is_file(), "build bin/halo first")
 class ServeLauncher(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

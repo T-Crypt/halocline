@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_seg.hpp"
-#include "basalt/models/qwen4exp/kernels/mrope.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_seg.hpp"
+#include "halo/models/qwen4exp/kernels/mrope.hpp"
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 #include <cmath>
@@ -29,7 +29,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 constexpr int D = 128, R = 4, ROT = 64, THREADS = 256;
 __device__ float warp_sum(float x) {
@@ -367,4 +367,4 @@ void native_qsa_indexer_append_batch(const float* raw, int64_t n, int64_t p0, in
     const auto error = cudaGetLastError();
     if (error != cudaSuccess) throw std::runtime_error(cudaGetErrorString(error));
 }
-} // namespace basalt::kernels
+} // namespace halo::kernels

@@ -11,7 +11,7 @@
 
 #include "schema_internal.hpp"
 
-namespace basalt::program::grammar {
+namespace halo::program::grammar {
 
 namespace {
 
@@ -1014,4 +1014,4 @@ std::string schema_document_to_gbnf(const SchemaDocument& doc) {
     return converter.format_grammar();
 }
 
-}  // namespace basalt::program::grammar
+}  // namespace halo::program::grammar

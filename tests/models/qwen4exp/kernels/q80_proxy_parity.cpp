@@ -8,12 +8,12 @@
 //   4. Cold microbench at the draft head's shape: q80_proxy_top1 against the streamed head + mask + top-prob it
 //      replaces.
 //   q80_proxy_parity [head rows] [trials]
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/q5k_head.hpp"
-#include "basalt/models/qwen4exp/kernels/q80_proxy.hpp"
-#include "basalt/models/qwen4exp/kernels/q80_vhead.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/q5k_head.hpp"
+#include "halo/models/qwen4exp/kernels/q80_proxy.hpp"
+#include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -26,7 +26,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

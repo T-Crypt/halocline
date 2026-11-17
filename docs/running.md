@@ -1,6 +1,9 @@
 # Running the server
 
-Settings: [configuration](configuration/index.md). Diagnostic flags: `bin/basalt --help`. Several models: [models and the router](configuration/models.md).
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
+
+Settings: [configuration](configuration/index.md). Diagnostic flags: `bin/halo --help`. Several models: [models and the router](configuration/models.md).
 
 ## Start-up
 
@@ -47,9 +50,9 @@ Each request ends with one `done` line:
 - `end`: `stop`, `length`, `cancelled`, `disconnect` or `error`.
 - `hit`: expert cache hit rate. `pcie`: share of routed experts read over PCIe.
 
-The engine's own `basalt ...` lines go to `~/.cache/basalt/<id>/engine.log`, one folder per model file (`<id>` is 16 hex digits
+The engine's own `halo ...` lines go to `~/.cache/halo/<id>/engine.log`, one folder per model file (`<id>` is 16 hex digits
 taken from the file); `[server] engine log: PATH` names it when the engine fails to start. The folder also holds the conversation
-cache. Nothing is unpacked from the model file: the server reads the tokenizer from its sections, and the engine and `basalt-vision`
+cache. Nothing is unpacked from the model file: the server reads the tokenizer from its sections, and the engine and `halo-vision`
 read the vision projector inside it.
 
 ## The stats page
@@ -85,7 +88,7 @@ free RAM with 8 GiB to spare. `--idle-unload` ends the process instead.
 
 ## Memory floors
 
-Basalt refuses settings that would leave the machine without memory, and never shrinks what you asked for:
+Halocline refuses settings that would leave the machine without memory, and never shrinks what you asked for:
 
 - `--vram-reserve-mib` below 256 is refused on Windows and WSL2 (128 on Linux): less free VRAM makes the driver page GPU memory.
 - `--ram-reserve-mib` (default 2048) is the RAM left free for the rest of the system. The engine allocates its host buffers
@@ -105,7 +108,7 @@ Basalt refuses settings that would leave the machine without memory, and never s
 
 ## Vision: `--vision`
 
-`--vision off | dynamic | cpu | <GPU number>` (config: `"vision"` in `server`). The encoder is Basalt's own, and all modes give bitwise
+`--vision off | dynamic | cpu | <GPU number>` (config: `"vision"` in `server`). The encoder is Halocline's own, and all modes give bitwise
 identical embeddings. All of them read the projector in place from the model file's `vision/mmproj` section. The text can still
 differ between modes: the sidecar's VRAM cost shrinks the expert cache, and which experts run on the GPU or the CPU shifts the
 last bits of the logits, so a greedy answer can fork after some tokens (`dynamic` does the same with a different cache size).
@@ -113,7 +116,7 @@ last bits of the logits, so a greedy answer can fork after some tokens (`dynamic
 | Mode | Encoder runs | VRAM cost | Fresh-image TTFT (IQ3_S, 400 W): 1k / 3k / 4k image tokens |
 | --- | --- | --- | --- |
 | `off` | none | none | |
-| GPU number | sidecar `bin/basalt-vision` on that card | about 2.2 GiB of its expert cache | 0.77 s / 1.4 s / 1.8 s |
+| GPU number | sidecar `bin/halo-vision` on that card | about 2.2 GiB of its expert cache | 0.77 s / 1.4 s / 1.8 s |
 | `dynamic` | inside the engine, on the main GPU | none at rest (0.85 GiB pinned RAM) | 0.77 s / 1.45 s / 1.8 s |
 | `cpu` | sidecar on the CPU | none | about 6 s / 40 s / 70 s |
 

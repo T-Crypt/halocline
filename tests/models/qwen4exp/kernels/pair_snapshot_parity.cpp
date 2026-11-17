@@ -23,12 +23,12 @@
 #include <thread>
 #include <vector>
 
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 namespace {
 
-using namespace basalt::kernels;
+using namespace halo::kernels;
 
 constexpr int kKeyDim = 128;       // the model's indexer key dimension
 constexpr int kRows = 4;           // pooled rows a window's commit can complete

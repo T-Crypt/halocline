@@ -16,14 +16,14 @@
 // leave, the last one runs on an SM they free, the launch ends cleanly, and the next launch is bitwise again.  The mid_chain_hold build has a short bound for this.
 //
 // On compute capability 8.9 the test is the arm of the mid chain's own kernel there (mid_chain_ada.cu): see ada_main.
-#include "basalt/kernels/gdn_window.hpp"
-#include "basalt/models/qwen4exp/kernels/dense_tc.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/mid_chain.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/kernels/wait_abort.hpp"
+#include "halo/kernels/gdn_window.hpp"
+#include "halo/models/qwen4exp/kernels/dense_tc.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/mid_chain.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/wait_abort.hpp"
 
 #include <cuda_runtime.h>
 
@@ -39,7 +39,7 @@
 #include <string>
 #include <vector>
 
-namespace K = basalt::kernels;
+namespace K = halo::kernels;
 
 #ifndef MKB_NS
 #define MKB_NS 2000000000ull   // the kernel's wait bound (attn_chain_bound.cuh)

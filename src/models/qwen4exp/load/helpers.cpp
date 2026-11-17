@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "helpers.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 // A byte count in GiB with one decimal, rounded down (a safe limit must not round up past itself).
 std::string gib_text(uint64_t bytes) {
@@ -10,9 +10,9 @@ std::string gib_text(uint64_t bytes) {
     return buf;
 }
 
-// A start-ending failure: one `basalt error:` line, which the server shows as the reason.  Returns the exit code.
+// A start-ending failure: one `halo error:` line, which the server shows as the reason.  Returns the exit code.
 int fatal_start_error(const std::string& text) {
-    basalt::log::error("basalt", "%s", text.c_str());
+    halo::log::error("halo", "%s", text.c_str());
     return 1;
 }
 // " (N MiB of M MiB VRAM free on this GPU)" for an allocation's failure message (clears the error first)
@@ -30,10 +30,10 @@ std::string vram_free_note() {
 }
 
 /// Calls `f` with the tensor name of every row of a pack index (the first field of each non-comment line).
-bool for_each_index_name(const basalt::core::FileRange& index, const std::function<void(const std::string&)>& f) {
+bool for_each_index_name(const halo::core::FileRange& index, const std::function<void(const std::string&)>& f) {
     std::vector<uint8_t> raw;
     std::string err;
-    if (!basalt::core::read_range(index, raw, err)) return false;
+    if (!halo::core::read_range(index, raw, err)) return false;
     const std::string text(raw.begin(), raw.end());
     size_t at = 0;
     while (at < text.size()) {

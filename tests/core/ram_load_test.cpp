@@ -1,7 +1,7 @@
 // The shared RAM loader: both layouts place every blob where the plan says, on any alignment, with or without the OS cache.
-#include "basalt/core/ram_load.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/core/ram_load.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -11,7 +11,7 @@
 #include <vector>
 #include <utility>
 
-using namespace basalt::core;
+using namespace halo::core;
 
 namespace {
 
@@ -30,13 +30,13 @@ struct File {
     explicit File(uint64_t n) : path((std::filesystem::temp_directory_path() / "ram_load_test.bin").string()), bytes(n) {
         std::mt19937_64 rng(7);
         for (uint8_t& b : bytes) b = (uint8_t) rng();
-        std::FILE* f = basalt::platform::open_file_utf8(path, "wb");
+        std::FILE* f = halo::platform::open_file_utf8(path, "wb");
         std::fwrite(bytes.data(), 1, bytes.size(), f);
         std::fclose(f);
-        fd = basalt::platform::open_fd_utf8(path);
+        fd = halo::platform::open_fd_utf8(path);
     }
     ~File() {
-        basalt::platform::close_fd(fd);
+        halo::platform::close_fd(fd);
         std::filesystem::remove(path);
     }
 };
@@ -109,7 +109,7 @@ void arena_case(uint64_t base, uint64_t blob, bool unbuffered, int threads) {
             check(std::memcmp(mem + off, f.bytes.data() + g.file_pos(l, e), (size_t) g.blob_bytes[(size_t) l]) == 0,
                   "arena blob matches the file");
         }
-    basalt::platform::free_aligned(mem);
+    halo::platform::free_aligned(mem);
 }
 
 void span_case(uint64_t base, uint64_t blob) {
@@ -151,7 +151,7 @@ void span_case(uint64_t base, uint64_t blob) {
                                   f.bytes.data() + g.file_pos(l, e), (size_t) g.blob_bytes[(size_t) l]) == 0,
                       "span blob matches the file");
         }
-    for (uint8_t* p : spans) basalt::platform::free_aligned(p);
+    for (uint8_t* p : spans) halo::platform::free_aligned(p);
 }
 
 void fallback_case() {

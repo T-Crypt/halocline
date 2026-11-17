@@ -1,16 +1,16 @@
 // src/core/expert_source.cpp - the adapter.  See the header for the three clauses of the contract.
-#include "basalt/core/expert_source.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/core/expert_source.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
-#include "basalt/core/pinned.hpp"
-#include "basalt/core/ram_load.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/direct_file.hpp"
-#include "basalt/platform/memory.hpp"
-#include "basalt/platform/system.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/kernels/quantize_act.hpp"
+#include "halo/core/pinned.hpp"
+#include "halo/core/ram_load.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/direct_file.hpp"
+#include "halo/platform/memory.hpp"
+#include "halo/platform/system.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/kernels/quantize_act.hpp"
 
 #include <cuda_runtime.h>
 
@@ -31,9 +31,9 @@
 #include <thread>
 #include <utility>
 #include <vector>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 namespace detail {
 
@@ -170,8 +170,8 @@ bool home_region_used(const HomeRegion& r, const std::vector<uint64_t>& offsets)
 namespace {
 
 bool available_memory_bytes(uint64_t& bytes) {
-    basalt::platform::HostMemory m;
-    if (!basalt::platform::host_available_memory(m)) return false;
+    halo::platform::HostMemory m;
+    if (!halo::platform::host_available_memory(m)) return false;
     bytes = m.available;
     return bytes > 0;
 }
@@ -186,7 +186,7 @@ FileExpertSource::~FileExpertSource() { advise_worker_.reset(); close(); }
 bool FileExpertSource::open(const FileRange& experts, int64_t n_layers, int64_t n_expert, std::string& err) {
     close();
     if (n_layers <= 0 || n_expert <= 0) { err = "FileExpertSource: the geometry is empty"; return false; }
-    const auto& layout = basalt::kernels::cpu::expert_layout();
+    const auto& layout = halo::kernels::cpu::expert_layout();
     if (layout.n_layers != n_layers || layout.n_expert != n_expert) {
         err = "FileExpertSource: the requested geometry does not match the loaded expert layout";
         return false;
@@ -283,22 +283,22 @@ void FileExpertSource::close() {
         else {
             if (complement_partial_) unregister_complement();
             if (complement_locked_ > 0)
-                basalt::platform::unlock_resident((uint8_t*) complement_arena_ + complement_lock_off_, complement_locked_);
+                halo::platform::unlock_resident((uint8_t*) complement_arena_ + complement_lock_off_, complement_locked_);
             if (complement_allocation_.data()) complement_allocation_.reset();
-            else basalt::platform::free_aligned(complement_arena_);
+            else halo::platform::free_aligned(complement_arena_);
         }
     }
     if (top_arena_ != nullptr) {
         if (top_pinned_) (void) cudaFreeHost(top_arena_);
         else {
-            if (top_locked_ > 0) basalt::platform::unlock_resident(top_arena_, top_locked_);
+            if (top_locked_ > 0) halo::platform::unlock_resident(top_arena_, top_locked_);
             std::free(top_arena_);
         }
     }
     for (const detail::HomeRegion& r : homes_) {
         if (r.pinned) (void) cudaFreeHost(r.arena);
         else {
-            if (r.locked > 0) basalt::platform::unlock_resident(r.arena, r.locked);
+            if (r.locked > 0) halo::platform::unlock_resident(r.arena, r.locked);
             std::free(r.arena);
         }
     }
@@ -343,7 +343,7 @@ void FileExpertSource::close() {
     ram_reads_.store(0);
     file_read_bytes_.store(0);
     file_us_.store(0);
-    basalt::platform::ram_guard_reclaim_view(nullptr, 0);   // before the view is unmapped
+    halo::platform::ram_guard_reclaim_view(nullptr, 0);   // before the view is unmapped
     view_.reset();
     platform::close_fd(fd_);
     fd_ = -1;
@@ -363,7 +363,7 @@ void FileExpertSource::close() {
 bool ExpertSource::copy_blob(int64_t layer, int64_t expert, uint8_t* dst) {
     const uint8_t* b = blob(layer, expert);
     if (b == nullptr || dst == nullptr) return false;
-    std::memcpy(dst, b, (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(layer));
+    std::memcpy(dst, b, (size_t) halo::kernels::cpu::expert_layout().blob_bytes(layer));
     return true;
 }
 
@@ -399,7 +399,7 @@ bool FileExpertSource::read_blobs(const std::pair<int32_t, int32_t>* pairs, int6
     const BlobSink drop_after = [&](int64_t i, int w, const uint8_t* blob, std::string& e) {
         if (!sink(i, w, blob, e)) return false;
         if (blob >= base_ && blob < base_ + mapped_bytes_)
-            (void) basalt::platform::drop_mapped_view(base_, mapped_bytes_, (uint64_t) (blob - base_),
+            (void) halo::platform::drop_mapped_view(base_, mapped_bytes_, (uint64_t) (blob - base_),
                                                       layer_blob_bytes_[(size_t) pairs[i].first]);
         return true;
     };
@@ -511,7 +511,7 @@ bool fill_cache_slots(ExpertSource& src, ExpertCache& cache, int device, const s
         cudaSetDevice(prev);
         return false;
     }
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     const bool done = src.read_blobs(pairs, n, [&](int64_t i, int w, const uint8_t* blob, std::string& e) {
         if (cudaSetDevice(device) != cudaSuccess) { e = "cannot select the device for the cache fill"; return false; }
         const int64_t bytes = (int64_t) lay.blob_bytes(pairs[i].first);
@@ -526,14 +526,14 @@ bool fill_cache_slots(ExpertSource& src, ExpertCache& cache, int device, const s
 }
 
 bool FileExpertSource::advise_pairs(const std::pair<int32_t, int32_t>* pairs, int64_t n) const {
-    if (base_ == nullptr || !basalt::platform::read_ahead_enabled()) return false;
+    if (base_ == nullptr || !halo::platform::read_ahead_enabled()) return false;
     for (int64_t i = 0; pairs != nullptr && i < n; ++i) {
         const int64_t l = pairs[i].first, e = pairs[i].second;
         if (l < 0 || e < 0 || l >= n_layers_ || e >= n_expert_) continue;
         // an expert held in RAM is not read from the file
         if (complement_ready_ && complement_offsets_[(size_t) l * (size_t) n_expert_ + (size_t) e] != kNoComplement)
             continue;
-        if (const uint8_t* b = mapped_blob(l, e)) basalt::platform::advise_willneed(b, layer_blob_bytes_[(size_t) l]);
+        if (const uint8_t* b = mapped_blob(l, e)) halo::platform::advise_willneed(b, layer_blob_bytes_[(size_t) l]);
     }
     return true;
 }
@@ -651,12 +651,12 @@ bool FileExpertSource::pin_cache_complement(
         const uint64_t room = ram_tier_room(physical, headroom_bytes, pin);
         if (budget_bytes > room) {
             if (what_fits)
-                basalt::log::info("basalt", "FileExpertSource: RAM room for the complement: %.2f GiB (%.2f GiB available "
+                halo::log::info("halo", "FileExpertSource: RAM room for the complement: %.2f GiB (%.2f GiB available "
                                      "minus %.0f GiB reserve and the page tracking)",
                              (double) room / 1073741824.0, (double) physical / 1073741824.0,
                              (double) headroom_bytes / 1073741824.0);
             else
-                basalt::log::warn("basalt", "FileExpertSource: --resident-budget-gib %.2f is more than the RAM has room for "
+                halo::log::warn("halo", "FileExpertSource: --resident-budget-gib %.2f is more than the RAM has room for "
                                      "(%.2f GiB available minus %.0f GiB reserve and the page tracking): %.2f GiB",
                              (double) budget_bytes / 1073741824.0, (double) physical / 1073741824.0,
                              (double) headroom_bytes / 1073741824.0, (double) room / 1073741824.0);
@@ -686,7 +686,7 @@ bool FileExpertSource::pin_cache_complement(
         // the budget holds every expert of the complement and the free places for the adaptive swaps: none is left to
         // the files, and the prompt path's lend region is kept in what the budget has left (a budget that holds the
         // experts but not the free places keeps them as before: the swaps would lose their places, #342, #366)
-        basalt::log::info("basalt", "FileExpertSource: RAM budget %.2f GiB holds the %.2f GiB of experts the GPU cache does "
+        halo::log::info("halo", "FileExpertSource: RAM budget %.2f GiB holds the %.2f GiB of experts the GPU cache does "
                              "not hold; the prompt path's lend region takes the rest of it",
                      (double) budget_bytes / 1073741824.0, (double) bytes / 1073741824.0);
         lend_cap = lend_room;
@@ -709,7 +709,7 @@ bool FileExpertSource::pin_cache_complement(
             err = "FileExpertSource: the RAM has no room for any expert of the complement";
             return false;
         }
-        basalt::log::info("basalt", "FileExpertSource: RAM budget %.2f GiB: %lld of the %.2f GiB of experts the GPU cache does "
+        halo::log::info("halo", "FileExpertSource: RAM budget %.2f GiB: %lld of the %.2f GiB of experts the GPU cache does "
                              "not hold, by profile rank; the rest are read from the files",
                      (double) budget_bytes / 1073741824.0, (long long) held, (double) bytes / 1073741824.0);
         offsets.swap(ranked);
@@ -765,8 +765,8 @@ bool FileExpertSource::pin_cache_complement(
     // The experts the GPU cache was filled from sit in the file cache and the mapping; give them back first, so the
     // arena below does not have to reclaim them while the drive is being read.
     if (bytes > 0) {
-        (void) basalt::platform::drop_mapped_view(base_, mapped_bytes_, 0, mapped_bytes_);
-        basalt::platform::advise_dontneed(fd_, file_off_, mapped_bytes_);
+        (void) halo::platform::drop_mapped_view(base_, mapped_bytes_, 0, mapped_bytes_);
+        halo::platform::advise_dontneed(fd_, file_off_, mapped_bytes_);
     }
 
     RamAllocation allocation;
@@ -792,14 +792,14 @@ bool FileExpertSource::pin_cache_complement(
                 if (slice_at.empty()) (void) cudaHostUnregister(arena);
                 else for (uint64_t off : slice_at) (void) cudaHostUnregister((uint8_t*) arena + off);
             }
-            if (locked > 0) basalt::platform::unlock_resident((uint8_t*) arena + lock_off, locked);
+            if (locked > 0) halo::platform::unlock_resident((uint8_t*) arena + lock_off, locked);
             if (allocation.data()) allocation.reset();
-            else basalt::platform::free_aligned(arena);
+            else halo::platform::free_aligned(arena);
         }
         arena = nullptr;
     };
     if (bytes > 0) {
-        basalt::log::info("basalt", "FileExpertSource: allocating %.2f GiB %s cache complement",
+        halo::log::info("halo", "FileExpertSource: allocating %.2f GiB %s cache complement",
                      (double) bytes / 1073741824.0, pin ? "page-locked" : "pageable resident");
         if (pin) {
             // Allocation-backed pins need no portable registration. Ordinary spans are registered after the read.
@@ -811,7 +811,7 @@ bool FileExpertSource::pin_cache_complement(
             }
         }
         if (arena == nullptr) {
-            arena = basalt::platform::alloc_aligned((size_t) bytes, kArenaAlign);
+            arena = halo::platform::alloc_aligned((size_t) bytes, kArenaAlign);
             if (arena == nullptr) {
                 err = "FileExpertSource: pageable resident complement allocation failed";
                 return false;
@@ -823,8 +823,8 @@ bool FileExpertSource::pin_cache_complement(
                 // set (the registered prefix is page-locked by the driver already - locking it twice made the next
                 // device allocation fail).
                 lock_off = partial_pin;
-                const basalt::platform::LockResult lr =
-                    basalt::platform::lock_resident((uint8_t*) arena + lock_off, bytes - lock_off);
+                const halo::platform::LockResult lr =
+                    halo::platform::lock_resident((uint8_t*) arena + lock_off, bytes - lock_off);
                 locked = lr.locked_bytes;
                 note += (note.empty() ? "" : "; ") + lr.note;
             }
@@ -889,14 +889,14 @@ bool FileExpertSource::pin_cache_complement(
         if (mapped_used) {   // the layer's pages are not kept in the file cache once copied
             const uint64_t layer_offset = layer_offsets_[(size_t) layer];
             const uint64_t layer_bytes = layer_blob_bytes_[(size_t) layer] * (uint64_t) n_expert_;
-            if (!basalt::platform::drop_mapped_view(base_, mapped_bytes_, layer_offset, layer_bytes)) {
+            if (!halo::platform::drop_mapped_view(base_, mapped_bytes_, layer_offset, layer_bytes)) {
                 e = "FileExpertSource: could not release mapped expert layer " + std::to_string(layer);
                 return false;
             }
-            basalt::platform::advise_dontneed(fd_, file_off_ + layer_offset, layer_bytes);
+            halo::platform::advise_dontneed(fd_, file_off_ + layer_offset, layer_bytes);
         }
         if (done % 8 == 0 || done == n_layers_)
-            basalt::log::info("basalt", "FileExpertSource: copied cache complement through layer %lld/%lld (%.2f GiB, %.0f s)",
+            halo::log::info("halo", "FileExpertSource: copied cache complement through layer %lld/%lld (%.2f GiB, %.0f s)",
                          (long long) done, (long long) n_layers_, (double) copied / 1073741824.0,
                          std::chrono::duration<double>(std::chrono::steady_clock::now() - copy_t0).count());
         return true;
@@ -944,7 +944,7 @@ bool FileExpertSource::pin_cache_complement(
     progress.finish();
     {
         const double read_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - copy_t0).count();
-        basalt::log::info("basalt", "FileExpertSource: cache complement: allocation %.1f s, read %.1f s (%.2f GB/s, %.1f%% unbuffered), registration %.1f s",
+        halo::log::info("halo", "FileExpertSource: cache complement: allocation %.1f s, read %.1f s (%.2f GB/s, %.1f%% unbuffered), registration %.1f s",
                      alloc_s, read_done_s, read_done_s > 0 ? (double) read.copied / 1e9 / read_done_s : 0.0,
                      read.copied > 0 ? 100.0 * (double) read.unbuffered / (double) read.copied : 0.0,
                      read_s - read_done_s);
@@ -971,24 +971,24 @@ bool FileExpertSource::pin_cache_complement(
         for (const auto& [b, n] : spare_sizes)
             for (int64_t i = 0; i < n; ++i, at += b) spare_free_.emplace_back(at, b);
         if (!spare_sizes.empty())
-            basalt::log::info("basalt", "FileExpertSource: %lld free places for the adaptive swaps (%zu blob sizes, %.0f MiB)",
+            halo::log::info("halo", "FileExpertSource: %lld free places for the adaptive swaps (%zu blob sizes, %.0f MiB)",
                          (long long) spare_free_.size(), spare_sizes.size(), (double) (at - spare_at) / 1048576.0);
     }
     complement_ready_ = true;
     // The GPU cache's experts are not in the complement: refilling a lent slot reads them through the view again.
-    basalt::platform::ram_guard_reclaim_view(base_, mapped_bytes_);
-    basalt::log::info("basalt", "FileExpertSource: %s cache complement ready: resident %.2f GiB, pinned %.2f GiB in %.0f s%s%s",
+    halo::platform::ram_guard_reclaim_view(base_, mapped_bytes_);
+    halo::log::info("halo", "FileExpertSource: %s cache complement ready: resident %.2f GiB, pinned %.2f GiB in %.0f s%s%s",
                  complement_pinned_ ? "mapped pinned" : pin ? "locked resident" : "pageable resident",
                  (double) resident_bytes() / 1073741824.0, (double) pinned_bytes() / 1073741824.0,
                  std::chrono::duration<double>(std::chrono::steady_clock::now() - pin_t0).count(),
                  note.empty() ? "" : "; ", note.c_str());
     if (lend)
-        basalt::log::info("basalt", "FileExpertSource: %lld of the prompt path's %lld lendable slots keep their experts in RAM "
+        halo::log::info("halo", "FileExpertSource: %lld of the prompt path's %lld lendable slots keep their experts in RAM "
                              "too%s", (long long) complement_lent_slots_, (long long) (n_slots - lend_from_slot),
                      complement_lent_slots_ < n_slots - lend_from_slot
                          ? " (the others are read from the file when lent: not enough RAM for them)" : "");
     if (!additional_gpu_pairs.empty()) {
-        basalt::log::info("basalt", "FileExpertSource: %zu experts held only by another GPU are not kept here (read from the "
+        halo::log::info("halo", "FileExpertSource: %zu experts held only by another GPU are not kept here (read from the "
                              "file when needed)",
                      additional_gpu_pairs.size());
     }
@@ -1022,7 +1022,7 @@ bool FileExpertSource::homes_take(const std::vector<std::pair<int32_t, int32_t>>
     }
     if (total == 0) return true;
     // the RAM left over keeps the homes reserve free above the reserve (what the guard stops a request at)
-    const uint64_t budget = basalt::platform::ram_budget();
+    const uint64_t budget = halo::platform::ram_budget();
     if (total > budget || homes_reserve_ > budget - total) {
         const uint64_t room = budget > homes_reserve_ ? budget - homes_reserve_ : 0;
         err = "the experts the cache gives back need " + std::to_string((total + (1u << 20) - 1) >> 20) +
@@ -1063,7 +1063,7 @@ bool FileExpertSource::homes_take(const std::vector<std::pair<int32_t, int32_t>>
                 return false;
             }
             if (complement_locked_ > 0 || top_locked_ > 0)
-                r.locked = basalt::platform::lock_resident(r.arena, bytes).locked_bytes;
+                r.locked = halo::platform::lock_resident(r.arena, bytes).locked_bytes;
         }
         r.base = homes_next_;
         homes_next_ += bytes;
@@ -1118,7 +1118,7 @@ uint64_t FileExpertSource::homes_reclaim() {
                           spare_free_.end());
         if (r.pinned) (void) cudaFreeHost(r.arena);
         else {
-            if (r.locked > 0) basalt::platform::unlock_resident(r.arena, r.locked);
+            if (r.locked > 0) halo::platform::unlock_resident(r.arena, r.locked);
             std::free(r.arena);
         }
         freed += r.bytes;
@@ -1171,8 +1171,8 @@ uint64_t FileExpertSource::top_up(const std::vector<std::pair<int32_t, int32_t>>
                                   const std::function<bool(int32_t, int32_t)>& skip, bool pin, int64_t& count) {
     count = 0;
     if (!complement_ready_ || top_arena_ != nullptr || !override_.empty() || !staged_.empty()) return 0;
-    basalt::platform::HostMemory hm;
-    const uint64_t avail = basalt::platform::host_available_memory(hm) ? hm.available : 0;
+    halo::platform::HostMemory hm;
+    const uint64_t avail = halo::platform::host_available_memory(hm) ? hm.available : 0;
     if (avail == 0) return 0;
     // the experts no tier holds; what of them stays in the file keeps the file cache's floor free beside the reserve
     uint64_t want = 0;
@@ -1180,7 +1180,7 @@ uint64_t FileExpertSource::top_up(const std::vector<std::pair<int32_t, int32_t>>
         for (int32_t e = 0; e < (int32_t) n_expert_; ++e)
             if (complement_offsets_[(size_t) l * (size_t) n_expert_ + (size_t) e] == kNoComplement && !skip(l, e))
                 want += layer_blob_bytes_[(size_t) l];
-    const uint64_t reserve = plan_reserve(basalt::platform::ram_reserve());
+    const uint64_t reserve = plan_reserve(halo::platform::ram_reserve());
     const uint64_t room = ram_tier_room(avail, reserve + file_cache_keep(avail, reserve, pin, want, file_cache_), pin);
     // hottest first, as many as fit
     std::vector<std::pair<int32_t, int32_t>> pick;
@@ -1223,7 +1223,7 @@ uint64_t FileExpertSource::top_up(const std::vector<std::pair<int32_t, int32_t>>
     if (arena == nullptr) {
         arena = std::malloc((size_t) total);
         if (arena == nullptr) return 0;
-        if (pin) locked = basalt::platform::lock_resident(arena, total).locked_bytes;
+        if (pin) locked = halo::platform::lock_resident(arena, total).locked_bytes;
     }
     RamLoad load;
     load.fd = fd_;
@@ -1242,7 +1242,7 @@ uint64_t FileExpertSource::top_up(const std::vector<std::pair<int32_t, int32_t>>
     if (!read_ram_runs(load, read, read_err)) {
         if (pinned_ok) (void) cudaFreeHost(arena);
         else {
-            if (locked > 0) basalt::platform::unlock_resident(arena, locked);
+            if (locked > 0) halo::platform::unlock_resident(arena, locked);
             std::free(arena);
         }
         return 0;
@@ -1476,7 +1476,7 @@ struct FileExpertSource::AdviseWorker {
 };
 
 void FileExpertSource::advise_cpu(int64_t layer, const int32_t* ids, int64_t n) const {
-    if (base_ == nullptr || ids == nullptr || n <= 0 || !basalt::platform::read_ahead_enabled()) return;
+    if (base_ == nullptr || ids == nullptr || n <= 0 || !halo::platform::read_ahead_enabled()) return;
     std::call_once(advise_once_, [this] { advise_worker_.reset(new AdviseWorker(this)); });
     AdviseWorker& w = *advise_worker_;
     {
@@ -1640,10 +1640,10 @@ void hash_text(uint64_t& h, const std::string& s) {
 }
 
 // The fingerprint of the model's experts: the index and the layout in full, the experts sampled.
-bool shared_arena_range_hash(const ExpertFiles& files, const basalt::kernels::cpu::ExpertLayout& lay, uint64_t& out,
+bool shared_arena_range_hash(const ExpertFiles& files, const halo::kernels::cpu::ExpertLayout& lay, uint64_t& out,
                              std::string& err) {
     uint64_t h = 1469598103934665603ull;
-    hash_text(h, "basalt-shared-expert-arena-pack-v1");
+    hash_text(h, "halo-shared-expert-arena-pack-v1");
     hash_u64(h, (uint64_t) lay.n_layers);
     hash_u64(h, (uint64_t) lay.n_expert);
     hash_u64(h, lay.total);
@@ -1688,7 +1688,7 @@ bool ArenaExpertSource::open(const ExpertFiles& files_in, int64_t n_layers, int6
     close();
     const std::string& path = files_in.experts.path;
     // the layout (the per-layer blobs) was loaded by the driver
-    const basalt::kernels::cpu::ExpertLayout& lay = basalt::kernels::cpu::expert_layout();
+    const halo::kernels::cpu::ExpertLayout& lay = halo::kernels::cpu::expert_layout();
     if (lay.n_layers != n_layers || lay.n_expert != n_expert) {
         err = "ArenaExpertSource: the expert layout was loaded for a different geometry";
         return false;
@@ -1720,7 +1720,7 @@ bool ArenaExpertSource::open(const ExpertFiles& files_in, int64_t n_layers, int6
     // still exiting) is refused as well, with the numbers: the arena is locked resident, so the room is needed up front.
     ram_warning_.clear();
     // (a shared arena, --shared-expert-arena, may already be in RAM for another engine: not checked)
-    if (basalt::platform::HostMemory hm; shared_arena_file.empty() && basalt::platform::host_available_memory(hm)) {
+    if (halo::platform::HostMemory hm; shared_arena_file.empty() && halo::platform::host_available_memory(hm)) {
         const uint64_t need = want + (uint64_t) blob;
         const double gib = 1073741824.0;
         char buf[512];
@@ -1769,7 +1769,7 @@ bool ArenaExpertSource::open(const ExpertFiles& files_in, int64_t n_layers, int6
         return false;
     }
     // read through the file cache, which a warm restart serves from
-    const int fd = basalt::platform::open_fd_utf8(path);
+    const int fd = halo::platform::open_fd_utf8(path);
     if (fd < 0) {
         delete a;
         err = "ArenaExpertSource: cannot open " + path;
@@ -1796,8 +1796,8 @@ bool ArenaExpertSource::open(const ExpertFiles& files_in, int64_t n_layers, int6
     RamLoadStats st;
     std::string read_err;
     const bool read_ok = read_ram_runs(load, st, read_err);
-    basalt::platform::close_fd(fd);
-    basalt::log::info("basalt generate", "expert arena read through the file cache (buffered)");
+    halo::platform::close_fd(fd);
+    halo::log::info("halo generate", "expert arena read through the file cache (buffered)");
     if (!read_ok) {
         delete a;
         err = "ArenaExpertSource: the expert load was refused: " + read_err;
@@ -1843,7 +1843,7 @@ void ArenaExpertSource::close() {
 
 void ArenaExpertSource::prefetch(int64_t layer, int64_t expert) {
     if (!map_ || layer < 0 || expert < 0 || expert >= n_expert_) return;
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     map_.prefetch(lay.blob_offset(layer, expert), lay.blob_bytes(layer));
 }
 
@@ -1851,19 +1851,19 @@ void ArenaExpertSource::prefetch(int64_t layer, int64_t expert) {
 // MappedFile::release).
 uint64_t ArenaExpertSource::release(int64_t layer, int64_t expert) {
     if (!map_ || layer < 0 || expert < 0 || expert >= n_expert_) return 0;
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     return map_.release(lay.blob_offset(layer, expert), lay.blob_bytes(layer));
 }
 
 bool ArenaExpertSource::pinned(int64_t layer, int64_t expert) const {
     if (base_ == nullptr || layer < 0 || expert < 0 || expert >= n_expert_) return false;
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     return lay.blob_offset(layer, expert) + lay.blob_bytes(layer) <= pinned_bytes_;
 }
 
 const uint8_t* ArenaExpertSource::device_alias(int64_t layer, int64_t expert) const {
     if (dev_slice_.empty() || !pinned(layer, expert)) return nullptr;
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     if (slice_bytes_ == 0) return dev_slice_[0] + lay.blob_offset(layer, expert);
     // one registration slice per layer
     if ((size_t) layer >= dev_slice_.size()) return nullptr;
@@ -1873,7 +1873,7 @@ const uint8_t* ArenaExpertSource::device_alias(int64_t layer, int64_t expert) co
 const uint8_t* ArenaExpertSource::resident_blob(int64_t layer, int64_t expert) const {
     if (base_ == nullptr || layer < 0 || expert < 0 || expert >= n_expert_ || layer * n_expert_ + expert >= blobs_)
         return nullptr;
-    return base_ + basalt::kernels::cpu::expert_layout().blob_offset(layer, expert);
+    return base_ + halo::kernels::cpu::expert_layout().blob_offset(layer, expert);
 }
 
 const uint8_t* ArenaExpertSource::blob(int64_t layer, int64_t expert) {
@@ -1884,7 +1884,7 @@ const uint8_t* ArenaExpertSource::blob(int64_t layer, int64_t expert) {
     ++reads_;
     // Pointer arithmetic into resident memory.  No fault, no copy, no mapping - which is the entire point of
     // this class over `FileExpertSource`.
-    return base_ + basalt::kernels::cpu::expert_layout().blob_offset(layer, expert);
+    return base_ + halo::kernels::cpu::expert_layout().blob_offset(layer, expert);
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

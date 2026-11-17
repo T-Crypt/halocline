@@ -20,17 +20,17 @@ class Levels(unittest.TestCase):
         return [r.read(x) for x in lines]
 
     def test_engine_markers(self):
-        self.assertEqual(self.read("basalt generate: ready", "basalt generate: warning: low", "basalt serve: error: x",
-                                   "basalt: error: CUDA out of memory", "basalt batch adapt: window 3: 2 swaps",
-                                   "basalt-bench: warning: NVML is unavailable"),
+        self.assertEqual(self.read("halo generate: ready", "halo generate: warning: low", "halo serve: error: x",
+                                   "halo: error: CUDA out of memory", "halo batch adapt: window 3: 2 swaps",
+                                   "halo-bench: warning: NVML is unavailable"),
                          ["info", "warn", "err", "err", "info", "warn"])
 
     def test_older_engine_markers(self):
-        self.assertEqual(self.read("basalt error: boom", "basalt warning: slow disk"), ["err", "warn"])
+        self.assertEqual(self.read("halo error: boom", "halo warning: slow disk"), ["err", "warn"])
 
     def test_words_decide_nothing(self):
-        for text in ("basalt serve: no error, 0 failures", "basalt generate: failed over to the CPU path",
-                     "basalt load: cuda0 10 100", "basalt serve: prompt 5 tokens = 0 reused, error=0",
+        for text in ("halo serve: no error, 0 failures", "halo generate: failed over to the CPU path",
+                     "halo load: cuda0 10 100", "halo serve: prompt 5 tokens = 0 reused, error=0",
                      "request failed with a timeout", "WARNING: low on RAM", "CUDA error: out of memory",
                      "a fatal exception was aborted", "[server] stuck? no, retrying is not a marker"):
             self.assertEqual(self.read(text), ["info"], text)
@@ -49,22 +49,22 @@ class Levels(unittest.TestCase):
                          ["err"] * 7 + ["info"])
 
     def test_engine_line_parts(self):
-        e = engine_line("basalt mtp: warning: the draft head over 5 tokens")
-        self.assertEqual((e.tag, e.level, e.text), ("basalt mtp", "warn", "the draft head over 5 tokens"))
-        self.assertEqual(engine_line("basalt error: x"), ("basalt", "err", "x"))
+        e = engine_line("halo mtp: warning: the draft head over 5 tokens")
+        self.assertEqual((e.tag, e.level, e.text), ("halo mtp", "warn", "the draft head over 5 tokens"))
+        self.assertEqual(engine_line("halo error: x"), ("halo", "err", "x"))
         self.assertIsNone(engine_line("CUDA error: x"))
         self.assertIsNone(engine_line("  chunk share 0.50: 12 ms"))
 
     def test_the_buffer_reads_markers_and_keeps_traceback_state_per_source(self):
         b = LogBuffer()
-        b.add("eng", "basalt generate: error: no GPU\nbasalt generate: no error here\nFATAL: not a marker")
+        b.add("eng", "halo generate: error: no GPU\nhalo generate: no error here\nFATAL: not a marker")
         b.add("srv", "Traceback (most recent call last):")
-        b.add("eng", "basalt load: cuda0 1 2")            # another source: not part of the server's traceback
+        b.add("eng", "halo load: cuda0 1 2")            # another source: not part of the server's traceback
         b.add("srv", '  File "a.py", line 1\nOSError: x\n[server] warning: low RAM')
         self.assertEqual([(x["lvl"], x["msg"]) for x in b.since(0)[0]],
-                         [("err", "basalt generate: error: no GPU"), ("info", "basalt generate: no error here"),
+                         [("err", "halo generate: error: no GPU"), ("info", "halo generate: no error here"),
                           ("info", "FATAL: not a marker"), ("err", "Traceback (most recent call last):"),
-                          ("info", "basalt load: cuda0 1 2"), ("err", '  File "a.py", line 1'), ("err", "OSError: x"),
+                          ("info", "halo load: cuda0 1 2"), ("err", '  File "a.py", line 1'), ("err", "OSError: x"),
                           ("warn", "warning: low RAM")])
 
     def test_a_startup_block_warning_reads_as_a_warning(self):
@@ -157,9 +157,9 @@ class Tail(unittest.TestCase):
             threading.Thread(target=tail_file, args=(b, str(log), "eng", 0.02), daemon=True).start()
             time.sleep(0.2)
             with open(log, "a", encoding="utf-8") as f:
-                f.write("basalt: ready\nhalf a li")
+                f.write("halo: ready\nhalf a li")
             self.wait_for(b, 1)
-            self.assertEqual([x["msg"] for x in b.since(0)[0]], ["basalt: ready"])
+            self.assertEqual([x["msg"] for x in b.since(0)[0]], ["halo: ready"])
             with open(log, "a", encoding="utf-8") as f:
                 f.write("ne\n")
             self.wait_for(b, 2)
@@ -185,8 +185,8 @@ class Tty(io.StringIO):
         return True
 
 
-LINES = ("[server] warning: model 76.9 GiB\nbasalt generate: error: boom\n[server] error: refused Host 'x'\n"
-         "[server] listening\nbasalt serve: warning: low\nbasalt serve: no error here\n")
+LINES = ("[server] warning: model 76.9 GiB\nhalo generate: error: boom\n[server] error: refused Host 'x'\n"
+         "[server] listening\nhalo serve: warning: low\nhalo serve: no error here\n")
 
 
 class Color(unittest.TestCase):
@@ -210,9 +210,9 @@ class Color(unittest.TestCase):
             w.write(ch)
         w.flush()
         y, r, z = "\x1b[33m", "\x1b[31m", "\x1b[0m"
-        self.assertEqual(out.getvalue(), f"{y}[server] warning: model 76.9 GiB{z}\n{r}basalt generate: error: boom{z}\n"
-                         f"{r}[server] error: refused Host 'x'{z}\n[server] listening\n{y}basalt serve: warning: low{z}\n"
-                         f"basalt serve: no error here\n")
+        self.assertEqual(out.getvalue(), f"{y}[server] warning: model 76.9 GiB{z}\n{r}halo generate: error: boom{z}\n"
+                         f"{r}[server] error: refused Host 'x'{z}\n[server] listening\n{y}halo serve: warning: low{z}\n"
+                         f"halo serve: no error here\n")
 
     def test_no_color_disables(self):
         out = Tty()

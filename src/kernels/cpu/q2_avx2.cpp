@@ -4,19 +4,19 @@
 // Compiled with AVX2 only, so nothing here can fault on those CPUs.  The rows are q2_avx2_rows.inc, built here with
 // `maddubs` and `madd` and in q2_avx2_vnni.cpp with the AVX-VNNI instruction that does both; this file picks one at
 // run time.  The quantizer is the scalar rule, bit for bit.
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
 #include <immintrin.h>
 
 #include <cmath>
 #include <cstring>
 
-#define BASALT_Q2_VNNI 0
-#define BASALT_Q2_EXPORT(name) name##_base
+#define HALO_Q2_VNNI 0
+#define HALO_Q2_EXPORT(name) name##_base
 #include "q2_avx2_rows.inc"
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 
 void q2_0_gguf_rows_multi_avx2(const uint8_t* w, size_t row_bytes, int nblocks, const ActQ* const* a, int nt,
                                float* const* out, int r0, int r1) {
@@ -65,4 +65,4 @@ void act_quant_q8_1_avx2(const float* x, int n, ActQ& a) {
     }
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

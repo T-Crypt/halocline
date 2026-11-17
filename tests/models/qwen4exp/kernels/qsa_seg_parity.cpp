@@ -4,13 +4,13 @@
 // mixed row counts at different positions, segment order shuffled against slot order; INT8 and FP16 pools; then a
 // microbench line per kernel (one segment call vs one call per segment).
 //   qsa_seg_parity [iters]
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_attn.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_seg.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_select.hpp"
-#include "basalt/models/qwen4exp/kernels/rope_scaling.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_attn.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_fused.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_seg.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_select.hpp"
+#include "halo/models/qwen4exp/kernels/rope_scaling.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -24,7 +24,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 int g_fail = 0;

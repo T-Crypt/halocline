@@ -9,9 +9,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "basalt/kernels/pdl.hpp"
+#include "halo/kernels/pdl.hpp"
 
-namespace basalt::kernels::gdn_unfused {
+namespace halo::kernels::gdn_unfused {
 
 constexpr int S = 128;   // GDN state size
 constexpr int RG = 4;
@@ -177,4 +177,4 @@ __device__ __forceinline__ void step_norm_head(int head, int col, int rg, float*
     }
 }
 
-}  // namespace basalt::kernels::gdn_unfused
+}  // namespace halo::kernels::gdn_unfused

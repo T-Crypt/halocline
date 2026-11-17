@@ -1,4 +1,4 @@
-// src/kernels/cuda/mid_chain_ada.cu - the mid chain on compute capability 8.9 (see include/basalt/kernels/mid_chain.hpp).
+// src/kernels/cuda/mid_chain_ada.cu - the mid chain on compute capability 8.9 (see include/halo/kernels/mid_chain.hpp).
 //
 // One persistent kernel, one CTA of four 128-thread groups per SM, runs the unfused sequence of a GDN layer's middle on
 // such a card (native_quantize_q8_1 of the read's rows, dense_tc qkv, native_mmvq z, gdn_ab_multi, gdn_conv_l2_multi,
@@ -12,14 +12,14 @@
 #define FZ_DEV_ONLY
 #include "dense_tc.cu"
 #include "gdn_unfused.cuh"
-#include "basalt/models/qwen4exp/kernels/mid_chain.hpp"
-#include "basalt/kernels/q8_1_finite.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/kernels/wait_abort.hpp"
+#include "halo/models/qwen4exp/kernels/mid_chain.hpp"
+#include "halo/kernels/q8_1_finite.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/wait_abort.hpp"
 
 #include <cstdlib>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int kAdaThreads = 512;   // four groups of 128 threads
@@ -362,7 +362,7 @@ void mid_ada_init() {
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
     cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
     if (smem_bytes<8, 3, 1, 1>() > (size_t) dtc_smem<8>() || smem_bytes<14, 3, 1, 1>() > (size_t) dtc_smem<14>()) {
-        basalt::log::error("basalt", "mid_chain_ada: dense_tc block shared memory mismatch");
+        halo::log::error("halo", "mid_chain_ada: dense_tc block shared memory mismatch");
         std::exit(1);
     }
     wait_abort_init();
@@ -379,10 +379,10 @@ void mid_ada_init() {
     d.ok = ok && cudaGetLastError() == cudaSuccess;
     d.ctas = sms;
     if (!d.ok) {
-        basalt::log::error("basalt", "mid_chain_ada: FATAL: kernel initialisation failed (%s)", cudaGetErrorString(cudaGetLastError()));
+        halo::log::error("halo", "mid_chain_ada: FATAL: kernel initialisation failed (%s)", cudaGetErrorString(cudaGetLastError()));
         std::exit(1);
     }
-    basalt::log::info("basalt", "mid_chain: sm_89 kernel, %d CTAs of %d threads", d.ctas, kAdaThreads);
+    halo::log::info("halo", "mid_chain: sm_89 kernel, %d CTAs of %d threads", d.ctas, kAdaThreads);
 }
 
 bool mid_ada_supported(const MidChainArgs& a) {
@@ -408,7 +408,7 @@ bool mid_ada_supported(const MidChainArgs& a) {
 void mid_ada(const MidChainArgs& a, void* stream) {
     AdaDev& d = ada_dev();
     if (!mid_ada_supported(a)) {
-        basalt::log::error("basalt", "mid_chain_ada: unsupported arguments or device");
+        halo::log::error("halo", "mid_chain_ada: unsupported arguments or device");
         std::exit(1);
     }
     AdaArgs p{};
@@ -432,9 +432,9 @@ void mid_ada(const MidChainArgs& a, void* stream) {
     ada_pick(a.type_q, a.type_z, a.type_o)<<<g, kAdaThreads, (size_t) ada_smem(a.type_q), (cudaStream_t) stream>>>(p);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "mid_chain_ada: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "mid_chain_ada: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

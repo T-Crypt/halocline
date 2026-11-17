@@ -1,8 +1,8 @@
 // src/models/qwen4exp/serve/kv.cpp - kv operations.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_state.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 // the expert cache never shrinks below the slots the prompt path's smallest loan needs (a 256-token chunk, and
 // the 128 slots a loan leaves), so the next prompt can always be read
@@ -23,21 +23,21 @@ int64_t QfnRuntime::kv_ceiling() {
     cudaMemGetInfo(&free_b, &total_b);
     int64_t spare = std::max<int64_t>(0, (int64_t) free_b - ((int64_t) o.vram_reserve_mib << 20));
     if (xcache.segmented()) {
-        const int64_t gran = (int64_t) std::max<uint64_t>(basalt::core::vmm::granularity(), 1);
-        spare += gran * basalt::program::kv_cache_spare_granules(
+        const int64_t gran = (int64_t) std::max<uint64_t>(halo::core::vmm::granularity(), 1);
+        spare += gran * halo::program::kv_cache_spare_granules(
                             xcache.mapped_bytes(), gran, cache_floor_slots(),
                             [&](int64_t keep) { return xcache.slots_after_shrink(keep); });
     }
-    std::vector<basalt::core::SessionState*> sess = {&ss};
+    std::vector<halo::core::SessionState*> sess = {&ss};
     for (size_t b = 0; !bslot_ss.empty() && b < bslot_ss[0].size(); ++b)
         if (bslot_ss[0][b].get() != &ss) sess.push_back(bslot_ss[0][b].get());
     std::vector<int64_t> backed, max_cells;
-    for (const basalt::core::SessionState* s : sess) {
-        backed.push_back(basalt::core::session_kv_cells(*s));
+    for (const halo::core::SessionState* s : sess) {
+        backed.push_back(halo::core::session_kv_cells(*s));
         max_cells.push_back(s->max_cells);
     }
-    return basalt::program::kv_ceiling_cells(backed, max_cells, spare, [&](size_t i, int64_t cells) {
-        return (int64_t) basalt::core::session_kv_grow_bytes(*sess[i], cells);
+    return halo::program::kv_ceiling_cells(backed, max_cells, spare, [&](size_t i, int64_t cells) {
+        return (int64_t) halo::core::session_kv_grow_bytes(*sess[i], cells);
     });
 }
 
@@ -65,7 +65,7 @@ bool QfnRuntime::move_routed_below(int64_t first, const char* why, std::string& 
         first >= xcache.slots())
         return true;
     const auto t0 = Clock::now();
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     int64_t moved = 0, routed = 0, from_ram = 0;
     std::vector<uint8_t> out_of;
     if (lent_out != nullptr && !lent_out->empty()) {
@@ -81,7 +81,7 @@ bool QfnRuntime::move_routed_below(int64_t first, const char* why, std::string& 
     auto give_up = [&](const std::string& why_failed) {
         (void) cudaStreamSynchronize(adapt_stream);
         (void) cudaGetLastError();
-        serve_loans::settle_trades(host_res.data(), (int32_t) g.n_expert, issued, false, basalt::core::kNotResident);
+        serve_loans::settle_trades(host_res.data(), (int32_t) g.n_expert, issued, false, halo::core::kNotResident);
         if (!issued.empty() && out_of.empty()) res_upload();
         e = why_failed;
         return false;
@@ -113,9 +113,9 @@ bool QfnRuntime::move_routed_below(int64_t first, const char* why, std::string& 
     }
     if (moved > 0 && cudaStreamSynchronize(adapt_stream) != cudaSuccess)
         return give_up(std::string("moving experts out of the cache's tail: ") + cudaGetErrorString(cudaGetLastError()));
-    serve_loans::settle_trades(host_res.data(), (int32_t) g.n_expert, issued, true, basalt::core::kNotResident);
+    serve_loans::settle_trades(host_res.data(), (int32_t) g.n_expert, issued, true, halo::core::kNotResident);
     const std::string ram_note = from_ram > 0 ? std::to_string(from_ram) + " from RAM, " : std::string();
-    basalt::log::info("basalt batch", "%s: %lld of the %lld routed experts in the cache's last %lld slots moved "
+    halo::log::info("halo batch", "%s: %lld of the %lld routed experts in the cache's last %lld slots moved "
                          "below them (%s%.1f ms)", why, (long long) moved, (long long) routed,
                  (long long) (xcache.slots() - first), ram_note.c_str(),
                  std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
@@ -169,7 +169,7 @@ bool QfnRuntime::cache_regrow(std::string& e) {
         if (pick < 0) continue;
         const uint8_t* b = srcp->blob(layer, pick % g.n_expert);
         if (b == nullptr || !xcache.fill_slot_queued(slot, b, ferr,
-                (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(layer))) {
+                (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(layer))) {
             e = "elastic KV: refilling the cache failed: " + ferr;
             return false;
         }
@@ -185,11 +185,11 @@ bool QfnRuntime::cache_regrow(std::string& e) {
 // `shrink` false: only VRAM that is free now (a prompt read is running beside the windows, its loan in the
 // cache's last slots) - false with `e` empty when that is not enough
 // `min_cells`: when `cells` would take the cache below its floor, as many as leave it, down to these
-bool QfnRuntime::kv_fit(basalt::core::SessionState& s, int64_t cells, std::string& e, bool shrink, int64_t min_cells) {
+bool QfnRuntime::kv_fit(halo::core::SessionState& s, int64_t cells, std::string& e, bool shrink, int64_t min_cells) {
     kv_short = false;
     if (kv_floor <= 0) return true;
     cells = std::min<int64_t>(std::max<int64_t>(cells, kv_floor), s.max_cells);
-    int64_t add = (int64_t) basalt::core::session_kv_grow_bytes(s, cells);
+    int64_t add = (int64_t) halo::core::session_kv_grow_bytes(s, cells);
     if (add <= 0) return true;
     const auto t0 = Clock::now();
     if (shrink && !kv_drain(e)) return false;
@@ -212,13 +212,13 @@ bool QfnRuntime::kv_fit(basalt::core::SessionState& s, int64_t cells, std::strin
     };
     if (!park(false)) return false;
     if (add > room && xcache.segmented()) {
-        const int64_t gran = (int64_t) std::max<uint64_t>(basalt::core::vmm::granularity(), 1);
+        const int64_t gran = (int64_t) std::max<uint64_t>(halo::core::vmm::granularity(), 1);
         auto keep_for = [&](int64_t a) {
             return std::max<int64_t>(0, (xcache.mapped_bytes() - (a - room)) / gran * gran);
         };
         const int64_t floor = cache_floor_slots();
         auto leaves_floor = [&](int64_t c) {
-            const int64_t a = (int64_t) basalt::core::session_kv_grow_bytes(s, c);
+            const int64_t a = (int64_t) halo::core::session_kv_grow_bytes(s, c);
             return a <= room || xcache.slots_after_shrink(keep_for(a)) >= floor;
         };
         if (!leaves_floor(cells) && !park(true)) return false;
@@ -237,19 +237,19 @@ bool QfnRuntime::kv_fit(basalt::core::SessionState& s, int64_t cells, std::strin
                 kv_short = true;
                 const int64_t want = min_cells > 0 && min_cells < cells ? min_cells : cells;
                 e = "elastic KV: " + std::to_string(want) + " cells of KV (+" +
-                    std::to_string((int64_t) basalt::core::session_kv_grow_bytes(s, want) >> 20) +
+                    std::to_string((int64_t) halo::core::session_kv_grow_bytes(s, want) >> 20) +
                     " MiB) would take the expert cache below the " + std::to_string(floor) +
                     " slots the next prompt chunk needs (" + std::to_string(xcache.slots()) + " now, " +
                     std::to_string(room >> 20) + " MiB free above the reserve)";
                 return false;
             }
             cells = best;
-            add = (int64_t) basalt::core::session_kv_grow_bytes(s, cells);
+            add = (int64_t) halo::core::session_kv_grow_bytes(s, cells);
         }
     }
     if (add > room && xcache.segmented()) {
         // whole tail segments: everything from the first one at or past `keep` goes
-        const int64_t gran = (int64_t) std::max<uint64_t>(basalt::core::vmm::granularity(), 1);
+        const int64_t gran = (int64_t) std::max<uint64_t>(halo::core::vmm::granularity(), 1);
         const int64_t keep = std::max<int64_t>(0, (xcache.mapped_bytes() - (add - room)) / gran * gran);
         if (kv_keep_routed && !move_routed_below(xcache.slots_after_shrink(keep), "elastic KV", e)) return false;
         if (!xcache.shrink(keep, e)) return false;
@@ -257,35 +257,35 @@ bool QfnRuntime::kv_fit(basalt::core::SessionState& s, int64_t cells, std::strin
         for (size_t i = 0; i < host_res.size(); ++i)
             if (host_res[i] >= live) {
                 vram_evicted.emplace_back((int32_t) i, host_res[i]);
-                host_res[i] = basalt::core::kNotResident;
+                host_res[i] = halo::core::kNotResident;
             }
         res_upload();
         relend();
     }
-    if (!basalt::core::session_kv_map(s, cells, e)) { e = "elastic KV: " + e; return false; }
+    if (!halo::core::session_kv_map(s, cells, e)) { e = "elastic KV: " + e; return false; }
     if (parked > 0 && !cache_regrow(e)) return false;   // the rest of what they held is the cache's again
     ++kv_moves;
-    basalt::log::info("basalt serve", "elastic KV: %lld cells backed (+%.0f MiB), the expert cache %lld -> %lld "
-                         "slots, in %.1f ms", (long long) basalt::core::session_kv_cells(s),
+    halo::log::info("halo serve", "elastic KV: %lld cells backed (+%.0f MiB), the expert cache %lld -> %lld "
+                         "slots, in %.1f ms", (long long) halo::core::session_kv_cells(s),
                  (double) add / 1048576.0, (long long) before, (long long) xcache.slots(),
                  std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
     kv_ceiling_note();
     return true;
 }
 
-bool QfnRuntime::kv_release(basalt::core::SessionState& s, int64_t cells, std::string& e) {
+bool QfnRuntime::kv_release(halo::core::SessionState& s, int64_t cells, std::string& e) {
     if (kv_floor <= 0) return true;
     cells = std::min<int64_t>(std::max<int64_t>(cells, kv_floor), s.max_cells);
-    if (basalt::core::session_kv_bytes_for(s, basalt::core::session_kv_cells(s)) <=
-        basalt::core::session_kv_bytes_for(s, cells)) return true;
+    if (halo::core::session_kv_bytes_for(s, halo::core::session_kv_cells(s)) <=
+        halo::core::session_kv_bytes_for(s, cells)) return true;
     const auto t0 = Clock::now();
     if (!kv_drain(e)) return false;
-    const int64_t before = xcache.slots(), had = basalt::core::session_kv_cells(s);
-    if (!basalt::core::session_kv_unmap(s, cells, e)) { e = "elastic KV: " + e; return false; }
+    const int64_t before = xcache.slots(), had = halo::core::session_kv_cells(s);
+    if (!halo::core::session_kv_unmap(s, cells, e)) { e = "elastic KV: " + e; return false; }
     if (!cache_regrow(e)) return false;
     ++kv_moves;
-    basalt::log::info("basalt serve", "elastic KV: %lld -> %lld cells backed, the expert cache %lld -> %lld "
-                         "slots, in %.1f ms", (long long) had, (long long) basalt::core::session_kv_cells(s),
+    halo::log::info("halo serve", "elastic KV: %lld -> %lld cells backed, the expert cache %lld -> %lld "
+                         "slots, in %.1f ms", (long long) had, (long long) halo::core::session_kv_cells(s),
                  (long long) before, (long long) xcache.slots(),
                  std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
     kv_ceiling_note();
@@ -295,10 +295,10 @@ bool QfnRuntime::kv_release(basalt::core::SessionState& s, int64_t cells, std::s
 // the elastic KV's spare cells back to the expert cache: every session keeps what it holds (the solo session
 // `ss_keep` cells, a decoding slot its next window too), idle ones first; `skip` and slot `skip_slot` are left
 // alone, and it stops once `enough` (if set) is true
-bool QfnRuntime::kv_give_back(int64_t ss_keep, const basalt::core::SessionState* skip, int skip_slot, const std::function<bool()>& enough, int64_t& given, std::string& e) {
-    std::vector<basalt::core::SessionState*> sess;
-    std::vector<basalt::program::KvHold> holds;
-    auto add = [&](basalt::core::SessionState& s, int64_t keep, bool active) {
+bool QfnRuntime::kv_give_back(int64_t ss_keep, const halo::core::SessionState* skip, int skip_slot, const std::function<bool()>& enough, int64_t& given, std::string& e) {
+    std::vector<halo::core::SessionState*> sess;
+    std::vector<halo::program::KvHold> holds;
+    auto add = [&](halo::core::SessionState& s, int64_t keep, bool active) {
         if (&s == skip) return;
         for (size_t i = 0; i < sess.size(); ++i)
             if (sess[i] == &s) {
@@ -307,7 +307,7 @@ bool QfnRuntime::kv_give_back(int64_t ss_keep, const basalt::core::SessionState*
                 return;
             }
         sess.push_back(&s);
-        holds.push_back({basalt::core::session_kv_cells(s), keep, active});
+        holds.push_back({halo::core::session_kv_cells(s), keep, active});
     };
     add(ss, ss_keep, false);
     for (size_t b = 0; !bslot_ss.empty() && b < bslot_ss[0].size() && b < bs.size(); ++b) {
@@ -316,13 +316,13 @@ bool QfnRuntime::kv_give_back(int64_t ss_keep, const basalt::core::SessionState*
         add(*bslot_ss[0][b], std::max<int64_t>((int64_t) sb.ids.size(), sb.active ? sb.p + kKvWindowCells : 0),
             sb.active);
     }
-    for (const auto& [i, keep] : basalt::program::kv_giveback_order(holds, kv_floor)) {
+    for (const auto& [i, keep] : halo::program::kv_giveback_order(holds, kv_floor)) {
         if (holds[(size_t) i].backed < 0) continue;
         if (!kv_release(*sess[(size_t) i], keep, e)) return false;
-        given += holds[(size_t) i].backed - basalt::core::session_kv_cells(*sess[(size_t) i]);
+        given += holds[(size_t) i].backed - halo::core::session_kv_cells(*sess[(size_t) i]);
         if (enough && enough()) break;
     }
     return true;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

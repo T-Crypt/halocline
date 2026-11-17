@@ -1,13 +1,13 @@
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/kernels/bf16_bits.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/kernels/bf16_bits.hpp"
+#include "halo/kernels/pdl.hpp"
 
 #include <cuda_runtime.h>
 #include <limits>
 #include <stdexcept>
 #include <string>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 // The FP32-activation MMVF implementation below is adapted from llama.cpp
@@ -202,4 +202,4 @@ void bf16_gemv_fp32_mmvf_cols(const float* x, const uint16_t* w, float* y, int64
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

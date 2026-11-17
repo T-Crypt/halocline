@@ -1,10 +1,10 @@
 // src/program/auto_plan.cpp - see auto_plan.hpp.
-#include "basalt/program/auto_plan.hpp"
+#include "halo/program/auto_plan.hpp"
 
 #include <algorithm>
 #include <cstdio>
 
-namespace basalt::program {
+namespace halo::program {
 
 namespace {
 constexpr double kGiB = 1073741824.0;
@@ -44,7 +44,7 @@ AutoPlan choose_auto(const AutoInputs& in) {
         const uint64_t extra = in.extra_full;
         // experts left in the file read through the OS file cache, which keeps its floor beside the copy's
         const uint64_t floor =
-            in.floor_bytes + basalt::core::file_cache_keep(in.ram_available, in.floor_bytes, false, complement, in.file_cache);
+            in.floor_bytes + halo::core::file_cache_keep(in.ram_available, in.floor_bytes, false, complement, in.file_cache);
         const uint64_t room = in.ram_available > floor ? in.ram_available - floor : 0;
         p.resident_bytes = (std::min)(room, complement + extra);
         p.resident_gb = (double) p.resident_bytes / kGiB;
@@ -82,4 +82,4 @@ std::string auto_flags_line(const AutoPlan& p) {
     return out;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

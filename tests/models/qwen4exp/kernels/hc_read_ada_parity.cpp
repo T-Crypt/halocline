@@ -5,10 +5,10 @@
 // sets over more than L2 holds), next to the three kernels; then the kernel's phase times.
 //
 //     build/hc_read_ada_parity [iters] [--bench-only]
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_read_ada.hpp"
-#include "basalt/kernels/wait_abort.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/hc_read_ada.hpp"
+#include "halo/kernels/wait_abort.hpp"
 
 #include <cuda_runtime.h>
 
@@ -21,7 +21,7 @@
 #include <random>
 #include <vector>
 
-namespace K = basalt::kernels;
+namespace K = halo::kernels;
 
 namespace {
 constexpr int N = 2560, HC = 4, D = N * HC, LR = 320, TM = K::kFusedGrMaxT;

@@ -6,11 +6,11 @@
 //
 // Every row the synthetic table holds encodes its own index, so a wrong offset, a straddle mishandled or a
 // dedup slot mixed up shows as a mismatch rather than as plausible data.
-#include "basalt/artifact/dequant.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/ngram/ple_reader.hpp"
-#include "basalt/platform/direct_file.hpp"
+#include "halo/artifact/dequant.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/ngram/ple_reader.hpp"
+#include "halo/platform/direct_file.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -26,9 +26,9 @@
 #include <thread>
 #include <vector>
 
-namespace ng = basalt::ngram;
-namespace k = basalt::kernels;
-using basalt::platform::now_us;
+namespace ng = halo::ngram;
+namespace k = halo::kernels;
+using halo::platform::now_us;
 
 namespace {
 
@@ -250,7 +250,7 @@ int real(const std::string& gguf, int n_random, const std::string& tokens_path, 
          bool direct_only, double stress_secs) {
     k::PleTable mm, direct;
     std::string err;
-    basalt::core::ModelFile container;   // a .basalt file serves its source tensors as a GGUF view
+    halo::core::ModelFile container;   // a .basalt file serves its source tensors as a GGUF view
     if (gguf.size() > 7 && gguf.compare(gguf.size() - 7, 7, ".basalt") == 0 &&
         (!container.open(gguf, err) || !container.load_meta(err) || !container.register_gguf_view(err))) {
         std::fprintf(stderr, "container open: %s\n", err.c_str());
@@ -332,7 +332,7 @@ int q8_decode_check() {
             std::memcpy(row + b * 34, &d, 2);
         }
         float got[k::PLE_HEAD_DIM];
-        for (int b = 0; b < k::PLE_HEAD_DIM / 32; ++b) basalt::dequantize_q8_0(row + b * 34, got + b * 32);
+        for (int b = 0; b < k::PLE_HEAD_DIM / 32; ++b) halo::dequantize_q8_0(row + b * 34, got + b * 32);
         for (int i = 0; i < k::PLE_HEAD_DIM; ++i) {
             uint16_t h;
             std::memcpy(&h, row + (i / 32) * 34, 2);

@@ -1,5 +1,8 @@
 # Qwen3.8-27B precision
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
 What the dense stack computes in, where it rounds, and what that costs against the BF16 model. The method:
 [how quality is measured](quality.md).
 
@@ -120,7 +123,7 @@ plain rule, which is exact too.
 
 Four short prompts (5, 15, 21 and 60 tokens; the last a chat-templated question), every position's logits through the decode
 path against Hugging Face transformers' own Qwen3.5 modules run in fp32 on the CPU, with NVIDIA's pack's NVFP4 and FP8 weights
-dequantized (`basalt --diag-serial-prompt --diag-logits`):
+dequantized (`halo --diag-serial-prompt --diag-logits`):
 
 | Prompt | Positions | Top-1 agreement | Mean KL | Max KL |
 | --- | --- | --- | --- | --- |

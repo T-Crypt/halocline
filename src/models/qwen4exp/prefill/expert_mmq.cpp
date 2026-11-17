@@ -1,15 +1,15 @@
 #include "experts.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/prefill/moe_mmq.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <cstring>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 void Prefill::Run::Chunk::Experts::Group::prepare_products() {
@@ -118,4 +118,4 @@ bool Prefill::Run::Chunk::Experts::Group::compute_mmq(size_t j, const uint8_t* b
 
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

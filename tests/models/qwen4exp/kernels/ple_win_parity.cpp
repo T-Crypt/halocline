@@ -2,11 +2,11 @@
 // ple_block_projected, ple_history_advance, the history copy), bitwise, for windows of 1..7 rows; then both forms
 // captured as graphs and timed at T = 1..4.
 //   ple_win_parity [iters]
-#include "basalt/models/qwen4exp/kernels/native_gr_postops.hpp"
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/ple.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/native_gr_postops.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/ple.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -17,7 +17,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

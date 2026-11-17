@@ -1,14 +1,14 @@
-# tools/vision - basalt-vision, the image encoder for the multimodal path, on Basalt's own kernels (no ggml or
+# tools/vision - halo-vision, the image encoder for the multimodal path, on Halocline's own kernels (no ggml or
 # llama.cpp).  Built with the root project, or on its own:
 #
 #   cmake -S tools/vision -B build-vision -DCMAKE_BUILD_TYPE=Release
-#   cmake --build build-vision --target basalt-vision
+#   cmake --build build-vision --target halo-vision
 cmake_minimum_required(VERSION 3.24)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES 120)
   endif()
-  project(basalt_vision CXX CUDA)
+  project(halo_vision CXX CUDA)
   set(CMAKE_CXX_STANDARD 20)
   set(CMAKE_CUDA_STANDARD 20)
   if(NOT CMAKE_BUILD_TYPE)
@@ -54,16 +54,16 @@ add_library(vision_cuda STATIC
 target_include_directories(vision_cuda PUBLIC ${VISION_ROOT}/include ${VISION_ROOT}/src/vision)
 target_link_libraries(vision_cuda PUBLIC vision_core CUDA::cudart CUDA::cublas)
 
-add_executable(basalt-vision vision.cpp)
-target_compile_definitions(basalt-vision PRIVATE BASALT_VISION_CUDA)
-target_link_libraries(basalt-vision PRIVATE vision_cuda)
-basalt_ship_to_bin(basalt-vision)
+add_executable(halo-vision vision.cpp)
+target_compile_definitions(halo-vision PRIVATE HALO_VISION_CUDA)
+target_link_libraries(halo-vision PRIVATE vision_cuda)
+halo_ship_to_bin(halo-vision)
 # The image and projector paths arrive on the command line, so this program needs the same manifest as the engine:
 # UTF-8 as the process code page and long paths. Built here directly rather than through the root project's helper,
 # because this project also configures on its own.
 if(MSVC)
-  target_link_options(basalt-vision PRIVATE "/MANIFEST:EMBED"
-                      "/MANIFESTINPUT:${VISION_ROOT}/src/platform/basalt.exe.manifest")
+  target_link_options(halo-vision PRIVATE "/MANIFEST:EMBED"
+                      "/MANIFESTINPUT:${VISION_ROOT}/src/platform/halo.exe.manifest")
 endif()
 
 if(BUILD_TESTING)

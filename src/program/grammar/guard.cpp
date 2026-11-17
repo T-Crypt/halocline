@@ -1,16 +1,16 @@
 // src/program/grammar/guard.cpp - the pack's vocabulary and the per-request window check.
-#include "basalt/program/grammar/guard.hpp"
+#include "halo/program/grammar/guard.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <unordered_map>
 
-#include "basalt/program/grammar/schema.hpp"
-#include "basalt/program/json_scan.hpp"
-#include "basalt/log.hpp"
+#include "halo/program/grammar/schema.hpp"
+#include "halo/program/json_scan.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::program::grammar {
+namespace halo::program::grammar {
 
 namespace {
 
@@ -139,11 +139,11 @@ bool Guard::take(int32_t token) {
     const auto t0 = std::chrono::steady_clock::now();
     const bool ok = feed(token);
     if (!ok) {
-        basalt::log::warn("basalt grammar", "a masked draw was refused by the grammar; enforcement is off for this request");
+        halo::log::warn("halo grammar", "a masked draw was refused by the grammar; enforcement is off for this request");
         on_ = false;
     }
     ns_ += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
     return ok;
 }
 
-}  // namespace basalt::program::grammar
+}  // namespace halo::program::grammar

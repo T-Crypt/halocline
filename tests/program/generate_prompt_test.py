@@ -22,7 +22,7 @@ def main():
             "--adapt-swaps", "0"]
     prompts = ("1", "1,2")
     refs = {}
-    with tempfile.TemporaryDirectory(prefix="basalt-generate-prompt-") as temp:
+    with tempfile.TemporaryDirectory(prefix="halo-generate-prompt-") as temp:
         log_path = Path(temp) / "serve.log"
         with log_path.open("w") as log:
             proc = subprocess.Popen([*base, "--serve", "--spec", "3"], stdin=subprocess.PIPE,

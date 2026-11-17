@@ -1,28 +1,28 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 #include <algorithm>
 #include <atomic>
 #include <exception>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 namespace verify_detail {
 bool g_commit_async = false;   // see Verifier::set_commit_async
 }
 
-basalt::kernels::GdnCommitLayers Verifier::commit_gdn_layer(int64_t gdn_index) const {
-    using namespace basalt::kernels;
+halo::kernels::GdnCommitLayers Verifier::commit_gdn_layer(int64_t gdn_index) const {
+    using namespace halo::kernels;
     const ModelGeometry& g = *g_;
     const SessionState& ss = *ss_;
     const int64_t C = g.ssm_conv_channels, HV = g.ssm_v_heads, MT = max_t_;
@@ -39,11 +39,11 @@ basalt::kernels::GdnCommitLayers Verifier::commit_gdn_layer(int64_t gdn_index) c
 }
 
 // the stage's GDN layers from its first (only that one when the later ones are lazy)
-basalt::kernels::GdnCommitLayers Verifier::commit_gdn_args() const {
+halo::kernels::GdnCommitLayers Verifier::commit_gdn_args() const {
     const ModelGeometry& g = *g_;
     int64_t gdn_index = 0;
     for (int64_t l = 0; l < lb_; ++l) gdn_index += is_qsa_layer(g, l) ? 0 : 1;
-    basalt::kernels::GdnCommitLayers ga = commit_gdn_layer(gdn_index);
+    halo::kernels::GdnCommitLayers ga = commit_gdn_layer(gdn_index);
     ga.n_layers = 0;
     for (int64_t l = lb_; l < le_; ++l) ga.n_layers += is_qsa_layer(g, l) ? 0 : 1;
     if (lazy_on()) ga.n_layers = std::min(ga.n_layers, 1);
@@ -58,12 +58,12 @@ bool Verifier::finisher_on() const {
 bool Verifier::lazy_on() const { return finisher_on() && dm_ != nullptr && lz_s_ != nullptr; }
 
 // the stage's GDN layers after its first, the lazy ones
-basalt::kernels::GdnCommitLayers Verifier::commit_gdn_lazy_args() const {
+halo::kernels::GdnCommitLayers Verifier::commit_gdn_lazy_args() const {
     const ModelGeometry& g = *g_;
     int64_t gdn_index = 0, n = 0;
     for (int64_t l = 0; l < lb_; ++l) gdn_index += is_qsa_layer(g, l) ? 0 : 1;
     for (int64_t l = lb_; l < le_; ++l) n += is_qsa_layer(g, l) ? 0 : 1;
-    basalt::kernels::GdnCommitLayers ga = commit_gdn_layer(gdn_index + 1);
+    halo::kernels::GdnCommitLayers ga = commit_gdn_layer(gdn_index + 1);
     ga.n_layers = (int) std::max<int64_t>(n - 1, 0);
     return ga;
 }
@@ -72,8 +72,8 @@ basalt::kernels::GdnCommitLayers Verifier::commit_gdn_lazy_args() const {
 void Verifier::apply_lazy() {
     if (!lz_pending_) return;
     lz_pending_ = false;
-    const basalt::kernels::GdnCommitLayers la = commit_gdn_lazy_args();
-    basalt::kernels::gdn_commit_lazy(la, commit_ctl_, la.n_layers, nullptr, 0, cm_, fin_blocks_);
+    const halo::kernels::GdnCommitLayers la = commit_gdn_lazy_args();
+    halo::kernels::gdn_commit_lazy(la, commit_ctl_, la.n_layers, nullptr, 0, cm_, fin_blocks_);
     cudaEventRecord(commit_done_, cm_);
     commit_pending_ = true;
 }
@@ -95,7 +95,7 @@ void Verifier::order_after_commit(bool solo) {
 // blocks that claim them one at a time (the next window's finisher claims what is left).
 bool Verifier::capture_commit(std::string& err) {
     if (commit_exec_ != nullptr) return true;
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const ModelGeometry& g = *g_;
     SessionState& ss = *ss_;
     const QsaShapes s = shapes_of(g);
@@ -210,4 +210,4 @@ bool Verifier::wait_commit(std::string& err) {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

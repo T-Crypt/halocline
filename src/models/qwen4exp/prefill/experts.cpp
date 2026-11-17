@@ -1,9 +1,9 @@
 #include "experts.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused.hpp"
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::Experts::execute() {
@@ -31,4 +31,4 @@ bool Prefill::Run::Chunk::Experts::Group::compute(size_t j, const uint8_t* blob_
     return compute_fp16(j, blob_dev, slot);
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

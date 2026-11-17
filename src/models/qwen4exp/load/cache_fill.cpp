@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int cache_fill(Context& context) {
     auto& o = *context.o;
@@ -24,7 +24,7 @@ int cache_fill(Context& context) {
     // keeps its weights and the cache just sized, and the RAM copy the room past the headroom.  With the file-backed modes the rest is read from the SSD (the default
     // arena mode was checked against the RAM above).
     if (model_bytes > 0 && o.mmap_experts) {
-        const auto free_ram = basalt::core::conversation_available_memory();
+        const auto free_ram = halo::core::conversation_available_memory();
         if (free_ram) {
             uint64_t cache_bytes_now = 0;
             if (!profile.empty() && srcp != nullptr) {
@@ -32,13 +32,13 @@ int cache_fill(Context& context) {
                                       ? (int64_t) profile.size()
                                       : std::min<int64_t>((int64_t) profile.size(), xcache.slots());
                 for (int64_t i = 0; i < n; ++i)
-                    cache_bytes_now += basalt::kernels::cpu::expert_layout().blob_bytes(profile[(size_t) i].first);
+                    cache_bytes_now += halo::kernels::cpu::expert_layout().blob_bytes(profile[(size_t) i].first);
             }
             cache_bytes_now = std::min(cache_bytes_now, expert_total_bytes);
             const uint64_t vram = cuda0_fixed_bytes + cache_bytes_now;
             uint64_t outside = expert_total_bytes - cache_bytes_now;   // the experts no cache on the primary holds
-            uint64_t ram = basalt::core::ram_tier_room(
-                *free_ram, std::max(o.resident_headroom, basalt::core::plan_reserve(basalt::platform::ram_reserve())), o.resident_pin);
+            uint64_t ram = halo::core::ram_tier_room(
+                *free_ram, std::max(o.resident_headroom, halo::core::plan_reserve(halo::platform::ram_reserve())), o.resident_pin);
             if (o.resident_cpu_experts && (o.resident_budget > 0 || o.resident_soft)) {
                 const uint64_t margin = 256ull << 20;
                 ram = ram > margin ? ram - margin : 0;
@@ -47,7 +47,7 @@ int cache_fill(Context& context) {
             if (model_bytes > vram + ram) {
                 ram = std::min(ram, outside);
                 if (model_bytes > vram + ram)
-                    basalt::log::warn("basalt", "model %.1f GiB, free VRAM + RAM %.1f GiB: the rest is read from "
+                    halo::log::warn("halo", "model %.1f GiB, free VRAM + RAM %.1f GiB: the rest is read from "
                                          "the SSD while generating (slow)",
                                  (double) model_bytes / 1073741824.0,
                                  (double) (vram + ram) / 1073741824.0);
@@ -64,34 +64,34 @@ int cache_fill(Context& context) {
         uint64_t fill_bytes = 0;
         uint64_t fill_total = 0;
         for (int64_t i = 0; i < want; ++i)
-            fill_total += basalt::kernels::cpu::expert_layout().blob_bytes(profile[(size_t) i].first);
+            fill_total += halo::kernels::cpu::expert_layout().blob_bytes(profile[(size_t) i].first);
         cache_fill_bytes = fill_total;
         if (model_bytes > 0) {
             if (srcp == &src) {
-                basalt::core::LoadProgress::plan("cuda0", cuda0_fixed_bytes + fill_total);
-                basalt::core::LoadProgress::plan("ram", expert_total_bytes - fill_total);
+                halo::core::LoadProgress::plan("cuda0", cuda0_fixed_bytes + fill_total);
+                halo::core::LoadProgress::plan("ram", expert_total_bytes - fill_total);
             } else {
-                basalt::core::LoadProgress::plan("cuda0", fill_total, true);
+                halo::core::LoadProgress::plan("cuda0", fill_total, true);
             }
         }
-        basalt::core::LoadProgress fill_progress(basalt::core::LoadProgress::cuda(0), fill_total, srcp != &src);
+        halo::core::LoadProgress fill_progress(halo::core::LoadProgress::cuda(0), fill_total, srcp != &src);
         // the slots are handed out in profile order, then the blobs are read and copied together
         std::vector<std::pair<int32_t, int32_t>> fill_pairs;
         std::vector<int32_t> fill_slots;
         for (int64_t i = 0; i < want; ++i) {
             const int32_t slot = xcache.admit(profile[(size_t) i].first, profile[(size_t) i].second);
-            if (slot == basalt::core::kNotResident) {
+            if (slot == halo::core::kNotResident) {
                 if (per_layer) continue;
                 break;
             }
             fill_pairs.push_back(profile[(size_t) i]);
             fill_slots.push_back(slot);
-            fill_bytes += basalt::kernels::cpu::expert_layout().blob_bytes(profile[(size_t) i].first);
+            fill_bytes += halo::kernels::cpu::expert_layout().blob_bytes(profile[(size_t) i].first);
         }
-        if (!basalt::core::fill_cache_slots(*srcp, xcache, 0, fill_pairs.data(), fill_slots.data(),
+        if (!halo::core::fill_cache_slots(*srcp, xcache, 0, fill_pairs.data(), fill_slots.data(),
                                             (int64_t) fill_pairs.size(),
                                             [&](uint64_t bytes) { fill_progress.add(bytes); }, err)) {
-            basalt::log::error("basalt generate", "the profile fill failed: %s", err.c_str());
+            halo::log::error("halo generate", "the profile fill failed: %s", err.c_str());
             return 1;
         }
         prefilled += (int64_t) fill_pairs.size();
@@ -102,10 +102,10 @@ int cache_fill(Context& context) {
         // cache's own `verify_slot` is the check and it costs one blob-sized D2H at startup.
         if (prefilled > 0 && !xcache.verify_slot(xcache.slot_of(profile[0].first, profile[0].second),
                                 srcp->blob(profile[0].first, profile[0].second), err,
-                                (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(profile[0].first))) {
+                                (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(profile[0].first))) {
             return fatal_start_error(err);
         }
-        basalt::log::info("basalt generate", "pre-filled %lld of %lld slots from the profile in %.1f s (%.0f MB/s); "
+        halo::log::info("halo generate", "pre-filled %lld of %lld slots from the profile in %.1f s (%.0f MB/s); "
                              "slot 0 verified",
                      (long long) prefilled, (long long) (per_layer ? xcache.slots() : want), fill_s,
                      fill_s > 0 ? (double) fill_bytes / 1e6 / fill_s : 0.0);

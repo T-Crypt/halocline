@@ -1,7 +1,7 @@
-// src/models/qwen4exp/prefill/gemm.cu - see include/basalt/models/qwen4exp/prefill/gemm.hpp.
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/kernels/dequant_bf16.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
+// src/models/qwen4exp/prefill/gemm.cu - see include/halo/models/qwen4exp/prefill/gemm.hpp.
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/kernels/dequant_bf16.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
 
 #include <cublas_v2.h>
 #include <cuda_fp16.h>
@@ -16,22 +16,22 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 
-namespace basalt::prefill {
+namespace halo::prefill {
 namespace {
 
 void ck(cublasStatus_t s, const char* what) {
     if (s != CUBLAS_STATUS_SUCCESS) {
-        basalt::log::error("basalt", "prefill gemm: %s: cuBLAS status %d", what, (int) s);
+        halo::log::error("halo", "prefill gemm: %s: cuBLAS status %d", what, (int) s);
         std::exit(1);
     }
 }
 
 // A setup call whose failure the engine survives (the handle keeps its defaults), but says so.
 void note(cublasStatus_t s, const char* what) {
-    if (s != CUBLAS_STATUS_SUCCESS) basalt::log::warn("basalt", "prefill gemm: %s: cuBLAS status %d (continuing)", what, (int) s);
+    if (s != CUBLAS_STATUS_SUCCESS) halo::log::warn("halo", "prefill gemm: %s: cuBLAS status %d (continuing)", what, (int) s);
 }
 
 
@@ -133,22 +133,22 @@ void Gemm::bf16(const uint16_t* X, const uint16_t* W, float* Y, int64_t T, int64
 }
 
 void Gemm::bf16_w(const uint16_t* X, const uint16_t* W, float* Y, int64_t T, int64_t N, int64_t K, int64_t ldy) {
-    basalt::kernels::Hc8View v;
-    if (basalt::kernels::hc8_view(W, v) && v.owned) {
+    halo::kernels::Hc8View v;
+    if (halo::kernels::hc8_view(W, v) && v.owned) {
         if (v.rows != N || v.cols != K) {
-            basalt::log::error("basalt", "prefill gemm: an 8-bit copy is %d x %d, the product wants %lld x %lld", v.rows,
+            halo::log::error("halo", "prefill gemm: an 8-bit copy is %d x %d, the product wants %lld x %lld", v.rows,
                          v.cols, (long long) N, (long long) K);
             std::exit(1);
         }
         if (ldy <= 0) ldy = N;
         const int64_t rows = std::min<int64_t>(N, scratch_elems_ / K);
         if (rows <= 0 || scratch_ == nullptr) {
-            basalt::log::error("basalt", "prefill gemm: no scratch for an 8-bit matrix (K=%lld)", (long long) K);
+            halo::log::error("halo", "prefill gemm: no scratch for an 8-bit matrix (K=%lld)", (long long) K);
             std::exit(1);
         }
         for (int64_t r0 = 0; r0 < N; r0 += rows) {
             const int64_t n = std::min<int64_t>(rows, N - r0);
-            basalt::kernels::hc8_dequant_bf16(v, r0, n, scratch_, stream_);
+            halo::kernels::hc8_dequant_bf16(v, r0, n, scratch_, stream_);
             bf16(X, scratch_, Y + r0, T, n, K, ldy);
         }
         return;
@@ -157,10 +157,10 @@ void Gemm::bf16_w(const uint16_t* X, const uint16_t* W, float* Y, int64_t T, int
 }
 
 const uint16_t* Gemm::bf16_rows(const uint16_t* W, int64_t N, int64_t K) {
-    basalt::kernels::Hc8View v;
-    if (!basalt::kernels::hc8_view(W, v) || !v.owned) return W;
+    halo::kernels::Hc8View v;
+    if (!halo::kernels::hc8_view(W, v) || !v.owned) return W;
     if (v.rows != N || v.cols != K || scratch_ == nullptr || N * K > scratch_elems_) return nullptr;
-    basalt::kernels::hc8_dequant_bf16(v, 0, N, scratch_, stream_);
+    halo::kernels::hc8_dequant_bf16(v, 0, N, scratch_, stream_);
     return scratch_;
 }
 
@@ -180,17 +180,17 @@ void Gemm::native(const uint16_t* X, int ggml_type, const void* W_blocks, float*
     if (N * K > scratch_elems_) {
         // Too large for the scratch at once: in row slices.
         const int64_t rows = scratch_elems_ / K;
-        if (rows <= 0) { basalt::log::error("basalt", "prefill gemm: scratch too small for K=%lld", (long long) K); std::exit(1); }
+        if (rows <= 0) { halo::log::error("halo", "prefill gemm: scratch too small for K=%lld", (long long) K); std::exit(1); }
         if (ldy <= 0) ldy = N;
         for (int64_t r0 = 0; r0 < N; r0 += rows) {
             const int64_t n = (N - r0 < rows) ? N - r0 : rows;
-            basalt::kernels::dequant_f16(ggml_type, W_blocks, r0, n, K, scratch_, stream_);
+            halo::kernels::dequant_f16(ggml_type, W_blocks, r0, n, K, scratch_, stream_);
             f16(X, scratch_, Y + r0, T, n, K, ldy, beta);
         }
         return;
     }
-    basalt::kernels::dequant_f16(ggml_type, W_blocks, 0, N, K, scratch_, stream_);
+    halo::kernels::dequant_f16(ggml_type, W_blocks, 0, N, K, scratch_, stream_);
     f16(X, scratch_, Y, T, N, K, ldy, beta);
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

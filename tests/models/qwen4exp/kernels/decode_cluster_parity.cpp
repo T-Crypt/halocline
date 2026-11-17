@@ -15,9 +15,9 @@
 //   decode_cluster_parity --bench        per-call times, old vs new, at 32K / 128K / 262K
 //
 // The one-CTA references are qsa_block_topk_ref and the one-block greedy kernel (greedy_one_block).
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_select.hpp"
-#include "basalt/kernels/sampler.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_select.hpp"
+#include "halo/kernels/sampler.hpp"
 
 #include <cuda_runtime.h>
 
@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 

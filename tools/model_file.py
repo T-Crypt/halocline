@@ -1,4 +1,4 @@
-"""Read and write the .basalt model file (the layout in include/basalt/core/model_format.hpp).
+"""Read and write the .basalt model file (the layout in include/halo/core/model_format.hpp).
 
     w = ModelWriter(path)
     w.add_bytes("meta", json_bytes)
@@ -20,7 +20,7 @@ import struct
 
 MAGIC = b"BASALTMF"
 VERSION = 2
-MIGRATION = "tools/migrations/basalt_v1_to_v2.py"
+MIGRATION = "tools/migrations/halo_v1_to_v2.py"
 SECTION_ALIGN = 2 << 20
 HEADER_BYTES = 64 << 10
 TENSOR_ALIGN = 4096                            # inside the `gguf` section

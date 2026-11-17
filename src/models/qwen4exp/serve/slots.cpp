@@ -1,13 +1,13 @@
 // src/models/qwen4exp/serve/slots.cpp - slots operations.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 // a view of the solo session carrying slot b's state: what the request path and the solo verifier work on for a
 // request that runs in that slot
-void QfnRuntime::make_view(basalt::core::SessionState& v, int b) {
-    const basalt::core::SessionState& t = *bslot_ss[0][(size_t) b];
+void QfnRuntime::make_view(halo::core::SessionState& v, int b) {
+    const halo::core::SessionState& t = *bslot_ss[0][(size_t) b];
     v = ss;
     v.gdn_state = t.gdn_state;
     v.qsa_states = t.qsa_states;
@@ -24,24 +24,24 @@ void QfnRuntime::make_view(basalt::core::SessionState& v, int b) {
 bool QfnRuntime::copy_to_slot(int b, const std::vector<int32_t>& ids, std::string& e) {
     const int64_t upto = (int64_t) ids.size();
     for (size_t k = 0; k < bslot_ss.size(); ++k) {
-        basalt::core::SessionState& from = *rsp;
-        basalt::core::SessionState& to = *bslot_ss[k][(size_t) b];
+        halo::core::SessionState& from = *rsp;
+        halo::core::SessionState& to = *bslot_ss[k][(size_t) b];
         if (from.gdn_state == to.gdn_state) continue;   // the same state (slot 0, or the request's own slot)
         // the elastic KV: the slot backs the copied cells and its room past them, and gives back the rest
         if (k == 0 && (!kv_fit(to, upto + kKvGrowCells, e) || !kv_release(to, upto + kKvGrowCells, e)))
             return false;
         if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch admission: device sync failed"; return false; }
-        basalt::core::ConversationCheckpoint ck;
+        halo::core::ConversationCheckpoint ck;
         ck.ids = ids;
-        if (!basalt::core::conversation_checkpoint_save(ck, from, g, e) ||
-            !basalt::core::conversation_checkpoint_restore(ck, to, g, e))
+        if (!halo::core::conversation_checkpoint_save(ck, from, g, e) ||
+            !halo::core::conversation_checkpoint_restore(ck, to, g, e))
             return false;
         for (int64_t j = 0; j < from.qsa_alloc; ++j) {
-            basalt::core::ConversationKv img;
-            if (!basalt::core::conversation_kv_save(img, from.qsa_states[from.qsa_ord0 + j], g, upto, true, e))
+            halo::core::ConversationKv img;
+            if (!halo::core::conversation_kv_save(img, from.qsa_states[from.qsa_ord0 + j], g, upto, true, e))
                 return false;
             if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch admission: device sync failed"; return false; }
-            if (!basalt::core::conversation_kv_restore(img, to.qsa_states[to.qsa_ord0 + j], g, upto, true, e))
+            if (!halo::core::conversation_kv_restore(img, to.qsa_states[to.qsa_ord0 + j], g, upto, true, e))
                 return false;
         }
         if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch admission: device sync failed"; return false; }
@@ -56,17 +56,17 @@ bool QfnRuntime::hold_slot(int b, const ConvCheckpoint* at, std::string& e) {
     slot_held.ck.resize(bslot_ss.size());
     slot_held.kv.resize(bslot_ss.size());
     for (size_t k = 0; k < bslot_ss.size(); ++k) {
-        basalt::core::SessionState& from = *bslot_ss[k][(size_t) b];
-        const basalt::core::SessionState& to = *rsp;
+        halo::core::SessionState& from = *bslot_ss[k][(size_t) b];
+        const halo::core::SessionState& to = *rsp;
         if (from.gdn_state == to.gdn_state) continue;
         if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch slot hold: device sync failed"; return false; }
         if (at == nullptr) {
             slot_held.ck[k].ids = bs[(size_t) b].ids;
-            if (!basalt::core::conversation_checkpoint_save(slot_held.ck[k], from, g, e)) return false;
+            if (!halo::core::conversation_checkpoint_save(slot_held.ck[k], from, g, e)) return false;
         }
         for (int64_t j = 0; j < from.qsa_alloc; ++j) {
             slot_held.kv[k].emplace_back();
-            if (!basalt::core::conversation_kv_save(slot_held.kv[k].back(), from.qsa_states[from.qsa_ord0 + j], g,
+            if (!halo::core::conversation_kv_save(slot_held.kv[k].back(), from.qsa_states[from.qsa_ord0 + j], g,
                                                     upto, true, e))
                 return false;
             if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch slot hold: device sync failed"; return false; }
@@ -83,27 +83,27 @@ bool QfnRuntime::copy_from_slot(int b, const ConvCheckpoint* at, std::string& e)
     const int64_t upto = at != nullptr ? (int64_t) at->ids.size() : (int64_t) bs[(size_t) b].ids.size();
     const bool held = slot_held.b == b;
     for (size_t k = 0; k < bslot_ss.size(); ++k) {
-        basalt::core::SessionState& from = *bslot_ss[k][(size_t) b];
-        basalt::core::SessionState& to = *rsp;
+        halo::core::SessionState& from = *bslot_ss[k][(size_t) b];
+        halo::core::SessionState& to = *rsp;
         if (from.gdn_state == to.gdn_state) continue;   // the same state (slot 0, or the request's own slot)
         if (cudaDeviceSynchronize() != cudaSuccess) { e = "batch slot restore: device sync failed"; return false; }
         if (at != nullptr) {
-            if (!basalt::core::conversation_checkpoint_restore(*at, to, g, e))
+            if (!halo::core::conversation_checkpoint_restore(*at, to, g, e))
                 return false;
         } else if (held) {
-            if (!basalt::core::conversation_checkpoint_restore(slot_held.ck[k], to, g, e)) return false;
+            if (!halo::core::conversation_checkpoint_restore(slot_held.ck[k], to, g, e)) return false;
         } else {
-            basalt::core::ConversationCheckpoint ck;
+            halo::core::ConversationCheckpoint ck;
             ck.ids = bs[(size_t) b].ids;
-            if (!basalt::core::conversation_checkpoint_save(ck, from, g, e) ||
-                !basalt::core::conversation_checkpoint_restore(ck, to, g, e))
+            if (!halo::core::conversation_checkpoint_save(ck, from, g, e) ||
+                !halo::core::conversation_checkpoint_restore(ck, to, g, e))
                 return false;
         }
         for (int64_t j = 0; j < from.qsa_alloc; ++j) {
             // the slot's cells straight into the request's session (a held slot's from its RAM copy)
-            if (held ? !basalt::core::conversation_kv_restore(slot_held.kv[k][(size_t) j],
+            if (held ? !halo::core::conversation_kv_restore(slot_held.kv[k][(size_t) j],
                                                               to.qsa_states[to.qsa_ord0 + j], g, upto, true, e)
-                     : !basalt::core::conversation_kv_copy(from.qsa_states[from.qsa_ord0 + j],
+                     : !halo::core::conversation_kv_copy(from.qsa_states[from.qsa_ord0 + j],
                                                            to.qsa_states[to.qsa_ord0 + j], g, upto, true, e))
                 return false;
         }
@@ -121,7 +121,7 @@ void QfnRuntime::solo_draft_back(bool keep) {
     solo_draft_in0 = false;
     std::string e;
     if (keep && live_ok && !live.empty() && !mtp.copy_store(0, mtp.main_store(), (int64_t) live.size(), e))
-        basalt::log::warn("basalt serve", "the solo conversation's draft K/V: %s", e.c_str());
+        halo::log::warn("halo serve", "the solo conversation's draft K/V: %s", e.c_str());
 }
 
 // hashes of everything slot b's sessions hold for its first `upto` tokens, per part (GDN state, PLE history,
@@ -142,18 +142,18 @@ bool QfnRuntime::slot_digest(int b, int64_t upto, uint64_t* part) {
         part[i] = h;
     };
     std::string e;
-    const basalt::core::SessionState& from = *bslot_ss[0][(size_t) b];
+    const halo::core::SessionState& from = *bslot_ss[0][(size_t) b];
     if (cudaDeviceSynchronize() != cudaSuccess) return false;
-    basalt::core::ConversationCheckpoint ck;
+    halo::core::ConversationCheckpoint ck;
     ck.ids.assign((size_t) upto, 0);
-    if (!basalt::core::conversation_checkpoint_save(ck, from, g, e)) return false;
-    const basalt::core::CheckpointBytes* cv[5] = {&ck.state_a, &ck.state_b, &ck.state_c, &ck.state_d, &ck.state_e};
+    if (!halo::core::conversation_checkpoint_save(ck, from, g, e)) return false;
+    const halo::core::CheckpointBytes* cv[5] = {&ck.state_a, &ck.state_b, &ck.state_c, &ck.state_d, &ck.state_e};
     for (int i = 0; i < 5; ++i) mix(i, cv[i]->data(), cv[i]->size());
     for (int64_t j = 0; j < from.qsa_alloc; ++j) {
-        basalt::core::ConversationKv img;
-        if (!basalt::core::conversation_kv_save(img, from.qsa_states[from.qsa_ord0 + j], g, upto & ~int64_t(3), true, e)) return false;   // whole pages: the cells past `upto` may hold rejected rows
+        halo::core::ConversationKv img;
+        if (!halo::core::conversation_kv_save(img, from.qsa_states[from.qsa_ord0 + j], g, upto & ~int64_t(3), true, e)) return false;   // whole pages: the cells past `upto` may hold rejected rows
         if (cudaDeviceSynchronize() != cudaSuccess) return false;
-        const basalt::core::ConversationBuffer* kb[5] = {&img.k, &img.v, &img.k_scale, &img.v_scale, &img.pooled};
+        const halo::core::ConversationBuffer* kb[5] = {&img.k, &img.v, &img.k_scale, &img.v_scale, &img.pooled};
         for (int i = 0; i < 5; ++i) {   // (the pooled rows past the completed blocks are not state)
             const size_t cnt = i == 4 ? std::min(kb[i]->size(), (size_t) (upto >> 2) * (size_t) img.idx_dim * 4) : kb[i]->size();
             kb[i]->visit(0, cnt, [&](const uint8_t* p, size_t n, size_t) { mix(5 + i, p, n); return true; });
@@ -162,4 +162,4 @@ bool QfnRuntime::slot_digest(int b, int64_t upto, uint64_t* part) {
     return true;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

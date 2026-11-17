@@ -1,6 +1,6 @@
 // tests/program/protocol_lines_test.cpp - the protocol lines the server reads for the conversation cache and for a
-// prompt that does not fit the context (include/basalt/protocol.hpp): their exact form, one line each.
-#include "basalt/protocol.hpp"
+// prompt that does not fit the context (include/halo/protocol.hpp): their exact form, one line each.
+#include "halo/protocol.hpp"
 
 #include <cstdio>
 #include <string>
@@ -15,7 +15,7 @@ static void expect(const std::string& got, const std::string& want, int line) {
 #define EXPECT(got, want) expect((got), (want), __LINE__)
 
 int main() {
-    using namespace basalt::protocol;
+    using namespace halo::protocol;
 
     // a park reports the RAM tier's figures
     EXPECT(conversation_line(6, 13314398618ull, 3), "CONV parked=6 bytes=13314398618 evictions=3\n");

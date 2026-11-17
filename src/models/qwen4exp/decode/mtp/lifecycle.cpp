@@ -1,7 +1,7 @@
-// src/models/qwen4exp/decode/mtp/lifecycle.cpp - see include/basalt/models/qwen4exp/decode/mtp.hpp.
+// src/models/qwen4exp/decode/mtp/lifecycle.cpp - see include/halo/models/qwen4exp/decode/mtp.hpp.
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 

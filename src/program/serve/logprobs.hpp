@@ -1,4 +1,4 @@
-// basalt/program/serve/logprobs.hpp - the protocol fields of a sent pick's log probability.
+// halo/program/serve/logprobs.hpp - the protocol fields of a sent pick's log probability.
 //
 // A request with `logprobs=K` gets one line per sent pick ahead of the pick itself: `P <id> <lp> [<id>:<lp> ...]` (solo)
 // or `BP <slot> <id> <lp> [...]` (batch slots, ahead of the slot's BT line). The model computes the values on the GPU
@@ -7,7 +7,7 @@
 // likeliest first, ties to the lower id. Plain values in, the line's fields out; no engine state.
 #pragma once
 
-#include "basalt/kernels/logprobs.hpp"
+#include "halo/kernels/logprobs.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -15,9 +15,9 @@
 #include <cstring>
 #include <string>
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
-constexpr int kMaxTopLogprobs = basalt::kernels::kLogprobMaxTop;
+constexpr int kMaxTopLogprobs = halo::kernels::kLogprobMaxTop;
 
 /// " <tok> <lp>[ <id>:<lp> ...]" from one row of kernels::row_logprobs (kLogprobStride floats) for pick `tok`.
 inline std::string logprob_fields(const float* row, int32_t tok, int top) {
@@ -36,4 +36,4 @@ inline std::string logprob_fields(const float* row, int32_t tok, int top) {
     return out;
 }
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

@@ -1,27 +1,27 @@
 #include "common.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 #include <cmath>
 #include <exception>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 bool Verifier::capture_batch(int R, int hbase, std::string& err) {
     const uint64_t key = bkey(R, hbase);
     cudaGraphExec_t& ex = exec_bm_[key];
     if (ex != nullptr) return true;
-    const bool pdl_try = basalt::kernels::pdl_requested() && !pdl_off_;
+    const bool pdl_try = halo::kernels::pdl_requested() && !pdl_off_;
     // a window that does not capture or instantiate with programmatic dependent launch is captured again without it
     auto retry_plain = [&](const std::string& why) {
-        basalt::log::warn("basalt verify", "the %d-row batch window failed with programmatic dependent launch (%s): "
+        halo::log::warn("halo verify", "the %d-row batch window failed with programmatic dependent launch (%s): "
                              "capturing it without", R, why.c_str());
         (void) cudaGetLastError();
         pdl_off_ = true;
@@ -52,7 +52,7 @@ bool Verifier::capture_batch(int R, int hbase, std::string& err) {
         if (pdl_try) return retry_plain(err);
         return false;
     }
-    basalt::log::info("basalt verify", "captured the batch window for %d rows", R);
+    halo::log::info("halo verify", "captured the batch window for %d rows", R);
     return true;
 }
 
@@ -69,7 +69,7 @@ bool Verifier::instantiate_batch(cudaGraphExec_t& ex, cudaGraph_t graph, std::st
 bool Verifier::capture_commit_batch(int R, std::string& err) {
     cudaGraphExec_t& cex = commit_bm_[R];
     if (cex != nullptr) return true;
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const ModelGeometry& g = *g_;
     const QsaShapes s = shapes_of(g);
     const int64_t C = g.ssm_conv_channels, HV = g.ssm_v_heads, ID = g.idx_key_dim, MT = max_t_;
@@ -133,4 +133,4 @@ bool Verifier::capture_commit_batch(int R, std::string& err) {
     return instantiate_batch(cex, graph, err);
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

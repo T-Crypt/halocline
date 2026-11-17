@@ -6,9 +6,9 @@
 //   2. the INT8 gather is BITWISE equal to the host dequantization of those codes;
 //   3. against the FP16 path, the INT8 values differ by at most half a quantization step of their group plus the
 //      fp16 rounding of both sides (0.624 steps).
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
 
 #include <cuda_runtime.h>
 
@@ -19,7 +19,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 int g_fail = 0;

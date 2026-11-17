@@ -13,12 +13,12 @@
 // partials are reduced through shuffle; the CPU walks every chunk in order with its own accumulator shape.
 // The two agree to float rounding and not to the bit, which is the same contract `s_gemv_parity` carries for
 // the same reason.  `moe_hit_parity` is the check.
-#include "basalt/models/qwen4exp/kernels/s2_expert_grouped.hpp"
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/packed_byte.hpp"
+#include "halo/models/qwen4exp/kernels/s2_expert_grouped.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/packed_byte.hpp"
 
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -28,12 +28,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
-// THE BLOB'S OWN GEOMETRY, from `include/basalt/kernels/cpu/expert.hpp`.  Restated as literals because that
+// THE BLOB'S OWN GEOMETRY, from `include/halo/kernels/cpu/expert.hpp`.  Restated as literals because that
 // header is the CPU path's and this file must not silently follow it if the two ever disagree: the sizes below
 // are what the CPU kernel's indexing computes, and `moe_hit_parity` compares the two end to end.
 constexpr int H = 2560;
@@ -369,7 +369,7 @@ constexpr int THREADS = 256;
 void check(const char* who, void* stream) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s launch: %s", who, cudaGetErrorString(e));
+        halo::log::error("halo", "%s launch: %s", who, cudaGetErrorString(e));
         std::exit(1);
     }
     // Deliberately NOT synchronising for a non-null stream: this is called once per layer from a captured
@@ -534,7 +534,7 @@ __global__ void add_hits_kernel(float* __restrict__ parts, const float* __restri
 
 void moe_hit_select(const int32_t* ids, const int32_t* res_row, int k, int n_expert, int32_t* slot, int32_t* dst,
                     int32_t* count, void* stream) {
-    if (k < 1 || k > 32) { basalt::log::error("basalt", "moe_hit_select: k must be 1..32"); std::exit(1); }
+    if (k < 1 || k > 32) { halo::log::error("halo", "moe_hit_select: k must be 1..32"); std::exit(1); }
     hit_select_kernel<<<1, 32, 0, (cudaStream_t) stream>>>(ids, res_row, k, n_expert, slot, dst, count);
     check("moe_hit_select", stream);
 }
@@ -911,7 +911,7 @@ __global__ void group_resident_kernel(const int32_t* __restrict__ ids, int n, in
 void moe_group_resident(const int32_t* ids, int n, int k_per_tok, const uint8_t* base, int64_t blob,
                         unsigned long long* grp_ptr, int32_t* grp_start, int32_t* counts, int32_t* ent_dst,
                         int32_t* ent_tok, void* stream) {
-    if (n < 1 || n > 128) { basalt::log::error("basalt", "moe_group_resident: n must be 1..128"); std::exit(1); }
+    if (n < 1 || n > 128) { halo::log::error("halo", "moe_group_resident: n must be 1..128"); std::exit(1); }
     group_resident_kernel<<<1, 128, 0, (cudaStream_t) stream>>>(ids, n, k_per_tok, base, (long long) blob, grp_ptr,
                                                                grp_start, counts, ent_dst, ent_tok);
     check("moe_group_resident", stream);
@@ -964,4 +964,4 @@ void moe_hit_add(float* parts, const float* hit_out, const int32_t* dst, const i
     check("moe_hit_add", stream);
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

@@ -1,5 +1,8 @@
 # Configuration reference
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
 Every setting: server options, engine flags, and the sampling fields. Effects on speed and precision: [running](../running.md),
 [precision](../precision/index.md).
 
@@ -11,12 +14,12 @@ Every setting: server options, engine flags, and the sampling fields. Effects on
 ## How settings are given
 
 ```sh
-bin/basalt serve --config basalt_config.json [options]
-bin/basalt serve MODEL.basalt [--python PY] [options]
+bin/halo serve --config halo_config.json [options]
+bin/halo serve MODEL.basalt [--python PY] [options]
 ```
 
 - **Server options** (the Python server): model, address, port, slots, vision, logging. `--name value` on the command line.
-- **Engine flags** (`bin/basalt --help`): context, KV, expert cache, prefill, speculation. Given like any flag; the server passes them
+- **Engine flags** (`bin/halo --help`): context, KV, expert cache, prefill, speculation. Given like any flag; the server passes them
   on in order and asks the engine which it accepts.
 
 A config file is one JSON object. `models` lists the models; `engine` applies to every model that takes it; `server` is shared:
@@ -82,7 +85,7 @@ Command line `--name`; the Where column says which config block takes it.
 
 | Setting | Where | Type, values | Default | What it does |
 | --- | --- | --- | --- | --- |
-| `gpu` | entry, `basalt`, `basalt-bench`, `basalt-probe` | `"0"`, `"0,1"`, `"auto"` | GPU 0 alone | Cards, numbered as `nvidia-smi`. The first is the main card. `auto` takes every Blackwell card and makes the fastest main. [GPUs](gpus.md) |
+| `gpu` | entry, `halo`, `halo-bench`, `halo-probe` | `"0"`, `"0,1"`, `"auto"` | GPU 0 alone | Cards, numbered as `nvidia-smi`. The first is the main card. `auto` takes every Blackwell card and makes the fastest main. [GPUs](gpus.md) |
 | `peer-reserve-mib` | engine | MiB | 600 | VRAM the second card keeps free after its experts and prompt buffers. Raise it when the start says the peer's buffers do not fit. [GPUs](gpus.md#two-16-gb-cards) |
 
 ## Context and KV cache

@@ -1,10 +1,10 @@
 // src/kernels/cpu/nvfp4_avx2.cpp - NVFP4 expert rows against Q8_0 activations, several tokens at once, in 256-bit
 // lanes (nvfp4_avx2_rows.inc), and the choice between this file's rows and the AVX-VNNI-INT8 build of the same code.
-#include "basalt/kernels/cpu/nvfp4_avx2.hpp"
+#include "halo/kernels/cpu/nvfp4_avx2.hpp"
 
 #define GGML_COMMON_DECL_CPP
 #define GGML_COMMON_IMPL_CPP
-#include "basalt/ggml/ggml_common.h"
+#include "halo/ggml/ggml_common.h"
 
 #include <immintrin.h>
 
@@ -12,13 +12,13 @@
 #include <cmath>
 #include <cstring>
 
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
-#define BASALT_NVFP4_VNNI_INT8 0
-#define BASALT_NVFP4_EXPORT(name) name##_base
+#define HALO_NVFP4_VNNI_INT8 0
+#define HALO_NVFP4_EXPORT(name) name##_base
 #include "nvfp4_avx2_rows.inc"
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 
 bool nvfp4_256_fits(int n_embd, int n_ff) noexcept {
     return n_embd % QK_NVFP4 == 0 && n_ff % QK_NVFP4 == 0 && n_embd <= kMaxN && n_ff <= kMaxN;
@@ -38,4 +38,4 @@ void nvfp4_256_down_rows(const uint8_t* w, size_t row_bytes, int n, float sd, co
     else nvfp4_256_down_rows_base(w, row_bytes, n, sd, act, nt, out, r0, r1);
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

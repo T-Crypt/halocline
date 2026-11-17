@@ -20,8 +20,8 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-#include "basalt/models/qwen4exp/kernels/native_router.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/native_router.hpp"
+#include "halo/kernels/pdl.hpp"
 #include <cuda_runtime.h>
 #include <cfloat>
 #include <cmath>
@@ -29,7 +29,7 @@
 #include <cstdint>
 #include <stdexcept>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 __device__ __forceinline__ float warp_sum(float value) {
 #pragma unroll

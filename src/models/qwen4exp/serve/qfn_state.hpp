@@ -1,65 +1,65 @@
 // src/models/qwen4exp/serve/qfn_state.hpp - Flash-Next's serving state, ordered by resource lifetime.
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "../../../program/serve/state.hpp"
 #include "qfn_runtime.hpp"
-#include "basalt/model/adapter.hpp"
+#include "halo/model/adapter.hpp"
 #include "../../../program/cli/tokens.hpp"
 #include "loans.hpp"
 #include "loan_moves.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
-#include "basalt/program/community_row.hpp"
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/core/logit_bias.hpp"
-#include "basalt/program/grammar/guard.hpp"
-#include "basalt/core/device.hpp"
-#include "basalt/core/diag.hpp"
-#include "basalt/core/draft_cum.hpp"
-#include "basalt/core/expert_cache.hpp"
-#include "basalt/models/qwen4exp/decode/conversation_snapshot.hpp"
-#include "basalt/core/conversation_memory.hpp"
-#include "basalt/core/conversation_store.hpp"
-#include "basalt/core/expert_source.hpp"
-#include "basalt/core/pinned.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
-#include "basalt/platform/process.hpp"
-#include "basalt/platform/system.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/decode/session.hpp"
-#include "basalt/core/staged_copy.hpp"
-#include "basalt/core/vmm.hpp"
-#include "basalt/core/weights.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/kernels/cpu/cpu_quota.hpp"
-#include "basalt/program/image_loan.hpp"
-#include "basalt/program/tokenizer.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/mrope.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/native_dense.hpp"
-#include "basalt/program/conv_cache.hpp"
-#include "basalt/program/ppl_gate.hpp"
-#include "basalt/program/probe_rates.hpp"
-#include "basalt/spec/draft_policy.hpp"
-#include "basalt/spec/suffix_drafter.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/vision/encoder_cuda.hpp"
-#include "basalt/vision/mmproj.hpp"
-#include "basalt/vision/preprocess.hpp"
+#include "halo/models/qwen4exp/options.hpp"
+#include "halo/program/community_row.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/core/logit_bias.hpp"
+#include "halo/program/grammar/guard.hpp"
+#include "halo/core/device.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/core/draft_cum.hpp"
+#include "halo/core/expert_cache.hpp"
+#include "halo/models/qwen4exp/decode/conversation_snapshot.hpp"
+#include "halo/core/conversation_memory.hpp"
+#include "halo/core/conversation_store.hpp"
+#include "halo/core/expert_source.hpp"
+#include "halo/core/pinned.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
+#include "halo/platform/process.hpp"
+#include "halo/platform/system.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/decode/session.hpp"
+#include "halo/core/staged_copy.hpp"
+#include "halo/core/vmm.hpp"
+#include "halo/core/weights.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/kernels/cpu/cpu_quota.hpp"
+#include "halo/program/image_loan.hpp"
+#include "halo/program/tokenizer.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/mrope.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/native_dense.hpp"
+#include "halo/program/conv_cache.hpp"
+#include "halo/program/ppl_gate.hpp"
+#include "halo/program/probe_rates.hpp"
+#include "halo/spec/draft_policy.hpp"
+#include "halo/spec/suffix_drafter.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/vision/encoder_cuda.hpp"
+#include "halo/vision/mmproj.hpp"
+#include "halo/vision/preprocess.hpp"
 #include <cerrno>
 #include <cstddef>   // std::ptrdiff_t
 
@@ -95,10 +95,10 @@
 #include <set>
 #include <tuple>
 #include <vector>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::models::qwen4exp::serve {
-namespace serve_loans = basalt::models::qwen4exp::serve;
+namespace halo::models::qwen4exp::serve {
+namespace serve_loans = halo::models::qwen4exp::serve;
 using engine_local::Drive;
 using engine_local::JobRunner;
 using engine_local::biggest_chunk;
@@ -117,7 +117,7 @@ using engine_local::kSatBoost;
 //     back rejected drafts.
 // A checkpoint is only valid while the positional cells below it still hold its tokens, so the serve loop keeps
 // just the checkpoints that are prefixes of the tokens the session holds now.
-using ConvStateSizes = basalt::core::ConversationStateSizes;
+using ConvStateSizes = halo::core::ConversationStateSizes;
 
 // A round that found at least kSatRatio times --adapt-swaps misses to swap (the pipeline is saturated) lets the next
 // round swap kSatBoost times --adapt-swaps into the main card; the free RAM places are sized for it.  Fewer misses than
@@ -126,10 +126,10 @@ inline constexpr int kSatRatio = 2;
 /// Pipelined windows: the least chance (the cumulative draft rule's product up to the guess) a window's successor is
 /// launched on, and how far below the window threshold the chain runs on past its window so there are drafts for it.
 
-ConvStateSizes conv_state_sizes(const basalt::core::ModelGeometry& g, const basalt::core::SessionState& ss);
-bool checkpoint_save(ConvCheckpoint& c, const basalt::core::SessionState& ss, const basalt::core::ModelGeometry& g);
-bool checkpoint_restore(const ConvCheckpoint& c, basalt::core::SessionState& ss, const basalt::core::ModelGeometry& g);
-uint64_t conversation_identity(const Options& o, const basalt::core::ModelGeometry& g);
+ConvStateSizes conv_state_sizes(const halo::core::ModelGeometry& g, const halo::core::SessionState& ss);
+bool checkpoint_save(ConvCheckpoint& c, const halo::core::SessionState& ss, const halo::core::ModelGeometry& g);
+bool checkpoint_restore(const ConvCheckpoint& c, halo::core::SessionState& ss, const halo::core::ModelGeometry& g);
+uint64_t conversation_identity(const Options& o, const halo::core::ModelGeometry& g);
 void seed_usage_from_prompt(std::vector<float>& usage, const std::vector<uint32_t>& hist, int64_t tokens,
                             const std::vector<int32_t>& host_res);
 
@@ -163,7 +163,7 @@ private:
     using Context::n_vocab;
     using Context::grammar_vocab;
     friend class Request;
-    basalt::prefill::Prefill sp{};
+    halo::prefill::Prefill sp{};
     void* borrow{};
     uint64_t borrow_bytes{};
     int32_t lend_first{};
@@ -175,9 +175,9 @@ private:
     // are indices into whichever cache owns the layer, so a loan that marked rows by slot number alone would hand
     // CUDA0 a slot belonging to another stage's cache.
     struct PfPart {
-        basalt::core::ExpertCache* cache = nullptr;
-        const basalt::core::SessionState* ses = nullptr;
-        basalt::prefill::Prefill* sp = nullptr;
+        halo::core::ExpertCache* cache = nullptr;
+        const halo::core::SessionState* ses = nullptr;
+        halo::prefill::Prefill* sp = nullptr;
         int dev = -1;                  // -1: leave the device alone (CUDA0)
         int64_t lb = 0, le = 0;        // the layers whose rows this cache holds - the only rows it may lend
         int32_t first = -1;            // the first slot it may lend, for the chunk that was chosen
@@ -200,15 +200,15 @@ private:
     // tokens that row's pick follows, -1 padded in front.  Allocated once at the cap for the widest window; a
     // request without penalties gets a null buffer and takes the byte-for-byte neutral path (no upload, no buffer
     // handed to the sampler).
-    static constexpr size_t kHistSlots = (size_t) kPenaltyWindowCap* (size_t) basalt::kernels::kVerifyMaxT;
+    static constexpr size_t kHistSlots = (size_t) kPenaltyWindowCap* (size_t) halo::kernels::kVerifyMaxT;
     int32_t* d_hist{};
     std::vector<int32_t> hist_stage{};
-    basalt::core::Verifier ver{};
-    basalt::core::VerifyHits vh{};
-    basalt::core::PoolMultiFn win_pool_fn{};
+    halo::core::Verifier ver{};
+    halo::core::VerifyHits vh{};
+    halo::core::PoolMultiFn win_pool_fn{};
     void* win_pool_user{};
-    std::vector<basalt::core::SessionState> rviews{};
-    basalt::core::SessionState* rsp{};
+    std::vector<halo::core::SessionState> rviews{};
+    halo::core::SessionState* rsp{};
     bool all_experts_resident{};
     // --expert-profile-save: what the adaptive tier learned, kept across restarts (opt-in; off: `heat` stays empty
     // and nothing below runs).  It needs the adaptive tier's counts and the residency table.
@@ -253,15 +253,15 @@ private:
     std::vector<int32_t> res_at_start{};
     std::vector<int32_t> prof_rank_start{};
     int64_t rounds{};
-    std::optional<basalt::spec::SuffixDrafter> sfx;
-    std::optional<basalt::spec::DraftPolicy> policy;
+    std::optional<halo::spec::SuffixDrafter> sfx;
+    std::optional<halo::spec::DraftPolicy> policy;
     bool mrope_identity{};
     std::vector<float> img_rows{};
     std::vector<const float*> row_ptr{};
     std::vector<std::pair<int32_t, int32_t>> vram_evicted{};   // (residency index, slot) the shrinks took
     int64_t chunk_full{};
     int64_t kKvGrowCells{};
-    static constexpr int64_t kKvWindowCells = 2* basalt::kernels::kVerifyMaxT + 64;   // a decoding session's next window
+    static constexpr int64_t kKvWindowCells = 2* halo::kernels::kVerifyMaxT + 64;   // a decoding session's next window
     int64_t kv_moves{};
     int64_t kv_ceiling_sent = -1;   // the elastic KV's ceiling the server was last told (INFO elastic_kv_ceiling)
     bool kv_short{};
@@ -270,7 +270,7 @@ private:
     /// the solo conversation's draft K/V waits in slot 0's store while a request in another slot holds the main one
     bool solo_draft_in0{};
     int S_all{};
-    std::optional<basalt::spec::DraftPolicy> bpolicy;
+    std::optional<halo::spec::DraftPolicy> bpolicy;
     double bt_draft{};
     double bt_draft_last{};
     int64_t bt_slotwin{};
@@ -326,7 +326,7 @@ private:
     bool xq_advance(bool wait);
     bool xq_drain();
     void save_profile(const char* why);
-    void make_view(basalt::core::SessionState& v, int b);
+    void make_view(halo::core::SessionState& v, int b);
     int32_t loan_plan(int64_t live, int64_t& chunk);
     void relend();
     bool home_given_up(int64_t live, std::string& e);
@@ -338,12 +338,12 @@ private:
                            const std::vector<serve_loans::LentEntry>* lent_out = nullptr);
     bool kv_drain(std::string& e);
     bool cache_regrow(std::string& e);
-    bool kv_fit(basalt::core::SessionState& s, int64_t cells, std::string& e, bool shrink = true, int64_t min_cells = -1);
-    bool kv_release(basalt::core::SessionState& s, int64_t cells, std::string& e);
+    bool kv_fit(halo::core::SessionState& s, int64_t cells, std::string& e, bool shrink = true, int64_t min_cells = -1);
+    bool kv_release(halo::core::SessionState& s, int64_t cells, std::string& e);
     uint64_t row_hash(int t);
-    bool kv_give_back(int64_t ss_keep, const basalt::core::SessionState* skip, int skip_slot, const std::function<bool()>& enough, int64_t& given, std::string& e);
-    std::vector<std::pair<double, int>> idle_list(const basalt::core::SessionState* s, bool any);
-    int64_t park_idle(const basalt::core::SessionState* s, int64_t need, bool any, std::string& e);
+    bool kv_give_back(int64_t ss_keep, const halo::core::SessionState* skip, int skip_slot, const std::function<bool()>& enough, int64_t& given, std::string& e);
+    std::vector<std::pair<double, int>> idle_list(const halo::core::SessionState* s, bool any);
+    int64_t park_idle(const halo::core::SessionState* s, int64_t need, bool any, std::string& e);
     bool park_one(int b, std::string& e);
     bool park_idle_engine(std::string& e) override;
     void enc_command(const std::string& cmd) override;
@@ -365,4 +365,4 @@ private:
     int init_batch();
 };
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

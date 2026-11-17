@@ -24,17 +24,17 @@
 // `freq_scale`; YaRN blends extrapolation and interpolation along the pairs (ggml's `rope_yarn`) and folds
 // the mscale magnitude correction into the same cos/sin values.  All of it float64, in the reference's
 // order, so `rope_parity` can hold every variant to a bit-exact float64 transcription of the same spec.
-#include "basalt/models/qwen4exp/kernels/rope.hpp"
-#include "basalt/models/qwen4exp/kernels/mrope.hpp"
+#include "halo/models/qwen4exp/kernels/rope.hpp"
+#include "halo/models/qwen4exp/kernels/mrope.hpp"
 
 #include <cuda_runtime.h>
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 
 namespace {
 // The process's rope config (rope_scaling.hpp).  One writer - the engine's startup thread, before
@@ -118,7 +118,7 @@ void rope_neox_apply(const float* x, float* out, int64_t rows, int head_dim, int
                      const float* sin_tab, const int* pos, void* stream) {
     if (rows <= 0 || n_rot <= 0) return;
     if (n_rot % 2 != 0 || n_rot > head_dim) {
-        basalt::log::error("basalt", "rope_neox_apply: n_rot %d must be even and <= head_dim %d", n_rot, head_dim);
+        halo::log::error("halo", "rope_neox_apply: n_rot %d must be even and <= head_dim %d", n_rot, head_dim);
         std::exit(1);
     }
     const int threads = 128;
@@ -127,10 +127,10 @@ void rope_neox_apply(const float* x, float* out, int64_t rows, int head_dim, int
                                                                  sin_tab, pos, mrope_table());
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "rope_neox_apply launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "rope_neox_apply launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) cudaDeviceSynchronize();
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

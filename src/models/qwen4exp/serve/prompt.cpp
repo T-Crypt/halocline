@@ -1,18 +1,18 @@
 // src/models/qwen4exp/serve/prompt.cpp - prompt operations for the persistent engine.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_request.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 int64_t QfnRuntime::part_slots(const PfPart& p, int64_t c) {
-    return serve_loans::cache_slots_for(*p.cache, basalt::prefill::Prefill::bytes_needed(g, *p.ses, c));
+    return serve_loans::cache_slots_for(*p.cache, halo::prefill::Prefill::bytes_needed(g, *p.ses, c));
 }
 
 uint64_t QfnRuntime::part_bytes(const PfPart& p, int32_t first) {
-    basalt::core::ExpertCache& xc = *p.cache;
+    halo::core::ExpertCache& xc = *p.cache;
     return xc.slot_offsets() ? (uint64_t) (xc.bytes() - (int64_t) xc.slot_offsets()[first])
                              : (uint64_t) (xc.slots() - first) *
-                                   (uint64_t) basalt::kernels::cpu::expert_layout().max_blob;
+                                   (uint64_t) halo::kernels::cpu::expert_layout().max_blob;
 }
 
 // The prompt path.  The cache is sized before its own buffers are priced, so a chunk that does not fit is tried one
@@ -32,10 +32,10 @@ int QfnRuntime::init_prompt_paths() {   // 0: ready; 1: failed (err set); 2: fai
 // holding an expert it does not own, which is silent and produces plausible tokens.
 // (split in two halves so a layer split can queue every stage's copies before it waits for any)
 bool QfnRequest::refill_issue(PfPart& p, std::string& e, bool assign) {
-    const basalt::core::OnDevice on(p.dev);
+    const halo::core::OnDevice on(p.dev);
     for (const auto& [i, slot] : p.lent) {   // queued, one wait
         const uint8_t* b = runtime_.srcp->blob(i / runtime_.g.n_expert, i % runtime_.g.n_expert);
-        const int64_t nb = (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(i / runtime_.g.n_expert);
+        const int64_t nb = (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(i / runtime_.g.n_expert);
         if (b == nullptr || !(p.cache->fill_slot_queued(slot, b, e, nb)))
             return false;
         if (assign) runtime_.host_res[(size_t) i] = slot;
@@ -44,7 +44,7 @@ bool QfnRequest::refill_issue(PfPart& p, std::string& e, bool assign) {
 }
 
 bool QfnRequest::refill_wait(PfPart& p, std::string& e) {
-    const basalt::core::OnDevice on(p.dev);
+    const halo::core::OnDevice on(p.dev);
     if (!p.cache->sync_queued(e)) return false;
     p.lent.clear();
     p.lent_chunk = 0;
@@ -92,8 +92,8 @@ bool QfnRequest::lend(int64_t tokens, std::string& e, int64_t chunk, int64_t hea
     // the ring depth this read's layout uses; every size computed below (and the layout) follows it, and
     // the full depth is restored on the way out for the sizing done elsewhere
     const bool beside = runtime_.batch_on() && (tokens > runtime_.kReadAlone || resumed_chunk > 0);
-    basalt::prefill::Prefill::set_ring_depth(beside ? runtime_.kRingDecoding : 1 << 20);
-    struct RingReset { ~RingReset() { basalt::prefill::Prefill::set_ring_depth(1 << 20); } } ring_reset;
+    halo::prefill::Prefill::set_ring_depth(beside ? runtime_.kRingDecoding : 1 << 20);
+    struct RingReset { ~RingReset() { halo::prefill::Prefill::set_ring_depth(1 << 20); } } ring_reset;
     // what this segment needs, capped by the configured chunk: a request lends only what its own
     // prompt needs, so a large chunk costs a short prompt nothing
     // A bare `auto` reads a prompt in equal chunks of at most this many tokens: past a few thousand tokens
@@ -138,7 +138,7 @@ bool QfnRequest::lend(int64_t tokens, std::string& e, int64_t chunk, int64_t hea
         return false;
     }
     bool any = false;
-    const int ring_now = (int) basalt::prefill::Prefill::ring_slots_for(want);
+    const int ring_now = (int) halo::prefill::Prefill::ring_slots_for(want);
     for (PfPart& p : runtime_.pf_parts) {
         if (p.first < 0) continue;
         const int32_t first = std::max<int32_t>(p.first, (int32_t) (p.cache->slots() - runtime_.part_slots(p, want)));
@@ -161,7 +161,7 @@ bool QfnRequest::lend(int64_t tokens, std::string& e, int64_t chunk, int64_t hea
             // resident again would hand the next window a prompt buffer in place of an expert
             if (!refill_one(p, e)) return false;
         }
-        const basalt::core::OnDevice on(p.dev);
+        const halo::core::OnDevice on(p.dev);
         if (beside && &p == &runtime_.pf_parts[0] && p.lent.empty()) {
             if (runtime_.ba_job) { runtime_.ba_thr.join(); runtime_.ba_job = false; }   // no adaptive copy lands in a slot it moves
             if (!runtime_.xq_drain()) { e = "an adaptive refill failed"; return false; }
@@ -177,7 +177,7 @@ bool QfnRequest::lend(int64_t tokens, std::string& e, int64_t chunk, int64_t hea
                 const size_t i = (size_t) (l * runtime_.g.n_expert + ex);
                 if (runtime_.host_res[i] >= first) {
                     p.lent.emplace_back((int32_t) i, runtime_.host_res[i]);
-                    runtime_.host_res[i] = basalt::core::kNotResident;
+                    runtime_.host_res[i] = halo::core::kNotResident;
                     any = true;
                 }
             }
@@ -211,7 +211,7 @@ bool QfnRequest::park_read(int64_t q, int ys, std::string& ye, int64_t chunk) {
         return false;
     }
     if (in_slot) {   // the read ran in this slot's own state: its PLE token window goes with it
-        basalt::core::SessionState& t = *runtime_.bslot_ss[0][(size_t) ys];
+        halo::core::SessionState& t = *runtime_.bslot_ss[0][(size_t) ys];
         t.ple_prev[0] = (*rview).ple_prev[0];
         t.ple_prev[1] = (*rview).ple_prev[1];
         t.ple_token = (*rview).ple_token;
@@ -226,7 +226,7 @@ bool QfnRequest::park_read(int64_t q, int ys, std::string& ye, int64_t chunk) {
     sl.cvec = runtime_.cvec_cached;
     for (const ConvCheckpoint& c : runtime_.checks)   // the root / periodic checkpoints of this read
         if ((int64_t) c.ids.size() <= q &&
-            basalt::core::conversation_ids_equal(c.ids.data(), c.ids.size(), ids32.data()))
+            halo::core::conversation_ids_equal(c.ids.data(), c.ids.size(), ids32.data()))
             sl.checks.push_back(c);
     yielded_at = q;
     yielded_slot = ys;
@@ -236,7 +236,7 @@ bool QfnRequest::park_read(int64_t q, int ys, std::string& ye, int64_t chunk) {
 int QfnRuntime::init_prompt() {
     if ((!no_spec && (o.spec < 2 || o.mtp.empty())) || o.prefill_chunk <= 0 ||
         (graph_hits && (thits.d_res == nullptr || host_res.empty()))) {
-        basalt::log::error("basalt serve", "needs --spec T (0 for none; T >= 2 also needs the model's draft layer) "
+        halo::log::error("halo serve", "needs --spec T (0 for none; T >= 2 also needs the model's draft layer) "
                              "and --prefill CHUNK (and a fillable "
                              "--expert-cache; the graphed hit path additionally needs an expert profile)");
         return 2;
@@ -293,7 +293,7 @@ int QfnRuntime::init_prompt() {
                 }
                 const std::string pct =
                     o.prefill_auto ? ", and lend at most " + std::to_string(auto_lend_pct) + "%" : "";
-                basalt::log::warn("basalt serve", "prompt chunk %lld tokens, not %lld: CUDA%d (%s) "
+                halo::log::warn("halo serve", "prompt chunk %lld tokens, not %lld: CUDA%d (%s) "
                                      "has %lld expert-cache slots, and a %lld-token chunk borrows %lld of them "
                                      "(it must keep 128%s) - prompts read slower than on CUDA0 alone",
                              (long long) chunk, (long long) alone, dev, prop.name,
@@ -305,11 +305,11 @@ int QfnRuntime::init_prompt() {
             if (o.prefill_auto)
                 // the resolved ring: a chunk under stream_all_min() gets the staging slots and those for copies
                 // ahead of its routing.  This is what `init` lays out, and what the INFO line reports to the Monitor tab.
-                basalt::log::info("basalt serve", "prompt chunk auto: %lld tokens, a %lld-slot ring",
+                halo::log::info("halo serve", "prompt chunk auto: %lld tokens, a %lld-slot ring",
                              (long long) chunk,
-                             (long long) basalt::prefill::Prefill::ring_slots_for(chunk));
+                             (long long) halo::prefill::Prefill::ring_slots_for(chunk));
             else if (chunk != o.prefill_chunk)
-                basalt::log::info("basalt serve", "prompt chunk %lld -> %lld tokens so its buffers fit in "
+                halo::log::info("halo serve", "prompt chunk %lld -> %lld tokens so its buffers fit in "
                                      "every expert cache", (long long) o.prefill_chunk, (long long) chunk);
             o.prefill_chunk = chunk;
             for (PfPart& p : pf_parts) {
@@ -323,12 +323,12 @@ int QfnRuntime::init_prompt() {
             // splits only - one GPU keeps its loan.
             if (pf_parts.size() > 1) {
                 for (PfPart& p : pf_parts) {
-                    const basalt::core::OnDevice on(p.dev);
+                    const halo::core::OnDevice on(p.dev);
                     size_t fb = 0, tb = 0;
                     if (cudaMemGetInfo(&fb, &tb) != cudaSuccess) { (void) cudaGetLastError(); continue; }
-                    const uint64_t need = basalt::prefill::Prefill::bytes_needed(g, *p.ses, chunk);
+                    const uint64_t need = halo::prefill::Prefill::bytes_needed(g, *p.ses, chunk);
                     if ((uint64_t) fb >= need + (3ull << 29)) {
-                        basalt::log::info("basalt serve", "  CUDA%d keeps its own prompt buffers (%.2f GiB of "
+                        halo::log::info("halo serve", "  CUDA%d keeps its own prompt buffers (%.2f GiB of "
                                              "%.2f GiB free): no loan", p.dev < 0 ? 0 : p.dev,
                                      (double) need / 1073741824.0, (double) fb / 1073741824.0);
                         p.first = -1;
@@ -346,10 +346,10 @@ int QfnRuntime::init_prompt() {
             // here and so do we, rather than refusing to start - but say what every stage has, because a split
             // stage that has to allocate these on top of a cache that already filled its VRAM will not fit,
             // and `init` would otherwise report only that the buffers do not fit.
-            basalt::log::info("basalt serve", "no stage can lend the prompt path its %lld-token buffers, so "
+            halo::log::info("halo serve", "no stage can lend the prompt path its %lld-token buffers, so "
                                  "each stage allocates its own:", (long long) o.prefill_chunk);
             for (const PfPart& p : pf_parts)
-                basalt::log::info("basalt serve", "  CUDA%d has %lld slots, and a %lld-token chunk needs "
+                halo::log::info("halo serve", "  CUDA%d has %lld slots, and a %lld-token chunk needs "
                                      "the last %lld of them", p.dev < 0 ? 0 : p.dev,
                              (long long) p.cache->slots(), (long long) o.prefill_chunk,
                              (long long) part_slots(p, o.prefill_chunk));
@@ -361,15 +361,15 @@ int QfnRuntime::init_prompt() {
     for (size_t i = 1; i < pf_parts.size(); ++i) any_loan = any_loan || pf_parts[i].first >= 0;
     if (any_loan) {
         if (borrow != nullptr)
-            basalt::log::info("basalt serve", "the prompt path borrows %lld CUDA0 cache slots (%.2f GiB)",
+            halo::log::info("halo serve", "the prompt path borrows %lld CUDA0 cache slots (%.2f GiB)",
                          (long long) (xcache.slots() - lend_first), (double) borrow_bytes / 1073741824.0);
         for (size_t i = 1; i < pf_parts.size(); ++i)   // one loan per stage, from that stage's own cache
-            if (pf_parts[i].first >= 0) basalt::log::info("basalt serve", "  CUDA%d prompt path borrows %lld of its %lld slots (%.2f GiB)",
+            if (pf_parts[i].first >= 0) halo::log::info("halo serve", "  CUDA%d prompt path borrows %lld of its %lld slots (%.2f GiB)",
                          pf_parts[i].dev, (long long) (pf_parts[i].cache->slots() - pf_parts[i].first),
                          (long long) pf_parts[i].cache->slots(),
                          (double) part_bytes(pf_parts[i], pf_parts[i].first) / 1073741824.0);
     } else {
-        basalt::log::info("basalt serve", "the prompt path allocates its own buffers (too few cache slots to borrow)");
+        halo::log::info("halo serve", "the prompt path allocates its own buffers (too few cache slots to borrow)");
     }
 
     {
@@ -381,7 +381,7 @@ int QfnRuntime::init_prompt() {
             if (borrow == nullptr) {
                 size_t fb = 0, tb = 0;
                 cudaMemGetInfo(&fb, &tb);
-                const int64_t need = (int64_t) basalt::prefill::Prefill::bytes_needed(g, ss, c);
+                const int64_t need = (int64_t) halo::prefill::Prefill::bytes_needed(g, ss, c);
                 if (need + kHeadroom > (int64_t) fb) {
                     dev_out = 0; need_out = need; free_out = (int64_t) fb;
                     return false;
@@ -399,7 +399,7 @@ int QfnRuntime::init_prompt() {
                 if (s < o.prefill_chunk && own_fits(s, d2, n2, f2)) { c = s; break; }
             }
             if (c > 0) {
-                basalt::log::warn("basalt serve", "a %lld-token chunk's prompt buffers need %lld MiB on CUDA%d, "
+                halo::log::warn("halo serve", "a %lld-token chunk's prompt buffers need %lld MiB on CUDA%d, "
                                      "%lld MiB free: %lld-token chunks", (long long) o.prefill_chunk,
                              (long long) (need >> 20), dev, (long long) (fb >> 20), (long long) c);
                 o.prefill_chunk = c;
@@ -413,7 +413,7 @@ int QfnRuntime::init_prompt() {
         for (const int64_t c : kStepChunks)
             if (c < o.prefill_chunk) { next = c; break; }
         if (r == 2 && next > 0) {
-            basalt::log::warn("basalt serve", "%s: trying a %lld-token chunk", err.c_str(), (long long) next);
+            halo::log::warn("halo serve", "%s: trying a %lld-token chunk", err.c_str(), (long long) next);
             // start the prompt paths over (a failed init may hold buffers), and consume the failed allocation's
             // error: it is sticky, and the next launch check would report "out of memory" for a kernel
             sp.reset();
@@ -432,9 +432,9 @@ int QfnRuntime::init_prompt() {
             err.clear();
             continue;
         }
-        basalt::log::error("basalt serve", "%s", err.c_str());
+        halo::log::error("halo serve", "%s", err.c_str());
         if (err.find("fit") != std::string::npos)   // say what frees VRAM
-            basalt::log::error("basalt serve", "the GPU has too little free VRAM for the prompt path: move images "
+            halo::log::error("halo serve", "the GPU has too little free VRAM for the prompt path: move images "
                                  "to the CPU (--vision cpu) or off, close other programs using the GPU, use a shorter "
                                  "context, or read prompts in smaller chunks (--prefill 512)");
         return 1;
@@ -442,4 +442,4 @@ int QfnRuntime::init_prompt() {
     return 0;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

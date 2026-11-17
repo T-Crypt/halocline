@@ -1,4 +1,4 @@
-// src/models/qwen4exp/kernels/mid_chain.cu - see include/basalt/models/qwen4exp/kernels/mid_chain.hpp.
+// src/models/qwen4exp/kernels/mid_chain.cu - see include/halo/models/qwen4exp/kernels/mid_chain.hpp.
 //
 // Its own translation unit: the device code of dense_tc.cu / gdn_window.cu / hc_fused.cu (and the helpers of
 // attn_chain_kernel.cuh's phase code) without their host sides.  Built WITHOUT fast math, like them.
@@ -10,15 +10,15 @@
 #define div_approx_ftz div_approx_ftz_rec
 #include "../../../kernels/cuda/gdn_window.cu"
 #undef div_approx_ftz
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/mid_chain.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/mid_chain.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <type_traits>
 
-using namespace basalt::kernels;
+using namespace halo::kernels;
 // the wait helpers of the bound header: this translation unit keeps its own copies
 #define mkb_word mid_mkb_word
 #define mkb_give_up mid_mkb_give_up
@@ -28,9 +28,9 @@ using namespace basalt::kernels;
 #include "attn_chain_bound.cuh"
 #define mkc mkmid
 #include "attn_chain_kernel.cuh"
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 bool tmap_2d(CUtensorMap* m, const void* base, CUtensorMapDataType ty, uint64_t cols, uint64_t rows, uint64_t stride, uint32_t box_c, uint32_t box_r);
 }
 
@@ -510,7 +510,7 @@ __global__ void __launch_bounds__(CT, 1) k_mid(const __grid_constant__ MP p) {
 
 }  // namespace mkc
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 using namespace mkmid;
 
@@ -584,7 +584,7 @@ void mid_chain_init() {
     cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
     cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, dev);
     if (!hc_fused_supported() || sms < kMidMinCtas || optin < SMEM_MAX) {
-        basalt::log::warn("basalt", "mid_chain: device not covered (%d SMs, %d B optin smem; need %d, %d): the unfused kernels run", sms, optin, kMidMinCtas, SMEM_MAX);
+        halo::log::warn("halo", "mid_chain: device not covered (%d SMs, %d B optin smem; need %d, %d): the unfused kernels run", sms, optin, kMidMinCtas, SMEM_MAX);
         return;
     }
     d.ctas = sms < kMidCtas ? sms : kMidCtas;
@@ -606,7 +606,7 @@ void mid_chain_init() {
     cudaDeviceSynchronize();
     d.ok = ok && cudaGetLastError() == cudaSuccess;
     if (!d.ok) {
-        basalt::log::error("basalt", "mid_chain: FATAL: kernel initialisation failed on a covered device (%s)", cudaGetErrorString(cudaGetLastError()));
+        halo::log::error("halo", "mid_chain: FATAL: kernel initialisation failed on a covered device (%s)", cudaGetErrorString(cudaGetLastError()));
         std::exit(1);
     }
 }
@@ -627,7 +627,7 @@ void mid_chain(const MidChainArgs& a, void* stream) {
     if (mid_ada_device()) { mid_ada(a, stream); return; }
     MidDev& d = mid_dev();
     if (!mid_chain_supported(a)) {
-        basalt::log::error("basalt", "mid_chain: unsupported arguments or device");
+        halo::log::error("halo", "mid_chain: unsupported arguments or device");
         std::exit(1);
     }
     MP p{};
@@ -648,7 +648,7 @@ void mid_chain(const MidChainArgs& a, void* stream) {
     p.lay = a.ord;
     CUtensorMap stm_map;
     if (!tmap_2d(&stm_map, a.rec.state, CU_TENSOR_MAP_DATA_TYPE_FLOAT32, (uint64_t) R_HV * S, S, (uint64_t) R_HV * S * 4, S, S)) {
-        basalt::log::error("basalt", "mid_chain: the state's tensor map failed");
+        halo::log::error("halo", "mid_chain: the state's tensor map failed");
         std::exit(1);
     }
     std::memcpy(&p.stm, &stm_map, sizeof stm_map);
@@ -659,9 +659,9 @@ void mid_chain(const MidChainArgs& a, void* stream) {
     launch_pdl(mid_pick(a.T, a.type_q, a.type_z, a.type_o, a.stamps != nullptr), dim3(a.ctas > 0 ? a.ctas : d.ctas), dim3(CT), (size_t) SMEM_MAX, (cudaStream_t) stream, p);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "mid_chain: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "mid_chain: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

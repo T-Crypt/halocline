@@ -1,17 +1,17 @@
 #pragma once
 
 #include "common.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/kv_stream.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
 #include <vector>
 
-namespace basalt::prefill::detail {
+namespace halo::prefill::detail {
 
 // Either cudaMalloc (owned, freed with the object) or a bump allocation from a borrowed region; with no base and
 // no region it only counts, which is how `bytes_needed` sizes the region.
@@ -63,18 +63,18 @@ constexpr size_t al256(size_t v) { return (v + 255) & ~(size_t) 255; }
 
 const MmqPlan& mmq_plan();
 float* grp_scales(uint8_t* grp_d);
-void take_stage(Alloc& o, const core::SessionState& ss, const basalt::kernels::QsaShapes& s,
-                basalt::kernels::KvHostPools& st, bool& ok);
-basalt::kernels::QsaAttnPools pools_of(const basalt::kernels::KvHostPools& h, const int32_t* table);
+void take_stage(Alloc& o, const core::SessionState& ss, const halo::kernels::QsaShapes& s,
+                halo::kernels::KvHostPools& st, bool& ok);
+halo::kernels::QsaAttnPools pools_of(const halo::kernels::KvHostPools& h, const int32_t* table);
 uint64_t gdn_qkv_bytes(size_t T);
 uint64_t gdn_set_bytes(size_t T);
 uint64_t hc_set_bytes(size_t T);
 uint64_t qsa_set_bytes(size_t T, int64_t cap, int64_t max_blocks, int64_t sel_batch, int64_t attn_batch,
-                       const basalt::kernels::QsaShapes& s);
+                       const halo::kernels::QsaShapes& s);
 uint64_t moe_set_bytes(size_t T, int64_t n_expert, bool fused);
 bool fused_layout(size_t T, bool src);
 /// An NVFP4 pack's prompt experts take the MMQ path (int8 tiles from the pack's NVFP4 blocks, mmq_nvfp4.cu) for every
 /// chunk size: the FP4 block-scaled tensor-core path (sm_120a only) was removed with the other Blackwell-only code.
 size_t group_rows_cap(size_t T);
 
-}  // namespace basalt::prefill::detail
+}  // namespace halo::prefill::detail

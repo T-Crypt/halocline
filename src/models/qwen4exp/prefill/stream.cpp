@@ -1,18 +1,18 @@
 #include "run.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <thread>
 #include <utility>
 #include <vector>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::start_stream() {
@@ -74,4 +74,4 @@ bool Prefill::Run::Chunk::start_stream() {
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

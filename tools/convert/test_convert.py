@@ -159,7 +159,7 @@ class ConvertTest(unittest.TestCase):
         convert.convert(self.args())
         m = self.model()
         meta = json.loads(m.read("meta"))
-        self.assertEqual(meta["format"], "basalt")
+        self.assertEqual(meta["format"], "halo")
         self.assertEqual(meta["name"], "Tiny")
         self.assertEqual(meta["gguf_kv"]["qwen.block_count"], N_LAYERS)
         self.assertEqual(meta["gguf_kv"]["qwen.rope.freqs"], [0.5, 1.5])

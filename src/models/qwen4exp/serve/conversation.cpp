@@ -1,60 +1,60 @@
 // src/models/qwen4exp/serve/conversation.cpp - conversation operations for the persistent engine.
-#include "basalt/models/qwen4exp/shared_names.hpp"
-#include "basalt/protocol.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
+#include "halo/protocol.hpp"
 #include "qfn_state.hpp"
-#include "basalt/models/qwen4exp/decode/kv_arena.hpp"
+#include "halo/models/qwen4exp/decode/kv_arena.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
-ConvStateSizes conv_state_sizes(const basalt::core::ModelGeometry& g, const basalt::core::SessionState& ss) {
+ConvStateSizes conv_state_sizes(const halo::core::ModelGeometry& g, const halo::core::SessionState& ss) {
     ConvStateSizes z;
     std::string error;
     // a split stage's session owns only its layer range's state (see SessionState's carve note); the geometry
     // and the carve have already passed engine validation
-    basalt::core::conversation_session_sizes(g, ss, z, error);
+    halo::core::conversation_session_sizes(g, ss, z, error);
     return z;
 }
 
 /// Copies the running state out (this session's carve only).  The caller has synchronized the device.
-bool checkpoint_save(ConvCheckpoint& c, const basalt::core::SessionState& ss, const basalt::core::ModelGeometry& g) {
+bool checkpoint_save(ConvCheckpoint& c, const halo::core::SessionState& ss, const halo::core::ModelGeometry& g) {
     std::string error;
-    if (basalt::core::conversation_checkpoint_save(c, ss, g, error)) return true;
-    basalt::log::error("basalt serve", "checkpoint save: %s", error.c_str());   // the caller's ERR has no reason
+    if (halo::core::conversation_checkpoint_save(c, ss, g, error)) return true;
+    halo::log::error("halo serve", "checkpoint save: %s", error.c_str());   // the caller's ERR has no reason
     return false;
 }
 
 /// Puts a checkpoint's running state back; the positional cells below it are the caller's to guarantee.
-bool checkpoint_restore(const ConvCheckpoint& c, basalt::core::SessionState& ss, const basalt::core::ModelGeometry& g) {
+bool checkpoint_restore(const ConvCheckpoint& c, halo::core::SessionState& ss, const halo::core::ModelGeometry& g) {
     std::string error;
-    if (basalt::core::conversation_checkpoint_restore(c, ss, g, error)) return true;
-    basalt::log::error("basalt serve", "checkpoint restore: %s", error.c_str());
+    if (halo::core::conversation_checkpoint_restore(c, ss, g, error)) return true;
+    halo::log::error("halo serve", "checkpoint restore: %s", error.c_str());
     return false;
 }
 
 /// The identity parked conversations on disk are written under (conversation_store.hpp): the model file
 /// (its size and samples of its bytes) and the settings that change a state's bytes - the K/V type, the rope, the draft
 /// layer, the image encoder, control vectors.  A file of another identity is never restored.
-uint64_t conversation_identity(const Options& o, const basalt::core::ModelGeometry& g) {
-    using basalt::core::conversation_store_hash;
+uint64_t conversation_identity(const Options& o, const halo::core::ModelGeometry& g) {
+    using halo::core::conversation_store_hash;
     char num[512];
     std::snprintf(num, sizeof num, " rope %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g cvec %d %d %d %d", o.rope.scale,
                   o.rope.freq_base, o.rope.freq_scale, o.rope.orig_ctx, o.rope.ext_factor, o.rope.attn_factor,
                   o.rope.beta_fast, o.rope.beta_slow, o.cvec_first, o.cvec_last, o.cvec_mode, o.cvec_single);
-    std::string text = std::string("basalt conversation state kv ") + o.kv + " rope " +
+    std::string text = std::string("halo conversation state kv ") + o.kv + " rope " +
                        o.rope.type + num + " mtp " + o.mtp + " vision_in_engine " + (o.vision_in_engine ? "1" : "0");
     for (const auto& [path, scale] : o.cvec_files) text += " cvec " + path + " " + std::to_string(scale);
     uint64_t h = conversation_store_hash(text.data(), text.size(), 1);
     const int64_t geo[] = {g.n_embd, g.n_layers, g.qsa_interval, g.ssm_state_size, g.ssm_v_heads, g.n_head_kv,
                            g.head_dim, g.idx_key_dim, g.n_expert, g.n_ff};
     h = conversation_store_hash(geo, sizeof geo, h);
-    return basalt::core::conversation_store_hash_file(o.model, h);
+    return halo::core::conversation_store_hash_file(o.model, h);
 }
 
 // A capture of a conversation's state, or a read of one from disk, takes `need` bytes of RAM: only while the RAM
 // guard reads its level as ok, and with `floor` left free after it (the disk tier's floor sits above the guard's).
 bool QfnRuntime::capture_admit(uint64_t need, uint64_t floor) {
-    return basalt::platform::ram_guard_level() == basalt::platform::RamLevel::Ok &&
-           basalt::core::conversation_memory_admit(basalt::core::conversation_available_memory(), need, floor);
+    return halo::platform::ram_guard_level() == halo::platform::RamLevel::Ok &&
+           halo::core::conversation_memory_admit(halo::core::conversation_available_memory(), need, floor);
 }
 
 // Save only on a switch/rewind, not on each continuing request. No graph
@@ -66,7 +66,7 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
     if ((!conversations->enabled() && !disk.enabled()) || !live_ok || live.empty()) return true;
     // below the token minimum: store nothing, evict nothing
     if (o.conversation_cache_min_tokens > 0 && (int64_t) live.size() < o.conversation_cache_min_tokens) {
-        basalt::log::info("basalt serve", "conversation cache: %zu tokens below the minimum %d, not parked",
+        halo::log::info("halo serve", "conversation cache: %zu tokens below the minimum %d, not parked",
                           live.size(), o.conversation_cache_min_tokens);
         return true;
     }
@@ -82,19 +82,19 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
     // before make_room evicts oldest-first, the copies of this conversation a turn back go (they hold nothing
     // the outgoing chain does not, apart from the tail this conversation rewrote)
     if (const size_t dropped = conversations->drop_superseded(live, live_imgs, checks, cvec_cached))
-        basalt::log::info("basalt serve", "conversation cache: dropped %zu superseded cop%s of this "
+        halo::log::info("halo serve", "conversation cache: dropped %zu superseded cop%s of this "
                      "conversation; parked=%zu", dropped, dropped == 1 ? "y" : "ies", conversations->size());
-    const basalt::core::QsaState* draft0 = mtp_kv;
-    const basalt::core::ConversationView view{live, live_imgs, checks, cvec_cached};
+    const halo::core::QsaState* draft0 = mtp_kv;
+    const halo::core::ConversationView view{live, live_imgs, checks, cvec_cached};
     auto reuse = conversations->take_reuse(rsp);
     size_t estimate = 0;
-    if (!basalt::core::conversation_snapshot_bytes(view, *rsp, g, draft0, estimate, err)) {
-        basalt::log::warn("basalt serve", "conversation cache: skip parking (%s)", err.c_str());
+    if (!halo::core::conversation_snapshot_bytes(view, *rsp, g, draft0, estimate, err)) {
+        halo::log::warn("halo serve", "conversation cache: skip parking (%s)", err.c_str());
         err.clear(); // A recoverable miss must not poison the batched draft prefill's error channel.
         return true;
     }
     const size_t fresh_estimate = estimate;
-    if (!reuse.kv.empty() && !basalt::core::conversation_snapshot_capture_bytes(
+    if (!reuse.kv.empty() && !halo::core::conversation_snapshot_capture_bytes(
             reuse, view, *rsp, g, draft0, estimate, err)) {
         reuse = {};
         estimate = fresh_estimate;
@@ -109,7 +109,7 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
     const bool ram_room = !to_disk && conversations->make_room(estimate, held);
     if (!to_disk && !ram_room && disk_wants) to_disk = true;   // larger than the RAM tier: the disk tier takes it
     if (to_disk ? disk.queued_bytes() + estimate > kDiskQueueCap : !ram_room) {
-        basalt::log::info("basalt serve", "conversation cache: skip parking (snapshot %zu MiB exceeds available budget)",
+        halo::log::info("halo serve", "conversation cache: skip parking (snapshot %zu MiB exceeds available budget)",
                      estimate >> 20);
         return true;
     }
@@ -120,23 +120,23 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
         const size_t retained = reuse.bytes();
         const size_t additional = estimate > retained ? estimate - retained : 0;
         if (!capture_admit(additional, floor)) {
-            basalt::log::info("basalt serve", "conversation cache: skip parking (physical RAM admission; need %zu MiB plus %lld MiB floor, or telemetry unavailable, or RAM below the guard)",
+            halo::log::info("halo serve", "conversation cache: skip parking (physical RAM admission; need %zu MiB plus %lld MiB floor, or telemetry unavailable, or RAM below the guard)",
                          additional >> 20, (long long) o.conversation_cache_min_free_mib);
             return true;
         }
-        basalt::core::SavedConversation image;
+        halo::core::SavedConversation image;
         size_t reused_bytes = 0;
         if (draft0 != nullptr && !mtp.snapshot_main(err)) return false;   // a streamed draft ring's own window
-        if (!basalt::core::conversation_snapshot_save(image, view, *rsp, g, draft0, err,
+        if (!halo::core::conversation_snapshot_save(image, view, *rsp, g, draft0, err,
                 std::move(reuse), &reused_bytes)) return false;
-        if (!basalt::core::conversation_memory_admit(basalt::core::conversation_available_memory(), 0, floor)) {
-            basalt::log::info("basalt serve", "conversation cache: skip parking (physical RAM floor after capture, or telemetry unavailable)");
+        if (!halo::core::conversation_memory_admit(halo::core::conversation_available_memory(), 0, floor)) {
+            halo::log::info("halo serve", "conversation cache: skip parking (physical RAM floor after capture, or telemetry unavailable)");
             return true;
         }
         const size_t snapshot_bytes = image.bytes();
         const bool stored = to_disk ? disk.put(std::move(image), kDiskQueueCap)
                                     : conversations->put(std::move(image), held);
-        basalt::log::info("basalt serve", "conversation cache: %s %zu tokens in %.1f ms; parked=%zu bytes=%zu evictions=%zu snapshot_bytes=%zu reused_kv_bytes=%zu%s",
+        halo::log::info("halo serve", "conversation cache: %s %zu tokens in %.1f ms; parked=%zu bytes=%zu evictions=%zu snapshot_bytes=%zu reused_kv_bytes=%zu%s",
                      stored ? "parked" : "skipped", live.size(),
                      std::chrono::duration<double, std::milli>(Clock::now() - t0).count(),
                      conversations->size(), conversations->bytes(), conversations->evictions(), snapshot_bytes, reused_bytes,
@@ -148,7 +148,7 @@ bool QfnRuntime::park_current(size_t held, int64_t kept) {
     } catch (const std::bad_alloc&) {
         // The active state has not been touched. Continue with normal
         // prompt processing rather than killing a serving process.
-        basalt::log::warn("basalt serve", "conversation cache: allocation failed; skip parking");
+        halo::log::warn("halo serve", "conversation cache: allocation failed; skip parking");
     }
     return true;
 }
@@ -176,8 +176,8 @@ bool QfnRuntime::checkpoint_at(int64_t L, bool defer, ConvCheckpoint::Source sou
         if (!gpu_sync_ok()) return false;
         std::string ce;
         if (defer) {
-            if (!basalt::core::conversation_checkpoint_save_deferred(ckd, c, *rsp, g, ce)) {
-                basalt::log::error("basalt serve", "checkpoint save: %s", ce.c_str());
+            if (!halo::core::conversation_checkpoint_save_deferred(ckd, c, *rsp, g, ce)) {
+                halo::log::error("halo serve", "checkpoint save: %s", ce.c_str());
                 return false;
             }
         } else if (!checkpoint_save(c, *rsp, g)) return false;
@@ -197,42 +197,42 @@ size_t QfnRuntime::spill_to_disk(bool at_exit, size_t limit) {
     const uint64_t floor = std::max<uint64_t>((uint64_t) o.conversation_cache_min_free_mib << 20, disk_floor);
     if (at_exit)
         while (conversations->size() > 0) {
-            basalt::core::SavedConversation s = conversations->take(conversations->size() - 1);
+            halo::core::SavedConversation s = conversations->take(conversations->size() - 1);
             if (!disk_has(s.live.ids, s.live.imgs, s.checkpoints, s.cvec) && disk.put(std::move(s), kDiskQueueCap))
                 ++written;
         }
-    auto spill = [&](const basalt::core::SessionState& s, const std::vector<int32_t>& ids,
+    auto spill = [&](const halo::core::SessionState& s, const std::vector<int32_t>& ids,
                      const std::vector<ImgKey>& imgs, const std::vector<ConvCheckpoint>& cks, bool cvec) {
-        const basalt::core::ConversationView view{ids, imgs, cks, cvec};
+        const halo::core::ConversationView view{ids, imgs, cks, cvec};
         size_t bytes = 0;
         std::string se;
-        if (!basalt::core::conversation_snapshot_bytes(view, s, g, mtp_kv, bytes, se)) {
-            basalt::log::warn("basalt serve", "conversation cache: not written to disk (%s)", se.c_str());
+        if (!halo::core::conversation_snapshot_bytes(view, s, g, mtp_kv, bytes, se)) {
+            halo::log::warn("halo serve", "conversation cache: not written to disk (%s)", se.c_str());
             return;
         }
         if (at_exit) disk.flush();   // one image in RAM at a time
         if (!capture_admit(bytes, floor)) {
-            basalt::log::info("basalt serve", "conversation cache: %zu tokens not written to disk (physical RAM "
+            halo::log::info("halo serve", "conversation cache: %zu tokens not written to disk (physical RAM "
                               "admission)", ids.size());
             return;
         }
         try {
             const auto t0 = Clock::now();
-            basalt::core::SavedConversation image;
+            halo::core::SavedConversation image;
             if ((mtp_kv != nullptr && !mtp.snapshot_main(se)) ||   // a streamed draft ring's own window
-                !basalt::core::conversation_snapshot_save(image, view, s, g, mtp_kv, se)) {
-                basalt::log::warn("basalt serve", "conversation cache: not written to disk (%s)", se.c_str());
+                !halo::core::conversation_snapshot_save(image, view, s, g, mtp_kv, se)) {
+                halo::log::warn("halo serve", "conversation cache: not written to disk (%s)", se.c_str());
                 return;
             }
             if (disk.put(std::move(image), kDiskQueueCap)) {
                 ++written;
                 if (!at_exit)
-                    basalt::log::info("basalt serve", "conversation cache: %zu tokens to disk between requests "
+                    halo::log::info("halo serve", "conversation cache: %zu tokens to disk between requests "
                                       "(captured in %.0f ms)", ids.size(),
                                       std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
             }
         } catch (const std::bad_alloc&) {
-            basalt::log::warn("basalt serve", "conversation cache: allocation failed; not written to disk");
+            halo::log::warn("halo serve", "conversation cache: allocation failed; not written to disk");
         }
     };
     std::string se;
@@ -257,10 +257,10 @@ size_t QfnRuntime::spill_to_disk(bool at_exit, size_t limit) {
 
 namespace {
 // the VRAM a session's own QSA layers' K/V maps (the drafter's arena aside)
-uint64_t qsa_kv_mapped(const basalt::core::SessionState& u) {
+uint64_t qsa_kv_mapped(const halo::core::SessionState& u) {
     uint64_t b = 0;
     for (int64_t j = 0; u.qsa_states != nullptr && j < u.qsa_alloc; ++j)
-        if (const basalt::core::KvArena* a = u.qsa_states[u.qsa_ord0 + j].kv_arena) b += a->mapped_bytes();
+        if (const halo::core::KvArena* a = u.qsa_states[u.qsa_ord0 + j].kv_arena) b += a->mapped_bytes();
     return b;
 }
 }  // namespace
@@ -269,13 +269,13 @@ uint64_t qsa_kv_mapped(const basalt::core::SessionState& u) {
 // its batch slot, -1 for the solo session's): those whose time is up (kParkAfterBusy), or with `any` every one.
 // Idle: a cached batch slot other than `park_keep`, or the solo session's conversation while no request works
 // there, holding cells beyond the base; not session `s` (null: none is excluded).
-std::vector<std::pair<double, int>> QfnRuntime::idle_list(const basalt::core::SessionState* s, bool any) {
+std::vector<std::pair<double, int>> QfnRuntime::idle_list(const halo::core::SessionState* s, bool any) {
     std::vector<std::pair<double, int>> idle;
     if (kv_floor <= 0 || bs.empty()) return idle;
     const double now = busy_now();
-    auto holds = [&](const basalt::core::SessionState& u, double since) {
+    auto holds = [&](const halo::core::SessionState& u, double since) {
         return (s == nullptr || u.qsa_states != s->qsa_states) && (any || now - since >= kParkAfterBusy) &&
-               basalt::core::session_kv_cells(u) > kv_floor;
+               halo::core::session_kv_cells(u) > kv_floor;
     };
     for (int b = 0; b < (int) bs.size(); ++b) {
         const BSlot& sl = bs[(size_t) b];
@@ -293,12 +293,12 @@ std::vector<std::pair<double, int>> QfnRuntime::idle_list(const basalt::core::Se
 // The VRAM session `s` is `need` bytes short of comes first from the KV idle conversations hold (idle_list), each
 // moved out whole by park_one.  Returns the bytes given back, -1 when cells could not be given back.  The device is
 // idle.
-int64_t QfnRuntime::park_idle(const basalt::core::SessionState* s, int64_t need, bool any, std::string& e) {
+int64_t QfnRuntime::park_idle(const halo::core::SessionState* s, int64_t need, bool any, std::string& e) {
     int64_t given = 0;
     for (const auto& idle : idle_list(s, any)) {
         if (given >= need) break;
         const int b = idle.second;
-        const basalt::core::SessionState& u = b >= 0 ? *bslot_ss[0][(size_t) b] : ss;
+        const halo::core::SessionState& u = b >= 0 ? *bslot_ss[0][(size_t) b] : ss;
         const uint64_t had = qsa_kv_mapped(u);
         if (!park_one(b, e)) {
             if (!e.empty()) return -1;
@@ -317,7 +317,7 @@ bool QfnRuntime::park_idle_engine(std::string& e) {
     if (!kv_drain(e)) return false;
     const int64_t before = xcache.slots();
     if (park_idle(nullptr, 1, false, e) <= 0 || !cache_regrow(e)) return false;
-    basalt::log::info("basalt serve", "idle: the expert cache %lld -> %lld slots", (long long) before,
+    halo::log::info("halo serve", "idle: the expert cache %lld -> %lld slots", (long long) before,
                       (long long) xcache.slots());
     return true;
 }
@@ -327,30 +327,30 @@ bool QfnRuntime::park_idle_engine(std::string& e) {
 // holds it.  False when it stays in VRAM (`e` empty) or its cells could not be given back (`e` set).
 bool QfnRuntime::park_one(int b, std::string& e) {
     const auto t0 = Clock::now();
-    basalt::core::SessionState& u = b >= 0 ? *bslot_ss[0][(size_t) b] : ss;
+    halo::core::SessionState& u = b >= 0 ? *bslot_ss[0][(size_t) b] : ss;
     std::vector<int32_t>& ids = b >= 0 ? bs[(size_t) b].ids : solo_out != nullptr ? solo_out->live : live;
     std::vector<ImgKey>& imgs = b >= 0 ? bs[(size_t) b].imgs : solo_out != nullptr ? solo_out->live_imgs : live_imgs;
     std::vector<ConvCheckpoint>& cks = b >= 0 ? bs[(size_t) b].checks : solo_out != nullptr ? solo_out->checks : checks;
     const bool cvec = b >= 0 ? bs[(size_t) b].cvec : solo_out != nullptr ? solo_out->cvec : cvec_cached;
     const std::string who = b >= 0 ? "slot " + std::to_string(b) : std::string("the solo session");
-    basalt::core::SessionState* cap = &u;   // a slot's state is captured through its view of the solo session
+    halo::core::SessionState* cap = &u;   // a slot's state is captured through its view of the solo session
     if (&u != &ss) {
         make_view(rviews[(size_t) b], b);
         cap = &rviews[(size_t) b];
     }
     const int store = b >= 0 ? b : solo_draft_in0 ? 0 : mtp.main_store();
     std::string se;
-    const basalt::core::ConversationView view{ids, imgs, cks, cvec};
+    const halo::core::ConversationView view{ids, imgs, cks, cvec};
     size_t est = 0;
-    if (!basalt::core::conversation_snapshot_bytes(view, *cap, g, mtp_kv, est, se)) {
-        basalt::log::warn("basalt serve", "%s's idle conversation stays in VRAM (%s)", who.c_str(), se.c_str());
+    if (!halo::core::conversation_snapshot_bytes(view, *cap, g, mtp_kv, est, se)) {
+        halo::log::warn("halo serve", "%s's idle conversation stays in VRAM (%s)", who.c_str(), se.c_str());
         return false;
     }
     size_t moved = 0;   // its checkpoints are in RAM already: they move into the image
     for (const ConvCheckpoint& c : cks) moved += c.bytes();
     // the RAM a capture leaves free: the conversation cache's, the disk tier's, and the reserve
     const uint64_t floor = std::max({(uint64_t) o.conversation_cache_min_free_mib << 20,
-                                     disk.enabled() ? disk_floor : 0, basalt::platform::ram_reserve()});
+                                     disk.enabled() ? disk_floor : 0, halo::platform::ram_reserve()});
     // below the token minimum: cells go back, the conversation is kept in neither tier
     const bool keep = o.conversation_cache_min_tokens <= 0 ||
                       (int64_t) ids.size() >= o.conversation_cache_min_tokens;
@@ -361,7 +361,7 @@ bool QfnRuntime::park_one(int b, std::string& e) {
         double& noted = b >= 0 ? bs[(size_t) b].park_noted : solo_park_noted;
         const double since = b >= 0 ? bs[(size_t) b].idle_busy : solo_idle_busy;
         if (noted != since)
-            basalt::log::info("basalt serve", "%s's idle conversation stays in VRAM: %zu MiB do not fit in RAM above "
+            halo::log::info("halo serve", "%s's idle conversation stays in VRAM: %zu MiB do not fit in RAM above "
                               "the %llu MiB floor", who.c_str(), (est - std::min(est, moved)) >> 20,
                               (unsigned long long) (floor >> 20));
         noted = since;
@@ -370,17 +370,17 @@ bool QfnRuntime::park_one(int b, std::string& e) {
     size_t bytes = 0;
     if (to_ram) {
         try {
-            basalt::core::SavedConversation image;
+            halo::core::SavedConversation image;
             const std::vector<ConvCheckpoint> none;
-            const basalt::core::ConversationView bare{ids, imgs, none, cvec};
-            if (!basalt::core::conversation_snapshot_save(image, bare, *cap, g,
-                    static_cast<const basalt::core::QsaState*>(nullptr), se) ||
+            const halo::core::ConversationView bare{ids, imgs, none, cvec};
+            if (!halo::core::conversation_snapshot_save(image, bare, *cap, g,
+                    static_cast<const halo::core::QsaState*>(nullptr), se) ||
                 (mtp_kv != nullptr && !mtp.save_store(store, (int64_t) ids.size(), image.kv.emplace_back(), se))) {
-                basalt::log::warn("basalt serve", "%s's idle conversation stays in VRAM (%s)", who.c_str(), se.c_str());
+                halo::log::warn("halo serve", "%s's idle conversation stays in VRAM (%s)", who.c_str(), se.c_str());
                 return false;
             }
-            if (!basalt::core::conversation_memory_admit(basalt::core::conversation_available_memory(), 0, floor)) {
-                basalt::log::info("basalt serve", "%s's idle conversation stays in VRAM: RAM below the %llu MiB floor "
+            if (!halo::core::conversation_memory_admit(halo::core::conversation_available_memory(), 0, floor)) {
+                halo::log::info("halo serve", "%s's idle conversation stays in VRAM: RAM below the %llu MiB floor "
                                   "after its capture", who.c_str(), (unsigned long long) (floor >> 20));
                 return false;
             }
@@ -390,11 +390,11 @@ bool QfnRuntime::park_one(int b, std::string& e) {
             for (auto& sc : conversations->take_spilled())
                 if (!disk_has(sc.live.ids, sc.live.imgs, sc.checkpoints, sc.cvec)) disk.put(std::move(sc), kDiskQueueCap);
         } catch (const std::bad_alloc&) {
-            basalt::log::warn("basalt serve", "%s's idle conversation stays in VRAM: allocation failed", who.c_str());
+            halo::log::warn("halo serve", "%s's idle conversation stays in VRAM: allocation failed", who.c_str());
             return false;
         }
     }
-    const int64_t tokens = (int64_t) ids.size(), had = basalt::core::session_kv_cells(u);
+    const int64_t tokens = (int64_t) ids.size(), had = halo::core::session_kv_cells(u);
     if (b >= 0) bs[(size_t) b].cached = false;
     else if (solo_out != nullptr) solo_out->live_ok = false;
     else live_ok = false;
@@ -402,17 +402,17 @@ bool QfnRuntime::park_one(int b, std::string& e) {
     imgs.clear();
     cks.clear();
     for (int64_t j = 0; j < u.qsa_alloc; ++j)
-        if (basalt::core::KvArena* a = u.qsa_states[u.qsa_ord0 + j].kv_arena)
+        if (halo::core::KvArena* a = u.qsa_states[u.qsa_ord0 + j].kv_arena)
             if (!a->unmap(kv_floor, e)) { e = "elastic KV: " + e; return false; }
     ++kv_moves;
     char where[64];
     if (to_ram) std::snprintf(where, sizeof where, "to RAM (%.0f MiB)", (double) bytes / 1048576.0);
     else if (on_disk) std::snprintf(where, sizeof where, "kept on disk only");
     else std::snprintf(where, sizeof where, "dropped, below the %d token minimum", o.conversation_cache_min_tokens);
-    basalt::log::info("basalt serve", "%s's idle conversation, %lld tokens, %s in %.0f ms: %lld KV cells back",
+    halo::log::info("halo serve", "%s's idle conversation, %lld tokens, %s in %.0f ms: %lld KV cells back",
                       who.c_str(), (long long) tokens, where,
                       std::chrono::duration<double, std::milli>(Clock::now() - t0).count(),
-                      (long long) (had - basalt::core::session_kv_cells(u)));
+                      (long long) (had - halo::core::session_kv_cells(u)));
     return true;
 }
 
@@ -424,15 +424,15 @@ int QfnRuntime::init_conversations() {
     // (the checkpoints' pooled blocks were reserved, their pages written, before the RAM copy)
     if (o.prompt_cache > 0) {
         std::string ce;
-        if (!ckd.reserve(basalt::core::conversation_checkpoint_bytes(ss, g), ce))
-            basalt::log::warn("basalt serve", "deferred checkpoint copy off: %s", ce.c_str());
+        if (!ckd.reserve(halo::core::conversation_checkpoint_bytes(ss, g), ce))
+            halo::log::warn("halo serve", "deferred checkpoint copy off: %s", ce.c_str());
     }
 
     cvec_cached = true;   // the control vector's state the live session and the checkpoints were read with
     // the session the request path reads, parks and restores: the solo one, or (a --batch request for a slot other
     // than 0) a view of it carrying that slot's state, so the prompt is read in the slot itself
     // (one view per slot, each at a fixed address: the verifier keeps solo window graphs per view)
-    rviews = std::vector<basalt::core::SessionState>((size_t) std::max(o.batch, 1));
+    rviews = std::vector<halo::core::SessionState>((size_t) std::max(o.batch, 1));
     rsp = &ss;
     conversations.emplace(
         o.prompt_cache > 0 ? (size_t) o.conversation_cache_mib * 1024 * 1024 : 0,
@@ -443,16 +443,16 @@ int QfnRuntime::init_conversations() {
     if (o.conversation_cache_disk_mib > 0) {
         std::string de;
         const auto t0 = Clock::now();
-        disk.set_row_cells(basalt::kernels::qsa_real_shapes().idx_block);
+        disk.set_row_cells(halo::kernels::qsa_real_shapes().idx_block);
         if (o.prompt_cache <= 0) {
-            basalt::log::warn("basalt serve", "conversation cache on disk off: --prompt-cache 0");
+            halo::log::warn("halo serve", "conversation cache on disk off: --prompt-cache 0");
         } else if (!disk.open(o.conversation_cache_dir, conversation_identity(o, g),
                               (uint64_t) o.conversation_cache_disk_mib << 20, de)) {
-            basalt::log::warn("basalt serve", "conversation cache on disk off: %s", de.c_str());
+            halo::log::warn("halo serve", "conversation cache on disk off: %s", de.c_str());
         } else {
             conversations->set_spill(true);
             const auto st = disk.stats();
-            basalt::log::info("basalt serve", "conversation cache on disk: %s, %zu conversations of this model "
+            halo::log::info("halo serve", "conversation cache on disk: %s, %zu conversations of this model "
                               "(%.2f GiB), budget %lld MiB, indexed in %.0f ms", o.conversation_cache_dir.c_str(),
                               st.files, (double) st.bytes / 1073741824.0, (long long) o.conversation_cache_disk_mib,
                               std::chrono::duration<double, std::milli>(Clock::now() - t0).count());
@@ -477,7 +477,7 @@ int QfnRuntime::init_conversations() {
         if (ms - last_ms < 500.0 && ms >= last_ms) return;
         last_ms = ms;
         const int64_t at = p0 + T * layers_done / n_layers;
-        basalt::protocol::emit("PL %lld %lld %.0f %.1f\n", (long long) at, (long long) pp_total, ms,
+        halo::protocol::emit("PL %lld %lld %.0f %.1f\n", (long long) at, (long long) pp_total, ms,
                                ms > 0.0 ? 1000.0 * (double) (at - pp_from) / ms : 0.0);
     };
     sp.on_chunk = [&](const float* R_rows, int64_t T, int64_t p0, std::string& e) -> bool {
@@ -492,8 +492,8 @@ int QfnRuntime::init_conversations() {
         const double ms = std::chrono::duration<double, std::milli>(Clock::now() - pp_t0).count();
         std::printf("PP %lld %lld %.0f %.1f\n", (long long) done, (long long) pp_total, ms,
                     ms > 0.0 ? 1000.0 * (double) (done - pp_from) / ms : 0.0);
-        basalt::core::progress_at("reading the prompt (batched), done up to token", done);
-        basalt::core::progress_beat();
+        halo::core::progress_at("reading the prompt (batched), done up to token", done);
+        halo::core::progress_beat();
         std::fflush(stdout);
         if (o.prompt_cache_every > 0 && done >= pp_next_check) {
             if (done == pp_part_ckpt) {
@@ -510,4 +510,4 @@ int QfnRuntime::init_conversations() {
     return 0;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

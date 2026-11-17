@@ -1,8 +1,8 @@
 // tests/platform/mapped_file_large_test.cpp - a section of a sparse file past 4 GiB lands on the right bytes (a
 // 64-bit view offset). CPU only. CMake registers it off Windows only: there the file system writes the hole out as
 // zeros. Where a file this size cannot be made the case reports that and passes.
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/mapped_file.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/mapped_file.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -18,15 +18,15 @@ void check(bool ok, const std::string& what) {
 }  // namespace
 
 int main() {
-    using basalt::platform::MapOptions;
-    using basalt::platform::MappedFile;
+    using halo::platform::MapOptions;
+    using halo::platform::MappedFile;
     std::string err;
     // A sparse file past 4 GiB: a section at a 64-bit offset must land on the right bytes.
     {
-        const std::string big = basalt::platform::temp_dir() + "/basalt_mapped_file_large_test.bin";
+        const std::string big = halo::platform::temp_dir() + "/halo_mapped_file_large_test.bin";
         const uint64_t at = (4ull << 30) + 8192;
-        std::FILE* f = basalt::platform::open_file_utf8(big, "wb");
-        if (f && basalt::platform::fseek64(f, (int64_t) at, SEEK_SET) == 0) {
+        std::FILE* f = halo::platform::open_file_utf8(big, "wb");
+        if (f && halo::platform::fseek64(f, (int64_t) at, SEEK_SET) == 0) {
             const uint8_t mark[4] = {0xde, 0xad, 0xbe, 0xef};
             std::fwrite(mark, 1, 4, f);
             std::fclose(f);

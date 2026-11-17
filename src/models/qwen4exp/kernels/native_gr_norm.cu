@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "basalt/models/qwen4exp/kernels/native_gr_norm.hpp"
+#include "halo/models/qwen4exp/kernels/native_gr_norm.hpp"
 
 #include <cuda_runtime.h>
 #include <cmath>
@@ -31,7 +31,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 __device__ __forceinline__ float norm_warp_sum(float value) {
@@ -99,4 +99,4 @@ void native_gr_rms_norm_weighted(const float* input, const float* gamma, float* 
         throw std::runtime_error(std::string("native GR RMSNorm launch: ") + cudaGetErrorString(error));
 }
 
-} // namespace basalt::kernels
+} // namespace halo::kernels

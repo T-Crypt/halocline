@@ -1,24 +1,24 @@
 #include "state.hpp"
 #include "layout.hpp"
-#include "basalt/ggml/ggml.h"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_stream.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q4.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_decode_attn.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused_iq.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
-#include "basalt/log.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/kv_stream.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q4.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_decode_attn.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused_iq.hpp"
+#include "halo/prefill/moe_mmq.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/log.hpp"
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cmath>
@@ -26,7 +26,7 @@
 #include <string>
 #include <memory>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 namespace detail {
@@ -36,7 +36,7 @@ double g_pinned_share = 1.0;
 // Whether the fused experts' buffers apply: a streamed chunk of a pack the fused kernels cover.
 bool fused_ring() {
     if (!fused::enabled()) return false;
-    const basalt::kernels::cpu::ExpertLayout& lay = basalt::kernels::cpu::expert_layout();
+    const halo::kernels::cpu::ExpertLayout& lay = halo::kernels::cpu::expert_layout();
     if (!lay.native) return true;
     // EVERY layer: fused_layout() shrinks the MoE buffers to the fused path's needs, so a layer the native kernels do
     // not cover would run MMQ in them at the full chunk and overflow them.  A pack with such a layer keeps MMQ's
@@ -50,14 +50,14 @@ bool fused_ring() {
 }
 
 // the staging pool of a streamed session: every page of one layer (same sequence in init and bytes_needed)
-void take_stage(Alloc& o, const core::SessionState& ss, const basalt::kernels::QsaShapes& s,
-                basalt::kernels::KvHostPools& st, bool& ok) {
+void take_stage(Alloc& o, const core::SessionState& ss, const halo::kernels::QsaShapes& s,
+                halo::kernels::KvHostPools& st, bool& ok) {
     const core::QsaState& q0 = ss.qsa_states[ss.qsa_primary()];
     if (q0.kv_mode != 1) return;
     const size_t rows = (size_t) q0.n_pages * s.n_head_kv * s.page_size;
     if (q0.kv_q4) {
-        st.k_q4 = o.take<uint8_t>(rows * basalt::kernels::kv_q4_bytes_per_head((int) s.head_dim), ok);
-        st.v_q4 = o.take<uint8_t>(rows * basalt::kernels::kv_q4_bytes_per_head((int) s.head_dim), ok);
+        st.k_q4 = o.take<uint8_t>(rows * halo::kernels::kv_q4_bytes_per_head((int) s.head_dim), ok);
+        st.v_q4 = o.take<uint8_t>(rows * halo::kernels::kv_q4_bytes_per_head((int) s.head_dim), ok);
     } else if (q0.kv_int8) {
         st.k_q = o.take<int8_t>(rows * s.head_dim, ok);
         st.v_q = o.take<int8_t>(rows * s.head_dim, ok);
@@ -68,8 +68,8 @@ void take_stage(Alloc& o, const core::SessionState& ss, const basalt::kernels::Q
         st.v_pool = o.take<uint16_t>(rows * s.head_dim, ok);
     }
 }
-basalt::kernels::QsaAttnPools pools_of(const basalt::kernels::KvHostPools& h, const int32_t* table) {
-    basalt::kernels::QsaAttnPools p;
+halo::kernels::QsaAttnPools pools_of(const halo::kernels::KvHostPools& h, const int32_t* table) {
+    halo::kernels::QsaAttnPools p;
     p.k_pool = h.k_pool; p.v_pool = h.v_pool; p.k_q = h.k_q; p.v_q = h.v_q; p.k_scale = h.k_scale; p.v_scale = h.v_scale;
     p.k_q4 = h.k_q4; p.v_q4 = h.v_q4;
     p.page_table = table;
@@ -97,19 +97,19 @@ uint64_t hc_set_bytes(size_t T) {
     return a.used;
 }
 uint64_t qsa_set_bytes(size_t T, int64_t cap, int64_t max_blocks, int64_t sel_batch, int64_t attn_batch,
-                       const basalt::kernels::QsaShapes& s) {
+                       const halo::kernels::QsaShapes& s) {
     Alloc a; a.count_only = true; bool ok = true;
     a.take<float>(T * 512, ok); a.take<float>(T * 512, ok); a.take<float>(T * 12288, ok); a.take<float>(T * ZV, ok);
     a.take<float>(T * 128, ok); a.take<float>(T * 512, ok); a.take<float>(T * ZV, ok); a.take<uint16_t>(T * ZV, ok);
     a.take<int32_t>(T * (size_t) cap, ok);
     a.take<float>((size_t) sel_batch * (size_t) max_blocks, ok);
-    a.take<float>((size_t) attn_batch * basalt::kernels::qsa_decode_attn_scratch_floats(cap, s), ok);
+    a.take<float>((size_t) attn_batch * halo::kernels::qsa_decode_attn_scratch_floats(cap, s), ok);
     return a.used;
 }
 const MmqPlan& mmq_plan() {
     static const MmqPlan plan = [] {
         MmqPlan p;
-        const auto& lay = basalt::kernels::cpu::expert_layout();
+        const auto& lay = halo::kernels::cpu::expert_layout();
         const bool on = mmq::built();
         const int64_t layers = lay.native ? (int64_t) lay.fmt.size() : lay.n_layers;
         p.layer.assign((size_t) std::max<int64_t>(layers, 0), 0);
@@ -122,7 +122,7 @@ const MmqPlan& mmq_plan() {
             if (!mmq::fits(gt, ut == gt ? 1280 : 640) || !mmq::fits(ut, 640) || !mmq::fits(dt, N)) {
                 // Q6_K experts never take the FP16 path: a build without their MMQ instance refuses the pack
                 if (gt == 14 || dt == 14) {
-                    basalt::log::error("basalt", "prefill: layer %lld has Q6_K experts and no MMQ kernel takes them", (long long) l);
+                    halo::log::error("halo", "prefill: layer %lld has Q6_K experts and no MMQ kernel takes them", (long long) l);
                     std::exit(1);
                 }
                 p.fallback = true;
@@ -194,11 +194,11 @@ bool Prefill::carve(size_t T, void* alloc) {
     m.inj = o.take<float>(T * HC, ok);
     m.mixed = o.take<float>(T * N, ok); m.mixed_bf = o.take<uint16_t>(T * N, ok);
     m.mixed_h = o.take<uint16_t>(T * N, ok); m.bo = o.take<float>(T * N, ok);
-    m.steps_dev = o.take<int32_t>(T * basalt::kernels::kStepCount, ok);
-    basalt::kernels::QsaShapes s = basalt::kernels::qsa_real_shapes();
+    m.steps_dev = o.take<int32_t>(T * halo::kernels::kStepCount, ok);
+    halo::kernels::QsaShapes s = halo::kernels::qsa_real_shapes();
     s.n_head = g.n_head; s.n_head_kv = g.n_head_kv; s.head_dim = g.head_dim; s.idx_n_head = g.idx_q_heads;
     s.idx_dim = g.idx_key_dim;
-    m.cap = basalt::kernels::qsa_selection_width(basalt::kernels::kTopkMaxCells, s);
+    m.cap = halo::kernels::qsa_selection_width(halo::kernels::kTopkMaxCells, s);
     m.max_blocks = ss.qsa_states[ss.qsa_primary()].max_cells / s.idx_block + 2;
     {
         // one region for the attention half's and the MoE half's scratch (see gdn_set_bytes)
@@ -231,7 +231,7 @@ bool Prefill::carve(size_t T, void* alloc) {
         m.attn = b.take<float>(T * ZV, ok); m.attn_h = b.take<uint16_t>(T * ZV, ok);
         m.sel_ids = b.take<int32_t>(T * (size_t) m.cap, ok);
         m.sel_scores = b.take<float>((size_t) m.sel_batch * (size_t) m.max_blocks, ok);
-        m.attn_scratch = b.take<float>((size_t) m.attn_batch * basalt::kernels::qsa_decode_attn_scratch_floats(m.cap, s), ok);
+        m.attn_scratch = b.take<float>((size_t) m.attn_batch * halo::kernels::qsa_decode_attn_scratch_floats(m.cap, s), ok);
         Alloc c;
         c.base = base; c.cap = region; c.owned = &m.owned;
         m.logits = c.take<float>(T * m.g->n_expert, ok); m.w = c.take<float>(T * K, ok); m.ids = c.take<int32_t>(T * K, ok);
@@ -268,7 +268,7 @@ bool Prefill::carve(size_t T, void* alloc) {
         m.used_of[i] = i;
     }
     m.ple_emb = o.take<float>(T * N, ok);
-    m.ple_norm = o.take<float>((size_t) basalt::kernels::NG_HC_DIM, ok);
+    m.ple_norm = o.take<float>((size_t) halo::kernels::NG_HC_DIM, ok);
     take_stage(o, ss, s, m.stage, ok);
     m.T = (int64_t) T;
     return ok;
@@ -323,11 +323,11 @@ uint64_t Prefill::bytes_needed(const core::ModelGeometry& g, const core::Session
     // `carve`'s order, buffer for buffer: R, inj, mixed, mixed_bf, mixed_h, bo (the hyper-connection rows live in the region).
     f(T * D);
     f(T * HC); f(T * N); o.take<uint16_t>(T * N, ok); o.take<uint16_t>(T * N, ok); f(T * N);
-    o.take<int32_t>(T * basalt::kernels::kStepCount, ok);
-    basalt::kernels::QsaShapes s = basalt::kernels::qsa_real_shapes();
+    o.take<int32_t>(T * halo::kernels::kStepCount, ok);
+    halo::kernels::QsaShapes s = halo::kernels::qsa_real_shapes();
     s.n_head = g.n_head; s.n_head_kv = g.n_head_kv; s.head_dim = g.head_dim; s.idx_n_head = g.idx_q_heads;
     s.idx_dim = g.idx_key_dim;
-    const int64_t cap = basalt::kernels::qsa_selection_width(basalt::kernels::kTopkMaxCells, s);
+    const int64_t cap = halo::kernels::qsa_selection_width(halo::kernels::kTopkMaxCells, s);
     const int64_t max_blocks = ss.qsa_states[ss.qsa_primary()].max_cells / s.idx_block + 2;
     o.take<uint8_t>((size_t) std::max({gdn_set_bytes(T), qsa_set_bytes(T, cap, max_blocks, 256, 32, s),
                                        moe_set_bytes(T, g.n_expert, fused_layout(T, true)),
@@ -342,8 +342,8 @@ uint64_t Prefill::bytes_needed(const core::ModelGeometry& g, const core::Session
     }
     for (int i = 0; i < ring_slots(T); ++i) o.take<uint8_t>((size_t) MAXBLOB(), ok);
     f(T * N);
-    f((size_t) basalt::kernels::NG_HC_DIM);
-    basalt::kernels::KvHostPools stage;
+    f((size_t) halo::kernels::NG_HC_DIM);
+    halo::kernels::KvHostPools stage;
     take_stage(o, ss, s, stage, ok);
     return o.used + kSizingSlack;
 }
@@ -371,4 +371,4 @@ bool Prefill::layout_fits(const core::ModelGeometry& g, core::SessionState& ss, 
 
 int64_t Prefill::ring_slots_for(int64_t chunk) { return ring_slots((size_t) chunk); }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

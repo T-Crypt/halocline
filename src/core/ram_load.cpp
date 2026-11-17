@@ -1,8 +1,8 @@
 // src/core/ram_load.cpp - the shared RAM expert loader: unbuffered reads on a thread pool, then the pin.
-#include "basalt/core/ram_load.hpp"
-#include "basalt/core/vmm.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/core/ram_load.hpp"
+#include "halo/core/vmm.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cuda_runtime.h>
 
@@ -14,7 +14,7 @@
 #include <thread>
 #include <utility>
 
-namespace basalt::core {
+namespace halo::core {
 
 void add_ram_blob(std::vector<RamRun>& runs, uint8_t* dst, uint64_t file_pos, uint64_t blob_bytes, int64_t expert,
                   uint64_t progress) {
@@ -503,4 +503,4 @@ std::vector<RamPin> pin_ram_spans(const std::vector<uint8_t*>& spans, const std:
     return pins;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

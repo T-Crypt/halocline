@@ -1,6 +1,6 @@
 // tests/program/ppl_gate_test.cpp - the quality gate over a small base file: its shape checks, and the row of a chunk it reads.
-#include "basalt/platform/system.hpp"
-#include "basalt/program/ppl_gate.hpp"
+#include "halo/platform/system.hpp"
+#include "halo/program/ppl_gate.hpp"
 
 #include <cstdio>
 #include <filesystem>
@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-using basalt::program::PplGate;
+using halo::program::PplGate;
 
 static int g_fail = 0;
 #define CHECK(c) do { if (!(c)) { std::printf("FAIL line %d: %s\n", __LINE__, #c); ++g_fail; } } while (0)
@@ -50,7 +50,7 @@ static void write_base(const std::string& path) {
 }
 
 int main() {
-    const auto dir = std::filesystem::temp_directory_path() / ("basalt-ppl-gate-" + std::to_string((long long) basalt::platform::process_id()));
+    const auto dir = std::filesystem::temp_directory_path() / ("halo-ppl-gate-" + std::to_string((long long) halo::platform::process_id()));
     std::filesystem::create_directories(dir);
     const std::string base = (dir / "base.kld").string(), out = (dir / "rows.tsv").string();
     write_base(base);

@@ -5,12 +5,12 @@
 // them with a masked subtract and one VNNI dot.  Per token and row the arithmetic is the ggml dot's: the same
 // int32 sums per 4 bytes (dpbusd equals maddubs + madd at these magnitudes), the same per-lane fp32 products
 // d_y * scale, the same fused accumulation across blocks and the same final reduction, so results are bitwise equal.
-#include "basalt/kernels/cpu/nvfp4_avx512.hpp"
-#include "basalt/platform/compiler.hpp"
+#include "halo/kernels/cpu/nvfp4_avx512.hpp"
+#include "halo/platform/compiler.hpp"
 
 #define GGML_COMMON_DECL_CPP
 #define GGML_COMMON_IMPL_CPP
-#include "basalt/ggml/ggml_common.h"
+#include "halo/ggml/ggml_common.h"
 
 #include <immintrin.h>
 
@@ -18,7 +18,7 @@
 #include <bit>
 #include <cstring>
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 namespace {
 
 // UE4M3 scale as ggml's dot decodes it (nvfp4_scale in ggml_cpu_dots.c), one entry per 7-bit code.  Built at compile
@@ -216,4 +216,4 @@ void nvfp4_512_down_rows(const uint8_t* w, size_t row_bytes, int n, float sd, co
     }
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

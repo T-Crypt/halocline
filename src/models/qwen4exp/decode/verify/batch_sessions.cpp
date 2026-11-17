@@ -1,22 +1,22 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/kernels/gdn_window.hpp"
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/kernels/gdn_window.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_fused.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // ================================ BATCH WINDOWS (see init_slots) ================================
@@ -35,7 +35,7 @@ bool Verifier::init_slots(const std::vector<SessionState*>& slots, std::string& 
             return false;
         }
     }
-    const basalt::kernels::QsaShapes s = shapes_of(*g_);
+    const halo::kernels::QsaShapes s = shapes_of(*g_);
     const int64_t S = (int64_t) slots.size(), CB = 2 + max_t_;
     const int64_t TS = (s.idx_block - 1) * g_->idx_key_dim, nQ = g_->n_qsa_layers();
     void* d = nullptr;
@@ -43,16 +43,16 @@ bool Verifier::init_slots(const std::vector<SessionState*>& slots, std::string& 
         err = "verify: the batch commit staging failed";
         return false;
     }
-    if (!mapped((size_t) max_t_ * sizeof(basalt::kernels::SegRow), (void**) &h_segb_, (void**) &m_segb_)) {
+    if (!mapped((size_t) max_t_ * sizeof(halo::kernels::SegRow), (void**) &h_segb_, (void**) &m_segb_)) {
         err = "verify: the batch segment staging failed";
         return false;
     }
-    using namespace basalt::kernels;
-    if (!mapped((size_t) (basalt::kernels::kQsaSegMaxRows + 8) * sizeof(QsaSeg), (void**) &h_qseg_, (void**) &m_qseg_)) {
+    using namespace halo::kernels;
+    if (!mapped((size_t) (halo::kernels::kQsaSegMaxRows + 8) * sizeof(QsaSeg), (void**) &h_qseg_, (void**) &m_qseg_)) {
         err = "verify: the batch QSA table staging failed";
         return false;
     }
-    std::fill_n(h_qseg_, basalt::kernels::kQsaSegMaxRows + 8, QsaSeg{});
+    std::fill_n(h_qseg_, halo::kernels::kQsaSegMaxRows + 8, QsaSeg{});
     // the QSA chain's segment kernels need unrotated INT8 K/V in every slot, resident or streamed (--kv-resident)
     if (!(qsa_dec_fused_supported(s))) {
         err = "verify: batch windows need the native QSA kernels";
@@ -69,7 +69,7 @@ bool Verifier::init_slots(const std::vector<SessionState*>& slots, std::string& 
                 err = "verify: batch windows need INT8 K/V without rotation, resident or streamed (--kv int8)";
                 return false;
             }
-            if (st.kv_mode == 1 && st.n_slots < basalt::kernels::kKvStreamMinSlots) {   // one step of the resolve's sweep
+            if (st.kv_mode == 1 && st.n_slots < halo::kernels::kKvStreamMinSlots) {   // one step of the resolve's sweep
                 err = "verify: a streamed slot holds too few pages for the resolve; raise --kv-resident";
                 return false;
             }
@@ -78,8 +78,8 @@ bool Verifier::init_slots(const std::vector<SessionState*>& slots, std::string& 
     }
     const uint64_t a = ((uint64_t) S * CB * 4 + 255) & ~255ull;
     const uint64_t b = (a + (uint64_t) S * std::max<int64_t>(nQ, 1) * TS * 4 + 255) & ~255ull;
-    const uint64_t b2 = (b + (uint64_t) max_t_ * sizeof(basalt::kernels::SegRow) + 255) & ~255ull;
-    const uint64_t b3 = (b2 + (uint64_t) (basalt::kernels::kQsaSegMaxRows + 8) * sizeof(QsaSeg) + 255) & ~255ull;
+    const uint64_t b2 = (b + (uint64_t) max_t_ * sizeof(halo::kernels::SegRow) + 255) & ~255ull;
+    const uint64_t b3 = (b2 + (uint64_t) (halo::kernels::kQsaSegMaxRows + 8) * sizeof(QsaSeg) + 255) & ~255ull;
     const uint64_t HSb = (uint64_t) NG_HIST * NG_HC_DIM * sizeof(float);
     const uint64_t b4 = (b3 + (uint64_t) S * sizeof(float*) + 255) & ~255ull;
     const uint64_t b5 = (b4 + (uint64_t) max_t_ * HSb + 255) & ~255ull;
@@ -90,9 +90,9 @@ bool Verifier::init_slots(const std::vector<SessionState*>& slots, std::string& 
     arena_b_ = d;
     commitb_ = (int32_t*) d;
     tail_snap_b_ = (float*) ((uint8_t*) d + a);
-    segb_ = (basalt::kernels::SegRow*) ((uint8_t*) d + b);
+    segb_ = (halo::kernels::SegRow*) ((uint8_t*) d + b);
     d_qrows_ = (QsaSeg*) ((uint8_t*) d + b2);
-    d_qsegs_ = d_qrows_ + basalt::kernels::kQsaSegMaxRows;
+    d_qsegs_ = d_qrows_ + halo::kernels::kQsaSegMaxRows;
     d_ple_slots_ = (float**) ((uint8_t*) d + b3);
     ple_work_ = (float*) ((uint8_t*) d + b4);
     {   // static per-slot pointers: the PLE histories and, per QSA layer, the slots' caches and indexer state
@@ -124,10 +124,10 @@ bool Verifier::init_slots(const std::vector<SessionState*>& slots, std::string& 
     slots_ = slots;
     batch_dm_ = dm_ != nullptr;
     slot_sp_.assign(slots.size(), sampling_);   // greedy until set_slot_sampling
-    basalt::log::info("basalt verify", "batch windows of up to %lld sequences (layers [%lld, %lld))%s", (long long) S,
+    halo::log::info("halo verify", "batch windows of up to %lld sequences (layers [%lld, %lld))%s", (long long) S,
                  (long long) lb_, (long long) le_, batch_stream_ ? ", the slots' K/V streamed from RAM" : "");
     if (dm_ != nullptr && dm_->stage_src != nullptr)
-        basalt::log::info("basalt verify", "batch windows: a layer with %d+ CPU misses sends a share of them over PCIe to "
+        halo::log::info("halo verify", "batch windows: a layer with %d+ CPU misses sends a share of them over PCIe to "
                           "CUDA0", dm_->stage_min);
     return true;
 }
@@ -175,4 +175,4 @@ bool Verifier::warm_graphs(std::string& err) {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

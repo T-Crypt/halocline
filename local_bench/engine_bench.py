@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Benchmark an already running local LLM server (Basalt or Strata) over its OpenAI API, then check for new ECC errors.
+"""Benchmark an already running local LLM server (Halocline or Strata) over its OpenAI API, then check for new ECC errors.
 
-It starts no engine: start the server first (Basalt: bin/basalt serve --config basalt_config.json; Strata: its own
+It starts no engine: start the server first (Halocline: bin/halo serve --config halo_config.json; Strata: its own
 launcher), then run
 
     python engine_bench.py [--url http://127.0.0.1:8080] [--tests community,modeldock] [--runs 2] [--out result.json]
 
 Tests
-  community  Basalt's community-1 workload over HTTP: the conv, struct and prose prompts of data/bench (thinking off,
+  community  Halocline's community-1 workload over HTTP: the conv, struct and prose prompts of data/bench (thinking off,
              temperature 0.6 / 0 / 0.6, at most 1200 / 8192 / 1200 tokens) and prefill at 16K and 64K depth (the bench
              document once and four times, behind a random prefix so no prompt cache matches). decode_tps is the
-             generated tokens of the three prompts over their summed decode time, as basalt-bench --community counts
+             generated tokens of the three prompts over their summed decode time, as halo-bench --community counts
              it. Prefill is prompt tokens over the time to the first token, so it includes the HTTP round trip.
   modeldock  ModelDock's local benchmark, protocol modeldock-bench/v3 (runner 0.1.5), run locally: a fingerprint and a
              cache warm-up (untimed), --runs probe runs of about 12-15K prompt tokens and 512 output tokens with five

@@ -1,5 +1,5 @@
-// src/program/host_rates.cpp - see include/basalt/program/host_rates.hpp.
-#include "basalt/program/host_rates.hpp"
+// src/program/host_rates.cpp - see include/halo/program/host_rates.hpp.
+#include "halo/program/host_rates.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -12,10 +12,10 @@
 #include <sstream>
 #include <thread>
 
-#include "basalt/platform/cpu.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/platform/cpu.hpp"
+#include "halo/platform/memory.hpp"
 
-namespace basalt::program {
+namespace halo::program {
 
 namespace {
 constexpr size_t kBytes = 2ull << 30;
@@ -89,4 +89,4 @@ std::vector<std::pair<std::string, double>> parse_link_rates(const std::string& 
     return out;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

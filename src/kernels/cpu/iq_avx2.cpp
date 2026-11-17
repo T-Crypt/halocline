@@ -1,13 +1,13 @@
 // src/kernels/cpu/iq_avx2.cpp - the i-quant expert rows in 256-bit lanes, several tokens at once (iq_avx2_rows.inc),
 // the activation quantizer, and the choice between this file's rows and the AVX-VNNI build of the same code.
 
-#include "basalt/kernels/cpu/iq_avx2.hpp"
+#include "halo/kernels/cpu/iq_avx2.hpp"
 
 #define GGML_COMMON_DECL_CPP
 #define GGML_COMMON_IMPL_CPP
-#include "basalt/ggml/ggml_common.h"
-#include "basalt/log.hpp"
-#include "basalt/platform/compiler.hpp"
+#include "halo/ggml/ggml_common.h"
+#include "halo/log.hpp"
+#include "halo/platform/compiler.hpp"
 
 #include <immintrin.h>
 
@@ -15,14 +15,14 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "basalt/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
 
-#define BASALT_IQ_VNNI 0
-#define BASALT_IQ_BMI2 0
-#define BASALT_IQ_EXPORT(name) name##_base
+#define HALO_IQ_VNNI 0
+#define HALO_IQ_BMI2 0
+#define HALO_IQ_EXPORT(name) name##_base
 #include "iq_avx2_rows.inc"
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 
 // ggml's quantize_row_q8_K, bit for bit: the signed value of the first element of largest magnitude fixes the
 // scale, codes are rounded to nearest-even (ggml's magic-number rounding) and capped at 127, and each 16 codes
@@ -100,4 +100,4 @@ void iq4nl256_down_rows(const uint8_t* w, size_t row_bytes, int n, const void* c
     else iq4nl256_down_rows_base(w, row_bytes, n, hq, nt, out, r0, r1);
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

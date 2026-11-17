@@ -20,10 +20,10 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-#include "basalt/models/qwen4exp/kernels/native_moe.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/core/diag.hpp"
+#include "halo/models/qwen4exp/kernels/native_moe.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/core/diag.hpp"
 #include <cuda_runtime.h>
 #include <cstddef>
 #include <cstdint>
@@ -31,7 +31,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 __global__ void combine(const float* __restrict__ parts, const float* __restrict__ weights,
                         const float* __restrict__ shared, float* __restrict__ output,

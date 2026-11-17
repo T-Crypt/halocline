@@ -1,11 +1,11 @@
 // The flags Flash-Next takes on top of the common ones.
 #include "models/qwen4exp/adapter.hpp"
 
-#include "basalt/core/diag.hpp"
-#include "basalt/log.hpp"
-#include "basalt/model/flags.hpp"
-#include "basalt/model/rope_flags.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/log.hpp"
+#include "halo/model/flags.hpp"
+#include "halo/model/rope_flags.hpp"
+#include "halo/models/qwen4exp/options.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -13,7 +13,7 @@
 #include <sstream>
 #include <string>
 
-namespace basalt::models::qwen4exp {
+namespace halo::models::qwen4exp {
 namespace {
 constexpr float kRelaxedDraftingDefault = 0.5f;
 constexpr int kRouteTailSkipDefault = 9;
@@ -65,7 +65,7 @@ bool parse_flag(const std::string& a, model::FlagArgs& args, Options& o, int& co
             const float v = std::strtof(args.peek(), &e);
             if (e != args.peek() && *e == '\0') {
                 args.take();
-                if (!(v > 0.0f && v <= 1.0f)) { basalt::log::error("basalt", "--relaxed-drafting: P must be in (0, 1]"); { code = 2; return true; } }
+                if (!(v > 0.0f && v <= 1.0f)) { halo::log::error("halo", "--relaxed-drafting: P must be in (0, 1]"); { code = 2; return true; } }
                 o.relaxed_drafting = v;
             }
         }
@@ -77,7 +77,7 @@ bool parse_flag(const std::string& a, model::FlagArgs& args, Options& o, int& co
             const long v = std::strtol(args.peek(), &e, 10);
             if (e != args.peek() && *e == '\0') {
                 args.take();
-                if (v < 1 || v > 9) { basalt::log::error("basalt", "--route-tail-skip: R must be 1..9"); { code = 2; return true; } }
+                if (v < 1 || v > 9) { halo::log::error("halo", "--route-tail-skip: R must be 1..9"); { code = 2; return true; } }
                 o.route_tail_skip = (int) v;
             }
         }
@@ -89,7 +89,7 @@ bool parse_flag(const std::string& a, model::FlagArgs& args, Options& o, int& co
             const float v = std::strtof(args.peek(), &e);
             if (e != args.peek() && *e == '\0') {
                 args.take();
-                if (!(v > 0.0f && v <= 16.0f)) { basalt::log::error("basalt", "--route-prior: LAMBDA must be in (0, 16]"); { code = 2; return true; } }
+                if (!(v > 0.0f && v <= 16.0f)) { halo::log::error("halo", "--route-prior: LAMBDA must be in (0, 16]"); { code = 2; return true; } }
                 o.route_prior = v;
             }
         }
@@ -107,7 +107,7 @@ bool parse_flag(const std::string& a, model::FlagArgs& args, Options& o, int& co
             char* end = nullptr;
             const float sc = colon == std::string::npos ? 0.0f : std::strtof(item.c_str() + colon + 1, &end);
             if (colon == std::string::npos || colon == 0 || end == item.c_str() + colon + 1 || *end != '\0') {
-                basalt::log::error("basalt", "--control-vector-scaled: expected FILE:SCALE, got '%s'", item.c_str());
+                halo::log::error("halo", "--control-vector-scaled: expected FILE:SCALE, got '%s'", item.c_str());
                 { code = 2; return true; }
             }
             o.cvec_files.push_back({item.substr(0, colon), sc});
@@ -121,13 +121,13 @@ bool parse_flag(const std::string& a, model::FlagArgs& args, Options& o, int& co
         const std::string m = args.next("--cvec-mode");
         if (m == "project") o.cvec_mode = 0;
         else if (m == "add") o.cvec_mode = 1;
-        else { basalt::log::error("basalt", "--cvec-mode: add or project, got '%s'", m.c_str()); { code = 2; return true; } }
+        else { halo::log::error("halo", "--cvec-mode: add or project, got '%s'", m.c_str()); { code = 2; return true; } }
     }
     else if (a == "--cvec-dir") {
         const std::string d = args.next("--cvec-dir");
         if (d == "per-layer") o.cvec_single = -1;
         else if (d.rfind("single:", 0) == 0) o.cvec_single = std::atoi(d.c_str() + 7);
-        else { basalt::log::error("basalt", "--cvec-dir: per-layer or single:L, got '%s'", d.c_str()); { code = 2; return true; } }
+        else { halo::log::error("halo", "--cvec-dir: per-layer or single:L, got '%s'", d.c_str()); { code = 2; return true; } }
     }
     else if (a == "--adapt-swaps") o.adapt_swaps = std::atoi(args.next("--adapt-swaps"));
     else if (a == "--expert-profile-save") o.expert_profile_save = args.next("--expert-profile-save");
@@ -142,11 +142,11 @@ bool parse_flag(const std::string& a, model::FlagArgs& args, Options& o, int& co
         o.resident_headroom = 0;
     }
     else if (a == "--stats") o.stats = true;
-    else if (a == "--profile") basalt::core::diagnostics().profile = true;
-    else if (a == "--wait-stats") basalt::core::diagnostics().wait_stats = true;
-    else if (a == "--force-zero-doorbell") basalt::core::diagnostics().zero_doorbell = true;
-    else if (a == "--decode-timing") basalt::core::diagnostics().decode_timing = true;
-    else if (a == "--draft-log") basalt::core::diagnostics().draft_log = args.next("--draft-log");
+    else if (a == "--profile") halo::core::diagnostics().profile = true;
+    else if (a == "--wait-stats") halo::core::diagnostics().wait_stats = true;
+    else if (a == "--force-zero-doorbell") halo::core::diagnostics().zero_doorbell = true;
+    else if (a == "--decode-timing") halo::core::diagnostics().decode_timing = true;
+    else if (a == "--draft-log") halo::core::diagnostics().draft_log = args.next("--draft-log");
     else if (a == "--exp") {
         const std::string list = args.next("--exp");   // NAME=VALUE[,NAME=VALUE...]
         for (size_t at = 0; at < list.size();) {
@@ -155,8 +155,8 @@ bool parse_flag(const std::string& a, model::FlagArgs& args, Options& o, int& co
             const std::string kv = list.substr(at, end - at);
             at = end + 1;
             const size_t eq = kv.find('=');
-            if (eq == std::string::npos || eq == 0) { basalt::log::error("basalt generate", "--exp needs NAME=VALUE"); { code = 2; return true; } }
-            basalt::core::diagnostics().exp[kv.substr(0, eq)] = std::atof(kv.c_str() + eq + 1);
+            if (eq == std::string::npos || eq == 0) { halo::log::error("halo generate", "--exp needs NAME=VALUE"); { code = 2; return true; } }
+            halo::core::diagnostics().exp[kv.substr(0, eq)] = std::atof(kv.c_str() + eq + 1);
         }
     }
     else return false;
@@ -184,4 +184,4 @@ std::optional<int> finish_flags(Options& o) {
     return std::nullopt;
 }
 
-}  // namespace basalt::models::qwen4exp
+}  // namespace halo::models::qwen4exp

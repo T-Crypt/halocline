@@ -1,13 +1,13 @@
-// src/vision/ffmpeg_api.cpp - see basalt/vision/ffmpeg_api.hpp.
-#include "basalt/vision/ffmpeg_api.hpp"
+// src/vision/ffmpeg_api.cpp - see halo/vision/ffmpeg_api.hpp.
+#include "halo/vision/ffmpeg_api.hpp"
 
 #include <iterator>
 #include <mutex>
 #include <type_traits>
 
-#include "basalt/platform/dynlib.hpp"
+#include "halo/platform/dynlib.hpp"
 
-namespace basalt::vision {
+namespace halo::vision {
 
 namespace {
 
@@ -135,4 +135,4 @@ std::string video_line() {
     return f != nullptr ? "VIDEO on " + f->version + (f->path.empty() ? "" : " from " + f->path) : "VIDEO off " + why;
 }
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

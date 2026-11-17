@@ -1,13 +1,13 @@
 // src/models/qwen4exp/decode/kv_arena.cpp - the elastic KV pools.  Read the header first.
-#include "basalt/models/qwen4exp/decode/kv_arena.hpp"
-#include "basalt/core/vmm.hpp"
+#include "halo/models/qwen4exp/decode/kv_arena.hpp"
+#include "halo/core/vmm.hpp"
 
 #include <cuda_runtime.h>
 
 #include <algorithm>
 #include <utility>
 
-namespace basalt::core {
+namespace halo::core {
 
 KvArena::~KvArena() { close(); }
 
@@ -151,4 +151,4 @@ bool KvArena::unmap(int64_t cells, std::string& err) {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

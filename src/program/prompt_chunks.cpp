@@ -1,9 +1,9 @@
-// src/program/prompt_chunks.cpp - see include/basalt/program/prompt_chunks.hpp.
-#include "basalt/program/prompt_chunks.hpp"
+// src/program/prompt_chunks.cpp - see include/halo/program/prompt_chunks.hpp.
+#include "halo/program/prompt_chunks.hpp"
 
 #include <algorithm>
 
-namespace basalt::program {
+namespace halo::program {
 
 namespace {
 int64_t grid_chunk(int64_t tokens, int64_t cap) {   // `tokens` up on the 256-token grid, at most `cap`
@@ -39,4 +39,4 @@ std::vector<int64_t> prompt_chunk_list(int64_t tokens, int64_t chunk, int64_t he
     return v;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

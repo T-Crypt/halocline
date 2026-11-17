@@ -2,7 +2,7 @@
 // model's geometry (512 experts, 10 per token) for chunk widths from one token to a full prompt chunk, with ids outside
 // [0, n_expert) mixed in (skipped).  Counts are integers, so the match is exact, and a layer's counts accumulate across
 // chunks.  Prints the kernel's time and the id bytes read per second.  Exit 77 without a CUDA device.
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 
 #include <cuda_runtime.h>
 
@@ -31,7 +31,7 @@ int main() {
         for (int32_t v : ids)
             if (v >= 0 && v < NE) ++want[(size_t) v];
         cudaMemcpy(d_ids, ids.data(), ids.size() * 4, cudaMemcpyHostToDevice);
-        basalt::prefill::route_count(d_ids, (int64_t) T * K, d_hist, NE, nullptr);
+        halo::prefill::route_count(d_ids, (int64_t) T * K, d_hist, NE, nullptr);
         cudaDeviceSynchronize();
         cudaMemcpy(got.data(), d_hist, NE * 4, cudaMemcpyDeviceToHost);
         int diff = 0;
@@ -44,7 +44,7 @@ int main() {
     cudaEventCreate(&a);
     cudaEventCreate(&b);
     cudaEventRecord(a);
-    for (int i = 0; i < R; ++i) basalt::prefill::route_count(d_ids, (int64_t) T * K, d_hist, NE, nullptr);
+    for (int i = 0; i < R; ++i) halo::prefill::route_count(d_ids, (int64_t) T * K, d_hist, NE, nullptr);
     cudaEventRecord(b);
     cudaEventSynchronize(b);
     float ms = 0;

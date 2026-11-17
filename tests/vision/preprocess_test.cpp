@@ -1,13 +1,13 @@
 // The image grid and canvas against the reference processor: sizes from transformers v4.57.1 smart_resize (Python
 // round() ties to even, double arithmetic, no 32-pixel floor before the area check) and pixels from Pillow 13.0.0
 // Image.resize(BICUBIC) of the same source, straight to the canvas with no padding.
-#include "basalt/vision/preprocess.hpp"
+#include "halo/vision/preprocess.hpp"
 
 #include <cstdint>
 #include <cstdio>
 #include <vector>
 
-using namespace basalt::vision;
+using namespace halo::vision;
 
 int main() {
     int failures = 0;

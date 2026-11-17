@@ -1,6 +1,6 @@
 // tests/platform/region_test.cpp - platform::alloc_region and free_region. CPU only. Large pages are not assumed: the
 // region has to come back usable whichever backing it got, and the note has to say which.
-#include "basalt/platform/memory.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -16,7 +16,7 @@ void check(bool ok, const std::string& what) {
 }  // namespace
 
 int main() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     const uint64_t bytes = 6ull << 20;   // not a multiple of the 2 MiB page the OS may back it with
     RegionBacking backing = RegionBacking::NormalPages;
     std::string note;

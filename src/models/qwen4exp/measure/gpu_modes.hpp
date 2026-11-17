@@ -1,4 +1,4 @@
-// basalt/program/measure/gpu_modes.hpp - the GPU-only measurement modes and the per-stage event names.
+// halo/program/measure/gpu_modes.hpp - the GPU-only measurement modes and the per-stage event names.
 //
 // These are diagnostic entry points: they replay the captured graphs to time the GPU alone, and they print a table
 // instead of decoding.  Nothing in the decode path calls them; each mode runs once and the engine exits.
@@ -8,18 +8,18 @@
 // headers pull CUDA in.  The one translation unit that needs the definitions includes them.
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include <functional>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 struct ModelGeometry;
 struct SessionState;
 struct SessionGraphs;
 struct Doorbell;
-}  // namespace basalt::core
+}  // namespace halo::core
 
-namespace basalt::models::qwen4exp {
+namespace halo::models::qwen4exp {
 
 struct Options;
 
@@ -32,11 +32,11 @@ inline constexpr int kNotRequested = -1;
 /// runner that `--gpu-only-full` adds to the layer floor.
 struct GpuModeContext {
     const Options* o = nullptr;
-    const basalt::core::ModelGeometry* g = nullptr;
-    basalt::core::SessionState* ss = nullptr;
-    basalt::core::SessionGraphs* gr = nullptr;
+    const halo::core::ModelGeometry* g = nullptr;
+    halo::core::SessionState* ss = nullptr;
+    halo::core::SessionGraphs* gr = nullptr;
     void* stream = nullptr;                        ///< the main stream
-    basalt::core::Doorbell* db = nullptr;             ///< `--gpu-stages` frees it, as it did inline
+    halo::core::Doorbell* db = nullptr;             ///< `--gpu-stages` frees it, as it did inline
     void* d_next = nullptr;                        ///< `--gpu-stages` frees it, as it did inline
     std::function<bool(void*)> run_head;           ///< the LM head on a stream
     std::string* err = nullptr;
@@ -51,4 +51,4 @@ int run_gpu_modes(const GpuModeContext& c);
 int arm_stage_timing(const Options& o);
 
 }  // namespace measure
-}  // namespace basalt::models::qwen4exp
+}  // namespace halo::models::qwen4exp

@@ -1,9 +1,9 @@
 #include "common.hpp"
-#include "basalt/core/diag.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused_ada.hpp"
-#include "basalt/models/qwen4exp/kernels/q80_vhead.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused_ada.hpp"
+#include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -16,22 +16,22 @@ constexpr bool dec_draft_par() { return true; }
 // Every hyper-connection read of those graphs (and the MLP read's router) as the one-kernel read, whose bits are
 // fused_gr_read_multi's.
 bool dec_draft_ada() {   // `--exp hc_fused_ada=0` keeps the three-kernel reads on 8.9
-    static const bool on = !basalt::kernels::hc_fused_supported() && basalt::kernels::hc_fused_ada_supported() &&
-                           basalt::core::exp_flag("hc_fused_ada", 1) != 0;
+    static const bool on = !halo::kernels::hc_fused_supported() && halo::kernels::hc_fused_ada_supported() &&
+                           halo::core::exp_flag("hc_fused_ada", 1) != 0;
     return on;
 }
 bool dec_draft_hcf() {
-    static const bool on = basalt::kernels::hc_fused_supported() || dec_draft_ada();
+    static const bool on = halo::kernels::hc_fused_supported() || dec_draft_ada();
     return on;
 }
-void draft_hc_read(const basalt::kernels::HcFusedArgs& a, void* stream) {
-    if (dec_draft_ada()) basalt::kernels::hc_fused_ada_read(a, stream);
-    else basalt::kernels::hc_fused_read(a, stream);
+void draft_hc_read(const halo::kernels::HcFusedArgs& a, void* stream) {
+    if (dec_draft_ada()) halo::kernels::hc_fused_ada_read(a, stream);
+    else halo::kernels::hc_fused_read(a, stream);
 }
 
 // The one-kernel hyper-connection read of the rows fa[0..T) (rows at the layer's fixed strides)
-basalt::kernels::HcFusedArgs hcf_args(const basalt::kernels::FusedGrArgs* fa, int T, float* xn) {
-    basalt::kernels::HcFusedArgs h;
+halo::kernels::HcFusedArgs hcf_args(const halo::kernels::FusedGrArgs* fa, int T, float* xn) {
+    halo::kernels::HcFusedArgs h;
     h.T = T; h.R = fa[0].R; h.R_out = fa[0].R_out; h.apply = fa[0].apply;
     h.bo_prev = fa[0].bo_prev; h.inj_prev = fa[0].inj_prev;
     h.w_norm = fa[0].w_norm; h.w_down = fa[0].w_down; h.w_up = fa[0].w_up; h.w_inject = fa[0].w_inject;
@@ -44,7 +44,7 @@ basalt::kernels::HcFusedArgs hcf_args(const basalt::kernels::FusedGrArgs* fa, in
 
 // The hidden input branch: h2_ <- fc_hidden(rms(R) * w) per stream, T rows.
 void MtpDrafter::record_hidden(const float* R, int T, uint8_t* xq, cudaStream_t cs) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const int64_t N = g_->n_embd, HC = g_->hc;
     native_qsa_rms_norm_weighted(R, f32("pre_fc_norm_hidden.weight"), hn_, (int) (HC * N), T, EPS, cs);
     for (int c0 = 0; c0 < T * HC; c0 += 8) {
@@ -56,7 +56,7 @@ void MtpDrafter::record_hidden(const float* R, int T, uint8_t* xq, cudaStream_t 
 
 // The layer for T rows.  full = false stops after the K/V append (the prompt only needs the cache).
 bool MtpDrafter::record_forward(int T, int step_row0, cudaStream_t cs, std::string& err, bool reuse_row) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const ModelGeometry& g = *g_;
     SessionState& ss = *ss_;
     // step_row0 >= 0: the full layer on step rows [step_row0, +T); step_row0 < 0: K/V only on rows [-1 - step_row0, +T)
@@ -264,7 +264,7 @@ bool MtpDrafter::record_forward(int T, int step_row0, cudaStream_t cs, std::stri
             bf16_gemv_fp32_mmvf(mixed_ + t * N, bf16("mlp.gate.weight"), logits_ + t * g.n_expert, (int) N, (int) g.n_expert, cs);
             native_router_top10(logits_ + t * g.n_expert, ids_ + t * K, w_ + t * K, cs);
         }
-        moe_group_resident(ids_, (int) (T * K), (int) K, experts_, (int64_t) basalt::kernels::cpu::BLOB, grp_ptr_,
+        moe_group_resident(ids_, (int) (T * K), (int) K, experts_, (int64_t) halo::kernels::cpu::BLOB, grp_ptr_,
                            grp_start_, grp_counts_, hit_dst_, hit_slot_, cs);
         quantize_q8_0_scaled(mixed_, hit_xq_, hit_xs_, (int64_t) T * N, cs);
         moe_grouped_s2(grp_ptr_, grp_start_, grp_counts_, hit_dst_, hit_slot_, (int64_t) T * K, (int64_t) T * K, hit_xq_,
@@ -339,12 +339,12 @@ bool MtpDrafter::record_forward(int T, int step_row0, cudaStream_t cs, std::stri
         // another order: last bits)
         if (T == 1 && sub && proxy_ != nullptr && nv == n_tier1_ && diag_ == nullptr &&
             (head_->type() == 13
-                 ? basalt::kernels::q5k_proxy_top1(proxy_, dhead_, xq_, (int) nv, n_tier1_, dvocab_, out_ids_, probs_,
+                 ? halo::kernels::q5k_proxy_top1(proxy_, dhead_, xq_, (int) nv, n_tier1_, dvocab_, out_ids_, probs_,
                                                    proxy_scratch_, cs)
              : head_->type() == GGML_Q8_0
-                 ? basalt::kernels::q80_proxy_top1(proxy_, head_->weights(), xq_, (int) nv, n_tier1_, dvocab_, out_ids_,
+                 ? halo::kernels::q80_proxy_top1(proxy_, head_->weights(), xq_, (int) nv, n_tier1_, dvocab_, out_ids_,
                                                    probs_, proxy_scratch_, cs, true)
-                 : basalt::kernels::q6k_proxy_top1(proxy_, rows_mapped_ ? head_->weights() : (const void*) dhead_, xq_,
+                 : halo::kernels::q6k_proxy_top1(proxy_, rows_mapped_ ? head_->weights() : (const void*) dhead_, xq_,
                                                    (int) nv, n_tier1_, dvocab_, out_ids_, probs_, proxy_scratch_, cs,
                                                    rows_mapped_)))
             return true;

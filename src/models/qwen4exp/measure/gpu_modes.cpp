@@ -1,28 +1,28 @@
-// basalt/program/measure/gpu_modes.cpp - see gpu_modes.hpp.
+// halo/program/measure/gpu_modes.cpp - see gpu_modes.hpp.
 //
 // The three replay modes and the per-stage event names were lifted out of `main()` unchanged; the aliases at the top
 // of each function are what the surrounding function used to provide, so the moved code reads as it did.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "gpu_modes.hpp"
 
-#include "basalt/models/qwen4exp/decode/layer.hpp"      // Doorbell, stage_timing_*, is_qsa_layer
-#include "basalt/models/qwen4exp/decode/session.hpp"    // session_replay*, session_graphs_free
-#include "basalt/log.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"      // Doorbell, stage_timing_*, is_qsa_layer
+#include "halo/models/qwen4exp/decode/session.hpp"    // session_replay*, session_graphs_free
+#include "halo/log.hpp"
+#include "halo/models/qwen4exp/options.hpp"
 
 #include <chrono>
 #include <cstdio>
 #include <string>
 #include <vector>
 
-namespace basalt::models::qwen4exp::measure {
+namespace halo::models::qwen4exp::measure {
 namespace {
 
 using Clock = std::chrono::steady_clock;
 
-/// The `basalt error:` line a start-ending failure prints, with the exit code `main` returned for it.
+/// The `halo error:` line a start-ending failure prints, with the exit code `main` returned for it.
 int fail(const std::string& text) {
-    basalt::log::error("basalt", "%s", text.c_str());
+    halo::log::error("halo", "%s", text.c_str());
     return 1;
 }
 
@@ -31,42 +31,42 @@ int fail(const std::string& text) {
 int arm_stage_timing(const Options& o) {
     if (o.stage_timing) {
         if (!o.no_capture) {
-            basalt::log::error("basalt generate", "--stage-timing records CUDA events inside the layer path, "
+            halo::log::error("halo generate", "--stage-timing records CUDA events inside the layer path, "
                                  "and an event record inside a stream capture is silently dropped. Pass "
                                  "--no-capture as well.");
             return 2;
         }
-        if (!basalt::core::stage_timing_enable()) {
-            basalt::log::error("basalt generate", "stage_timing_enable failed");
+        if (!halo::core::stage_timing_enable()) {
+            halo::log::error("halo generate", "stage_timing_enable failed");
             return 1;
         }
-        basalt::core::stage_timing_name(0, "gr_read (attn)");
-        basalt::core::stage_timing_name(1, "attention block");
-        basalt::core::stage_timing_name(2, "gr_write (attn)");
-        basalt::core::stage_timing_name(3, "gr_read (ffn)");
-        basalt::core::stage_timing_name(4, "moe_route");
-        basalt::core::stage_timing_name(5, "moe_finish");
-        basalt::core::stage_timing_name(6, "gr_write (ffn)");
+        halo::core::stage_timing_name(0, "gr_read (attn)");
+        halo::core::stage_timing_name(1, "attention block");
+        halo::core::stage_timing_name(2, "gr_write (attn)");
+        halo::core::stage_timing_name(3, "gr_read (ffn)");
+        halo::core::stage_timing_name(4, "moe_route");
+        halo::core::stage_timing_name(5, "moe_finish");
+        halo::core::stage_timing_name(6, "gr_write (ffn)");
         // The GDN block's internals: a single "attention block" number cannot say which of its many small
         // latency-bound launches costs anything.
-        basalt::core::stage_timing_name(8, "  gdn: quantize x");
-        basalt::core::stage_timing_name(9, "  gdn: qkv gemv");
-        basalt::core::stage_timing_name(10, "  gdn: conv+silu");
-        basalt::core::stage_timing_name(11, "  gdn: l2 norms");
-        basalt::core::stage_timing_name(12, "  gdn: alpha/beta/gate");
-        basalt::core::stage_timing_name(13, "  gdn: gdn_step");
-        basalt::core::stage_timing_name(14, "  gdn: z + out_norm");
-        basalt::core::stage_timing_name(15, "  gdn: out gemv");
+        halo::core::stage_timing_name(8, "  gdn: quantize x");
+        halo::core::stage_timing_name(9, "  gdn: qkv gemv");
+        halo::core::stage_timing_name(10, "  gdn: conv+silu");
+        halo::core::stage_timing_name(11, "  gdn: l2 norms");
+        halo::core::stage_timing_name(12, "  gdn: alpha/beta/gate");
+        halo::core::stage_timing_name(13, "  gdn: gdn_step");
+        halo::core::stage_timing_name(14, "  gdn: z + out_norm");
+        halo::core::stage_timing_name(15, "  gdn: out gemv");
     }
     return 0;
 }
 
 int run_gpu_modes(const GpuModeContext& c) {
     const Options& o = *c.o;
-    const basalt::core::ModelGeometry& g = *c.g;
-    basalt::core::SessionState& ss = *c.ss;
-    basalt::core::SessionGraphs& gr = *c.gr;
-    basalt::core::Doorbell& db = *c.db;
+    const halo::core::ModelGeometry& g = *c.g;
+    halo::core::SessionState& ss = *c.ss;
+    halo::core::SessionGraphs& gr = *c.gr;
+    halo::core::Doorbell& db = *c.db;
     void* const main_cs = c.stream;
     int* const d_next = (int*) c.d_next;
     const std::function<bool(void*)>& run_head = c.run_head;
@@ -85,11 +85,11 @@ int run_gpu_modes(const GpuModeContext& c) {
     // kernels, looks like 55% of the token there.
     // ---- THE PER-STAGE TABLE ON THE CAPTURED GRAPH.
     if (o.gpu_stages) {
-        basalt::core::doorbell_reset(db);
+        halo::core::doorbell_reset(db);
         double mix = 0, ffn = 0, post = 0;
-        if (!basalt::core::session_replay_stages(g, 0, 0, ss, gr, main_cs, mix, ffn, post, err)) {
+        if (!halo::core::session_replay_stages(g, 0, 0, ss, gr, main_cs, mix, ffn, post, err)) {
             // no per-layer graphs are captured; the serve path times its window's stages
-            basalt::log::error("basalt generate", "%s%s", err.c_str(),
+            halo::log::error("halo generate", "%s%s", err.c_str(),
                          " - there are no per-layer graphs to replay. The decode window's GPU "
                          "stages are printed per request by the serve path instead: --profile "
                          "--decode-timing with --serve");
@@ -98,7 +98,7 @@ int run_gpu_modes(const GpuModeContext& c) {
         const int reps = 20;
         double t_mix = 0, t_ffn = 0, t_post = 0;
         for (int r = 0; r < reps; ++r) {
-            if (!basalt::core::session_replay_stages(g, 0, 0, ss, gr, main_cs, mix, ffn, post, err)) {
+            if (!halo::core::session_replay_stages(g, 0, 0, ss, gr, main_cs, mix, ffn, post, err)) {
                 return fail(err);
             }
             t_mix += mix;
@@ -124,7 +124,7 @@ int run_gpu_modes(const GpuModeContext& c) {
             std::vector<double> acc((size_t) g.n_layers, 0.0), per;
             double f2 = 0, p2 = 0;
             for (int r = 0; r < reps; ++r) {
-                if (!basalt::core::session_replay_stages_per_layer(g, 0, 0, ss, gr, main_cs, per, f2, p2, err)) {
+                if (!halo::core::session_replay_stages_per_layer(g, 0, 0, ss, gr, main_cs, per, f2, p2, err)) {
                     return fail(err);
                 }
                 for (int64_t l = 0; l < g.n_layers; ++l) acc[(size_t) l] += per[(size_t) l];
@@ -133,7 +133,7 @@ int run_gpu_modes(const GpuModeContext& c) {
             int64_t ng = 0, nq = 0, worst_l = 0;
             for (int64_t l = 0; l < g.n_layers; ++l) {
                 const double v = acc[(size_t) l] / reps;
-                if (basalt::core::is_qsa_layer(g, l)) { qsa += v; ++nq; }
+                if (halo::core::is_qsa_layer(g, l)) { qsa += v; ++nq; }
                 else { gdn += v; ++ng; }
                 if (v > worst) { worst = v; worst_l = l; }
             }
@@ -155,7 +155,7 @@ int run_gpu_modes(const GpuModeContext& c) {
         {
             std::vector<double> acc5(5, 0.0), per, s5;
             for (int r = 0; r < reps; ++r) {
-                if (!basalt::core::session_replay_stage_prefixes(g, 0, 0, ss, gr, main_cs, s5, per, err)) {
+                if (!halo::core::session_replay_stage_prefixes(g, 0, 0, ss, gr, main_cs, s5, per, err)) {
                     return fail(err);
                 }
                 for (int k = 0; k < 5; ++k) acc5[(size_t) k] += s5[(size_t) k];
@@ -195,7 +195,7 @@ int run_gpu_modes(const GpuModeContext& c) {
                 for (int k = 1; k <= 5; ++k) {
                     double acc = 0, one = 0;
                     for (int r = 0; r < reps; ++r) {
-                        if (!basalt::core::session_replay_stage_sweep(g, 0, 0, ss, gr, main_cs, k, one, err)) {
+                        if (!halo::core::session_replay_stage_sweep(g, 0, 0, ss, gr, main_cs, k, one, err)) {
                             return fail(err);
                         }
                         acc += one;
@@ -217,33 +217,33 @@ int run_gpu_modes(const GpuModeContext& c) {
         }
         std::printf("\n  compare `--gpu-only-full`, which replays the same work as TWO graphs per layer.  The\n");
         std::printf("  three sum slightly above it because each launch carries the driver's gap.\n");
-        basalt::core::session_graphs_free(gr);
-        basalt::core::doorbell_free(db);
+        halo::core::session_graphs_free(gr);
+        halo::core::doorbell_free(db);
         cudaFree(d_next);
         return 0;
     }
 
     if (o.graph_only) {
-        basalt::core::doorbell_reset(db);
+        halo::core::doorbell_reset(db);
         // one warm pass so the first launch does not pay for page mapping
-        if (!basalt::core::session_replay(g, 0, 0, ss, gr, main_cs, err)) {
-            basalt::log::error("basalt generate", "session_replay warm: %s", err.c_str());
+        if (!halo::core::session_replay(g, 0, 0, ss, gr, main_cs, err)) {
+            halo::log::error("halo generate", "session_replay warm: %s", err.c_str());
             return 1;
         }
         if (cudaDeviceSynchronize() != cudaSuccess) {
-            basalt::log::error("basalt generate", "session_replay warm faulted");
+            halo::log::error("halo generate", "session_replay warm faulted");
             return 1;
         }
         const int reps = 20;
         const Clock::time_point t0 = Clock::now();
         for (int r = 0; r < reps; ++r) {
-            if (!basalt::core::session_replay(g, 0, 0, ss, gr, main_cs, err)) {
-                basalt::log::error("basalt generate", "session_replay: %s", err.c_str());
+            if (!halo::core::session_replay(g, 0, 0, ss, gr, main_cs, err)) {
+                halo::log::error("halo generate", "session_replay: %s", err.c_str());
                 return 1;
             }
         }
         if (cudaDeviceSynchronize() != cudaSuccess) {
-            basalt::log::error("basalt generate", "session_replay faulted: %s", cudaGetErrorString(cudaGetLastError()));
+            halo::log::error("halo generate", "session_replay faulted: %s", cudaGetErrorString(cudaGetLastError()));
             return 1;
         }
         const double ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count() / (double) reps;
@@ -259,28 +259,28 @@ int run_gpu_modes(const GpuModeContext& c) {
     // expert, the combine and the second `gr_write` - and the LM head.  This flag measures the whole GPU work of a
     // token: no pool runs, so `parts` keeps whatever the buffer holds and the timing is GPU work alone.
     if (o.gpu_only_full) {
-        basalt::core::doorbell_reset(db);
+        halo::core::doorbell_reset(db);
         const int reps = 20;
         double ms_layers = 0, ms_head = 0;
         for (int r = -1; r < reps; ++r) {          // r == -1 is the warm pass, not counted
             const Clock::time_point t0 = Clock::now();
-            if (!basalt::core::session_replay_full(g, 0, 0, ss, gr, main_cs, err)) {
-                basalt::log::error("basalt generate", "session_replay_full: %s", err.c_str());
+            if (!halo::core::session_replay_full(g, 0, 0, ss, gr, main_cs, err)) {
+                halo::log::error("halo generate", "session_replay_full: %s", err.c_str());
                 return 1;
             }
             // The sync is INSIDE the interval on purpose: it is the wait for the GPU, so t1 - t0 is GPU time.
             if (cudaStreamSynchronize((cudaStream_t) main_cs) != cudaSuccess) {
-                basalt::log::error("basalt generate", "gpu-only-full layers faulted: %s",
+                halo::log::error("halo generate", "gpu-only-full layers faulted: %s",
                              cudaGetErrorString(cudaGetLastError()));
                 return 1;
             }
             const Clock::time_point t1 = Clock::now();
             if (!run_head(main_cs)) {
-                basalt::log::error("basalt generate", "gpu-only-full lm_head: %s", err.c_str());
+                halo::log::error("halo generate", "gpu-only-full lm_head: %s", err.c_str());
                 return 1;
             }
             if (cudaStreamSynchronize((cudaStream_t) main_cs) != cudaSuccess) {
-                basalt::log::error("basalt generate", "gpu-only-full head faulted: %s",
+                halo::log::error("halo generate", "gpu-only-full head faulted: %s",
                              cudaGetErrorString(cudaGetLastError()));
                 return 1;
             }
@@ -303,4 +303,4 @@ int run_gpu_modes(const GpuModeContext& c) {
     return kNotRequested;
 }
 
-}  // namespace basalt::models::qwen4exp::measure
+}  // namespace halo::models::qwen4exp::measure

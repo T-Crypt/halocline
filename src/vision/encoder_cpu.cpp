@@ -1,16 +1,16 @@
-// src/vision/encoder_cpu.cpp - see basalt/vision/encoder_cpu.hpp.
-#include "basalt/vision/encoder_cpu.hpp"
+// src/vision/encoder_cpu.cpp - see halo/vision/encoder_cpu.hpp.
+#include "halo/vision/encoder_cpu.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <thread>
 
-#include "basalt/platform/compiler.hpp"
+#include "halo/platform/compiler.hpp"
 
 #include "gemm_cpu.hpp"
 
-namespace basalt::vision {
+namespace halo::vision {
 
 namespace {
 
@@ -271,4 +271,4 @@ bool CpuEncoder::encode(const std::vector<float>& patches, Size canvas, std::vec
     return true;
 }
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

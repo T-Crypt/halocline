@@ -1,30 +1,30 @@
 #include "common.hpp"
 #include "record.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/diag.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/kernels/native_moe.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/models/qwen4exp/kernels/gr.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/s2_expert_grouped.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/kernels/native_moe.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/models/qwen4exp/kernels/gr.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/s2_expert_grouped.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
 #include <exception>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // post(l, group): experts, combine
 bool Verifier::WindowRecorder::post(int64_t l) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const int n = T;
     const uint32_t ring = (uint32_t) (l - v_.lb_ + 1);
     const int64_t cap = (int64_t) n * K, capx = (int64_t) v_.max_t_ * K;
@@ -39,7 +39,7 @@ bool Verifier::WindowRecorder::post(int64_t l) {
     const int32_t* p_start2 = pl + ptr_off + 4 * capx;
     float* hit_out = v_.hit_out_;
     float* parts_out = v_.parts_;
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     // the VRAM groups now; the PCIe groups once the copy engine has landed them in staging.
     // `gy`: the native launch's groups side by side (0: cap, one block row per possible group).
     auto grouped = [&](const unsigned long long* gp, const int32_t* gs, const int32_t* gn, int64_t gy, float* dst_buf) {
@@ -84,8 +84,8 @@ bool Verifier::WindowRecorder::post(int64_t l) {
                 // the shared expert's gate row
                 for (const char* nm : {"hc_ffn_down.weight", "hc_ffn_inject.weight", "hc_ffn_up.weight"}) {
                     const WeightRef* w = nv.get(nm);
-                    basalt::kernels::Hc8View hv;
-                    if (w != nullptr && basalt::kernels::hc8_view(w->data, hv)) add(hv.q, hv.bytes);
+                    halo::kernels::Hc8View hv;
+                    if (w != nullptr && halo::kernels::hc8_view(w->data, hv)) add(hv.q, hv.bytes);
                 }
                 for (const char* nm : {"ffn_gate_inp.weight", "ffn_gate_inp_shexp.weight"}) {
                     const WeightRef* w = nv.get(nm);
@@ -214,7 +214,7 @@ bool Verifier::WindowRecorder::post(int64_t l) {
 // the layer's MoE grid is launched, so it runs beside the combine and never beside a grid that needs its SMs.
 // --exp l2_ahead=0 leaves it out.
 void Verifier::WindowRecorder::l2_ahead(int64_t l) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     if (v_.l2a_s_ == nullptr || exp_flag("l2_ahead", 1.0) == 0.0 || !v_.dm_->tags || v_.batch_rec_ || cs != v_.cs_ ||
         l + 1 >= v_.le_)
         return;
@@ -255,4 +255,4 @@ void Verifier::WindowRecorder::l2_ahead(int64_t l) {
     l2a_open = true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

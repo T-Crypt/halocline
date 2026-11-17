@@ -1,7 +1,7 @@
 // The elastic KV pools (kv_arena.hpp).  Mapping backs whole pages of every array, zeroed; unmapping gives the VRAM
 // back and keeps the cells below the cut exactly as they were; the addresses never move.  Needs a CUDA device with
 // virtual memory management (exits 77 without one).
-#include "basalt/models/qwen4exp/decode/kv_arena.hpp"
+#include "halo/models/qwen4exp/decode/kv_arena.hpp"
 
 #include <cuda_runtime.h>
 
@@ -40,7 +40,7 @@ int main() {
     // INT8 geometry of one QSA layer: per page of 64 cells, 4 KV heads x 128 codes (K, V) and 2 scales each (K, V)
     constexpr int64_t kPage = 64, kPages = 4096;
     const std::vector<uint64_t> page_bytes = {kPage * 4 * 128, kPage * 4 * 128, kPage * 4 * 2 * 2, kPage * 4 * 2 * 2};
-    basalt::core::KvArena a;
+    halo::core::KvArena a;
     std::string err;
     if (!a.open(page_bytes, kPages, kPage, err)) {
         if (err.find("virtual memory management") != std::string::npos) {
@@ -91,7 +91,7 @@ int main() {
         constexpr uint64_t kRow = 512, kTab = 128;
         std::vector<uint8_t> table((size_t) (kPages * kTab));
         for (size_t i = 0; i < table.size(); ++i) table[i] = (uint8_t) (i * 7 + 3);
-        basalt::core::KvArena b;
+        halo::core::KvArena b;
         if (!b.open({kPage * 64, kRow, kPage * kTab / 64}, kPages, kPage, err, {0, 2 * kRow, 0})) return fail("open tail", err);
         b.set_contents(2, table);
         if (!b.map(1, err) || b.cells() < kPage) return fail("map one page", err);
@@ -116,7 +116,7 @@ int main() {
     // on a grid, one deep map is given back to the first grid line at or above the cut, the cells below kept
     {
         constexpr int64_t kGrid = 128 * kPage;
-        basalt::core::KvArena d;
+        halo::core::KvArena d;
         if (!d.open(page_bytes, kPages, kPage, err)) return fail("open grid", err);
         d.set_extent_cells(kGrid);
         if (!d.map(kGrid, err) || !d.map(8 * kGrid, err) || d.cells() < 8 * kGrid) return fail("map grid", err);
@@ -124,7 +124,7 @@ int main() {
         if (!d.unmap(2 * kGrid + 1, err) || d.cells() != 3 * kGrid || d.mapped_bytes() != d.bytes_for(3 * kGrid))
             return fail("unmap to the grid", err);
         if (!all(d.array(0), 3 * kGrid / kPage * page_bytes[0], 0x5a)) return fail("kept below the grid line");
-        basalt::core::KvArena one;
+        halo::core::KvArena one;
         if (!one.open(page_bytes, kPages, kPage, err) || !one.map(kGrid, err) || !one.map(8 * kGrid, err) ||
             !one.unmap(2 * kGrid + 1, err) || one.mapped_bytes() != one.bytes_for(8 * kGrid))
             return fail("one mapping per call stays", err);

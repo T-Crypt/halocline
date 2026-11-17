@@ -1,14 +1,14 @@
 #include "run.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 #include <algorithm>
 #include <string>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::layer(int64_t l) {
@@ -53,7 +53,7 @@ bool Prefill::Run::Chunk::layer(int64_t l) {
         // control vector)
         const int64_t nl = half == 0 ? l : l + 1;
         const bool fuse = nl < LE && !(half == 1 && nl == 1 && ple_on) &&
-                          !(half == 1 && basalt::kernels::cvec().covers(l));
+                          !(half == 1 && halo::kernels::cvec().covers(l));
         const core::WeightRef* wnn = nullptr;
         if (fuse) {
             const core::LayerView vn(*m.wt, nl);
@@ -66,10 +66,10 @@ bool Prefill::Run::Chunk::layer(int64_t l) {
         } else {
             gr_write(m.R, m.bo, m.inj, HC, T, m.cs);
         }
-        if (half == 1 && basalt::kernels::cvec().covers(l))   // --control-vector-scaled
-            basalt::kernels::cvec_apply(m.R, l, T, D, nullptr, 0, nullptr, 0, false, m.cs);
+        if (half == 1 && halo::kernels::cvec().covers(l))   // --control-vector-scaled
+            halo::kernels::cvec_apply(m.R, l, T, D, nullptr, 0, nullptr, 0, false, m.cs);
     }
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

@@ -1,8 +1,8 @@
 // src/models/qwen4exp/serve/verify.cpp - verify operations for the persistent engine.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_state.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 
 int QfnRuntime::init_verify() {
@@ -10,7 +10,7 @@ int QfnRuntime::init_verify() {
     d_hist = nullptr;
     hist_stage = std::vector<int32_t>(kHistSlots, -1);
     if (cudaMalloc(&d_hist, kHistSlots * sizeof(int32_t)) != cudaSuccess) {
-        basalt::log::error("basalt serve", "the penalty-history allocation failed");
+        halo::log::error("halo serve", "the penalty-history allocation failed");
         return 1;
     }
 
@@ -27,15 +27,15 @@ int QfnRuntime::init_verify() {
     ver.set_cpu_warm(drive.d.pool, drive.d.src);
     if (!ver.init(wt, g, ss, vh, native_head.loaded() ? &native_head : nullptr, std::max({o.spec, o.batch, 2}), err) ||
         (mtp_on && !mtp.bind(wt, &native_head, ver.final_R_all(), err))) {
-        basalt::log::error("basalt serve", "%s", err.c_str());
+        halo::log::error("halo serve", "%s", err.c_str());
         return 1;
     }
     // the verifier gets the slot sessions
     if (o.batch > 0) {
-        std::vector<basalt::core::SessionState*> ptrs;
+        std::vector<halo::core::SessionState*> ptrs;
         for (auto& u : bslot_ss[0]) ptrs.push_back(u.get());
         if (!ver.init_slots(ptrs, err)) {
-            basalt::log::error("basalt serve", "--batch: %s", err.c_str());
+            halo::log::error("halo serve", "--batch: %s", err.c_str());
             return 1;
         }
     }
@@ -49,7 +49,7 @@ int QfnRuntime::capture_windows() {
 
     // every window width's graph is captured before READY, not by the first request that needs it
     if (o.serve && !ver.warm_graphs(err)) {
-        basalt::log::error("basalt serve", "capturing the verify windows failed: %s", err.c_str());
+        halo::log::error("halo serve", "capturing the verify windows failed: %s", err.c_str());
         return 1;
     }
     // the solo windows of every slot session, so a lone request in any slot runs the solo path in place
@@ -60,13 +60,13 @@ int QfnRuntime::capture_windows() {
         for (int b = 1; b < o.batch; ++b) {
             make_view(rviews[(size_t) b], b);
             if (!ver.warm_session(&rviews[(size_t) b], err)) {
-                basalt::log::error("basalt serve", "capturing slot %d's solo windows failed: %s", b, err.c_str());
+                halo::log::error("halo serve", "capturing slot %d's solo windows failed: %s", b, err.c_str());
                 return 1;
             }
         }
         size_t free1 = 0;
         cudaMemGetInfo(&free1, &total0);
-        basalt::log::info("basalt serve", "solo windows of %d more slot sessions captured in %.0f ms (%.1f MiB of VRAM)",
+        halo::log::info("halo serve", "solo windows of %d more slot sessions captured in %.0f ms (%.1f MiB of VRAM)",
                      o.batch - 1, std::chrono::duration<double, std::milli>(Clock::now() - tw).count(),
                      (double) ((int64_t) free0 - (int64_t) free1) / 1048576.0);
     }
@@ -74,7 +74,7 @@ int QfnRuntime::capture_windows() {
     S_mtp = o.mtp_max_t > 0 ? std::min(o.mtp_max_t, S) : S;   // the MTP's windows; suffixes go up to S
     if (mtp_on && S_mtp < S) mtp.set_max_drafts(S_mtp - 1);
     if (mtp_on && !mtp.prewarm(err)) {
-        basalt::log::error("basalt serve", "capturing the draft graphs failed: %s", err.c_str());
+        halo::log::error("halo serve", "capturing the draft graphs failed: %s", err.c_str());
         return 1;
     }
     ple_table.rearm_keepalive();   // a long load must not lapse the SSD keep-alive window before the first request
@@ -85,12 +85,12 @@ int QfnRuntime::capture_windows() {
     kv_ceiling_note();
     if (kv_ceiling_sent >= 0) {
         const int n = std::max(o.batch, 1);
-        basalt::log::info("basalt serve", "elastic KV: about %lld cells fit in the %d session%s (%lld at full "
+        halo::log::info("halo serve", "elastic KV: about %lld cells fit in the %d session%s (%lld at full "
                           "context) before the expert cache reaches the %lld slots a prompt chunk needs",
                           (long long) kv_ceiling_sent, n, n == 1 ? "" : "s", (long long) n * o.max_context,
                           (long long) cache_floor_slots());
     }
-    std::printf("INFO %s\n", basalt::program::spill_words(tier_spill).c_str());   // experts only the file holds
+    std::printf("INFO %s\n", halo::program::spill_words(tier_spill).c_str());   // experts only the file holds
     std::printf("READY %lld stop\n", (long long) o.max_context);   // "stop": this engine honours STOP
     std::fflush(stdout);
 
@@ -98,7 +98,7 @@ int QfnRuntime::capture_windows() {
     sfx.emplace(std::max(1, o.suffix_draft), 64, (size_t) o.max_context + 4096);
     policy.emplace(S);   // MTP or lookup window, learned over the whole process
     // The vision path (--vision): GENI <max_new> <embeddings file> <id,id,...> carries images and videos.  The
-    // file is one or more basalt-vision records (int32 'SVE1', n, nx, ny, n_embd, then n x n_embd floats) in prompt
+    // file is one or more halo-vision records (int32 'SVE1', n, nx, ny, n_embd, then n x n_embd floats) in prompt
     // order, one per picture and one per two-frame video group; each record's rows go to its run of <|image_pad|> or
     // <|video_pad|> tokens, whose M-RoPE positions are Qwen3-VL's (mrope_positions.hpp): t = p, h = p + y,
     // w = p + x, and the text after the run continues at p + max(nx, ny).
@@ -129,4 +129,4 @@ int QfnRuntime::capture_windows() {
     return 0;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

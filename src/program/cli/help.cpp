@@ -1,18 +1,18 @@
 #include "help.hpp"
 
-#include "basalt/log.hpp"
-#include "basalt/program/options.hpp"
+#include "halo/log.hpp"
+#include "halo/program/options.hpp"
 
-namespace basalt::program::cli {
+namespace halo::program::cli {
 
 void usage() {
-    basalt::log::raw("basalt serve --config FILE [--python PY] [server args...]\n"
-                 "basalt serve MODEL.basalt [--python PY] [server args...]\n"
+    halo::log::raw("halo serve --config FILE [--python PY] [server args...]\n"
+                 "halo serve MODEL.basalt [--python PY] [server args...]\n"
                  "    runs the Python server (serve/) over this binary: the server reads its options and the engine flags\n"
                  "    from the config file and the command line (the model is the config's or MODEL.basalt, which stands\n"
                  "    for --model); --python defaults to .venv/bin/python in the source tree, else python3; the other\n"
                  "    arguments go to the server.  It runs in the source tree; --model and --config paths are made absolute.\n"
-                 "basalt generate --model FILE.basalt --tokens \"1,2,3\" [options]\n"
+                 "halo generate --model FILE.basalt --tokens \"1,2,3\" [options]\n"
                  "\n"
                  "  --model FILE         the .basalt model file (required): the dense weights, experts, source tensors\n"
                  "                       (embedding, PLE table, native projections, head), draft layer and 8-bit\n"
@@ -76,7 +76,7 @@ void usage() {
                  "  --vision             --serve takes images and videos, encoded in this process (it reads the model\n"
                  "                       file's vision/mmproj in place): ENC and ENCV requests borrow expert-cache slots\n"
                  "                       for the encoder and give them back refilled\n"
-                 "  --vision-external    --serve takes images whose embeddings come from basalt-vision --model FILE\n"
+                 "  --vision-external    --serve takes images whose embeddings come from halo-vision --model FILE\n"
                  "                       (GENI requests)\n"
                  "  --no-prompt-skip     a model that stops far prompt rows short runs them through every layer: slower\n"
                  "                       reads, the same math from the last prompt token on, another batch shape's rounding\n"
@@ -211,7 +211,7 @@ void usage() {
                  "  --resident-budget-gib N  the resident mode with at most N GiB of experts in RAM (hottest first;\n"
                  "                       auto when not set: what fits);\n"
                  "                       a budget that would leave less than the RAM floor free is refused, naming\n"
-                 "                       the largest safe value.\n", (long long) basalt::program::kDefaultContext);
+                 "                       the largest safe value.\n", (long long) halo::program::kDefaultContext);
 }
 
-}  // namespace basalt::program::cli
+}  // namespace halo::program::cli

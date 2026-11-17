@@ -1,10 +1,10 @@
 // src/core/model_file.cpp - the .basalt reader, the byte ranges the loaders share, a small JSON parser and the
 // hc8 table.  Host only.  See the header.
-#include "basalt/core/model_file.hpp"
+#include "halo/core/model_file.hpp"
 
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -14,7 +14,7 @@
 #include <cstring>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 
 // ================================ byte ranges ================================
 
@@ -38,7 +38,7 @@ bool pread_direct(const std::string& path, void* dst, uint64_t n, uint64_t off) 
     constexpr uint64_t kAlign = 4096, kChunk = 16ull << 20;
     const int fd = platform::open_unbuffered(path);
     if (fd < 0) return false;
-    void* bounce = basalt::platform::alloc_aligned((size_t) (std::min<uint64_t>(n, kChunk) + 2 * kAlign), kAlign);
+    void* bounce = halo::platform::alloc_aligned((size_t) (std::min<uint64_t>(n, kChunk) + 2 * kAlign), kAlign);
     if (bounce == nullptr) { platform::close_fd(fd); return false; }
     bool ok = true;
     for (uint64_t done = 0; ok && done < n;) {
@@ -55,7 +55,7 @@ bool pread_direct(const std::string& path, void* dst, uint64_t n, uint64_t off) 
         if (ok) std::memcpy((uint8_t*) dst + done, (uint8_t*) bounce + (pos - a0), (size_t) len);
         done += len;
     }
-    basalt::platform::free_aligned(bounce);
+    halo::platform::free_aligned(bounce);
     platform::close_fd(fd);
     return ok;
 }
@@ -293,7 +293,7 @@ bool ModelFile::open(const std::string& path, std::string& err) {
     if (h.version != kModelVersion) {
         err = path + ": .basalt version " + std::to_string(h.version) + ", this build reads version " +
               std::to_string(kModelVersion) +
-              (h.version < kModelVersion ? "; upgrade it with tools/migrations/basalt_v1_to_v2.py" : "");
+              (h.version < kModelVersion ? "; upgrade it with tools/migrations/halo_v1_to_v2.py" : "");
         return false;
     }
     if (h.n_sections > kMaxSections) { err = path + ": the section table is too long"; return false; }
@@ -481,4 +481,4 @@ bool hc8_read(const FileRange& r, std::map<std::string, Hc8Copy>& out, std::stri
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

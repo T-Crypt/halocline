@@ -1,16 +1,16 @@
 #include "experts.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <string>
 #include <vector>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::moe(int64_t l, const core::LayerView& v) {
@@ -102,4 +102,4 @@ bool Prefill::Run::Chunk::Experts::Group::group() {
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

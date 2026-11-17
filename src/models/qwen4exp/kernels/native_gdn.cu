@@ -23,14 +23,14 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-#include "basalt/models/qwen4exp/kernels/native_gdn.hpp"
+#include "halo/models/qwen4exp/kernels/native_gdn.hpp"
 #include <cuda_runtime.h>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 constexpr int S = 128;
 
@@ -115,4 +115,4 @@ void native_gdn_step(float* state, const float* q, const float* k, const float* 
     const auto error = cudaGetLastError();
     if (error != cudaSuccess) throw std::runtime_error(cudaGetErrorString(error));
 }
-} // namespace basalt::kernels
+} // namespace halo::kernels

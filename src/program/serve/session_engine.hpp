@@ -2,12 +2,12 @@
 #pragma once
 
 #include "request.hpp"
-#include "basalt/model/adapter.hpp"
+#include "halo/model/adapter.hpp"
 
-namespace basalt::program::serve {
+namespace halo::program::serve {
 
 /// Serves until QUIT or stdin closes; returns the process exit code.
-int run_session(CommonOptions& o, basalt::core::ModelFile& file, const basalt::model::ModelAdapter& adapter,
-                basalt::model::LoadedModel& model);
+int run_session(CommonOptions& o, halo::core::ModelFile& file, const halo::model::ModelAdapter& adapter,
+                halo::model::LoadedModel& model);
 
-}  // namespace basalt::program::serve
+}  // namespace halo::program::serve

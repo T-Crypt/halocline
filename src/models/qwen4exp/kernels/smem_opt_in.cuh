@@ -7,15 +7,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 
 inline int opt_in_device(const char* who) {
     int dev = 0;
     cudaGetDevice(&dev);
     if (dev < 0 || dev >= 64) {
-        basalt::log::error("basalt", "%s: device %d out of range", who, dev);
+        halo::log::error("halo", "%s: device %d out of range", who, dev);
         std::abort();
     }
     return dev;
@@ -23,7 +23,7 @@ inline int opt_in_device(const char* who) {
 
 inline void opt_in_check(cudaError_t e, const char* who) {
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s: shared-memory opt-in failed: %s", who, cudaGetErrorString(e));
+        halo::log::error("halo", "%s: shared-memory opt-in failed: %s", who, cudaGetErrorString(e));
         std::abort();
     }
 }
@@ -33,4 +33,4 @@ inline std::mutex& opt_in_mutex() {
     return m;
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

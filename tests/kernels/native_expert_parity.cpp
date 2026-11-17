@@ -11,18 +11,18 @@
 // activations).  (b) and (c) each differ from (a) by their activation rounding only (a few 1e-3 relative).  (c) runs
 // twice, with the kernels that decode a weight part once for all entries and with the per-entry ones: bitwise equal.
 // (d) the GPU dequantizers of the prompt path and the embedding against `to_float` (Q8_0: bit for bit).
-#include "basalt/artifact/gguf_reader.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/iq_avx512.hpp"
-#include "basalt/kernels/cpu/iq_avx2.hpp"
-#include "basalt/kernels/cpu/nvfp4_avx2.hpp"
-#include "basalt/kernels/cpu/kq_avx2.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
+#include "halo/artifact/gguf_reader.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/iq_avx512.hpp"
+#include "halo/kernels/cpu/iq_avx2.hpp"
+#include "halo/kernels/cpu/nvfp4_avx2.hpp"
+#include "halo/kernels/cpu/kq_avx2.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/iq_kernels.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cuda_runtime.h>
 
@@ -38,7 +38,7 @@
 #include <string>
 #include <vector>
 
-namespace cpu = basalt::kernels::cpu;
+namespace cpu = halo::kernels::cpu;
 
 static double rel(const std::vector<float>& a, const std::vector<float>& b) {
     double n = 0, d = 0;
@@ -281,7 +281,7 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
     }
     // (c) the GPU: one group holding the NT entries
     {
-        const auto L = basalt::kernels::native_expert_layout(f.gu_type, f.d_type, H, FF);
+        const auto L = halo::kernels::native_expert_layout(f.gu_type, f.d_type, H, FF);
         void *dblob, *dx, *dxq, *dscr;
         float* dout;
         unsigned long long* dptr;
@@ -289,7 +289,7 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
         cudaMalloc(&dblob, blob.size());
         cudaMalloc(&dx, x.size() * 4);
         cudaMalloc(&dxq, (size_t) NT * H / 32 * 36);
-        cudaMalloc(&dscr, basalt::kernels::native_expert_scratch_bytes(NT, FF));
+        cudaMalloc(&dscr, halo::kernels::native_expert_scratch_bytes(NT, FF));
         cudaMalloc((void**) &dout, (size_t) NT * H * 4);
         cudaMalloc((void**) &dptr, 8);
         cudaMalloc((void**) &dstart, 8);
@@ -305,17 +305,17 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
         cudaMemcpy(dn, &one, 4, cudaMemcpyHostToDevice);
         cudaMemcpy(ddst, idx, NT * 4, cudaMemcpyHostToDevice);
         cudaMemcpy(dtok, idx, NT * 4, cudaMemcpyHostToDevice);
-        basalt::kernels::quantize_q8_1_rows((const float*) dx, NT, H, dxq, s);
-        basalt::kernels::native_expert_grouped(L, dptr, dstart, dn, ddst, dtok, 1, NT, dxq, dscr, dout, s);
+        halo::kernels::quantize_q8_1_rows((const float*) dx, NT, H, dxq, s);
+        halo::kernels::native_expert_grouped(L, dptr, dstart, dn, ddst, dtok, 1, NT, dxq, dscr, dout, s);
         cudaStreamSynchronize(s);
         cudaMemcpy(got_g.data(), dout, got_g.size() * 4, cudaMemcpyDeviceToHost);
         {   // the kernels that decode a weight part once for the NT entries, bitwise vs the per-entry ones (
             // the formats without a decode-once split take the per-entry kernels either way)
             std::vector<float> old_g(got_g.size());
-            const bool was = basalt::kernels::iq_old_kernels();
-            basalt::kernels::iq_set_old_kernels(!was);
-            basalt::kernels::native_expert_grouped(L, dptr, dstart, dn, ddst, dtok, 1, NT, dxq, dscr, dout, s);
-            basalt::kernels::iq_set_old_kernels(was);
+            const bool was = halo::kernels::iq_old_kernels();
+            halo::kernels::iq_set_old_kernels(!was);
+            halo::kernels::native_expert_grouped(L, dptr, dstart, dn, ddst, dtok, 1, NT, dxq, dscr, dout, s);
+            halo::kernels::iq_set_old_kernels(was);
             cudaStreamSynchronize(s);
             cudaMemcpy(old_g.data(), dout, old_g.size() * 4, cudaMemcpyDeviceToHost);
             const bool same = std::memcmp(old_g.data(), got_g.data(), got_g.size() * 4) == 0;
@@ -340,8 +340,8 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
                 {(const uint8_t*) dblob, f.gu_type, &G}, {(const uint8_t*) dblob + f.up_off, f.gu_type, &U},
                 {(const uint8_t*) dblob + f.down_off, f.d_type, &D}};
             for (const auto& m : mats) {
-                basalt::kernels::iq_dequant_f32(m.type, m.src, FF * H, dq, s);
-                basalt::kernels::iq_dequant_f16(m.type, m.src, FF * H, dh, s);
+                halo::kernels::iq_dequant_f32(m.type, m.src, FF * H, dq, s);
+                halo::kernels::iq_dequant_f16(m.type, m.src, FF * H, dh, s);
                 cudaStreamSynchronize(s);
                 cudaMemcpy(got_dq.data(), dq, got_dq.size() * 4, cudaMemcpyDeviceToHost);
                 cudaMemcpy(got_h.data(), dh, got_h.size() * 2, cudaMemcpyDeviceToHost);
@@ -352,7 +352,7 @@ int check_blob(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, int se
                 }
             }
             // the gate matrix as an embedding table of FF rows of H values
-            basalt::kernels::iq_embed_rows(f.gu_type, dblob, f.gu_row, dtk, FF, H, dq, s);
+            halo::kernels::iq_embed_rows(f.gu_type, dblob, f.gu_row, dtk, FF, H, dq, s);
             cudaStreamSynchronize(s);
             cudaMemcpy(got_dq.data(), dq, got_dq.size() * 4, cudaMemcpyDeviceToHost);
             size_t emb_differ = 0;
@@ -676,7 +676,7 @@ int check_nvfp4_cpu(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, i
 int gpu_nvfp4(const cpu::NativeFmt& f, const std::vector<uint8_t>& blob, const std::vector<float>& x,
               const std::vector<float>& G, const std::vector<float>& U, const std::vector<float>& D, const float* sc,
               const std::vector<float>& ref, const std::vector<float>& got_c, cudaStream_t s) {
-    namespace K = basalt::kernels;
+    namespace K = halo::kernels;
     int failures = 0;
     if (!K::native_expert_supported(f.gu_type, f.d_type, H, FF)) {
         std::printf("          gpu: NVFP4 is not a pair the GPU expert kernels take  FAIL\n");
@@ -877,8 +877,8 @@ int check_q5_1_min(cudaStream_t s) {
     cudaMalloc((void**) &dy, rows * 4);
     cudaMemcpy(dw, wq.data(), wq.size(), cudaMemcpyHostToDevice);
     cudaMemcpy(dx, x.data(), n * 4, cudaMemcpyHostToDevice);
-    basalt::kernels::quantize_q8_1_rows((const float*) dx, 1, n, dxq, s);
-    basalt::kernels::iq_mmvq(GGML_TYPE_Q5_1, dw, dxq, dy, n, rows, 1, s);
+    halo::kernels::quantize_q8_1_rows((const float*) dx, 1, n, dxq, s);
+    halo::kernels::iq_mmvq(GGML_TYPE_Q5_1, dw, dxq, dy, n, rows, 1, s);
     cudaStreamSynchronize(s);
     std::vector<float> gpu(rows);
     std::vector<uint8_t> xq((size_t) n / 32 * 36);
@@ -920,8 +920,8 @@ int check_bf16_embd(cudaStream_t s) {
     constexpr int kBf16 = 30;
     const int64_t H = 2560, V = 61, NT = 97;
     int failures = 0;
-    if (!basalt::kernels::embed_type_supported(kBf16) || basalt::kernels::iq_supported(kBf16) ||
-        basalt::kernels::iq_row_bytes(kBf16, H) != (size_t) H * 2) {
+    if (!halo::kernels::embed_type_supported(kBf16) || halo::kernels::iq_supported(kBf16) ||
+        halo::kernels::iq_row_bytes(kBf16, H) != (size_t) H * 2) {
         std::printf("bf16 embedding: type support / row bytes wrong\n");
         return 1;
     }
@@ -943,7 +943,7 @@ int check_bf16_embd(cudaStream_t s) {
     cudaMemcpy(dtok, tok.data(), tok.size() * 4, cudaMemcpyHostToDevice);
     auto widen = [](uint16_t b) { const uint32_t u = (uint32_t) b << 16; float f; std::memcpy(&f, &u, 4); return f; };
     std::vector<float> got((size_t) (out_rows * H));
-    basalt::kernels::iq_embed_rows(kBf16, dt, (size_t) H * 2, dtok, NT, H, dout, s);
+    halo::kernels::iq_embed_rows(kBf16, dt, (size_t) H * 2, dtok, NT, H, dout, s);
     cudaStreamSynchronize(s);
     cudaMemcpy(got.data(), dout, (size_t) (NT * H) * 4, cudaMemcpyDeviceToHost);
     size_t rows_differ = 0;
@@ -952,7 +952,7 @@ int check_bf16_embd(cudaStream_t s) {
             const float want = widen(table[(size_t) (tok[(size_t) r] * H + d)]);
             if (std::memcmp(&got[(size_t) (r * H + d)], &want, 4) != 0) { ++rows_differ; break; }
         }
-    basalt::kernels::iq_dequant_f32(kBf16, dt, V * H, dout, s);
+    halo::kernels::iq_dequant_f32(kBf16, dt, V * H, dout, s);
     cudaStreamSynchronize(s);
     cudaMemcpy(got.data(), dout, table.size() * 4, cudaMemcpyDeviceToHost);
     size_t values_differ = 0;
@@ -1098,12 +1098,12 @@ int check_cpu_pair(int gu, int dn, int seed) {
 int check_q6k_embd(cudaStream_t s) {
     constexpr int kQ6K = 14;
     const int64_t H = 2560, V = 61, NT = 97;
-    if (!basalt::kernels::embed_type_supported(kQ6K) ||
-        basalt::kernels::iq_row_bytes(kQ6K, H) != (size_t) (H / 256) * 210) {
+    if (!halo::kernels::embed_type_supported(kQ6K) ||
+        halo::kernels::iq_row_bytes(kQ6K, H) != (size_t) (H / 256) * 210) {
         std::printf("q6_K embedding: type support / row bytes wrong\n");
         return 1;
     }
-    const size_t rb = basalt::kernels::iq_row_bytes(kQ6K, H);
+    const size_t rb = halo::kernels::iq_row_bytes(kQ6K, H);
     std::mt19937 rng(614);
     std::vector<uint8_t> table(V * rb);
     for (auto& b : table) b = (uint8_t) (rng() & 0xff);
@@ -1125,7 +1125,7 @@ int check_q6k_embd(cudaStream_t s) {
     cudaMemcpy(dt, table.data(), table.size(), cudaMemcpyHostToDevice);
     cudaMemcpy(dtok, tok.data(), tok.size() * 4, cudaMemcpyHostToDevice);
     std::vector<float> got((size_t) ((NT > V ? NT : V) * H));
-    basalt::kernels::iq_embed_rows(kQ6K, dt, rb, dtok, NT, H, dout, s);
+    halo::kernels::iq_embed_rows(kQ6K, dt, rb, dtok, NT, H, dout, s);
     cudaStreamSynchronize(s);
     cudaMemcpy(got.data(), dout, (size_t) (NT * H) * 4, cudaMemcpyDeviceToHost);
     size_t gather_differ = 0;
@@ -1136,7 +1136,7 @@ int check_q6k_embd(cudaStream_t s) {
             gather_differ += std::memcmp(&a, &b, 4) != 0;
             max_diff = (std::max)(max_diff, (double) std::fabs(a - b));
         }
-    basalt::kernels::iq_dequant_f32(kQ6K, dt, V * H, dout, s);
+    halo::kernels::iq_dequant_f32(kQ6K, dt, V * H, dout, s);
     cudaStreamSynchronize(s);
     cudaMemcpy(got.data(), dout, ref.size() * 4, cudaMemcpyDeviceToHost);
     size_t flat_differ = 0;
@@ -1155,8 +1155,8 @@ int check_q6k_embd(cudaStream_t s) {
 // against ggml's dequantize_row_q8_0, bit for bit, on ids across the boundary; then the per-call time of each.
 int check_q8_embd_hot(cudaStream_t s) {
     constexpr int kQ80 = 8;
-    const int64_t H = 2560, V = 248320, NHOT = basalt::core::NativeEmbed::kHotRows, NT = 512;
-    const size_t rb = basalt::kernels::iq_row_bytes(kQ80, H);
+    const int64_t H = 2560, V = 248320, NHOT = halo::core::NativeEmbed::kHotRows, NT = 512;
+    const size_t rb = halo::kernels::iq_row_bytes(kQ80, H);
     if (rb != (size_t) (H / 32) * 34) { std::printf("q8_0 embedding: row bytes wrong\n"); return 1; }
     void* host = nullptr;
     if (cudaHostAlloc(&host, rb * V, cudaHostAllocMapped) != cudaSuccess) { std::printf("q8_0 embedding: no pinned table\n"); return 1; }
@@ -1182,8 +1182,8 @@ int check_q8_embd_hot(cudaStream_t s) {
     cudaMalloc((void**) &da, (size_t) (NT * H) * 4);
     cudaMalloc((void**) &db, (size_t) (NT * H) * 4);
     cudaMemcpy(dtok, tok.data(), tok.size() * 4, cudaMemcpyHostToDevice);
-    basalt::kernels::iq_embed_rows(kQ80, mapped, rb, dtok, NT, H, da, s, hot, NHOT);
-    basalt::kernels::iq_embed_rows(kQ80, mapped, rb, dtok, NT, H, db, s);
+    halo::kernels::iq_embed_rows(kQ80, mapped, rb, dtok, NT, H, da, s, hot, NHOT);
+    halo::kernels::iq_embed_rows(kQ80, mapped, rb, dtok, NT, H, db, s);
     cudaStreamSynchronize(s);
     std::vector<float> a((size_t) (NT * H)), b(a.size()), ref((size_t) H);
     cudaMemcpy(a.data(), da, a.size() * 4, cudaMemcpyDeviceToHost);
@@ -1210,10 +1210,10 @@ int check_q8_embd_hot(cudaStream_t s) {
             cudaMalloc((void**) &dids, ids.size() * 4);
             cudaMemcpy(dids, ids.data(), ids.size() * 4, cudaMemcpyHostToDevice);
             const void* h = mode == 0 ? nullptr : hot;
-            for (int it = 0; it < 20; ++it) basalt::kernels::iq_embed_rows(kQ80, mapped, rb, dids + it * T, T, H, da, s, h, NHOT);
+            for (int it = 0; it < 20; ++it) halo::kernels::iq_embed_rows(kQ80, mapped, rb, dids + it * T, T, H, da, s, h, NHOT);
             cudaEventRecord(e0, s);
             for (int it = 0; it < iters; ++it)
-                basalt::kernels::iq_embed_rows(kQ80, mapped, rb, dids + it * T, T, H, da, s, h, NHOT);
+                halo::kernels::iq_embed_rows(kQ80, mapped, rb, dids + it * T, T, H, da, s, h, NHOT);
             cudaEventRecord(e1, s);
             cudaEventSynchronize(e1);
             float ms = 0.0f;
@@ -1351,7 +1351,7 @@ int main(int argc, char** argv) {
                 continue;
             }
             if (gu < 0 || dn < 0 || !cpu::native_fmt(gu, dn, H, FF, f, err) ||
-                !basalt::kernels::native_expert_supported(gu, dn, H, FF)) {
+                !halo::kernels::native_expert_supported(gu, dn, H, FF)) {
                 std::printf("%s: %s\n", arg.c_str(), err.empty() ? "not a pair the GPU expert kernels take" : err.c_str());
                 ++failures;
                 continue;
@@ -1379,12 +1379,12 @@ int main(int argc, char** argv) {
             failures += check_nvfp4_cpu(f, blob, l, "layer " + std::to_string(l), gpu());
         }
     } else {
-        const basalt::GgufModel model(basalt::gguf_split_paths(argv[1]));
+        const halo::GgufModel model(halo::gguf_split_paths(argv[1]));
         std::vector<int> layers;
         for (int i = 2; i < argc; ++i) layers.push_back(std::atoi(argv[i]));
         if (layers.empty()) layers = {0, 1, 2, 3, 20, 47};
         for (int l : layers) {
-            const basalt::TensorInfo* t[3] = {};
+            const halo::TensorInfo* t[3] = {};
             const uint8_t* data[3] = {};
             const char* roles[3] = {"gate", "up", "down"};
             for (int r = 0; r < 3; ++r) {   // each role from the shard that holds it

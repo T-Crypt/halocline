@@ -1,9 +1,9 @@
-// src/vision/mrope_positions.cpp - see basalt/vision/mrope_positions.hpp.
-#include "basalt/vision/mrope_positions.hpp"
+// src/vision/mrope_positions.cpp - see halo/vision/mrope_positions.hpp.
+#include "halo/vision/mrope_positions.hpp"
 
 #include <algorithm>
 
-namespace basalt::vision {
+namespace halo::vision {
 
 std::string mrope_positions(const int64_t* ids, int64_t n, const std::vector<int64_t>& pads, const std::vector<MediaGrid>& grids,
                             int64_t cells, int32_t* pos, std::vector<int64_t>& runs) {
@@ -34,4 +34,4 @@ std::string mrope_positions(const int64_t* ids, int64_t n, const std::vector<int
     return "";
 }
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

@@ -12,12 +12,12 @@
 // carry that to one int8 step of an H value), at most a tenth of MMQ's worst-row error against the reference.  Part 2 (timing, --bench): one group of 16 experts at 64-640 rows each, the FP16 path against MMQ
 // (with its gathers, and its products alone), microseconds per expert and the achieved int8/fp16 TFLOP/s.
 // --no-ref, --bench.  Exit 77 without a CUDA device.
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
-#include "basalt/ggml/ggml.h"
+#include "halo/ggml/ggml.h"
 
 #include <cuda_runtime.h>
 
@@ -35,7 +35,7 @@
 #include <vector>
 
 namespace {
-namespace mmq = basalt::prefill::mmq;
+namespace mmq = halo::prefill::mmq;
 
 constexpr int N = 2560, FF = 640, K = 10, GROUP = 16;
 
@@ -252,18 +252,18 @@ struct F16Bufs {
         : xs((size_t) rows * N * 2), gu((size_t) rows * 1280 * 4), hh((size_t) rows * FF * 2), dm((size_t) rows * N * 4),
           dq_gu((size_t) 1280 * N * 2), dq_d((size_t) N * FF * 2) {}
 };
-void run_f16(const Pair& p, const Geo& geo, basalt::prefill::Gemm& gemm, F16Bufs& b, const Routing& r,
+void run_f16(const Pair& p, const Geo& geo, halo::prefill::Gemm& gemm, F16Bufs& b, const Routing& r,
              const std::vector<const uint8_t*>& blob, cudaStream_t s) {
     const int E = (int) r.cnt.size();
     for (int e = 0; e < E; ++e) {
         const int64_t ne = r.cnt[(size_t) e], o0 = r.off[(size_t) e];
         if (ne == 0) continue;
         const uint8_t* bl = blob[(size_t) e];
-        basalt::kernels::iq_dequant_gu_f16((int) p.gu, bl, bl + geo.up_off, FF, N, b.dq_gu.as<uint16_t>(), s);
-        basalt::kernels::iq_dequant_f16((int) p.d, bl + geo.down_off, (int64_t) N * FF, b.dq_d.as<uint16_t>(), s);
+        halo::kernels::iq_dequant_gu_f16((int) p.gu, bl, bl + geo.up_off, FF, N, b.dq_gu.as<uint16_t>(), s);
+        halo::kernels::iq_dequant_f16((int) p.d, bl + geo.down_off, (int64_t) N * FF, b.dq_d.as<uint16_t>(), s);
         ck(cudaGetLastError(), "dequant");
         gemm.f16(b.xs.as<uint16_t>() + o0 * N, b.dq_gu.as<uint16_t>(), b.gu.as<float>() + o0 * 1280, ne, 1280, N);
-        basalt::prefill::swiglu_interleaved(b.gu.as<float>() + o0 * 1280, b.hh.as<uint16_t>() + o0 * FF, ne, s);
+        halo::prefill::swiglu_interleaved(b.gu.as<float>() + o0 * 1280, b.hh.as<uint16_t>() + o0 * FF, ne, s);
         ck(cudaGetLastError(), "swiglu");
         gemm.f16(b.hh.as<uint16_t>() + o0 * FF, b.dq_d.as<uint16_t>(), b.dm.as<float>() + o0 * N, ne, N, FF);
     }
@@ -353,7 +353,7 @@ void run_pair(const Pair& p, bool outliers, cudaStream_t s) {
     const std::vector<float> y_mmq = download(mb.dm, (size_t) rows * N);
 
     const bool f16 = has_f16(p);
-    basalt::prefill::Gemm gemm;
+    halo::prefill::Gemm gemm;
     std::vector<float> y_f16;
     if (f16) {
         std::string err;
@@ -503,7 +503,7 @@ void bench_pair(const Pair& p, cudaStream_t s) {
         blob[(size_t) e] = blobs.as<uint8_t>() + (size_t) e * stride;
     }
     const bool f16 = has_f16(p);
-    basalt::prefill::Gemm gemm;
+    halo::prefill::Gemm gemm;
     std::string err;
     if (f16 && !gemm.init(s, 0, err)) throw std::runtime_error(err);
     mmq::Context ctx;

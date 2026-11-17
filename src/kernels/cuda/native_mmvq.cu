@@ -23,13 +23,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/bf16_bits.hpp"
-#include "basalt/kernels/dp4a.hpp"
-#include "basalt/kernels/packed_byte.hpp"
-#include "basalt/kernels/q8_1_finite.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/pdl.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/bf16_bits.hpp"
+#include "halo/kernels/dp4a.hpp"
+#include "halo/kernels/packed_byte.hpp"
+#include "halo/kernels/q8_1_finite.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/pdl.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -42,7 +42,7 @@
 #include <type_traits>
 #include <string>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int QK = 256;
@@ -2054,4 +2054,4 @@ void native_mmvq(int ggml_type, const void* weights, const void* x_q8_1, float* 
 }
 
 
-} // namespace basalt::kernels
+} // namespace halo::kernels

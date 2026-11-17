@@ -3,9 +3,9 @@
 // ggml's own to_float times the FP32 activations. MMQ rounds the activations to int8 per 32 values, so the check is a
 // relative RMS bound (2e-2), not equality. Three experts with 200, 0 and 57 rows in one launch. Prints a microbench line
 // (microseconds per product, achieved int8 TOP/s). Exit 77 without a CUDA device.
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
 #include <cuda_runtime.h>
 
@@ -20,8 +20,8 @@
 #include <vector>
 
 namespace {
-namespace mmq = basalt::prefill::mmq;
-namespace kg = basalt::kernels;
+namespace mmq = halo::prefill::mmq;
+namespace kg = halo::kernels;
 
 void ck(cudaError_t e, const char* what) {
     if (e != cudaSuccess) throw std::runtime_error(std::string(what) + ": " + cudaGetErrorString(e));

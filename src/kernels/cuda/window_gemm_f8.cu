@@ -4,7 +4,7 @@
 #include "window_gemm_kernels.hpp"
 #include "window_gemm_sliced.cuh"
 
-namespace basalt::kernels::wgemm::detail {
+namespace halo::kernels::wgemm::detail {
 namespace {
 constexpr int RS = 64, CH = 128, ST = 4, MW = 1;
 }
@@ -43,4 +43,4 @@ const Kernel& q8(int nt) {
     return nt > 2 ? k4 : nt > 1 ? k2 : k1;
 }
 
-}  // namespace basalt::kernels::wgemm::detail
+}  // namespace halo::kernels::wgemm::detail

@@ -1,8 +1,8 @@
-// basalt/program/engine_local.hpp - program-level helpers and shapes used by more than one translation unit.
+// halo/program/engine_local.hpp - program-level helpers and shapes used by more than one translation unit.
 // Private to src/program: nothing here is part of the engine's public surface.
 #pragma once
 
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
@@ -19,20 +19,20 @@
 
 #include <cuda_runtime.h>
 
-#include "basalt/core/expert_cache.hpp"
-#include "basalt/models/qwen4exp/decode/expert_dispatch.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/models/qwen4exp/decode/native_dense.hpp"
-#include "basalt/core/spin_wait.hpp"
-#include "basalt/models/qwen4exp/decode/session.hpp"
-#include "basalt/core/staged_copy.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/weights.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/core/expert_cache.hpp"
+#include "halo/models/qwen4exp/decode/expert_dispatch.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/models/qwen4exp/decode/native_dense.hpp"
+#include "halo/core/spin_wait.hpp"
+#include "halo/models/qwen4exp/decode/session.hpp"
+#include "halo/core/staged_copy.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/weights.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
 
 
-namespace basalt::models::qwen4exp::engine_local {
+namespace halo::models::qwen4exp::engine_local {
 
 // Spare RAM places for a saturated adaptation round.
 inline constexpr int kSatBoost = 4;
@@ -80,7 +80,7 @@ public:
     void join() {
         if (!busy_) return;
         // the caller has nothing else to do: poll rather than sleep, so the job's end is seen at once
-        basalt::core::SpinWait spin;
+        halo::core::SpinWait spin;
         while (!done_.load(std::memory_order_acquire)) spin();
         busy_ = false;
     }
@@ -108,7 +108,7 @@ private:
 };
 /// The pool's adapter plus the wall-clock it spent, so the report can say how much of the token was the CPU.
 struct Drive {
-    basalt::core::ExpertDispatch d;
+    halo::core::ExpertDispatch d;
     double cpu_ms = 0;
     int64_t calls = 0;
     /// The routing trace: written once per layer from the calling thread, so it needs no lock.
@@ -116,13 +116,13 @@ struct Drive {
 };
 struct SlotDelete {
     bool own = true;
-    void operator()(basalt::core::SessionState* p) const { if (own) delete p; }
+    void operator()(halo::core::SessionState* p) const { if (own) delete p; }
 };
-using SlotSession = std::unique_ptr<basalt::core::SessionState, SlotDelete>;
+using SlotSession = std::unique_ptr<halo::core::SessionState, SlotDelete>;
 
 void drive_pool(void* user, const float* x_f, const int32_t* ids, const float* weights, int64_t n_embd, int64_t k,
                 float* out);
 void drive_pool_multi(void* user, const float* x_f, const int32_t* ids, int64_t n_tok, int64_t k, float* out,
                       int64_t layer);
 
-}  // namespace basalt::models::qwen4exp::engine_local
+}  // namespace halo::models::qwen4exp::engine_local

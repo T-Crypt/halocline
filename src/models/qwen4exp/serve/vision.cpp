@@ -1,11 +1,11 @@
 // src/models/qwen4exp/serve/vision.cpp - vision operations for the persistent engine.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_state.hpp"
-#include "basalt/vision/video.hpp"
+#include "halo/vision/video.hpp"
 
 #include <future>
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 // ---- ENC <image> <out> [<image> <out> ...] and ENCV <video> <out> [k=v ...] (--vision), between requests and
 // between batch windows.  The images (or the video's sampled frames) are decoded on the host first; then the
@@ -16,7 +16,7 @@ namespace basalt::models::qwen4exp::serve {
 // holds one record per group; or a single `ENC ERR <message>`.
 void QfnRuntime::enc_command(const std::string& cmd) {
     auto reply_err = [&](const std::string& m, bool logged = false) {
-        if (!logged) basalt::log::warn("basalt serve", "image encoder: refused: %s", m.c_str());
+        if (!logged) halo::log::warn("halo serve", "image encoder: refused: %s", m.c_str());
         std::printf("ENC ERR %s\n", m.c_str());
         std::fflush(stdout);
     };
@@ -41,30 +41,30 @@ void QfnRuntime::enc_command(const std::string& cmd) {
     if (!video && (words.empty() || words.size() % 2 != 0)) { reply_err("expected: ENC <image> <output> [<image> <output> ...]"); return; }
     const auto t0 = Clock::now();
     // a picture is one group of 768-wide rows; a video is `groups` groups of 1536-wide rows, `times` their times
-    struct Job { std::string out; basalt::vision::Size sz; std::vector<float> patches; int groups = 1; std::string times; };
+    struct Job { std::string out; halo::vision::Size sz; std::vector<float> patches; int groups = 1; std::string times; };
     std::vector<Job> jobs;
-    const basalt::vision::Geometry geo;
+    const halo::vision::Geometry geo;
     int max_patches = 0;
     std::string decoder;   // where a video's frames were decoded
     std::string borrow_note;   // the expert-cache memory lent to NVDEC for the decode, when it was
     double borrow_ms = 0, refill_ms = 0;
     if (video) {
         std::string vpath, opath, verr;
-        basalt::vision::VideoOptions vo;
+        halo::vision::VideoOptions vo;
         vo.group_tokens = geo.max_tokens;
         cudaGetDevice(&vo.gpu);   // NVDEC on the encoder's card, in the engine's context: no context of FFmpeg's own
-        vo.cuda_context = basalt::vision::current_context();
-        basalt::vision::Video v;
-        if (!basalt::vision::parse_encv(cmd, vpath, opath, vo, verr)) { reply_err(verr); return; }
+        vo.cuda_context = halo::vision::current_context();
+        halo::vision::Video v;
+        if (!halo::vision::parse_encv(cmd, vpath, opath, vo, verr)) { reply_err(verr); return; }
         // NVDEC takes no more than the card has free above the floor of what the engine allocates after loading
         // (for the seconds of a decode it may use the reserve kept for other programs). When the stream needs more,
         // the expert cache lends it the memory, as SLEEP takes it: the tail segments' experts go to RAM homes, the
         // segments are unmapped, and after the decode they are mapped again and refilled in place, so the placement
         // comes back the same
-        const int64_t floor_b = (int64_t) basalt::program::serve::vram_floor_mib() << 20;
+        const int64_t floor_b = (int64_t) halo::program::serve::vram_floor_mib() << 20;
         size_t free_b = 0, total_b = 0;
         cudaMemGetInfo(&free_b, &total_b);
-        const int64_t need = basalt::vision::video_nvdec_bytes(vpath);
+        const int64_t need = halo::vision::video_nvdec_bytes(vpath);
         bool borrowed = false;
         // (only between replies: the cache's segments are shared with the elastic KV, and the engine changes its
         // size only with no slot decoding, as for VRAM and SLEEP; beside a decoding reply the video decodes on the CPU)
@@ -84,7 +84,7 @@ void QfnRuntime::enc_command(const std::string& cmd) {
         bool windows_ok = true;
         if (borrowed) {
             // the cache is short of its slots: the decode runs alone, then the cache takes its memory back
-            const bool ok = basalt::vision::read_video(vpath, vo, v, verr);
+            const bool ok = halo::vision::read_video(vpath, vo, v, verr);
             const auto tr = Clock::now();
             std::string re, quiet;
             const bool back = vram_command("VRAM", re, true, &quiet);
@@ -96,7 +96,7 @@ void QfnRuntime::enc_command(const std::string& cmd) {
         } else {
             // the decode runs on its own thread while the decoding slots keep their windows (a minute of 4K takes
             // seconds on the CPU; the slots stop only for the encode below, as for an image)
-            std::future<bool> dec = std::async(std::launch::async, [&] { return basalt::vision::read_video(vpath, vo, v, verr); });
+            std::future<bool> dec = std::async(std::launch::async, [&] { return halo::vision::read_video(vpath, vo, v, verr); });
             while (dec.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
                 if (batch_on() && windows_ok) windows_ok = next_batch_window();
                 else dec.wait();
@@ -109,8 +109,8 @@ void QfnRuntime::enc_command(const std::string& cmd) {
         j.out = opath;
         j.sz = v.canvas;
         j.groups = v.groups();
-        j.times = basalt::vision::times_text(basalt::vision::group_times(v.indices, v.fps));
-        basalt::vision::patchify_video(v.frames, (int) v.indices.size(), v.canvas, geo, j.patches);
+        j.times = halo::vision::times_text(halo::vision::group_times(v.indices, v.fps));
+        halo::vision::patchify_video(v.frames, (int) v.indices.size(), v.canvas, geo, j.patches);
         max_patches = j.sz.w / 16 * (j.sz.h / 16);
         jobs.push_back(std::move(j));
     }
@@ -119,18 +119,18 @@ void QfnRuntime::enc_command(const std::string& cmd) {
         const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
         const bool read_ok = static_cast<bool>(f);
         f.close();   // the server removes the input once it has the reply
-        basalt::vision::Image img;
+        halo::vision::Image img;
         std::string ierr;
-        if (!read_ok || bytes.empty() || !basalt::vision::decode_image(bytes.data(), bytes.size(), img, ierr)) {
+        if (!read_ok || bytes.empty() || !halo::vision::decode_image(bytes.data(), bytes.size(), img, ierr)) {
             reply_err("cannot read the image " + words[i]);
             return;
         }
         Job j;
         j.out = words[i + 1];
-        j.sz = basalt::vision::fit_size(img.w, img.h, geo);
+        j.sz = halo::vision::fit_size(img.w, img.h, geo);
         std::vector<float> planar;
-        basalt::vision::normalize_planar(basalt::vision::to_canvas(img, j.sz), planar);
-        basalt::vision::patchify(planar, j.sz, geo, j.patches);
+        halo::vision::normalize_planar(halo::vision::to_canvas(img, j.sz), planar);
+        halo::vision::patchify(planar, j.sz, geo, j.patches);
         max_patches = std::max(max_patches, j.sz.w / 16 * (j.sz.h / 16));
         jobs.push_back(std::move(j));
     }
@@ -155,7 +155,7 @@ void QfnRuntime::enc_command(const std::string& cmd) {
             for (size_t i = 0; i < host_res.size(); ++i)
                 in_ram[i] = src.resident_blob((int64_t) i / g.n_expert, (int64_t) i % g.n_expert) != nullptr;
         }
-        const int64_t floor = basalt::program::image_lend_floor(host_res, in_ram, p.cache->slots());
+        const int64_t floor = halo::program::image_lend_floor(host_res, in_ram, p.cache->slots());
         int64_t r = p.cache->slots() - std::min<int64_t>(floor, p.first);
         if (batch_on()) r = std::min<int64_t>(r, kLendCapDecoding);
         return r;
@@ -170,7 +170,7 @@ void QfnRuntime::enc_command(const std::string& cmd) {
         return;
     }
     if (k <= 0 || k > room) {
-        basalt::log::warn("basalt serve", "image encoder: refused, %lld cache slots needed, %lld lendable "
+        halo::log::warn("halo serve", "image encoder: refused, %lld cache slots needed, %lld lendable "
                              "(cache %lld slots, %lld KV cells given back, the rest held by the sessions)",
                      (long long) k, (long long) room, (long long) p.cache->slots(), (long long) kv_given);
         reply_err("the image needs " + std::to_string((long long) k) + " expert-cache slots and " +
@@ -179,7 +179,7 @@ void QfnRuntime::enc_command(const std::string& cmd) {
         return;
     }
     if (kv_given > 0)
-        basalt::log::info("basalt serve", "image encoder: %lld KV cells given back for %lld cache slots",
+        halo::log::info("halo serve", "image encoder: %lld KV cells given back for %lld cache slots",
                      (long long) kv_given, (long long) k);
     const int32_t first = (int32_t) (p.cache->slots() - k);
     for (int64_t l = p.lb; l < p.le; ++l)
@@ -187,7 +187,7 @@ void QfnRuntime::enc_command(const std::string& cmd) {
             const size_t i = (size_t) (l * g.n_expert + ex);
             if (host_res[i] >= first) {
                 p.lent.emplace_back((int32_t) i, host_res[i]);
-                host_res[i] = basalt::core::kNotResident;
+                host_res[i] = halo::core::kNotResident;
             }
         }
     res_upload();
@@ -227,16 +227,16 @@ void QfnRuntime::enc_command(const std::string& cmd) {
     // the slots get their experts back from RAM, in the same slots, then the table goes up again
     for (const auto& [i, slot] : p.lent) {
         const uint8_t* b = srcp->blob(i / g.n_expert, i % g.n_expert);
-        const int64_t nb = (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(i / g.n_expert);
+        const int64_t nb = (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(i / g.n_expert);
         if (b == nullptr || !p.cache->fill_slot_queued(slot, b, e, nb)) {
-            basalt::log::error("basalt serve", "image encoder: refilling the expert cache failed: %s", e.c_str());
+            halo::log::error("halo serve", "image encoder: refilling the expert cache failed: %s", e.c_str());
             reply_err("refilling the expert cache failed: " + e, true);
             return;
         }
         host_res[(size_t) i] = slot;
     }
     if (!p.cache->sync_queued(e)) {
-        basalt::log::error("basalt serve", "image encoder: refilling the expert cache failed: %s", e.c_str());
+        halo::log::error("halo serve", "image encoder: refilling the expert cache failed: %s", e.c_str());
         reply_err("refilling the expert cache failed: " + e, true);
         return;
     }
@@ -247,12 +247,12 @@ void QfnRuntime::enc_command(const std::string& cmd) {
     res_upload();
     const auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
     if (video)
-        basalt::log::info("basalt serve", "video encoder: %d groups of %d tokens in %lld cache slots (%.2f GiB), "
+        halo::log::info("halo serve", "video encoder: %d groups of %d tokens in %lld cache slots (%.2f GiB), "
                              "%lld expert rows lent; decode %.0f ms (%s), lend %.0f ms, weights %.0f ms, encode %.0f ms, refill %.0f ms",
                      groups, tokens, (long long) k, (double) vis_enc.arena_bytes(tokens) / 1073741824.0, (long long) n_lent,
                      ms(t0, t_dec), (decoder + borrow_note).c_str(), ms(t_dec, t_lent), ms(t_lent, t_up), ms(t_up, t_enc), ms(t_enc, Clock::now()));
     else
-        basalt::log::info("basalt serve", "image encoder: %zu image(s) up to %d tokens in %lld cache slots (%.2f GiB), "
+        halo::log::info("halo serve", "image encoder: %zu image(s) up to %d tokens in %lld cache slots (%.2f GiB), "
                              "%lld expert rows lent; decode %.0f ms, lend %.0f ms, weights %.0f ms, encode %.0f ms, refill %.0f ms",
                      jobs.size(), tokens, (long long) k, (double) vis_enc.arena_bytes(tokens) / 1073741824.0, (long long) n_lent,
                      ms(t0, t_dec), ms(t_dec, t_lent), ms(t_lent, t_up), ms(t_up, t_enc), ms(t_enc, Clock::now()));
@@ -261,4 +261,4 @@ void QfnRuntime::enc_command(const std::string& cmd) {
     std::fflush(stdout);
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

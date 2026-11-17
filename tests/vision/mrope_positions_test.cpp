@@ -1,13 +1,13 @@
 // tests/vision/mrope_positions_test.cpp - prompt positions with pictures and video groups against the reference
 // (transformers 5.22.2 Qwen4ExpModel.get_rope_index on the same token runs; 900 a picture's pad, 901 a video group's,
 // 5 text). CPU only.
-#include "basalt/vision/mrope_positions.hpp"
+#include "halo/vision/mrope_positions.hpp"
 
 #include <cstdio>
 #include <string>
 #include <vector>
 
-using namespace basalt::vision;
+using namespace halo::vision;
 
 namespace {
 int failures = 0;

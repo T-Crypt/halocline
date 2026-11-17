@@ -1,18 +1,18 @@
 // src/kernels/cpu/expert.cpp - the Q2_0 expert kernel.
 //
-// See include/basalt/kernels/cpu/expert.hpp first; it says why each piece is shaped this way.
-#include "basalt/kernels/cpu/expert.hpp"
+// See include/halo/kernels/cpu/expert.hpp first; it says why each piece is shaped this way.
+#include "halo/kernels/cpu/expert.hpp"
 
 #include <immintrin.h>
-#include "basalt/platform/compiler.hpp"
+#include "halo/platform/compiler.hpp"
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels::cpu {
+namespace halo::kernels::cpu {
 namespace {
 
 /// fp16 -> fp32, written out rather than using `_cvtsh_ss`, because the F16C intrinsic's behaviour on
@@ -318,4 +318,4 @@ void q2_0_gguf_rows_multi(const uint8_t* w, size_t row_bytes, int nblocks, const
     }
 }
 
-}  // namespace basalt::kernels::cpu
+}  // namespace halo::kernels::cpu

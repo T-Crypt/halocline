@@ -1,13 +1,13 @@
 #include "tokens.hpp"
 
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 #include <charconv>
 #include <fstream>
 #include <iterator>
 #include <sstream>
 
-namespace basalt::program::cli {
+namespace halo::program::cli {
 
 bool parse_i64_list(const char* s, std::vector<int64_t>& out, std::string& err) {
     out.clear();
@@ -32,12 +32,12 @@ bool parse_i64_list(const char* s, std::vector<int64_t>& out, std::string& err) 
 
 std::optional<int> load_tokens_file(const char* path, std::vector<int64_t>& tokens) {
     std::ifstream input(path);
-    if (!input) { basalt::log::error("basalt", "cannot open token file"); return 2; }
+    if (!input) { halo::log::error("halo", "cannot open token file"); return 2; }
     std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    if (input.bad()) { basalt::log::error("basalt", "cannot read token file"); return 2; }
+    if (input.bad()) { halo::log::error("halo", "cannot read token file"); return 2; }
     std::string error;
     if (text.find('\0') != std::string::npos || !parse_i64_list(text.c_str(), tokens, error)) {
-        basalt::log::error("basalt", "malformed token file: %s", error.c_str()); return 2;
+        halo::log::error("halo", "malformed token file: %s", error.c_str()); return 2;
     }
     return std::nullopt;
 }
@@ -48,11 +48,11 @@ std::optional<int> load_spec_oracle(const std::string& path, std::vector<int64_t
         std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         std::string e;
         if (!in || !parse_i64_list(text.c_str(), oracle, e)) {
-            basalt::log::error("basalt generate", "cannot read --spec-oracle %s", path.c_str());
+            halo::log::error("halo generate", "cannot read --spec-oracle %s", path.c_str());
             return 2;
         }
     }
     return std::nullopt;
 }
 
-}  // namespace basalt::program::cli
+}  // namespace halo::program::cli

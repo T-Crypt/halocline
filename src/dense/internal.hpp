@@ -1,9 +1,9 @@
-// src/dense/internal.hpp - the dense stack's model, session state and forward passes (see basalt/dense/model.hpp).
+// src/dense/internal.hpp - the dense stack's model, session state and forward passes (see halo/dense/model.hpp).
 #pragma once
 
-#include "basalt/dense/model.hpp"
-#include "basalt/kernels/window_gemm.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/dense/model.hpp"
+#include "halo/kernels/window_gemm.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
 #include <cuda_runtime.h>
 
@@ -13,12 +13,12 @@
 #include <utility>
 #include <vector>
 
-namespace basalt::vision {
+namespace halo::vision {
 class Mmproj;
 class CudaEncoder;
 }
 
-namespace basalt::dense {
+namespace halo::dense {
 
 constexpr int kWindow = 16;       // rows one session's decode window holds
 constexpr int kBatch = 16;        // rows a batch window (several sessions' windows) holds
@@ -257,4 +257,4 @@ bool mtp_window(Model& m, SessionState& st, const float* hid, const int32_t* tok
 bool mtp_chunk(Model& m, SessionState& st, const float* hid, const int32_t* tok, const float* emb, int n, int64_t c0,
                std::string& err);
 
-}  // namespace basalt::dense
+}  // namespace halo::dense

@@ -1,7 +1,7 @@
 """A .basalt pack's language-model sections read straight from an NVFP4 safetensors checkpoint (NVIDIA Model
 Optimizer's layout, as in nvidia/Qwen3.8-Flash-Next-NVFP4), for tools/convert/convert.py.
 
-  experts / experts.layout  each routed expert's NVFP4 gate | up | down rows moved into Basalt's blocks (codes and
+  experts / experts.layout  each routed expert's NVFP4 gate | up | down rows moved into Halocline's blocks (codes and
                             UE4M3 scales unchanged) with the FP32 tail {s_gate, s_up, s_down, 0} from `weight_scale_2`
   gguf, dense, dense.index  every other language-model tensor in the GGUF names, order and forms the engine reads:
                             BF16 kept, norms as F32 with the "+1" folded in, GDN value heads in the GGUF head order,
@@ -89,8 +89,8 @@ class Checkpoint:
 
 # ------------------------------------------------------------------ routed experts
 def nvfp4_rows(codes: np.ndarray, scales: np.ndarray) -> np.ndarray:
-    """Model Optimizer's NVFP4 rows -> Basalt's blocks. `codes` [rows, cols/2]: value 2i in the low nibble of byte i,
-    2i+1 in the high one; `scales` [rows, cols/16] UE4M3. A Basalt block of 64 values is 4 scale bytes then 32 code
+    """Model Optimizer's NVFP4 rows -> Halocline's blocks. `codes` [rows, cols/2]: value 2i in the low nibble of byte i,
+    2i+1 in the high one; `scales` [rows, cols/16] UE4M3. A Halocline block of 64 values is 4 scale bytes then 32 code
     bytes where sub-block s keeps value j in the low nibble of byte 8 s + j and value j + 8 in its high nibble."""
     rows, cols = codes.shape[0], codes.shape[1] * 2
     v = np.empty((rows, cols), np.uint8)

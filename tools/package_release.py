@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Packs a built tree into the release archive: basalt-<tag>-<platform>.tar.gz (linux-*) or .zip (windows-*).
+"""Packs a built tree into the release archive: halo-<tag>-<platform>.tar.gz (linux-*) or .zip (windows-*).
 
 Run from a tree that has been built (the executables are in bin/). The archive holds one top-level directory with the
 executables, the server and the Python files it imports, the expert profiles and bench fixtures, the requirements,
@@ -18,7 +18,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-EXECUTABLES = ("basalt", "basalt-bench", "basalt-probe", "basalt-vision")
+EXECUTABLES = ("halo", "halo-bench", "halo-probe", "halo-vision")
 TOOLS = ("tools/tokenizer.py", "tools/model_file.py", "tools/migrations/config_v1_to_v2.py")
 FILES = ("requirements.txt", "LICENSE", "THIRD_PARTY_LICENSES", "README.md")
 TREES = ("serve", "data/profiles", "data/bench", "docs")
@@ -63,11 +63,11 @@ def main() -> int:
     if not re.fullmatch(r"v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?", a.tag):
         sys.exit(f"package_release: tag {a.tag!r} is not of the form v0.3.1")
     cmake_text = (a.root / "CMakeLists.txt").read_text(encoding="utf-8")
-    version = re.search(r"project\(basalt VERSION (\S+)", cmake_text)
+    version = re.search(r"project\(halo VERSION (\S+)", cmake_text)
     if not version or a.tag[1:].split("-")[0] != version.group(1):
         sys.exit(f"package_release: tag {a.tag} does not match the CMakeLists version {version and version.group(1)}")
     windows = a.platform.startswith("windows")
-    top = f"basalt-{a.tag}-{a.platform}"
+    top = f"halo-{a.tag}-{a.platform}"
     a.out.mkdir(parents=True, exist_ok=True)
     path = a.out / (top + (".zip" if windows else ".tar.gz"))
     files = members(a.root.resolve(), windows)

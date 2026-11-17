@@ -1,5 +1,8 @@
 # Image sources
 
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
 A request names an image as a `data:` URL, `http(s)` URL, `file:` URL or path. What the server reads depends on whether the request is
 from this machine. A [document](documents.md) named by URL or path follows the same rules.
 

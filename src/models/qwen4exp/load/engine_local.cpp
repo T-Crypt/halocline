@@ -1,12 +1,12 @@
 // src/models/qwen4exp/load/engine_local.cpp - shared pool adapters and expert-tier ordering.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "engine_local.hpp"
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 #include <algorithm>
 #include <chrono>
 
-namespace basalt::models::qwen4exp::engine_local {
+namespace halo::models::qwen4exp::engine_local {
 
 using Clock = std::chrono::steady_clock;
 
@@ -14,7 +14,7 @@ void drive_pool(void* user, const float* x_f, const int32_t* ids, const float* w
                 float* out) {
     Drive* t = (Drive*) user;
     const Clock::time_point a = Clock::now();
-    basalt::core::expert_pool_dispatch(&t->d, x_f, ids, weights, n_embd, k, out);
+    halo::core::expert_pool_dispatch(&t->d, x_f, ids, weights, n_embd, k, out);
     t->cpu_ms += std::chrono::duration<double, std::milli>(Clock::now() - a).count();
     ++t->calls;
     // the routing trace, one record per layer: int32 layer, int32 k, k int32 ids, k float weights
@@ -22,7 +22,7 @@ void drive_pool(void* user, const float* x_f, const int32_t* ids, const float* w
         // the dispatch advanced `d.layers` past this layer, so this layer is one below it
         const int32_t layer_idx = (int32_t) (t->d.layers - 1);
         if (layer_idx < 0 || layer_idx >= 48) {
-            basalt::log::warn("basalt generate", "the routing trace saw layer %d, outside 0..47", layer_idx);
+            halo::log::warn("halo generate", "the routing trace saw layer %d, outside 0..47", layer_idx);
             return;
         }
         const int32_t rec[2] = {layer_idx, (int32_t) k};
@@ -38,7 +38,7 @@ void drive_pool_multi(void* user, const float* x_f, const int32_t* ids, int64_t 
     Drive* t = (Drive*) user;
     t->d.layers = layer;
     const Clock::time_point a = Clock::now();
-    basalt::core::expert_pool_dispatch_multi(t->d, x_f, ids, n_tok, k, out);
+    halo::core::expert_pool_dispatch_multi(t->d, x_f, ids, n_tok, k, out);
     t->cpu_ms += std::chrono::duration<double, std::milli>(Clock::now() - a).count();
     ++t->calls;
     // the routing trace for the serve path: the same record format drive_pool writes (layer, k, ids, weights),
@@ -56,4 +56,4 @@ void drive_pool_multi(void* user, const float* x_f, const int32_t* ids, int64_t 
     }
 }
 
-}  // namespace basalt::models::qwen4exp::engine_local
+}  // namespace halo::models::qwen4exp::engine_local

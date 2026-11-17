@@ -46,11 +46,11 @@
 //   * the attention against a reference reading the f32 keys: REPORTED and then checked against the phase's
 //     1e-3 for FP16 paths.  That difference is the FP16 CACHE's cost, not the kernel's, and it is kept
 //     separate so a kernel bug cannot hide inside it.
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/kernels/native_qsa_indexer.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/kernels/native_qsa_indexer.hpp"
 
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/models/qwen4exp/kernels/rope.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/models/qwen4exp/kernels/rope.hpp"
 
 #include <cuda_runtime.h>
 
@@ -66,8 +66,8 @@
 
 namespace {
 
-using basalt::kernels::f16_from_f32;
-using basalt::kernels::f32_from_f16;
+using halo::kernels::f16_from_f32;
+using halo::kernels::f32_from_f16;
 
 void check(cudaError_t e, const char* what) {
     if (e != cudaSuccess) {
@@ -384,12 +384,12 @@ int main(int argc, char** argv) {
         }
     }
 
-    const basalt::kernels::QsaShapes S = basalt::kernels::qsa_real_shapes();
+    const halo::kernels::QsaShapes S = halo::kernels::qsa_real_shapes();
     const int64_t NH = S.n_head, NKV = S.n_head_kv, HD = S.head_dim, IDXN = S.idx_n_head, IDXD = S.idx_dim,
                   R = S.idx_block, TOPK = S.idx_top_k;
-    const int64_t MAXC = basalt::kernels::kTopkMaxCells;
-    const float EPS = basalt::kernels::qsa_rms_eps();
-    const double THETA = basalt::kernels::qsa_freq_base();
+    const int64_t MAXC = halo::kernels::kTopkMaxCells;
+    const float EPS = halo::kernels::qsa_rms_eps();
+    const double THETA = halo::kernels::qsa_freq_base();
     std::mt19937 rng(20260916u);
     std::normal_distribution<double> gauss(0.0, 1.0);
     auto rnd = [&](double s) { return (float) (gauss(rng) * s); };
@@ -466,14 +466,14 @@ int main(int argc, char** argv) {
         // so the kernel indexed a 1100-page table as if it had 3 pages and ran off the pool - which is what an
         // illegal memory access reported.  A test that feeds one geometry and expects another is measuring
         // itself; the fix is to build the shapes per case.
-        basalt::kernels::QsaShapes Sc = S;
+        halo::kernels::QsaShapes Sc = S;
         Sc.page_size = c.page_size;
         const size_t pool_n = (size_t) c.n_pages * NKV * c.page_size * HD;
         Dev<uint16_t> dk(pool_n), dv(pool_n);
         Dev<int32_t> dtab;
         dtab.put(c.table);
         for (int64_t t = 0; t < TCELLS; ++t)
-            basalt::kernels::kv_append(dk.p, dv.p, dtab.p, t, dkcur_all.p + (size_t) t * NKV * HD,
+            halo::kernels::kv_append(dk.p, dv.p, dtab.p, t, dkcur_all.p + (size_t) t * NKV * HD,
                                        dvcur_all.p + (size_t) t * NKV * HD, Sc, nullptr);
         const std::vector<uint16_t> hk = dk.get(pool_n), hv = dv.get(pool_n);
 
@@ -518,7 +518,7 @@ int main(int argc, char** argv) {
         dids.put(ids);
         const size_t scr_n = ids.size() * NKV * HD;
         Dev<uint16_t> dks(scr_n), dvs(scr_n);
-        basalt::kernels::kv_gather(dk.p, dv.p, dtab.p, dids.p, (int64_t) ids.size(), Sc, dks.p, dvs.p, nullptr);
+        halo::kernels::kv_gather(dk.p, dv.p, dtab.p, dids.p, (int64_t) ids.size(), Sc, dks.p, dvs.p, nullptr);
         const std::vector<uint16_t> gk = dks.get(scr_n), gv = dvs.get(scr_n);
         int gm = 0;
         for (size_t j = 0; j < ids.size(); ++j)
@@ -557,7 +557,7 @@ int main(int argc, char** argv) {
     std::vector<float> w_kn((size_t) IDXD);
     for (auto& x : w_kn) x = 1.0f + 0.1f * rnd(1.0);
     std::vector<float> cos_tab((size_t) (2000 * S.n_rot / 2)), sin_tab(cos_tab.size());
-    basalt::kernels::build_rope_table((int) S.n_rot, THETA, 2000, cos_tab.data(), sin_tab.data());
+    halo::kernels::build_rope_table((int) S.n_rot, THETA, 2000, cos_tab.data(), sin_tab.data());
     Dev<float> dw_kn, dcos, dsin;
     dw_kn.put(w_kn);
     dcos.put(cos_tab);
@@ -571,14 +571,14 @@ int main(int argc, char** argv) {
     // `cudaMemcpy` per cell here; the layer keeps this buffer and updates it per token.
     Dev<int32_t> dpos(1);
     {
-        basalt::kernels::QsaIndexerBuffers bufs{dtail.p, ddead.p, dpooled.p, dblockpos.p};
+        halo::kernels::QsaIndexerBuffers bufs{dtail.p, ddead.p, dpooled.p, dblockpos.p};
         Dev<float> draw((size_t) IDXD);
         for (int64_t t = 0; t < NT; ++t) {      // one cell at a time: the tail is a ring and the spare row MOVES
             check(cudaMemcpy(draw.p, &raw_flat[(size_t) t * IDXD], (size_t) IDXD * 4, cudaMemcpyHostToDevice),
                   "raw");
             const int32_t tpos = (int32_t) t;
             check(cudaMemcpy(dpos.p, &tpos, 4, cudaMemcpyHostToDevice), "pos");
-            basalt::kernels::indexer_key_append(draw.p, dpos.p, POS_BASE, dw_kn.p, EPS, bufs, S, dcos.p, dsin.p,
+            halo::kernels::indexer_key_append(draw.p, dpos.p, POS_BASE, dw_kn.p, EPS, bufs, S, dcos.p, dsin.p,
                                                 nullptr);
         }
         const std::vector<float> got = dpooled.get(pooled_n), got_dead = ddead.get((size_t) IDXD);
@@ -710,7 +710,7 @@ int main(int argc, char** argv) {
         dqi.put(q_idx);
         dbias.put(bias);
         dsc.alloc((size_t) n_kv);
-        basalt::kernels::qsa_index(dp.p, n_bid, dqi.p, dbias.p, S, n_kv, dsc.p, nullptr);
+        halo::kernels::qsa_index(dp.p, n_bid, dqi.p, dbias.p, S, n_kv, dsc.p, nullptr);
         const std::vector<float> got = dsc.get((size_t) n_kv);
         const std::vector<double> want =
             ref_indexer_scores(p64, n_bid, q_idx64, IDXN, IDXD, bias, n_kv, Alt{});
@@ -762,9 +762,9 @@ int main(int argc, char** argv) {
     {
         const int64_t max_n = 20480;
         const int64_t max_blocks = max_n / R + 1;
-        const int64_t cap = basalt::kernels::qsa_selection_width(max_n, S);
+        const int64_t cap = halo::kernels::qsa_selection_width(max_n, S);
         Dev<float> pooled, query, scores((size_t) max_n);
-        Dev<int32_t> ids((size_t) cap), step(basalt::kernels::kStepCount);
+        Dev<int32_t> ids((size_t) cap), step(halo::kernels::kStepCount);
         pooled.put(std::vector<float>((size_t) max_blocks * IDXD, 0.0f));
         query.put(std::vector<float>((size_t) IDXN * IDXD, 0.0f));
 
@@ -773,8 +773,8 @@ int main(int argc, char** argv) {
         cudaGraphExec_t exec;
         check(cudaStreamCreate(&stream), "tail stream");
         check(cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal), "tail capture begin");
-        basalt::kernels::qsa_index_step(pooled.p, query.p, nullptr, S, step.p, max_blocks, scores.p, stream);
-        basalt::kernels::topk_512_step(scores.p, S, cap, step.p, ids.p, stream);
+        halo::kernels::qsa_index_step(pooled.p, query.p, nullptr, S, step.p, max_blocks, scores.p, stream);
+        halo::kernels::topk_512_step(scores.p, S, cap, step.p, ids.p, stream);
         check(cudaStreamEndCapture(stream, &graph), "tail capture end");
         check(cudaGraphInstantiate(&exec, graph, 0), "tail instantiate");
 
@@ -783,18 +783,18 @@ int main(int argc, char** argv) {
             2052, 2053, 2054, 2055, 2056, 2057, 2058, 2059, 2060,
             4095, 4096, 4097, 8191, 8192, 8193, 20477, 20478, 20479, 20480};
         for (const int64_t n : counts) {
-            const int64_t width = basalt::kernels::qsa_selection_width(n, S);
+            const int64_t width = halo::kernels::qsa_selection_width(n, S);
             const int64_t tail = n % R;
             std::vector<int32_t> want;
             for (int64_t j = 0; j < width - tail; ++j) want.push_back((int32_t) j);
             for (int64_t j = n - tail; j < n; ++j) want.push_back((int32_t) j);
 
-            basalt::kernels::qsa_index(pooled.p, n / R, query.p, nullptr, S, n, scores.p, nullptr);
-            basalt::kernels::topk_512(scores.p, n, S, cap, ids.p, nullptr);
+            halo::kernels::qsa_index(pooled.p, n / R, query.p, nullptr, S, n, scores.p, nullptr);
+            halo::kernels::topk_512(scores.p, n, S, cap, ids.p, nullptr);
             require("tail static n=" + std::to_string(n), ids.get((size_t) width) == want);
 
-            std::vector<int32_t> values(basalt::kernels::kStepCount);
-            basalt::kernels::qsa_step_fill(values.data(), n - 1, S);
+            std::vector<int32_t> values(halo::kernels::kStepCount);
+            halo::kernels::qsa_step_fill(values.data(), n - 1, S);
             step.put(values);
             check(cudaGraphLaunch(exec, stream), "tail replay");
             check(cudaStreamSynchronize(stream), "tail replay sync");
@@ -814,7 +814,7 @@ int main(int argc, char** argv) {
 
     // ================= 4. topk_512, against an independent sort =================
     {
-        const int64_t CAP = basalt::kernels::qsa_selection_width(MAXC, S);
+        const int64_t CAP = halo::kernels::qsa_selection_width(MAXC, S);
         Dev<float> dsc;
         Dev<int32_t> dids;
         dsc.alloc((size_t) MAXC);
@@ -823,8 +823,8 @@ int main(int argc, char** argv) {
 
         auto one = [&](const std::string& name, int64_t n_kv) {
             dsc.put(std::vector<float>(sc.begin(), sc.begin() + n_kv));
-            basalt::kernels::topk_512(dsc.p, n_kv, S, CAP, dids.p, nullptr);
-            const int64_t width = basalt::kernels::qsa_selection_width(n_kv, S);
+            halo::kernels::topk_512(dsc.p, n_kv, S, CAP, dids.p, nullptr);
+            const int64_t width = halo::kernels::qsa_selection_width(n_kv, S);
             const std::vector<int32_t> g = dids.get((size_t) width);
             const std::vector<int32_t> want = ref_select(as_d(std::vector<float>(sc.begin(), sc.begin() + n_kv)),
                                                          n_kv, TOPK, false);
@@ -923,9 +923,9 @@ int main(int argc, char** argv) {
         for (int64_t j = 0; j < N - 1; ++j) no_loud[(size_t) j] = (int32_t) j;
 
         // the scratch is written directly here (no pool), so this section is about the attention alone
-        basalt::kernels::qsa_attend(dq.p, dks.p, dvs.p, N, S, dattn.p, dwt.p, nullptr);
+        halo::kernels::qsa_attend(dq.p, dks.p, dvs.p, N, S, dattn.p, dwt.p, nullptr);
         const std::vector<double> out_all = as_d(dattn.get((size_t) NH * HD));
-        basalt::kernels::qsa_attend(dq.p, dks.p, dvs.p, N - 1, S, dattn.p, nullptr, nullptr);
+        halo::kernels::qsa_attend(dq.p, dks.p, dvs.p, N - 1, S, dattn.p, nullptr, nullptr);
         const std::vector<double> out_sel = as_d(dattn.get((size_t) NH * HD));
         const std::vector<double> wts = as_d(dwt.get((size_t) NH * N));
 
@@ -974,7 +974,7 @@ int main(int argc, char** argv) {
     int64_t width = 0;
     {
         const int64_t T = 2100;                      // > 2051, so `width` really truncates
-        width = basalt::kernels::qsa_selection_width(T, S);
+        width = halo::kernels::qsa_selection_width(T, S);
         std::vector<float> pk((size_t) T * NKV * HD), pv((size_t) T * NKV * HD), praw((size_t) T * IDXD);
         std::vector<std::vector<double>> k16((size_t) T), v16((size_t) T);
         RefCache pc;
@@ -1007,7 +1007,7 @@ int main(int argc, char** argv) {
         }
         const int64_t p_nbid = T / R;                // 525 complete blocks; the spare key sits at row 525
         const int64_t page_size = 64, n_pages = (T + page_size - 1) / page_size;
-        basalt::kernels::QsaShapes Sp = S;           // the granule lives in the shapes: see section 1
+        halo::kernels::QsaShapes Sp = S;           // the granule lives in the shapes: see section 1
         Sp.page_size = page_size;
         std::vector<int32_t> table((size_t) n_pages);
         for (int64_t i = 0; i < n_pages; ++i) table[(size_t) i] = (int32_t) (n_pages - 1 - i);   // REVERSED
@@ -1019,7 +1019,7 @@ int main(int argc, char** argv) {
         dpv_all.put(pv);
         Dev<uint16_t> dpk((size_t) n_pages * NKV * page_size * HD), dpv((size_t) n_pages * NKV * page_size * HD);
         for (int64_t t = 0; t < T; ++t)
-            basalt::kernels::kv_append(dpk.p, dpv.p, dtab.p, t, dpk_all.p + (size_t) t * NKV * HD,
+            halo::kernels::kv_append(dpk.p, dpv.p, dtab.p, t, dpk_all.p + (size_t) t * NKV * HD,
                                        dpv_all.p + (size_t) t * NKV * HD, Sp, nullptr);
 
         const size_t ppooled_n = (size_t) (p_nbid + 1) * IDXD;
@@ -1027,21 +1027,21 @@ int main(int argc, char** argv) {
         Dev<int32_t> dblockpos2(1);
         Dev<int32_t> dpos2(1);
         Dev<float> draw((size_t) IDXD);
-        basalt::kernels::QsaIndexerBuffers bufs{dptail.p, dpdead.p, dpp.p, dblockpos2.p};
+        halo::kernels::QsaIndexerBuffers bufs{dptail.p, dpdead.p, dpp.p, dblockpos2.p};
         for (int64_t t = 0; t < T; ++t) {
             check(cudaMemcpy(draw.p, &praw[(size_t) t * IDXD], (size_t) IDXD * 4, cudaMemcpyHostToDevice), "raw");
             const int32_t tpos = (int32_t) t;
             check(cudaMemcpy(dpos2.p, &tpos, 4, cudaMemcpyHostToDevice), "pos2");
-            basalt::kernels::indexer_key_append(draw.p, dpos2.p, 0, dw_kn.p, EPS, bufs, S, dcos.p, dsin.p,
+            halo::kernels::indexer_key_append(draw.p, dpos2.p, 0, dw_kn.p, EPS, bufs, S, dcos.p, dsin.p,
                                                 nullptr);
         }
         Dev<float> dqidx, dsc;
         dqidx.put(q_idx);
         dsc.alloc((size_t) T);
-        basalt::kernels::qsa_index(dpp.p, p_nbid, dqidx.p, nullptr, S, T, dsc.p, nullptr);
+        halo::kernels::qsa_index(dpp.p, p_nbid, dqidx.p, nullptr, S, T, dsc.p, nullptr);
 
         Dev<int32_t> dsel((size_t) T);
-        basalt::kernels::topk_512(dsc.p, T, S, T, dsel.p, nullptr);
+        halo::kernels::topk_512(dsc.p, T, S, T, dsel.p, nullptr);
         const std::vector<int32_t> sel_sparse = dsel.get((size_t) width);
         const std::vector<float> pool32 = dpp.get(ppooled_n);
         const std::vector<double> pool64 = as_d(pool32);
@@ -1088,10 +1088,10 @@ int main(int argc, char** argv) {
         dsel2.put(sel);
         const int64_t nsel = (int64_t) sel.size();
         Dev<uint16_t> dks((size_t) nsel * NKV * HD), dvs((size_t) nsel * NKV * HD);
-        basalt::kernels::kv_gather(dpk.p, dpv.p, dtab.p, dsel2.p, nsel, Sp, dks.p, dvs.p, nullptr);
+        halo::kernels::kv_gather(dpk.p, dpv.p, dtab.p, dsel2.p, nsel, Sp, dks.p, dvs.p, nullptr);
         Dev<float> dqq, dattn((size_t) NH * HD), dwt((size_t) NH * nsel);
         dqq.put(q);
-        basalt::kernels::qsa_attend(dqq.p, dks.p, dvs.p, nsel, S, dattn.p, dwt.p, nullptr);
+        halo::kernels::qsa_attend(dqq.p, dks.p, dvs.p, nsel, S, dattn.p, dwt.p, nullptr);
         const std::vector<double> attn = as_d(dattn.get((size_t) NH * HD));
         const std::vector<double> wts = as_d(dwt.get((size_t) NH * nsel));
 
@@ -1139,7 +1139,7 @@ int main(int argc, char** argv) {
         dqf.put(q_full);
         dattnf.put(as_f(attn));
         Dev<uint16_t> dgate((size_t) NH * HD);
-        basalt::kernels::qsa_gate_apply(dattnf.p, dqf.p, S, dgate.p, nullptr);
+        halo::kernels::qsa_gate_apply(dattnf.p, dqf.p, S, dgate.p, nullptr);
         const std::vector<uint16_t> gate16 = dgate.get((size_t) NH * HD);
         const std::vector<double> qf64 = as_d(q_full);
         const std::vector<double> gwant = ref_gate(attn, qf64, NH, HD, Alt{});
@@ -1182,10 +1182,10 @@ int main(int argc, char** argv) {
                 Dev<int32_t> did;
                 did.put(ids);
                 Dev<uint16_t> dk2((size_t) ids.size() * NKV * HD), dv2((size_t) ids.size() * NKV * HD);
-                basalt::kernels::kv_gather(dpk.p, dpv.p, dtab.p, did.p, (int64_t) ids.size(), Sp, dk2.p, dv2.p,
+                halo::kernels::kv_gather(dpk.p, dpv.p, dtab.p, did.p, (int64_t) ids.size(), Sp, dk2.p, dv2.p,
                                            nullptr);
                 Dev<float> da((size_t) NH * HD);
-                basalt::kernels::qsa_attend(dqq.p, dk2.p, dv2.p, (int64_t) ids.size(), S, da.p, nullptr, nullptr);
+                halo::kernels::qsa_attend(dqq.p, dk2.p, dv2.p, (int64_t) ids.size(), S, da.p, nullptr, nullptr);
                 return as_d(da.get((size_t) NH * HD));
             };
             const std::vector<double> dense_attn = attend_ids(dense_all);
@@ -1204,7 +1204,7 @@ int main(int argc, char** argv) {
         Dev<float> dq((size_t) NH * HD), dattn((size_t) NH * HD);
         dq.put(std::vector<float>((size_t) NH * HD, 1.0f));
         dattn.put(std::vector<float>((size_t) NH * HD, 7.0f));
-        basalt::kernels::qsa_attend(dq.p, nullptr, nullptr, 0, S, dattn.p, nullptr, nullptr);
+        halo::kernels::qsa_attend(dq.p, nullptr, nullptr, 0, S, dattn.p, nullptr, nullptr);
         const std::vector<float> got = dattn.get((size_t) NH * HD);
         bool allz = true;
         for (float x : got) if (x != 0.0f) allz = false;
@@ -1216,7 +1216,7 @@ int main(int argc, char** argv) {
         const int64_t T = MAXC;                      // 32,768 cells = 32K of context
         const int64_t nbid = T / R;
         const int64_t ps = S.page_size, n_pages = (T + ps - 1) / ps;
-        const int64_t w = basalt::kernels::qsa_selection_width(T, S);
+        const int64_t w = halo::kernels::qsa_selection_width(T, S);
         std::printf("\n  --bench at n_kv = %lld, page_size %lld, selection width %lld\n", (long long) T,
                     (long long) ps, (long long) w);
         std::vector<int32_t> table((size_t) n_pages);
@@ -1230,7 +1230,7 @@ int main(int argc, char** argv) {
         Dev<float> dkz, dvz;
         dkz.put(kz);
         dvz.put(vz);
-        basalt::kernels::kv_append(dpk.p, dpv.p, dtab.p, 0, dkz.p, dvz.p, S, nullptr);
+        halo::kernels::kv_append(dpk.p, dpv.p, dtab.p, 0, dkz.p, dvz.p, S, nullptr);
 
         const size_t ppooled_n = (size_t) (nbid + 1) * IDXD;
         Dev<float> dpp((size_t) ppooled_n), dsc((size_t) T);
@@ -1266,21 +1266,21 @@ int main(int argc, char** argv) {
         };
         const int reps = 20;
         timeit("qsa_index  (8193 pooled rows x 4 heads)", reps,
-               [&] { basalt::kernels::qsa_index(dpp.p, nbid, dqidx.p, nullptr, S, T, dsc.p, nullptr); });
+               [&] { halo::kernels::qsa_index(dpp.p, nbid, dqidx.p, nullptr, S, T, dsc.p, nullptr); });
         timeit("topk_512   (32768 cells)", reps,
-               [&] { basalt::kernels::topk_512(dsc.p, T, S, w, dsel.p, nullptr); });
-        basalt::kernels::topk_512(dsc.p, T, S, w, dsel.p, nullptr);
+               [&] { halo::kernels::topk_512(dsc.p, T, S, w, dsel.p, nullptr); });
+        halo::kernels::topk_512(dsc.p, T, S, w, dsel.p, nullptr);
         timeit("kv_gather  (2051 ids through the page table)", reps,
-               [&] { basalt::kernels::kv_gather(dpk.p, dpv.p, dtab.p, dsel.p, w, S, dks.p, dvs.p, nullptr); });
+               [&] { halo::kernels::kv_gather(dpk.p, dpv.p, dtab.p, dsel.p, w, S, dks.p, dvs.p, nullptr); });
         timeit("qsa_attend (2051 selected, 24 heads)", reps,
-               [&] { basalt::kernels::qsa_attend(dq.p, dks.p, dvs.p, w, S, dattn.p, dwt.p, nullptr); });
+               [&] { halo::kernels::qsa_attend(dq.p, dks.p, dvs.p, w, S, dattn.p, dwt.p, nullptr); });
         timeit("kv_append  (one cell, 2 heads x 256)", 200,
-               [&] { basalt::kernels::kv_append(dpk.p, dpv.p, dtab.p, 0, dkz.p, dvz.p, S, nullptr); });
+               [&] { halo::kernels::kv_append(dpk.p, dpv.p, dtab.p, 0, dkz.p, dvz.p, S, nullptr); });
         timeit("ONE QSA LAYER (index+topk+gather+attend)", reps, [&] {
-            basalt::kernels::qsa_index(dpp.p, nbid, dqidx.p, nullptr, S, T, dsc.p, nullptr);
-            basalt::kernels::topk_512(dsc.p, T, S, w, dsel.p, nullptr);
-            basalt::kernels::kv_gather(dpk.p, dpv.p, dtab.p, dsel.p, w, S, dks.p, dvs.p, nullptr);
-            basalt::kernels::qsa_attend(dq.p, dks.p, dvs.p, w, S, dattn.p, dwt.p, nullptr);
+            halo::kernels::qsa_index(dpp.p, nbid, dqidx.p, nullptr, S, T, dsc.p, nullptr);
+            halo::kernels::topk_512(dsc.p, T, S, w, dsel.p, nullptr);
+            halo::kernels::kv_gather(dpk.p, dpv.p, dtab.p, dsel.p, w, S, dks.p, dvs.p, nullptr);
+            halo::kernels::qsa_attend(dq.p, dks.p, dvs.p, w, S, dattn.p, dwt.p, nullptr);
         });
     }
 
@@ -1310,13 +1310,13 @@ int main(int argc, char** argv) {
         Dev<float> pooled2((size_t) (nb2 + 2) * IDXD2), dead2(IDXD2), tail2((size_t) (R2 - 1) * IDXD2);
         Dev<int32_t> bpos2(1), pos2(1);
         Dev<float> raw2d(IDXD2);
-        basalt::kernels::QsaIndexerBuffers bufs2{tail2.p, dead2.p, pooled2.p, bpos2.p};
+        halo::kernels::QsaIndexerBuffers bufs2{tail2.p, dead2.p, pooled2.p, bpos2.p};
 
         // capture ONE call, on its own stream
         cudaStream_t cs = nullptr;
         check(cudaStreamCreate(&cs), "cs");
         check(cudaStreamBeginCapture(cs, cudaStreamCaptureModeThreadLocal), "begincap");
-        basalt::kernels::indexer_key_append(raw2d.p, pos2.p, POS_BASE, dw_kn.p, EPS, bufs2, S, dcos.p, dsin.p,
+        halo::kernels::indexer_key_append(raw2d.p, pos2.p, POS_BASE, dw_kn.p, EPS, bufs2, S, dcos.p, dsin.p,
                                             (void*) cs);
         cudaGraph_t g2 = nullptr;
         check(cudaStreamEndCapture(cs, &g2), "endcap");
@@ -1393,7 +1393,7 @@ int main(int argc, char** argv) {
         const int64_t NB = 8;                          // exactly two complete blocks of r=4
         const int32_t BASE = 100;                      // positions 100..107, not cell indices 0..7
         const int64_t MC = 1024;                       // the capacity both sides validate against
-        using RST = basalt::kernels::RopeScalingType;
+        using RST = halo::kernels::RopeScalingType;
         struct Variant { const char* name; RST type; double factor; double ext; };
         const Variant variants[] = {{"none", RST::None, 1.0, 0.0},
                                     {"linear 2", RST::Linear, 2.0, 0.0},
@@ -1406,7 +1406,7 @@ int main(int argc, char** argv) {
         check(cudaStreamCreate(&cs), "cs");
         std::vector<float> none_pooled;
         for (const Variant& var : variants) {
-            basalt::kernels::RopeScaling sc;
+            halo::kernels::RopeScaling sc;
             sc.type = var.type;
             sc.factor = var.factor;
             sc.ext_factor = var.ext;
@@ -1419,15 +1419,15 @@ int main(int argc, char** argv) {
             check(cudaMemset(bposA.p, 0, 4), "zero"); check(cudaMemset(bposB.p, 0, 4), "zero");
             Dev<float> draw((size_t) IDXD), drawAll;
             drawAll.put(raws);
-            basalt::kernels::QsaIndexerBuffers bufsA{tailA.p, deadA.p, pooledA.p, bposA.p};
-            basalt::kernels::QsaIndexerBuffers bufsB{tailB.p, deadB.p, pooledB.p, bposB.p};
+            halo::kernels::QsaIndexerBuffers bufsA{tailA.p, deadA.p, pooledA.p, bposA.p};
+            halo::kernels::QsaIndexerBuffers bufsB{tailB.p, deadB.p, pooledB.p, bposB.p};
             for (int64_t t = 0; t < NB; ++t) {         // the sequential side: one cell, its device position
                 check(cudaMemcpy(draw.p, &raws[(size_t) t * IDXD], (size_t) IDXD * 4, cudaMemcpyHostToDevice), "raw");
                 const int32_t tp = (int32_t) t;
                 check(cudaMemcpy(dpos.p, &tp, 4, cudaMemcpyHostToDevice), "pos");
-                basalt::kernels::native_qsa_indexer_append(draw.p, dpos.p, BASE, dw_kn.p, EPS, bufsA, S, MC, sc, cs);
+                halo::kernels::native_qsa_indexer_append(draw.p, dpos.p, BASE, dw_kn.p, EPS, bufsA, S, MC, sc, cs);
             }
-            basalt::kernels::native_qsa_indexer_append_batch(drawAll.p, NB, 0, BASE, dw_kn.p, EPS, bufsB, S, MC, sc, cs);
+            halo::kernels::native_qsa_indexer_append_batch(drawAll.p, NB, 0, BASE, dw_kn.p, EPS, bufsB, S, MC, sc, cs);
             check(cudaStreamSynchronize(cs), "sync");
             const std::vector<float> pa = pooledA.get(prows), pb = pooledB.get(prows);
             const std::vector<float> da = deadA.get((size_t) IDXD), db = deadB.get((size_t) IDXD);
@@ -1465,7 +1465,7 @@ int main(int argc, char** argv) {
     // under YaRN the factor is observable (row 0 is not 1).
     {
         std::printf("\n-- the spare key (position 0) under rope scaling: table indexer vs native indexer\n");
-        using RST = basalt::kernels::RopeScalingType;
+        using RST = halo::kernels::RopeScalingType;
         struct Variant { const char* name; RST type; double factor; double ext; };
         const Variant variants[] = {{"none", RST::None, 1.0, 0.0},
                                     {"linear 2", RST::Linear, 2.0, 0.0},
@@ -1482,7 +1482,7 @@ int main(int argc, char** argv) {
         check(cudaStreamCreate(&cs), "cs");
         const size_t prows = (size_t) (MC / R + 1) * IDXD, trows = (size_t) (R - 1) * IDXD;
         // one cell at position 0 through either kernel; returns (dead, pooled[0])
-        auto spare = [&](bool native, const basalt::kernels::RopeScaling& sc, std::vector<float>& dead,
+        auto spare = [&](bool native, const halo::kernels::RopeScaling& sc, std::vector<float>& dead,
                          std::vector<float>& pooled0) {
             Dev<float> pooled(prows), dd((size_t) IDXD), tail(trows);
             Dev<int32_t> bpos(1);
@@ -1490,16 +1490,16 @@ int main(int argc, char** argv) {
             check(cudaMemset(dd.p, 0, (size_t) IDXD * 4), "zero");
             check(cudaMemset(tail.p, 0, trows * 4), "zero");
             check(cudaMemset(bpos.p, 0, 4), "zero");
-            basalt::kernels::QsaIndexerBuffers bufs{tail.p, dd.p, pooled.p, bpos.p};
+            halo::kernels::QsaIndexerBuffers bufs{tail.p, dd.p, pooled.p, bpos.p};
             if (native) {
-                basalt::kernels::native_qsa_indexer_append(draw0.p, dpos0.p, 0, dw_kn.p, EPS, bufs, S, MC, sc, cs);
+                halo::kernels::native_qsa_indexer_append(draw0.p, dpos0.p, 0, dw_kn.p, EPS, bufs, S, MC, sc, cs);
             } else {
                 std::vector<float> tc((size_t) (MC * HALF)), ts(tc.size());
-                basalt::kernels::build_rope_table((int) NROT, sc, (int) MC, tc.data(), ts.data());
+                halo::kernels::build_rope_table((int) NROT, sc, (int) MC, tc.data(), ts.data());
                 Dev<float> dc, dsn;
                 dc.put(tc);
                 dsn.put(ts);
-                basalt::kernels::indexer_key_append(draw0.p, dpos0.p, 0, dw_kn.p, EPS, bufs, S, dc.p, dsn.p, cs);
+                halo::kernels::indexer_key_append(draw0.p, dpos0.p, 0, dw_kn.p, EPS, bufs, S, dc.p, dsn.p, cs);
             }
             check(cudaStreamSynchronize(cs), "sync");
             dead = dd.get((size_t) IDXD);
@@ -1507,12 +1507,12 @@ int main(int argc, char** argv) {
         };
         std::vector<float> t_none, t_none_p, n_none, n_none_p;
         for (const Variant& var : variants) {
-            basalt::kernels::RopeScaling sc;
+            halo::kernels::RopeScaling sc;
             sc.type = var.type;
             sc.factor = var.factor;
             sc.ext_factor = var.ext;
             std::vector<float> row0c((size_t) (MC * HALF)), row0s(row0c.size());
-            basalt::kernels::build_rope_table((int) NROT, sc, (int) MC, row0c.data(), row0s.data());
+            halo::kernels::build_rope_table((int) NROT, sc, (int) MC, row0c.data(), row0s.data());
             std::vector<float> td, tp, nd, np;
             spare(false, sc, td, tp);
             spare(true, sc, nd, np);

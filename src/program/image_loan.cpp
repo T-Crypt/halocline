@@ -1,9 +1,9 @@
-// src/program/image_loan.cpp - see include/basalt/program/image_loan.hpp.
-#include "basalt/program/image_loan.hpp"
+// src/program/image_loan.cpp - see include/halo/program/image_loan.hpp.
+#include "halo/program/image_loan.hpp"
 
 #include <algorithm>
 
-namespace basalt::program {
+namespace halo::program {
 
 int64_t image_lend_floor(const std::vector<int32_t>& slot_of, const std::vector<uint8_t>& in_ram, int64_t live) {
     int64_t floor = 0;
@@ -65,4 +65,4 @@ int64_t kv_ceiling_cells(const std::vector<int64_t>& backed, const std::vector<i
     return total;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

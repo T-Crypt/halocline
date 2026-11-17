@@ -1,4 +1,4 @@
-#include "basalt/core/conversation_memory.hpp"
+#include "halo/core/conversation_memory.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -6,7 +6,7 @@
 #include <sstream>
 
 
-using namespace basalt::core;
+using namespace halo::core;
 namespace {
 int checks = 0;
 void check(bool ok, const char* label) {

@@ -1,21 +1,21 @@
 // src/dense/model.cpp - the dense stack's shared scratch and geometry checks.
 #include "internal.hpp"
 
-#include "basalt/kernels/gdn_prompt.hpp"
-#include "basalt/kernels/gqa_attn.hpp"
-#include "basalt/kernels/logprobs.hpp"
-#include "basalt/kernels/nvfp4_planes.hpp"
-#include "basalt/prefill/fp4_dense.hpp"
-#include "basalt/prefill/fp8_gemm.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/log.hpp"
-#include "basalt/vision/encoder_cuda.hpp"
-#include "basalt/vision/mmproj.hpp"
+#include "halo/kernels/gdn_prompt.hpp"
+#include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/logprobs.hpp"
+#include "halo/kernels/nvfp4_planes.hpp"
+#include "halo/prefill/fp4_dense.hpp"
+#include "halo/prefill/fp8_gemm.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/log.hpp"
+#include "halo/vision/encoder_cuda.hpp"
+#include "halo/vision/mmproj.hpp"
 
 #include <algorithm>
 #include <cstdlib>
 
-namespace basalt::dense {
+namespace halo::dense {
 
 Arena::~Arena() {
     if (base_) cudaFree(base_);
@@ -495,7 +495,7 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
             return nullptr;
         }
         m->mmproj->release();
-        basalt::log::info("basalt dense", "image encoder: %.2f GiB staged in page-locked RAM, on the card per request",
+        halo::log::info("halo dense", "image encoder: %.2f GiB staged in page-locked RAM, on the card per request",
                           (double) m->encoder->weights_bytes() / 1073741824.0);
     }
     if (!m->dec_arena.reserve(window_bytes(g, o.drafter == Drafter::Block ? w.dflash : BlockDrafter{}, o.max_context))) {
@@ -606,4 +606,4 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
 
 void destroy(Model* m) { delete m; }
 
-}  // namespace basalt::dense
+}  // namespace halo::dense

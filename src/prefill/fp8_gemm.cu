@@ -1,4 +1,4 @@
-// src/prefill/fp8_gemm.cu - see include/basalt/prefill/fp8_gemm.hpp.
+// src/prefill/fp8_gemm.cu - see include/halo/prefill/fp8_gemm.hpp.
 // Adapted from Infernix (Ian Ranson and contributors), Apache-2.0: see THIRD_PARTY_LICENSES.
 // Upstream's product (Infernix's fp8_a8_tma_mma_kernel: TMA tiles through an mbarrier ring, the block-scaled e4m3 mma)
 // needs compute capability 9.0 and was removed.  What runs here:
@@ -8,7 +8,7 @@
 // product on mma m16n8k16 with fp32 accumulation: the block tile, the eight warps over it, the K loop in order, the same
 // epilogue arithmetic; stages of 64 K filled by cp.async from every thread, and the BF16 outputs go straight from the
 // accumulators.  Its products are exact; its sums run in another order than the block-scaled mma's.
-#include "basalt/prefill/fp8_gemm.hpp"
+#include "halo/prefill/fp8_gemm.hpp"
 
 #include <cuda_bf16.h>
 #include <cuda_fp8.h>
@@ -17,10 +17,10 @@
 #include <atomic>
 #include <cstdlib>
 
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
 
-namespace basalt::prefill::fp8 {
+namespace halo::prefill::fp8 {
 namespace {
 
 constexpr int BT = 128, BR = 256;                       // tokens, weight rows per block
@@ -33,7 +33,7 @@ constexpr int MAX_SEG = 3;
 void ck(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "prefill fp8: %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "prefill fp8: %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -282,7 +282,7 @@ float* act_scales(void* act, int64_t rows, int64_t cols) { return (float*) ((uin
 void quantize(const float* x, int64_t rows, int64_t cols, int64_t ld, void* act, void* stream) {
     if (rows <= 0) return;
     if (cols % 64 != 0 || ld % 4 != 0) {
-        basalt::log::error("basalt", "prefill fp8: rows of %lld values (ld %lld)", (long long) cols, (long long) ld);
+        halo::log::error("halo", "prefill fp8: rows of %lld values (ld %lld)", (long long) cols, (long long) ld);
         std::exit(1);
     }
     uint8_t* codes = (uint8_t*) act;
@@ -294,7 +294,7 @@ void quantize(const float* x, int64_t rows, int64_t cols, int64_t ld, void* act,
 void rms_norm_quantize(const float* x, const float* w, float eps, int64_t rows, int64_t cols, void* act, float* xn, void* stream) {
     if (rows <= 0) return;
     if (cols % 64 != 0 || cols % 4 != 0) {
-        basalt::log::error("basalt", "prefill fp8: rows of %lld values (norm)", (long long) cols);
+        halo::log::error("halo", "prefill fp8: rows of %lld values (norm)", (long long) cols);
         std::exit(1);
     }
     uint8_t* codes = (uint8_t*) act;
@@ -307,7 +307,7 @@ void rms_norm_quantize(const uint16_t* x, const float* w, float eps, int64_t row
                        void* stream) {
     if (rows <= 0) return;
     if (cols % 64 != 0 || cols % 4 != 0) {
-        basalt::log::error("basalt", "prefill fp8: rows of %lld values (norm)", (long long) cols);
+        halo::log::error("halo", "prefill fp8: rows of %lld values (norm)", (long long) cols);
         std::exit(1);
     }
     uint8_t* codes = (uint8_t*) act;
@@ -326,7 +326,7 @@ static void gemm_ada(const Segment* seg, int nseg, int64_t w_cols, const void* a
     if (!raised[dev].load(std::memory_order_acquire)) {
         if (cudaFuncSetAttribute(gemm_ada_kernel<false>, cudaFuncAttributeMaxDynamicSharedMemorySize, A_SMEM) != cudaSuccess ||
             cudaFuncSetAttribute(gemm_ada_kernel<true>, cudaFuncAttributeMaxDynamicSharedMemorySize, A_SMEM) != cudaSuccess) {
-            basalt::log::error("basalt", "prefill fp8: shared-memory opt-in failed");
+            halo::log::error("halo", "prefill fp8: shared-memory opt-in failed");
             std::exit(1);
         }
         raised[dev].store(true, std::memory_order_release);
@@ -356,7 +356,7 @@ static void gemm_ada(const Segment* seg, int nseg, int64_t w_cols, const void* a
 void gemm_segmented(const Segment* seg, int nseg, int64_t w_cols, const void* act, int64_t rows, Epilogue epi, void* stream) {
     if (rows <= 0 || nseg < 1) return;
     if (nseg > MAX_SEG || w_cols % 64 != 0) {
-        basalt::log::error("basalt", "prefill fp8: %d segments of %lld columns", nseg, (long long) w_cols);
+        halo::log::error("halo", "prefill fp8: %d segments of %lld columns", nseg, (long long) w_cols);
         std::exit(1);
     }
     const bool bf16 = epi == Epilogue::StoreBf16 || epi == Epilogue::AddBf16;
@@ -364,7 +364,7 @@ void gemm_segmented(const Segment* seg, int nseg, int64_t w_cols, const void* ac
         const Segment& s = seg[i];
         if (s.rows <= 0 || s.rows % 128 != 0 || ((uintptr_t) s.w & 15) != 0 || ((uintptr_t) s.dst & (bf16 ? 15 : 7)) != 0 ||
             s.ld_dst % (bf16 ? 8 : 2) != 0 || s.ld_dst < s.rows) {
-            basalt::log::error("basalt", "prefill fp8: segment %d: [%lld x %lld] matrix, ld %lld", i, (long long) s.rows,
+            halo::log::error("halo", "prefill fp8: segment %d: [%lld x %lld] matrix, ld %lld", i, (long long) s.rows,
                                (long long) w_cols, (long long) s.ld_dst);
             std::exit(1);
         }
@@ -378,4 +378,4 @@ void gemm(const uint8_t* w, int64_t w_rows, int64_t w_cols, const float* w_scale
     gemm_segmented(&s, 1, w_cols, act, rows, epi, stream);
 }
 
-}  // namespace basalt::prefill::fp8
+}  // namespace halo::prefill::fp8

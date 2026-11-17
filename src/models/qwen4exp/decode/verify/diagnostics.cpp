@@ -1,15 +1,15 @@
 #include "common.hpp"
 #include "expert_plan.hpp"
 #include "diagnostics.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/platform/compiler.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
-#include "basalt/kernels/wait_abort.hpp"
-#include "basalt/log.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/platform/compiler.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/kernels/wait_abort.hpp"
+#include "halo/log.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -17,7 +17,7 @@
 #include <thread>
 #include <immintrin.h>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 namespace verify_detail {
@@ -40,7 +40,7 @@ void release_live_verifiers(std::FILE* f) {
             const Clock::time_point t0 = Clock::now();
             const bool done = v->release_gpu_waits(5000);
             if (f != nullptr)
-                std::fprintf(f, "basalt: released the verify window's GPU waits: the GPU %s\n",
+                std::fprintf(f, "halo: released the verify window's GPU waits: the GPU %s\n",
                              done ? ("finished in " + std::to_string((long long) ms_since(t0)) + " ms").c_str()
                                   : "did not finish within 5 s");
         }
@@ -63,7 +63,7 @@ bool Verifier::release_gpu_waits(int timeout_ms) {
         *(volatile uint32_t*) (h_flag_ + 8) = UINT32_MAX;
         *(volatile uint32_t*) (h_flag_ + 12) = UINT32_MAX;   // the hand-off a later stage's graph waits for
     }
-    basalt::kernels::wait_abort_release();   // the bounded device waits (mid chain, commit finisher) fall through
+    halo::kernels::wait_abort_release();   // the bounded device waits (mid chain, commit finisher) fall through
     if (dm_ != nullptr) *(volatile uint32_t*) dm_->h_stop = UINT32_MAX;   // the glue launches' landed wait ends
     std::atomic_thread_fence(std::memory_order_seq_cst);
     _mm_sfence();
@@ -89,7 +89,7 @@ std::string Verifier::dm_note() const {
     const uint32_t seq = rd(h_seq_);
     std::string s = "; device plan: ring " + std::to_string(seq) + " published";
     if (seq >= 1 && (int64_t) seq <= d->rings) {
-        const basalt::kernels::DmRing& r = d->h_ring[seq - 1];
+        const halo::kernels::DmRing& r = d->h_ring[seq - 1];
         s += " (entries: VRAM " + std::to_string(r.n_vram) + ", CPU " +
              std::to_string(r.n_cpu) + ")";
     }
@@ -109,4 +109,4 @@ void Verifier::diag(std::FILE* f) const {
     if (dm_ != nullptr) std::fprintf(f, "  %s\n", dm_note().c_str() + 2);
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

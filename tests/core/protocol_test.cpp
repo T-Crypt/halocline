@@ -1,5 +1,5 @@
-// include/basalt/protocol.hpp: protocol lines written from several threads each arrive whole on stdout.
-#include "basalt/protocol.hpp"
+// include/halo/protocol.hpp: protocol lines written from several threads each arrive whole on stdout.
+#include "halo/protocol.hpp"
 
 #include <cstdio>
 #include <string>
@@ -15,9 +15,9 @@ int main() {
                 if (t % 2 == 0) {
                     std::string bt = "BT " + std::to_string(t);
                     for (int e = 0; e < 8; ++e) bt += " " + std::to_string(2570 + i + e);
-                    basalt::protocol::emit_text(bt + "\n");
+                    halo::protocol::emit_text(bt + "\n");
                 } else {
-                    basalt::protocol::emit("PL %d %d %.0f %.1f\n", i, kLines, 12.0, 3.5);
+                    halo::protocol::emit("PL %d %d %.0f %.1f\n", i, kLines, 12.0, 3.5);
                 }
             }
         });

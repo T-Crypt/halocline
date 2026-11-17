@@ -1,4 +1,4 @@
-#include "basalt/core/conversation_cache.hpp"
+#include "halo/core/conversation_cache.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <vector>
 
-using namespace basalt::core;
+using namespace halo::core;
 
 namespace {
 int checks = 0;

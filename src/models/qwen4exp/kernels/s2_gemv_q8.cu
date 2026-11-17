@@ -12,18 +12,18 @@
 // whose numerics are wrong would be indistinguishable from a fast one.
 //
 // Layout: activations are (n_in/32) ggml Q8_0 blocks, 34 bytes each - `fp16 d` then `int8 qs[32]` - produced by
-// `basalt::kernels::quantize_q8_0`.  A quad of four elements lies inside one 32-element block, so the block
+// `halo::kernels::quantize_q8_0`.  A quad of four elements lies inside one 32-element block, so the block
 // scale is constant across it and is loaded once.
-#include "basalt/models/qwen4exp/kernels/s2_gemv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/s2_gemv_q8.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int QK_S2 = 64;
@@ -77,7 +77,7 @@ void s2_gemv_q8(const uint8_t* act, const uint8_t* codes, const float* scales, f
                 int64_t n_out, int threads_per_row, void* stream) {
     if (n_in <= 0 || n_out <= 0) return;
     if (n_in % QK8_0 != 0 || n_in % QK_S2 != 0) {
-        basalt::log::error("basalt", "s2_gemv_q8: n_in %lld must be a multiple of %d", (long long) n_in, QK_S2);
+        halo::log::error("halo", "s2_gemv_q8: n_in %lld must be a multiple of %d", (long long) n_in, QK_S2);
         std::exit(1);
     }
     const size_t smem = (size_t) threads_per_row * sizeof(float);
@@ -86,10 +86,10 @@ void s2_gemv_q8(const uint8_t* act, const uint8_t* codes, const float* scales, f
                                                                                          threads_per_row);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "s2_gemv_q8 launch: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "s2_gemv_q8 launch: %s", cudaGetErrorString(e));
         std::exit(1);
     }
     if (stream == nullptr) cudaDeviceSynchronize();
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

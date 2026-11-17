@@ -1,5 +1,5 @@
-// src/platform/cpu.cpp - see include/basalt/platform/cpu.hpp.
-#include "basalt/platform/cpu.hpp"
+// src/platform/cpu.cpp - see include/halo/platform/cpu.hpp.
+#include "halo/platform/cpu.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include "affinity_linux.hpp"
 
-namespace basalt::platform {
+namespace halo::platform {
 
 // --------------------------------------------------------------------------------------------- Linux
 
@@ -174,4 +174,4 @@ CpuInfo cpu_info() {
 }
 
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

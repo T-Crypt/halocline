@@ -63,7 +63,7 @@ branch, stays on the three kernels, and so do the draft graphs. `--exp hc_ada=0`
 
 Greedy, 400 tokens, conv / struct / prose: identical to `hc_ada=0`.
 
-basalt-bench A/B, 450 W, 4 rounds x 2 repetitions, modes rotated in one run (development A/B, tok/s; "n of 8": paired runs
+halo-bench A/B, 450 W, 4 rounds x 2 repetitions, modes rotated in one run (development A/B, tok/s; "n of 8": paired runs
 where the kernel is faster):
 
 | prompt | hc_ada=0 | kernel | gain |

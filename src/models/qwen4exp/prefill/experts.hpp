@@ -1,21 +1,21 @@
 #pragma once
 
 #include "run.hpp"
-#include "basalt/ggml/ggml.h"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused.hpp"
-#include "basalt/models/qwen4exp/prefill/moe_fused_iq.hpp"
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused.hpp"
+#include "halo/models/qwen4exp/prefill/moe_fused_iq.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 #include <vector>
 #include <future>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 struct Prefill::Run::Chunk::Experts {
@@ -82,7 +82,7 @@ struct Prefill::Run::Chunk::Experts {
     // activations in Xq, the int8 H in H, the grouping tables in GU).  Chunks below stream_all_min()
     // keep MMQ.  A native pack's layer takes the native kernels
     // (moe_fused_iq.hpp) where they cover its two formats, else MMQ (or the FP16 path: IQ1_M).
-    const basalt::kernels::cpu::ExpertLayout& lay = basalt::kernels::cpu::expert_layout();
+    const halo::kernels::cpu::ExpertLayout& lay = halo::kernels::cpu::expert_layout();
     const bool use_mmq = mmq_plan().any && mmq_plan().layer[(size_t) l];
     const int mmq_gt = lay.native ? lay.fmt[(size_t) l].gu_type : 42;
     const int mmq_dt = lay.native ? lay.fmt[(size_t) l].d_type : 42;
@@ -205,4 +205,4 @@ struct Prefill::Run::Chunk::Experts::Group {
     int gg_nslots = 0;   // ring slots gathered by the next flush
 };
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

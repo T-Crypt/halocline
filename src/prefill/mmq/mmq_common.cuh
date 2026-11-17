@@ -5,8 +5,8 @@
 // authors.  MIT licence: see THIRD_PARTY_LICENSES.
 #pragma once
 
-#include "basalt/ggml/ggml.h"
-#include "basalt/log.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/log.hpp"
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
@@ -23,7 +23,7 @@
 
 #define GGML_COMMON_DECL_CUDA
 #define GGML_COMMON_IMPL_CUDA
-#include "basalt/ggml/ggml_common.h"
+#include "halo/ggml/ggml_common.h"
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 890
 #error "the MMQ kernels are built for compute capability 8.9 and 12.0 only"
@@ -36,7 +36,7 @@
 #define GGML_UNUSED(x) (void) (x)
 #define GGML_UNUSED_VARS(...) do { (void) sizeof((__VA_ARGS__, 0)); } while (0)
 #define GGML_PAD(x, n) (((x) + (n) - 1) & ~((n) - 1))
-#define GGML_ABORT(...) do { basalt::log::error("basalt", __VA_ARGS__); std::abort(); } while (0)
+#define GGML_ABORT(...) do { halo::log::error("halo", __VA_ARGS__); std::abort(); } while (0)
 #define GGML_ASSERT(x) if (!(x)) GGML_ABORT("GGML_ASSERT(%s) failed", #x)
 
 [[noreturn]] void ggml_cuda_error(const char * stmt, const char * func, const char * file, int line, const char * msg);

@@ -1,12 +1,12 @@
-// tests/kernels/dense_ops_parity.cpp - the dense stack's element-wise kernels (basalt/kernels/dense_ops.hpp) and the block
+// tests/kernels/dense_ops_parity.cpp - the dense stack's element-wise kernels (halo/kernels/dense_ops.hpp) and the block
 // drafter's windowed attention (gqa_window_attn) against CPU references in double precision, at the Qwen3.8-27B widths
 // (5120 hidden, 17408 FFN) and its DFlash 2 drafter's (32 x 128 query heads, 8 KV heads, a 2048-cell window, groups of
 // 16 channels, 16 candidates of rank 256).  Prints max abs / rel error per kernel.  Exit 77 without a GPU.
-#include "basalt/kernels/dense_ops.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/kernels/gdn_prompt.hpp"
-#include "basalt/kernels/gqa_attn.hpp"
-#include "basalt/kernels/logprobs.hpp"
+#include "halo/kernels/dense_ops.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/kernels/gdn_prompt.hpp"
+#include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/logprobs.hpp"
 
 #include <cuda_runtime.h>
 
@@ -75,7 +75,7 @@ int main() {
         for (auto& v : w) v += 1.0f;
         float *dx = up(x), *dw = up(w), *dy = nullptr;
         cudaMalloc(&dy, (size_t) T * 2 * H * 4);
-        basalt::kernels::rms_norm_rows(dx, dw, dy, T, H, 1e-6f, S, 2 * H);
+        halo::kernels::rms_norm_rows(dx, dw, dy, T, H, 1e-6f, S, 2 * H);
         auto y = down(dy, (size_t) T * 2 * H);
         std::vector<float> got;
         std::vector<double> want;
@@ -95,7 +95,7 @@ int main() {
         std::vector<float> sg = {0.37f}, su = {1.9f};
         float *dg = up(g), *du = up(u), *dsg = up(sg), *dsu = up(su), *dh = nullptr;
         cudaMalloc(&dh, (size_t) T * FF * 4);
-        basalt::kernels::swiglu_scaled(dg, du, dsg, dsu, dh, T, FF, FF, S);
+        halo::kernels::swiglu_scaled(dg, du, dsg, dsu, dh, T, FF, FF, S);
         auto h = down(dh, (size_t) T * FF);
         std::vector<double> want(h.size());
         for (size_t i = 0; i < h.size(); ++i) {
@@ -113,7 +113,7 @@ int main() {
         uint16_t* dw = up(w);
         float* dy = nullptr;
         cudaMalloc(&dy, (size_t) T * N * 4);
-        basalt::kernels::bf16_rows_dot(dx, dw, dy, T, N, H, S);
+        halo::kernels::bf16_rows_dot(dx, dw, dy, T, N, H, S);
         auto y = down(dy, (size_t) T * N);
         std::vector<double> want(y.size());
         for (int t = 0; t < T; ++t)
@@ -141,9 +141,9 @@ int main() {
             cudaMalloc(&dg0, (size_t) Tc * HV * 4);
             cudaMalloc(&db0, (size_t) Tc * HV * 4);
             cudaMalloc(&dab, (size_t) Tc * N * 4);
-            basalt::kernels::gdn_gating_proj(dx, dw, ddt, dsa, dg, db, Tc, HV, H, S);
-            basalt::kernels::bf16_rows_dot(dx, dw, dab, Tc, N, H, S);
-            basalt::kernels::gdn_gates(dab, ddt, dsa, dg0, db0, Tc, S);
+            halo::kernels::gdn_gating_proj(dx, dw, ddt, dsa, dg, db, Tc, HV, H, S);
+            halo::kernels::bf16_rows_dot(dx, dw, dab, Tc, N, H, S);
+            halo::kernels::gdn_gates(dab, ddt, dsa, dg0, db0, Tc, S);
             auto g = down(dg, (size_t) Tc * HV), b = down(db, (size_t) Tc * HV), g0 = down(dg0, (size_t) Tc * HV),
                  b0 = down(db0, (size_t) Tc * HV);
             std::vector<float> gg, bb, gg0, bb0;
@@ -175,9 +175,9 @@ int main() {
                     cudaEventRecord(e0, S);
                     for (int r = 0; r < R; ++r) {
                         if (pass == 0) {
-                            basalt::kernels::bf16_rows_dot(dx, dw, dab, Tc, N, H, S);
-                            basalt::kernels::gdn_gates(dab, ddt, dsa, dg0, db0, Tc, S);
-                        } else basalt::kernels::gdn_gating_proj(dx, dw, ddt, dsa, dg, db, Tc, HV, H, S);
+                            halo::kernels::bf16_rows_dot(dx, dw, dab, Tc, N, H, S);
+                            halo::kernels::gdn_gates(dab, ddt, dsa, dg0, db0, Tc, S);
+                        } else halo::kernels::gdn_gating_proj(dx, dw, ddt, dsa, dg, db, Tc, HV, H, S);
                     }
                     cudaEventRecord(e1, S);
                     cudaEventSynchronize(e1);
@@ -196,7 +196,7 @@ int main() {
         cudaEvent_t e0, e1;
         cudaEventCreate(&e0); cudaEventCreate(&e1);
         cudaEventRecord(e0, S);
-        for (int r = 0; r < 100; ++r) basalt::kernels::gdn_conv(dh, dq, dcw, dout, Tc, S);
+        for (int r = 0; r < 100; ++r) halo::kernels::gdn_conv(dh, dq, dcw, dout, Tc, S);
         cudaEventRecord(e1, S);
         cudaEventSynchronize(e1);
         float ms = 0;
@@ -208,7 +208,7 @@ int main() {
         auto x = randn((size_t) T * H), dyn = randn((size_t) T * LD, 0.3f), base = randn(2 * (size_t) H, 0.5f);
         float *dx = up(x), *dd = up(dyn), *db = up(base), *dy = nullptr;
         cudaMalloc(&dy, (size_t) T * H * 4);
-        basalt::kernels::dyn_conv2(dx, dd + 2 * groups, LD, db, dy, T, H, G, S);   // the second half, as `finish` reads
+        halo::kernels::dyn_conv2(dx, dd + 2 * groups, LD, db, dy, T, H, G, S);   // the second half, as `finish` reads
         auto y = down(dy, (size_t) T * H);
         std::vector<double> want(y.size());
         for (int t = 0; t < T; ++t)
@@ -226,12 +226,12 @@ int main() {
         for (auto& v : pred) v = bf(0.3f * nd(rng));
         for (auto& v : succ) v = bf(0.3f * nd(rng));
         auto h = randn((size_t) P * R, 0.3f);
-        std::vector<float> lp((size_t) P * basalt::kernels::kLogprobStride, 0.f);
+        std::vector<float> lp((size_t) P * halo::kernels::kLogprobStride, 0.f);
         for (int p = 0; p < P; ++p)
             for (int k = 0; k < K; ++k) {
                 int32_t id = (int32_t) (rng() % V);
-                std::memcpy(&lp[(size_t) p * basalt::kernels::kLogprobStride + 2 + 2 * k], &id, 4);
-                lp[(size_t) p * basalt::kernels::kLogprobStride + 3 + 2 * k] = -0.3f * k + 0.1f * nd(rng);
+                std::memcpy(&lp[(size_t) p * halo::kernels::kLogprobStride + 2 + 2 * k], &id, 4);
+                lp[(size_t) p * halo::kernels::kLogprobStride + 3 + 2 * k] = -0.3f * k + 0.1f * nd(rng);
             }
         const int32_t anchor = 17;
         float *dlp = up(lp), *dh = up(h), *dconf = nullptr;
@@ -239,7 +239,7 @@ int main() {
         int32_t *da = up(std::vector<int32_t>{anchor}), *dids = nullptr;
         cudaMalloc(&dids, P * 4);
         cudaMalloc(&dconf, P * 4);
-        basalt::kernels::candidate_path(dlp, basalt::kernels::kLogprobStride, K, dh, dp, ds, R, da, P, dids, dconf, {}, S);
+        halo::kernels::candidate_path(dlp, halo::kernels::kLogprobStride, K, dh, dp, ds, R, da, P, dids, dconf, {}, S);
         auto ids = down(dids, P);
         auto conf = down(dconf, P);
         int32_t prev = anchor;
@@ -252,14 +252,14 @@ int main() {
             std::vector<double> sc(K);
             for (int k = 0; k < K; ++k) {
                 int32_t c;
-                std::memcpy(&c, &lp[(size_t) p * basalt::kernels::kLogprobStride + 2 + 2 * k], 4);
+                std::memcpy(&c, &lp[(size_t) p * halo::kernels::kLogprobStride + 2 + 2 * k], 4);
                 double d = 0;
                 for (int r = 0; r < R; ++r) d += (double) fb(pred[(size_t) prev * R + r]) * h[(size_t) p * R + r] * fb(succ[(size_t) c * R + r]);
-                sc[(size_t) k] = lp[(size_t) p * basalt::kernels::kLogprobStride + 3 + 2 * k] + d;
+                sc[(size_t) k] = lp[(size_t) p * halo::kernels::kLogprobStride + 3 + 2 * k] + d;
                 if (sc[(size_t) k] > best) { best = sc[(size_t) k]; bk = k; }
             }
             for (double v : sc) z += std::exp(v - best);
-            std::memcpy(&prev, &lp[(size_t) p * basalt::kernels::kLogprobStride + 2 + 2 * bk], 4);
+            std::memcpy(&prev, &lp[(size_t) p * halo::kernels::kLogprobStride + 2 + 2 * bk], 4);
             differ += prev != ids[(size_t) p];
             prev = ids[(size_t) p];   // follow the GPU's path so one tie does not cascade
             gc.push_back(conf[(size_t) p]);
@@ -273,15 +273,15 @@ int main() {
         const int NH = 32, NKV = 8, HD = 128, W = 2048, CAP = W + 256, B = 8;
         const int64_t pos = 5000;   // rows at 5000..5007; the cache wraps
         std::vector<uint16_t> kc((size_t) CAP * NKV * HD), vc(kc.size());
-        for (auto& v : kc) v = basalt::kernels::f16_from_f32(nd(rng));
-        for (auto& v : vc) v = basalt::kernels::f16_from_f32(nd(rng));
+        for (auto& v : kc) v = halo::kernels::f16_from_f32(nd(rng));
+        for (auto& v : vc) v = halo::kernels::f16_from_f32(nd(rng));
         auto q = randn((size_t) B * NH * HD);
         float* dq = up(q);
         uint16_t *dk = up(kc), *dv = up(vc);
         float *dout = nullptr, *dscr = nullptr;
         cudaMalloc(&dout, (size_t) B * NH * HD * 4);
-        cudaMalloc(&dscr, basalt::kernels::gqa_decode_scratch_floats(CAP, B, NH, HD) * 4);
-        basalt::kernels::gqa_window_attn(dq, dk, dv, NH, NKV, HD, pos, B, pos + B, W, CAP, dscr, CAP, dout, S);
+        cudaMalloc(&dscr, halo::kernels::gqa_decode_scratch_floats(CAP, B, NH, HD) * 4);
+        halo::kernels::gqa_window_attn(dq, dk, dv, NH, NKV, HD, pos, B, pos + B, W, CAP, dscr, CAP, dout, S);
         auto out = down(dout, (size_t) B * NH * HD);
         std::vector<double> want(out.size());
         for (int t = 0; t < B; ++t)
@@ -293,7 +293,7 @@ int main() {
                 for (int64_t p = lo; p < hi; ++p) {
                     double d = 0;
                     for (int i = 0; i < HD; ++i)
-                        d += (double) q[((size_t) t * NH + h) * HD + i] * basalt::kernels::f32_from_f16(kc[(((size_t) (p % CAP)) * NKV + kvh) * HD + i]);
+                        d += (double) q[((size_t) t * NH + h) * HD + i] * halo::kernels::f32_from_f16(kc[(((size_t) (p % CAP)) * NKV + kvh) * HD + i]);
                     s.push_back(d / std::sqrt((double) HD));
                     mx = std::max(mx, s.back());
                 }
@@ -302,7 +302,7 @@ int main() {
                 for (int i = 0; i < HD; ++i) {
                     double a = 0;
                     for (size_t j = 0; j < s.size(); ++j)
-                        a += s[j] * basalt::kernels::f32_from_f16(vc[(((size_t) ((lo + (int64_t) j) % CAP)) * NKV + kvh) * HD + i]);
+                        a += s[j] * halo::kernels::f32_from_f16(vc[(((size_t) ((lo + (int64_t) j) % CAP)) * NKV + kvh) * HD + i]);
                     want[((size_t) t * NH + h) * HD + i] = a / l;
                 }
             }

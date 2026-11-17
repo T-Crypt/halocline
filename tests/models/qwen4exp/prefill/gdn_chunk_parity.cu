@@ -10,7 +10,7 @@
 // and state must be finite.
 //   gdn_chunk_parity [seed]          the checks
 //   gdn_chunk_parity --bench         and the timings at T = 4096, 16384 and 32768 (one layer), old and new alternating
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -249,7 +249,7 @@ struct Bufs {
         state = dalloc<float>((size_t) S * HV * S);
         y = dalloc<float>((size_t) T * HV * S);
         y16 = dalloc<uint16_t>((size_t) T * HV * S);
-        ck(cudaMalloc(&work, basalt::prefill::gdn_work_bytes(T) + 256), "work");
+        ck(cudaMalloc(&work, halo::prefill::gdn_work_bytes(T) + 256), "work");
     }
     ~Bufs() { cudaFree(state); cudaFree(y); cudaFree(y16); cudaFree(work); }
 };
@@ -260,7 +260,7 @@ void run_old(const Inputs& in, Bufs& b, int64_t T) {
 }
 void run_new(const Inputs& in, Bufs& b, int64_t T) {
     ck(cudaMemcpy(b.state, in.state0, (size_t) S * HV * S * 4, cudaMemcpyDeviceToDevice), "state");
-    basalt::prefill::gdn_recurrence(b.state, in.h, in.gate, in.beta, in.z, in.gamma, EPS, b.work, b.y, b.y16, T, nullptr);
+    halo::prefill::gdn_recurrence(b.state, in.h, in.gate, in.beta, in.z, in.gamma, EPS, b.work, b.y, b.y16, T, nullptr);
 }
 
 struct Err {
@@ -369,8 +369,8 @@ int check(int64_t T, uint64_t seed, int mode = 0) {
     if (T > 40) {
         const int64_t T1 = 37 + (T / 3 / 16) * 16;
         ck(cudaMemcpy(n.state, in.state0, st_n * 4, cudaMemcpyDeviceToDevice), "state");
-        basalt::prefill::gdn_recurrence(n.state, in.h, in.gate, in.beta, in.z, in.gamma, EPS, n.work, n.y, n.y16, T1, nullptr);
-        basalt::prefill::gdn_recurrence(n.state, in.h + T1 * C, in.gate + T1 * HV, in.beta + T1 * HV, in.z + T1 * HV * S,
+        halo::prefill::gdn_recurrence(n.state, in.h, in.gate, in.beta, in.z, in.gamma, EPS, n.work, n.y, n.y16, T1, nullptr);
+        halo::prefill::gdn_recurrence(n.state, in.h + T1 * C, in.gate + T1 * HV, in.beta + T1 * HV, in.z + T1 * HV * S,
                                         in.gamma, EPS, n.work, n.y + T1 * HV * S, n.y16 + T1 * HV * S, T - T1, nullptr);
         ck(cudaDeviceSynchronize(), "split");
         const auto ys = down(n.y, y_n), ss = down(n.state, st_n);
@@ -403,7 +403,7 @@ void bench(int64_t T) {
                 gdn_rec_wl_kernel<<<HK * GDN_WNCB, GDN_WC * 8>>>(b.state, in.hn, in.gate, in.beta, b.y, T);
                 gdn_out_norm_kernel<<<dim3((unsigned) T, HV), S>>>(in.z, in.gamma, EPS, b.y, b.y16);
             } else {
-                basalt::prefill::gdn_recurrence(b.state, in.h, in.gate, in.beta, in.z, in.gamma, EPS, b.work, b.y, b.y16, T,
+                halo::prefill::gdn_recurrence(b.state, in.h, in.gate, in.beta, in.z, in.gamma, EPS, b.work, b.y, b.y16, T,
                                                 nullptr);
             }
             cudaEventRecord(e1);

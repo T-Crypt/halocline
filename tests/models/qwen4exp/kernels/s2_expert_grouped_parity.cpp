@@ -22,8 +22,8 @@
 // the projection.  Bitwise equality with the previous kernels is the contract; on top of it a double-precision
 // host reference of every up row and every down row checks that the fixture computes an expert at all - two
 // kernels agreeing on garbage would otherwise pass.
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/models/qwen4exp/kernels/s2_expert_grouped.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/models/qwen4exp/kernels/s2_expert_grouped.hpp"
 
 #include <cuda_runtime.h>
 
@@ -39,7 +39,7 @@
 #include <string>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 // The blob geometry, `cpu/expert.hpp`'s (restated as in the kernel).

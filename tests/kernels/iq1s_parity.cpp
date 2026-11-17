@@ -11,13 +11,13 @@
 // Reference: the weights dequantized with the ggml row dequantizer, the activation as the kernel sees it (q8_1 or
 // Q8_K blocks dequantized), accumulated in double; the SwiGLU limit applied in double.  The GPU / CPU outputs of one
 // entry must not depend on the window: the same entry alone, in a window and at another position is bitwise equal.
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/native_expert.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/iq_avx512.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/native_expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/iq_avx512.hpp"
 
-#ifdef BASALT_IQ1S_GPU
-#include "basalt/kernels/iq_kernels.hpp"
+#ifdef HALO_IQ1S_GPU
+#include "halo/kernels/iq_kernels.hpp"
 #include <cuda_runtime.h>
 #endif
 
@@ -33,8 +33,8 @@
 
 namespace {
 
-namespace kc = basalt::kernels::cpu;
-#ifdef BASALT_IQ1S_GPU
+namespace kc = halo::kernels::cpu;
+#ifdef HALO_IQ1S_GPU
 #endif
 
 constexpr int H = 5120, FF = 2304, K = 6;
@@ -331,8 +331,8 @@ void cpu_dot() {
     if (!ok) ++g_fail;
 }
 
-#ifdef BASALT_IQ1S_GPU
-namespace kg = basalt::kernels;
+#ifdef HALO_IQ1S_GPU
+namespace kg = halo::kernels;
 
 void ck(cudaError_t e, const char* what) {
     if (e != cudaSuccess) {
@@ -747,7 +747,7 @@ int main(int argc, char** argv) {
     cpu_pair(29, 16, rng);
     cpu_pair(17, 16, rng);
     cpu_pair(40, 40, rng);   // NVFP4 experts
-#ifdef BASALT_IQ1S_GPU
+#ifdef HALO_IQ1S_GPU
     if (!cpu_only) {
         cudaStream_t s;
         ck(cudaStreamCreate(&s), "stream");

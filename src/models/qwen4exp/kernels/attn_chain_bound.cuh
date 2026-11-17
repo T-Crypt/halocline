@@ -2,7 +2,7 @@
 // sets the sticky abort word and falls through, and a wait that has waited kWaitPollNs falls through once the word is
 // set, so a lost hand-off ends the launch with garbage results (the host fails the window) instead of a trap.
 #pragma once
-#include "basalt/kernels/wait_abort.hpp"
+#include "halo/kernels/wait_abort.hpp"
 #ifndef MKB_NS
 #define MKB_NS 2000000000ull
 #endif
@@ -10,8 +10,8 @@ static __device__ unsigned long long* mkb_word;   // the abort word's alias on t
 __device__ __forceinline__ unsigned long long mkb_now() { unsigned long long t; asm volatile("mov.u64 %0,%%globaltimer;" : "=l"(t)); return t; }
 // a wait started at t0 that has run kWaitPollNs: true when it gives up
 __device__ __forceinline__ bool mkb_give_up(unsigned long long t0, int kind, int line) {
-    return basalt::kernels::wait_give_up(mkb_word, mkb_now() - t0, (unsigned long long) MKB_NS,
-                                         basalt::kernels::wait_abort_code_of(basalt::kernels::kWaitMidChain, (unsigned) kind, (unsigned) line, blockIdx.x));
+    return halo::kernels::wait_give_up(mkb_word, mkb_now() - t0, (unsigned long long) MKB_NS,
+                                         halo::kernels::wait_abort_code_of(halo::kernels::kWaitMidChain, (unsigned) kind, (unsigned) line, blockIdx.x));
 }
 __device__ __forceinline__ bool mkb_try(unsigned bar, unsigned ph) {
     unsigned d;
@@ -22,5 +22,5 @@ __device__ __forceinline__ void mkb_mwait(unsigned bar, unsigned ph, int line) {
     if (mkb_try(bar, ph)) return;
     const unsigned long long t0 = mkb_now();
     while (!mkb_try(bar, ph))
-        if (mkb_now() - t0 > basalt::kernels::kWaitPollNs && mkb_give_up(t0, 1, line)) return;
+        if (mkb_now() - t0 > halo::kernels::kWaitPollNs && mkb_give_up(t0, 1, line)) return;
 }

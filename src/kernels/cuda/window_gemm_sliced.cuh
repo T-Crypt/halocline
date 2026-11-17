@@ -1,5 +1,5 @@
 // src/kernels/cuda/window_gemm_sliced.cuh - the decode window products against FP8 E4M3 matrices, K sliced across a
-// block's warps (see include/basalt/kernels/window_gemm.hpp).  No kernel is instantiated here.
+// block's warps (see include/halo/kernels/window_gemm.hpp).  No kernel is instantiated here.
 //
 // A block owns 16 rows of one matrix over the whole K; its KW warps each take a fixed slice of every group of KW * 64 KB
 // values (warp w: values w * 64 KB .. + 64 KB - 1 of the group), so there is no split across blocks, no workspace and
@@ -18,7 +18,7 @@
 
 #include "window_gemm.cuh"
 
-namespace basalt::kernels::wgemm::detail {
+namespace halo::kernels::wgemm::detail {
 
 template <int KW, int KB, int NT, int ST>
 struct SlicedCfg {
@@ -171,4 +171,4 @@ __global__ void __launch_bounds__(SlicedCfg<KW, KB, NT, ST>::kThreads) wgemm_sli
     sliced_stage<KW, KB, NT, ST>(a, blockIdx.x, smem);
 }
 
-}  // namespace basalt::kernels::wgemm::detail
+}  // namespace halo::kernels::wgemm::detail

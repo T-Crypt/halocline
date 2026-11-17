@@ -1,42 +1,42 @@
 #include "common.hpp"
 #include "record.hpp"
 #include "expert_plan.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/kernels/iq_kernels.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/models/qwen4exp/kernels/native_router.hpp"
-#include "basalt/kernels/elementwise.hpp"
-#include "basalt/models/qwen4exp/kernels/fused_gr.hpp"
-#include "basalt/models/qwen4exp/kernels/mid_chain.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_read_ada.hpp"
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
-#include "basalt/kernels/gdn_window.hpp"
-#include "basalt/models/qwen4exp/kernels/dense_tc.hpp"
-#include "basalt/models/qwen4exp/kernels/gr.hpp"
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/ple.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_dec_fused.hpp"
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/models/qwen4exp/kernels/shared_expert.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
-#include "basalt/models/qwen4exp/kernels/dec_moe.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/kernels/iq_kernels.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/models/qwen4exp/kernels/native_router.hpp"
+#include "halo/kernels/elementwise.hpp"
+#include "halo/models/qwen4exp/kernels/fused_gr.hpp"
+#include "halo/models/qwen4exp/kernels/mid_chain.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/hc_read_ada.hpp"
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
+#include "halo/kernels/gdn_window.hpp"
+#include "halo/models/qwen4exp/kernels/dense_tc.hpp"
+#include "halo/models/qwen4exp/kernels/gr.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/ple.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_fused.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/models/qwen4exp/kernels/shared_expert.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/kernels/dec_moe.hpp"
 #include <algorithm>
 #include <exception>
 #include <string>
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 // pre(l, group): up to the ring
 bool Verifier::WindowRecorder::pre(int64_t l) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const int n = T;
     stamp(l, 0);
     const LayerView v(wt, l);
@@ -228,7 +228,7 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
     // the read writes the q8_1 rows, post's gate/up launch plans CUDA0's share
     glue_on = false;
     if (pk_ring && v_.dm_->ptab0 != nullptr && dec_hc && router_multi && hc_fused_q8_rows_ok()) {
-        const auto& f = basalt::kernels::cpu::expert_layout().fmt[(size_t) l];
+        const auto& f = halo::kernels::cpu::expert_layout().fmt[(size_t) l];
         glue_on = v_.dm_->vram < 0 && dec_moe_glue_ok(native_expert_layout(f.gu_type, f.d_type, f.n_embd, f.n_ff, 0.0f, f.up_type));
         if (!glue_on) note_fallback("glue off for the layer's experts", f.gu_type, f.d_type);
     }
@@ -339,7 +339,7 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
             cudaStreamWaitEvent(v_.dm_->st_s, v_.dm_->st_fork, 0);
             PdlScope pst(false);
             dec_moe_stage(ra, v_.staging_, v_.dm_->stage_stride,
-                          (int64_t) basalt::kernels::cpu::expert_layout().blob_bytes(l), v_.dm_->stage_blocks, v_.dm_->st_s);
+                          (int64_t) halo::kernels::cpu::expert_layout().blob_bytes(l), v_.dm_->stage_blocks, v_.dm_->st_s);
             cudaEventRecord(v_.dm_->st_join, v_.dm_->st_s);
         }
     } else if (v_.ar_on()) {
@@ -387,7 +387,7 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
         }
     }
     if (dm) {}   // the route kernel wrote nat_xq_
-    else if (basalt::kernels::cpu::expert_layout().native)
+    else if (halo::kernels::cpu::expert_layout().native)
         quantize_q8_1_rows(xm, n, N, v_.nat_xq_, cs);
     else
         quantize_q8_0_scaled(xm, v_.hit_xq_, v_.hit_xs_, (int64_t) n * N, cs);
@@ -395,4 +395,4 @@ bool Verifier::WindowRecorder::pre(int64_t l) {
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

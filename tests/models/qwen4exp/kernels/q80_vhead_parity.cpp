@@ -15,9 +15,9 @@
 // Random Q8_0 rows (ggml's rounding of Gaussian weights) with 64 rows per column leaned towards it, so each column has
 // a head's spread of near-top logits, and random columns quantized by native_quantize_q8_1.
 //   q80_vhead_parity [rows] [iters]
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/q80_vhead.hpp"
-#include "basalt/kernels/sampler.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
+#include "halo/kernels/sampler.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -32,7 +32,7 @@
 #include <random>
 #include <vector>
 
-namespace k = basalt::kernels;
+namespace k = halo::kernels;
 
 namespace {
 void ck(cudaError_t e, const char* w) {

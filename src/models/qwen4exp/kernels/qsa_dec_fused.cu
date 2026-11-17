@@ -1,13 +1,13 @@
-// src/models/qwen4exp/kernels/qsa_dec_fused.cu - see include/basalt/models/qwen4exp/kernels/qsa_dec_fused.hpp.
+// src/models/qwen4exp/kernels/qsa_dec_fused.cu - see include/halo/models/qwen4exp/kernels/qsa_dec_fused.hpp.
 //
 // Built with --use_fast_math like native_qsa.cu, native_rope.cu and native_qsa_indexer.cu, whose expressions this
 // repeats; the INT8 append (kv_q8.cu, built without it) uses explicit IEEE instructions.
-#include "basalt/models/qwen4exp/kernels/qsa_dec_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa_seg.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/models/qwen4exp/kernels/mrope.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_dec_fused.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_seg.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/models/qwen4exp/kernels/mrope.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -15,9 +15,9 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int HD = 256, ID = 128, R = 4, ROT = 64, THREADS = 256;
@@ -273,7 +273,7 @@ RopeArgs rope_args(const RopeScaling& scaling) {
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "%s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -288,7 +288,7 @@ bool qsa_dec_fused_supported(const QsaShapes& s) {
 void qsa_dec_kv_post(const QsaDecKvPost& a, int n, const QsaShapes& s, const RopeScaling& scaling, void* stream) {
     if (n <= 0) return;
     if (!qsa_dec_fused_supported(s) || rope_scaling_invalid(scaling) != nullptr) {
-        basalt::log::error("basalt", "qsa_dec_kv_post: unsupported geometry or scaling");
+        halo::log::error("halo", "qsa_dec_kv_post: unsupported geometry or scaling");
         std::exit(1);
     }
     const RopeArgs ra = rope_args(scaling);
@@ -306,7 +306,7 @@ void qsa_dec_kv_post_seg(const QsaDecKvPost& a, const QsaSegTable& t, int n, con
                          const RopeScaling& scaling, void* stream) {
     if (n <= 0) return;
     if (!qsa_dec_fused_supported(s) || rope_scaling_invalid(scaling) != nullptr || t.n_seg <= 0 || t.n_seg > n) {
-        basalt::log::error("basalt", "qsa_dec_kv_post_seg: unsupported geometry, scaling or table");
+        halo::log::error("halo", "qsa_dec_kv_post_seg: unsupported geometry, scaling or table");
         std::exit(1);
     }
     const RopeArgs ra = rope_args(scaling);
@@ -323,7 +323,7 @@ void qsa_dec_kv_post_seg(const QsaDecKvPost& a, const QsaSegTable& t, int n, con
 void qsa_dec_q_post(const QsaDecQPost& a, int n, const QsaShapes& s, const RopeScaling& scaling, void* stream) {
     if (n <= 0) return;
     if (!qsa_dec_fused_supported(s) || rope_scaling_invalid(scaling) != nullptr) {
-        basalt::log::error("basalt", "qsa_dec_q_post: unsupported geometry or scaling");
+        halo::log::error("halo", "qsa_dec_q_post: unsupported geometry or scaling");
         std::exit(1);
     }
     const RopeArgs ra = rope_args(scaling);
@@ -335,4 +335,4 @@ void qsa_dec_q_post(const QsaDecQPost& a, int n, const QsaShapes& s, const RopeS
     check("qsa_dec_q_post");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

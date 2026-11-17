@@ -1,18 +1,18 @@
 #pragma once
 
 #include "common.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/kernels/cpu/pool.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
-#include "basalt/models/qwen4exp/decode/native_head.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/kernels/cpu/pool.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
+#include "halo/models/qwen4exp/decode/native_head.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
+#include "halo/log.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -24,7 +24,7 @@
 #include <condition_variable>
 #include <cerrno>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 // The experts the arena could not pin are copied into pinned buffers by these threads, ahead of the launches.  Copied
@@ -113,7 +113,7 @@ struct Stager {
                     if (!read_file(jb, buf[b])) std::memcpy(buf[b], jb.src, jb.bytes);   // the mapping as the fallback
                 } else {
                     const size_t a = (size_t) j + kAhead;
-                    if (a < jobs.size() && jobs[a].fd < 0) basalt::platform::advise_willneed(jobs[a].src, jobs[a].bytes);
+                    if (a < jobs.size() && jobs[a].fd < 0) halo::platform::advise_willneed(jobs[a].src, jobs[a].bytes);
                     std::memcpy(buf[b], jb.src, jb.bytes);
                 }
                 ready[(size_t) j].store(1, std::memory_order_release);
@@ -125,7 +125,7 @@ struct Stager {
         size_t done = 0;
         while (done < jb.bytes) {
             // One chunk per call, so a count short of the rest is normal and this loop picks up where it stopped.
-            const int64_t n = basalt::platform::pread(jb.fd, dst + done, jb.bytes - done, jb.off + done);
+            const int64_t n = halo::platform::pread(jb.fd, dst + done, jb.bytes - done, jb.off + done);
             if (n < 0 && errno == EINTR) continue;
             if (n <= 0) return false;
             done += (size_t) n;
@@ -154,7 +154,7 @@ struct Stager {
         bool any_file = false;
         for (size_t i = 0; i < jobs.size(); ++i) {
             if (jobs[i].fd >= 0) any_file = true;
-            else if (i < kAhead) basalt::platform::advise_willneed(jobs[i].src, jobs[i].bytes);
+            else if (i < kAhead) halo::platform::advise_willneed(jobs[i].src, jobs[i].bytes);
         }
         while (any_file && (int) threads.size() < kIoThreads) threads.emplace_back([this] { work(); });
         issued.store(0);
@@ -189,4 +189,4 @@ inline Stager::Job make_job(core::ExpertSource& src, int64_t l, int32_t e, const
 }
 
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

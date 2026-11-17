@@ -1,8 +1,8 @@
 // src/models/qwen4exp/serve/tier_profile.cpp - tier profile operations.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_state.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 // write the learned profile (between requests and at QUIT: a prompt's lent slots are back by then).  A swap
 // still in flight counts as done - its expert is resident once the copy lands.  `why`: for the log.
@@ -12,17 +12,17 @@ void QfnRuntime::save_profile(const char* why) {
     for (size_t i = 0; i < host_res.size(); ++i) resident[i] = host_res[i] >= 0;
     for (const auto& p : pending) resident[(size_t) p.first] = 1;
     std::string e;
-    const auto ranked = basalt::core::rank_learned_profile(g.n_layers, g.n_expert, resident, heat,
+    const auto ranked = halo::core::rank_learned_profile(g.n_layers, g.n_expert, resident, heat,
                                                            profile_loaded);
-    if (basalt::core::write_expert_profile(o.expert_profile_save, g.n_layers, g.n_expert, ranked, e))
-        basalt::log::info("basalt serve", "expert profile saved to %s (%s)", o.expert_profile_save.c_str(),
+    if (halo::core::write_expert_profile(o.expert_profile_save, g.n_layers, g.n_expert, ranked, e))
+        halo::log::info("halo serve", "expert profile saved to %s (%s)", o.expert_profile_save.c_str(),
                      why);
     else
-        basalt::log::warn("basalt serve", "the expert profile was not saved: %s", e.c_str());
+        halo::log::warn("halo serve", "the expert profile was not saved: %s", e.c_str());
     profile_saved_at = Clock::now();
 }
 
-// PROBE adapt [every=N] [swaps=N] [decay=F] [profile=FILE], between requests (basalt-probe): the expert tiers
+// PROBE adapt [every=N] [swaps=N] [decay=F] [profile=FILE], between requests (halo-probe): the expert tiers
 // go back to their placement at READY, or with FILE to its ranking placed rank for rank into the same slots;
 // the routing counts, the round counter and the draft policy start again; the session's cached prompts are
 // dropped; the adaptive tier's settings apply to the requests that follow.  Only slots whose expert differs
@@ -61,13 +61,13 @@ bool QfnRuntime::probe_adapt(const std::string& cmd, std::string& e) {
         for (size_t i = 0; i < res_at_start.size(); ++i)
             if (res_at_start[i] >= 0) want_main.emplace_back(res_at_start[i], (int32_t) i);
     } else {
-        const auto& lay = basalt::kernels::cpu::expert_layout();
+        const auto& lay = halo::kernels::cpu::expert_layout();
         for (int64_t l = 1; l < g.n_layers; ++l)
             if (lay.blob_bytes(l) != lay.blob_bytes(0)) { e = "PROBE adapt: profile= needs one blob size"; return false; }
         if (xcache.per_layer_admission()) { e = "PROBE adapt: profile= needs a cache shared by all layers"; return false; }
         std::vector<std::pair<int32_t, int32_t>> q;
         int64_t qslots = 0;
-        if (!basalt::core::read_expert_profile(basalt::core::FileRange(pfile), g.n_layers, g.n_expert, q, qslots, e)) {
+        if (!halo::core::read_expert_profile(halo::core::FileRange(pfile), g.n_layers, g.n_expert, q, qslots, e)) {
             e = "PROBE adapt: " + e;
             return false;
         }
@@ -103,7 +103,7 @@ bool QfnRuntime::probe_adapt(const std::string& cmd, std::string& e) {
     // the cells a longer prompt backed go back to the expert cache first: the slots it had at READY
     if (!kv_release(ss, 0, e)) { e = "PROBE adapt: " + e; return false; }
     // the main card: an expert leaving a slot without a RAM place takes a free one first (as a round's swap)
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     const int64_t live_slots = xcache.slots();
     std::vector<int32_t> holder((size_t) live_slots, -1);   // slot -> residency index
     for (size_t i = 0; i < host_res.size(); ++i)
@@ -175,7 +175,7 @@ bool QfnRuntime::probe_adapt(const std::string& cmd, std::string& e) {
                     e = "PROBE adapt: an evicted expert has no RAM place";
                     return false;
                 }
-                host_res[(size_t) m.out] = basalt::core::kNotResident;
+                host_res[(size_t) m.out] = halo::core::kNotResident;
                 holder[(size_t) m.slot] = -1;
                 srcp->prefetch(lo, eo);
             }
@@ -213,8 +213,8 @@ bool QfnRuntime::probe_adapt(const std::string& cmd, std::string& e) {
     ba_win = 0;
     xq_saturated = false;
     prof_rank = rank_new;
-    (*policy) = basalt::spec::DraftPolicy(S);
-    (*bpolicy) = basalt::spec::DraftPolicy(S);
+    (*policy) = halo::spec::DraftPolicy(S);
+    (*bpolicy) = halo::spec::DraftPolicy(S);
     // a request after this reads its whole prompt
     ckd_finish();
     live.clear();
@@ -236,4 +236,4 @@ bool QfnRuntime::probe_adapt(const std::string& cmd, std::string& e) {
     return true;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

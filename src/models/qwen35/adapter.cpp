@@ -2,15 +2,15 @@
 // pack into the shared dense stack and hands out its sessions.
 #include "models/qwen35/adapter.hpp"
 
-#include "basalt/core/diag.hpp"
-#include "basalt/core/load_progress.hpp"
-#include "basalt/core/model_file.hpp"
-#include "basalt/model/flags.hpp"
-#include "basalt/model/rope_flags.hpp"
-#include "basalt/program/options.hpp"
-#include "basalt/log.hpp"
-#include "basalt/platform/file.hpp"
-#include "basalt/program/qwen_forms.hpp"
+#include "halo/core/diag.hpp"
+#include "halo/core/load_progress.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/model/flags.hpp"
+#include "halo/model/rope_flags.hpp"
+#include "halo/program/options.hpp"
+#include "halo/log.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/program/qwen_forms.hpp"
 #include "models/qwen35/meta.hpp"
 
 #include <cuda_runtime.h>
@@ -20,7 +20,7 @@
 #include <map>
 #include <optional>
 
-namespace basalt::models::qwen35 {
+namespace halo::models::qwen35 {
 namespace {
 
 // the pack's DFlash 2 block drafter's shape (qwen35.dflash.* metadata)
@@ -114,7 +114,7 @@ public:
         // the rope scaling of the run (rope_flags.hpp): the model's own base and trained context, the pack's keys, the flags
         g.rope.scaling.freq_base = g.rope.theta;
         g.rope.scaling.orig_ctx = (double) (g.context_length > 0 ? g.context_length : 262144);
-        if (!model::resolve_rope_scaling(req.rope, model::rope_keys(gg, "qwen35"), req.max_context, "basalt qwen35", g.rope.scaling,
+        if (!model::resolve_rope_scaling(req.rope, model::rope_keys(gg, "qwen35"), req.max_context, "halo qwen35", g.rope.scaling,
                                          err)) {
             err = "qwen35: " + err;
             return false;
@@ -199,7 +199,7 @@ public:
         progress_ = nullptr;
         size_t free_b = 0, total_b = 0;
         cudaMemGetInfo(&free_b, &total_b);
-        basalt::log::info("basalt qwen35", "%zu tensors, %.2f GiB on the GPU, %.2f GiB of embedding in page-locked RAM; "
+        halo::log::info("halo qwen35", "%zu tensors, %.2f GiB on the GPU, %.2f GiB of embedding in page-locked RAM; "
                           "%.2f GiB free", n_tensors_, (double) dev_bytes_ / 1073741824.0, (double) tensor_payload_bytes(*te) / 1073741824.0,
                           (double) free_b / 1073741824.0);
         o.host_embedding_bytes = tensor_payload_bytes(*te);
@@ -215,7 +215,7 @@ public:
                                 (uint64_t) o.sessions * dense::session_bytes(g, o.max_context, o.drafter == dense::Drafter::Mtp, o.kv_int8,
                                                                              o.kv_resident);
         if (const uint64_t host_b = dense::session_host_bytes(g, o.max_context, o.kv_int8, o.kv_resident))
-            basalt::log::info("basalt qwen35", "K/V streaming: %lld of %lld cells per attention layer in VRAM, %.2f GiB in page-locked "
+            halo::log::info("halo qwen35", "K/V streaming: %lld of %lld cells per attention layer in VRAM, %.2f GiB in page-locked "
                               "RAM per slot", (long long) dense::resident_cells(o.max_context, o.kv_resident), (long long) o.max_context,
                               (double) host_b / 1073741824.0);
         const uint64_t reserve = (uint64_t) std::max(req.vram_reserve_mib, 0) << 20;
@@ -479,7 +479,7 @@ public:
         else if (a == "--kv") o.kv = args.next("--kv");
         else if (a == "--kv-resident") o.kv_resident = std::atoll(args.next("--kv-resident"));
         else if (a == "--suffix-draft") o.suffix_draft = std::max(0, std::atoi(args.next("--suffix-draft")));
-        else if (a == "--draft-log") basalt::core::diagnostics().draft_log = args.next("--draft-log");
+        else if (a == "--draft-log") halo::core::diagnostics().draft_log = args.next("--draft-log");
         else return false;
         return true;
     }
@@ -492,22 +492,22 @@ public:
 
     std::optional<int> finish_flags(program::CommonOptions& o) const override {
         if (!o.kv.empty() && o.kv != "fp16" && o.kv != "int8") {
-            basalt::log::error("basalt qwen35", "--kv %s: fp16 (the default) or int8", o.kv.c_str());
+            halo::log::error("halo qwen35", "--kv %s: fp16 (the default) or int8", o.kv.c_str());
             return 2;
         }
-        if (const auto code = model::check_rope_flags(o.rope, "basalt qwen35")) return code;
+        if (const auto code = model::check_rope_flags(o.rope, "halo qwen35")) return code;
         if (o.kv_resident < 0) {
-            basalt::log::error("basalt qwen35", "--kv-resident %lld: cells per attention layer kept in VRAM, or 0 (all)",
+            halo::log::error("halo qwen35", "--kv-resident %lld: cells per attention layer kept in VRAM, or 0 (all)",
                                (long long) o.kv_resident);
             return 2;
         }
         if (o.spec_given && (o.spec < 0 || o.spec > 16)) {
-            basalt::log::error("basalt qwen35", "--spec %d: 0 (off) to 16", o.spec);
+            halo::log::error("halo qwen35", "--spec %d: 0 (off) to 16", o.spec);
             return 2;
         }
         if (!o.spec_given) o.spec = has_drafter(o.model) ? kDefaultSpec : 0;
         if (o.spec >= 2 && !has_drafter(o.model)) {
-            basalt::log::warn("basalt qwen35", "--spec %d off: the pack has no drafter layer", o.spec);
+            halo::log::warn("halo qwen35", "--spec %d off: the pack has no drafter layer", o.spec);
             o.spec = 0;
         }
         return std::nullopt;
@@ -529,4 +529,4 @@ private:
 
 std::unique_ptr<model::ModelAdapter> make_adapter() { return std::make_unique<Adapter>(); }
 
-}  // namespace basalt::models::qwen35
+}  // namespace halo::models::qwen35

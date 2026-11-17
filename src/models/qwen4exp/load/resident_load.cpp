@@ -1,7 +1,7 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "context.hpp"
 
-namespace basalt::models::qwen4exp::generate {
+namespace halo::models::qwen4exp::generate {
 
 int resident_load(Context& context) {
     auto& o = *context.o;
@@ -33,7 +33,7 @@ int resident_load(Context& context) {
     // share-of-pinned figure above (which sizes the prompt path) is left as the mmap mode's for the same reason.
     if (o.resident_cpu_experts) {
         // the RAM copy is sized from the available RAM: without a reading the experts would silently stay in the file
-        if (basalt::platform::HostMemory hm; !basalt::platform::host_available_memory(hm))
+        if (halo::platform::HostMemory hm; !halo::platform::host_available_memory(hm))
             return fatal_start_error(
                 "cannot determine the available RAM (no MemAvailable in /proc/meminfo, or a malformed cgroup memory "
                 "limit or memory.stat), which the resident RAM mode (--resident-experts) sizes its copy of the "
@@ -41,13 +41,13 @@ int resident_load(Context& context) {
         if (adapt_fast_on) src.set_spares(o.adapt_swaps * kSatBoost);
         // the copy leaves the reserve free (or the legacy headroom, when larger), and the driver's tracking of the
         // buffers whose RAM is held for them
-        const uint64_t reserve = basalt::core::plan_reserve(basalt::platform::ram_reserve());
+        const uint64_t reserve = halo::core::plan_reserve(halo::platform::ram_reserve());
         uint64_t resident_headroom =
-            std::max(o.resident_headroom, reserve) + basalt::core::pin_tracking_bytes(basalt::core::host_plan_bytes());
+            std::max(o.resident_headroom, reserve) + halo::core::pin_tracking_bytes(halo::core::host_plan_bytes());
         // the adaptive swaps' exchange buffers, before the copy reads the free memory
         if (o.adapt_every > 0 && o.adapt_swaps > 0 && !adapt_fast_on &&
             !src.reserve_exchanges(std::min<int64_t>(o.adapt_swaps, 96), err)) {
-            basalt::log::error("basalt", "CPU expert residency: %s", err.c_str());
+            halo::log::error("halo", "CPU expert residency: %s", err.c_str());
             return 1;
         }
         // The experts no GPU tier holds, and the RAM there is for them: when the copy cannot hold them all, the rest
@@ -58,12 +58,12 @@ int resident_load(Context& context) {
         {
             const uint64_t gpu_held = std::min(expert_total_bytes, cache_fill_bytes);
             const uint64_t complement = expert_total_bytes - gpu_held;
-            basalt::platform::HostMemory hm;
-            const uint64_t avail = basalt::platform::host_available_memory(hm) ? hm.available : 0;
+            halo::platform::HostMemory hm;
+            const uint64_t avail = halo::platform::host_available_memory(hm) ? hm.available : 0;
             const uint64_t cache_keep =
-                basalt::core::file_cache_keep(avail, resident_headroom, o.resident_pin, complement, *context.file_cache);
+                halo::core::file_cache_keep(avail, resident_headroom, o.resident_pin, complement, *context.file_cache);
             resident_headroom += cache_keep;
-            const uint64_t room = basalt::core::ram_tier_room(avail, resident_headroom, o.resident_pin);
+            const uint64_t room = halo::core::ram_tier_room(avail, resident_headroom, o.resident_pin);
             const uint64_t copy =
                 std::min({o.resident_budget > 0 ? o.resident_budget : auto_resident_bytes, complement, room});
             const uint64_t file_bytes = complement - copy;
@@ -76,7 +76,7 @@ int resident_load(Context& context) {
                         "tracking; max " +
                         gib_text(room));
                 }
-                basalt::log::info("basalt generate", "RAM floor %.1f GiB (%.1f file cache) of %.1f GiB free, %.1f GiB "
+                halo::log::info("halo generate", "RAM floor %.1f GiB (%.1f file cache) of %.1f GiB free, %.1f GiB "
                                      "experts on SSD, RAM copy <= %.1f GiB", (double) (avail - room) / kGiB,
                                   (double) cache_keep / kGiB, (double) avail / kGiB, (double) file_bytes / kGiB,
                                   (double) (o.resident_budget > 0 ? std::min(o.resident_budget, room) : room) / kGiB);
@@ -92,9 +92,9 @@ int resident_load(Context& context) {
             // fallback reads, so the answers are unchanged.  Nothing pinned: the fallback below.
             whole_err = err;
             resident_ok = src.pin_cache_complement(xcache, err, o.resident_pin, gpu_only, -1, resident_headroom,
-                                                   basalt::core::FileExpertSource::kResidentWhatFits, &profile);
+                                                   halo::core::FileExpertSource::kResidentWhatFits, &profile);
             if (resident_ok) {
-                basalt::log::warn("basalt generate", "the whole complement does not fit in RAM (%s); the hottest %.2f GiB "
+                halo::log::warn("halo generate", "the whole complement does not fit in RAM (%s); the hottest %.2f GiB "
                                      "are kept in RAM", whole_err.c_str(), (double) src.resident_bytes() / 1073741824.0);
             }
             else
@@ -106,13 +106,13 @@ int resident_load(Context& context) {
             // cache that the refill passes through once, so two chunks' worth are funded; the read-time cap
             // (kMaxAutoChunk) bounds the chunk, so the ceiling stops there too.
             const int64_t allow = std::max<int64_t>(0, src.resident_lent_slots() - kv_tail_slots) +
-                                  (int64_t) (2 * basalt::platform::kPromptFileReadBytes / std::max<uint64_t>(1, basalt::kernels::cpu::expert_layout().max_blob));
+                                  (int64_t) (2 * halo::platform::kPromptFileReadBytes / std::max<uint64_t>(1, halo::kernels::cpu::expert_layout().max_blob));
             auto_ceiling = std::max<int64_t>(8192, engine_local::biggest_chunk(std::min<int64_t>(auto_ceiling, kMaxAutoChunk),
                                                                  [&](int64_t t) { return serve_loans::lend_slots(xcache, g, ss, t) <= allow; }));
         }
         if (resident_ok) {
-            if (o.serve) basalt::platform::watch_resident_ram(true, src.resident_bytes());
-            basalt::log::info("basalt generate", "resident RAM mode: %.2f GiB of experts in RAM (%s), %lld in the GPU "
+            if (o.serve) halo::platform::watch_resident_ram(true, src.resident_bytes());
+            halo::log::info("halo generate", "resident RAM mode: %.2f GiB of experts in RAM (%s), %lld in the GPU "
                                  "cache; adaptive swaps %s",
                          (double) src.resident_bytes() / 1073741824.0,
                          src.complement_pinned() ? "page-locked" : src.locked_bytes() > 0 ? "locked" : "pageable",
@@ -122,25 +122,25 @@ int resident_load(Context& context) {
             measure_pinned_share();   // the loans sized from here on see the pinned complement
             auto_lend_pct = lend_pct_for_share();
             if (o.prefill_auto)
-                basalt::log::info("basalt generate", "prompt path lends at most %lld%% of the cache (%.0f%% of the expert "
+                halo::log::info("halo generate", "prompt path lends at most %lld%% of the cache (%.0f%% of the expert "
                                      "bytes pinned)", (long long) auto_lend_pct,
-                             100.0 * basalt::prefill::Prefill::pinned_share());
+                             100.0 * halo::prefill::Prefill::pinned_share());
         } else if (o.resident_soft) {
-            basalt::log::warn("basalt generate", "the resident RAM mode does not fit (%s)", err.c_str());
+            halo::log::warn("halo generate", "the resident RAM mode does not fit (%s)", err.c_str());
         } else if (o.resident_budget > 0) {
             // a RAM budget that cannot be kept is not a reason to stop - the experts it would have held are read from
             // the files like the ones outside it (pin_cache_complement leaves nothing half-built)
-            basalt::log::warn("basalt generate", "the RAM budget (--resident-budget-gib) cannot be kept (%s)",
+            halo::log::warn("halo generate", "the RAM budget (--resident-budget-gib) cannot be kept (%s)",
                          err.c_str());
         } else {
-            basalt::log::error("basalt generate", "CPU expert residency: %s", err.c_str());
+            halo::log::error("halo generate", "CPU expert residency: %s", err.c_str());
             return 1;
         }
     }
     // experts no RAM tier holds (none was asked for, or the RAM is short) are read from the file when needed
     if (srcp == &src && !src.complement_ready() && expert_total_bytes > cache_fill_bytes) {
-        basalt::core::LoadProgress::skipped(expert_total_bytes - cache_fill_bytes);
-        basalt::core::LoadProgress::plan("ram", 0);
+        halo::core::LoadProgress::skipped(expert_total_bytes - cache_fill_bytes);
+        halo::core::LoadProgress::plan("ram", 0);
     }
     // the largest chunk a read alone takes now (the loan's chunk follows the slots left: see relend)
     auto read_cap = [&]() -> int64_t {

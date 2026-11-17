@@ -1,10 +1,10 @@
-// basalt/program/serve/loan_moves.cpp - see loan_moves.hpp.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+// halo/program/serve/loan_moves.cpp - see loan_moves.hpp.
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "loan_moves.hpp"
 
 #include <algorithm>
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 LoanSplit split_loan(const std::vector<LentEntry>& lent, int64_t first) {
     LoanSplit s;
@@ -47,4 +47,4 @@ void settle_trades(int32_t* table, int32_t n, const std::vector<IssuedTrade>& is
     }
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

@@ -2,7 +2,7 @@
 // product against a double reference on the same codes (a chunk whose rows are not a tile multiple), the Add epilogue,
 // each row the same whatever the chunk's length, and a segmented product against separate products.  --bench: TFLOP/s (random data) at the Qwen3.8-27B projection shapes,
 // 2048 rows, and the segmented products.  Exit 77 without a GPU.
-#include "basalt/prefill/fp8_gemm.hpp"
+#include "halo/prefill/fp8_gemm.hpp"
 
 #include <cuda_fp8.h>
 #include <cuda_runtime.h>
@@ -13,7 +13,7 @@
 #include <random>
 #include <vector>
 
-namespace fp8 = basalt::prefill::fp8;
+namespace fp8 = halo::prefill::fp8;
 
 namespace {
 float e4m3(uint8_t b) {

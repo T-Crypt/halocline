@@ -15,12 +15,12 @@
 // may change, the bits may not), on a fixture made from the raw generator output only, so it is the same on every
 // standard library. The AVX-512 quantizer must match to the bit and its Q2_0 rows to rounding, where the CPU has them. A token's rows must not depend on how many tokens share the call. `--print` prints the hashes,
 // `--bench` one row range per format on each build.
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/ggml/ggml.h"
-#include "basalt/kernels/cpu/expert.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/kernels/cpu/iq_avx2.hpp"
-#include "basalt/kernels/cpu/native_expert.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/ggml/ggml.h"
+#include "halo/kernels/cpu/expert.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/kernels/cpu/iq_avx2.hpp"
+#include "halo/kernels/cpu/native_expert.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 
-namespace cpu = basalt::kernels::cpu;
+namespace cpu = halo::kernels::cpu;
 
 namespace {
 

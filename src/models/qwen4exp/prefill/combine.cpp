@@ -1,9 +1,9 @@
 #include "experts.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/models/qwen4exp/prefill/kernels.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/models/qwen4exp/prefill/kernels.hpp"
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 bool Prefill::Run::Chunk::Experts::finish() {
@@ -20,4 +20,4 @@ bool Prefill::Run::Chunk::Experts::finish() {
     return true;
 }
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill

@@ -1,11 +1,11 @@
-// src/models/qwen4exp/kernels/cvec.cu - see include/basalt/models/qwen4exp/kernels/cvec.hpp.
-#include "basalt/models/qwen4exp/kernels/cvec.hpp"
+// src/models/qwen4exp/kernels/cvec.cu - see include/halo/models/qwen4exp/kernels/cvec.hpp.
+#include "halo/models/qwen4exp/kernels/cvec.hpp"
 
 #include <cuda_runtime.h>
 
 #include <stdexcept>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int THREADS = 256;
@@ -163,4 +163,4 @@ void cvec_apply(float* R, int64_t layer, int64_t T, int64_t r_ld, const float* b
     if (cudaPeekAtLastError() != cudaSuccess) throw std::runtime_error("cvec_apply: launch failed");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

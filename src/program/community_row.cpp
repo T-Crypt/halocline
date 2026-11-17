@@ -1,5 +1,5 @@
 // src/program/community_row.cpp - adds a community benchmark row to docs/community/benchmarks.json, or updates the row of the same setup.
-#include "basalt/program/community_row.hpp"
+#include "halo/program/community_row.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -7,9 +7,9 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
-namespace basalt::program {
+namespace halo::program {
 
 std::string json_quote(const std::string& s) {
     std::string o = "\"";
@@ -385,4 +385,4 @@ std::vector<std::string> split_gpu_ids(const std::string& csv) {
     return out;
 }
 
-}  // namespace basalt::program
+}  // namespace halo::program

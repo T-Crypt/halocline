@@ -1,14 +1,14 @@
-// src/vision/mmproj.cpp - see basalt/vision/mmproj.hpp.
-#include "basalt/vision/mmproj.hpp"
+// src/vision/mmproj.cpp - see halo/vision/mmproj.hpp.
+#include "halo/vision/mmproj.hpp"
 
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/memory.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/memory.hpp"
 
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
 
-namespace basalt::vision {
+namespace halo::vision {
 
 namespace {
 
@@ -84,7 +84,7 @@ Value read_value(Cursor& c, uint32_t t) {
 }  // namespace
 
 void Mmproj::release() {
-    if (map_ && !mapped_) basalt::platform::free_aligned(map_);
+    if (map_ && !mapped_) halo::platform::free_aligned(map_);
     mapping_.reset();
     mapped_ = false;
     map_ = nullptr;
@@ -106,17 +106,17 @@ bool Mmproj::open(const core::FileRange& range, std::string& err, const char* pr
         constexpr size_t kAlign = 4096, kChunk = 16u << 20;
         const int dfd = platform::open_unbuffered(path);
         void* mem = nullptr;
-        if (dfd >= 0 && offset % kAlign == 0) mem = basalt::platform::alloc_aligned((size_t) ((size_ + kAlign - 1) / kAlign * kAlign), kAlign);
+        if (dfd >= 0 && offset % kAlign == 0) mem = halo::platform::alloc_aligned((size_t) ((size_ + kAlign - 1) / kAlign * kAlign), kAlign);
         if (mem != nullptr) {
             size_t got = 0;
             while (got < size_) {
                 const size_t want = std::min<size_t>(kChunk, (size_ - got + kAlign - 1) / kAlign * kAlign);
-                const int64_t r = basalt::platform::pread(dfd, (uint8_t*) mem + got, want, offset + got);
+                const int64_t r = halo::platform::pread(dfd, (uint8_t*) mem + got, want, offset + got);
                 if (r <= 0) break;
                 got += (size_t) r;
             }
             if (got >= size_) { map_ = mem; mapped_ = false; }
-            else basalt::platform::free_aligned(mem);
+            else halo::platform::free_aligned(mem);
         }
         if (dfd >= 0) platform::close_fd(dfd);
     }
@@ -225,4 +225,4 @@ const TensorRef* Mmproj::need(const std::string& name, uint32_t type, int64_t el
     return t;
 }
 
-}  // namespace basalt::vision
+}  // namespace halo::vision

@@ -1,19 +1,19 @@
 #include "common.hpp"
 #include "record.hpp"
 #include "expert_plan.hpp"
-#include "basalt/models/qwen4exp/decode/verify.hpp"
-#include "basalt/kernels/gdn_window.hpp"
-#include "basalt/models/qwen4exp/kernels/dense_tc.hpp"
-#include "basalt/models/qwen4exp/kernels/mid_chain.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/kernels/pdl.hpp"
-#include "basalt/models/qwen4exp/kernels/verify_kernels.hpp"
+#include "halo/models/qwen4exp/decode/verify.hpp"
+#include "halo/kernels/gdn_window.hpp"
+#include "halo/models/qwen4exp/kernels/dense_tc.hpp"
+#include "halo/models/qwen4exp/kernels/mid_chain.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/kernels/pdl.hpp"
+#include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 using namespace verify_detail;
 
 bool Verifier::WindowRecorder::gdn(int64_t l, const LayerView& v, bool read_q8) {
-    using namespace basalt::kernels;
+    using namespace halo::kernels;
     const int n = T;
     float* xm = v_.mixed_;
     // ======================= GDN =======================
@@ -193,4 +193,4 @@ bool Verifier::WindowRecorder::gdn(int64_t l, const LayerView& v, bool read_q8) 
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

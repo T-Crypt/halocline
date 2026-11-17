@@ -1,6 +1,9 @@
 # Qwen3.8-27B
 
-A dense model. Runs with the same command as any model: `basalt serve PACK`. What it supports next to the others: [models](index.md). Rounding and quality: [precision](../precision/qwen38-27b.md).
+> [!WARNING]
+> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
+
+A dense model. Runs with the same command as any model: `halo serve PACK`. What it supports next to the others: [models](index.md). Rounding and quality: [precision](../precision/qwen38-27b.md).
 
 ## Pack
 
@@ -23,7 +26,7 @@ same command; how each compares against BF16: [precision](../precision/qwen38-27
 ## Architecture
 
 The `qwen35` architecture (Qwen3.5, 3.6 and 3.8 dense): 64 layers, 3 gated delta-net layers to 1 gated attention layer, a dense
-SwiGLU FFN in each, interleaved M-RoPE for pictures. It runs on Basalt's shared dense stack (`src/dense`), which reads every
+SwiGLU FFN in each, interleaved M-RoPE for pictures. It runs on Halocline's shared dense stack (`src/dense`), which reads every
 width from the pack; the GDN and attention kernels are shared with Flash-Next.
 
 ## Memory
@@ -138,7 +141,7 @@ for Flash-Next ([video](../running.md#video)); frames decode on the CPU.
 
 ## Speed
 
-`basalt-bench` on an RTX 5090 at 400 W, `--kv fp16` unless stated, the pack with the block drafter, cold first runs (one card except the last three rows):
+`halo-bench` on an RTX 5090 at 400 W, `--kv fp16` unless stated, the pack with the block drafter, cold first runs (one card except the last three rows):
 
 | | Result |
 | --- | --- |

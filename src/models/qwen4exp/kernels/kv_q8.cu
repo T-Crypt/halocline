@@ -1,27 +1,27 @@
-// src/models/qwen4exp/kernels/kv_q8.cu - see include/basalt/models/qwen4exp/kernels/kv_q8.hpp.
-#include "basalt/models/qwen4exp/kernels/kv_q8.hpp"
-#include "basalt/kernels/f16_bits.hpp"
+// src/models/qwen4exp/kernels/kv_q8.cu - see include/halo/models/qwen4exp/kernels/kv_q8.hpp.
+#include "halo/models/qwen4exp/kernels/kv_q8.hpp"
+#include "halo/kernels/f16_bits.hpp"
 
 #include <cuda_runtime.h>
 
 #include <cstdio>
 #include <cstdlib>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 void check(const char* what) {
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "kv_q8: %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "kv_q8: %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
 void validate(const QsaShapes& s, const char* what) {
     if (s.head_dim % KV_Q8_GROUP != 0 || s.n_head_kv <= 0 || s.page_size <= 0) {
-        basalt::log::error("basalt", "kv_q8: %s: head_dim %lld must be a multiple of %d", what, (long long) s.head_dim,
+        halo::log::error("halo", "kv_q8: %s: head_dim %lld must be a multiple of %d", what, (long long) s.head_dim,
                      KV_Q8_GROUP);
         std::exit(1);
     }
@@ -125,4 +125,4 @@ void kv_gather_q8_step(const int8_t* k_q, const int8_t* v_q, const uint16_t* k_s
     check("kv_gather_q8 launch");
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

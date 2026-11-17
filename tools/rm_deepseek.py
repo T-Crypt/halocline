@@ -20,7 +20,7 @@ files = subprocess.run(['git','-C',str(R),'ls-files'],capture_output=True,text=T
 gone = [f for f in files if f and re.search(r'deepseek41|ds41|dspark', f, re.I)]
 for f in gone: (R/f).unlink()
 print('deleted files:', len(gone))
-print('CMakeLists blocks cut:', cmake_strip('CMakeLists.txt','BASALT_MODEL_DEEPSEEK41'))
+print('CMakeLists blocks cut:', cmake_strip('CMakeLists.txt','HALO_MODEL_DEEPSEEK41'))
 m=(R/'cmake/models.cmake').read_text(); (R/'cmake/models.cmake').write_text(m.replace('qwen4exp deepseek41 qwen35','qwen4exp qwen35'))
 s=(R/'serve/models/__init__.py').read_text()
 s=re.sub(r'\n    if arch == "deepseek41":\n        from serve\.models\.deepseek41 import DeepSeek41\n        return DeepSeek41\(\)','',s)

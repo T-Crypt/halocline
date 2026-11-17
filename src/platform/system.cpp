@@ -1,8 +1,8 @@
-// src/platform/system.cpp - see include/basalt/platform/system.hpp.
-#include "basalt/platform/system.hpp"
+// src/platform/system.cpp - see include/halo/platform/system.hpp.
+#include "halo/platform/system.hpp"
 
-#include "basalt/platform/file.hpp"
-#include "basalt/platform/process.hpp"
+#include "halo/platform/file.hpp"
+#include "halo/platform/process.hpp"
 
 #include <cctype>
 #include <cstdio>
@@ -16,7 +16,7 @@
 #include <sys/sysmacros.h>
 #include <unistd.h>
 
-namespace basalt::platform {
+namespace halo::platform {
 
 namespace {
 /// An argument for a shell's command line: wrapped in quotes the shell reads literally.
@@ -148,4 +148,4 @@ ThreadWaits threads_in_disk_wait() {
 }
 
 
-}  // namespace basalt::platform
+}  // namespace halo::platform

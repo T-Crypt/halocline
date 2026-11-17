@@ -1,4 +1,4 @@
-// src/kernels/cuda/hc_read_ada.cu - see include/basalt/kernels/hc_read_ada.hpp.
+// src/kernels/cuda/hc_read_ada.cu - see include/halo/kernels/hc_read_ada.hpp.
 //
 // One persistent kernel, one CTA of 512 threads per SM, with hc8_gr.cu's arithmetic and reduction tree.  hc8_down's block
 // is five warps, a warp's lanes take the scale groups g and g + 160, and its butterfly merges lanes by their high bits
@@ -14,17 +14,17 @@
 // warp per output column, then the epilogues, a lane per (column, token), from shared memory.
 //
 // The kernel needs every CTA resident.  Built without fast math, like hc8_gr.cu.
-#include "basalt/models/qwen4exp/kernels/hc_fused.hpp"
-#include "basalt/models/qwen4exp/kernels/hc_read_ada.hpp"
-#include "basalt/kernels/wait_abort.hpp"
-#include "basalt/log.hpp"
+#include "halo/models/qwen4exp/kernels/hc_fused.hpp"
+#include "halo/models/qwen4exp/kernels/hc_read_ada.hpp"
+#include "halo/kernels/wait_abort.hpp"
+#include "halo/log.hpp"
 
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #include <cstdlib>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int N = 2560, HC = 4, D = N * HC, LR = 320, G8 = 32;
@@ -615,10 +615,10 @@ void hc_read_ada_init() {
     d.ok = ok && cudaGetLastError() == cudaSuccess;
     d.ctas = sms;
     if (!d.ok) {
-        basalt::log::error("basalt", "hc_read_ada: FATAL: kernel initialisation failed (%s)", cudaGetErrorString(cudaGetLastError()));
+        halo::log::error("halo", "hc_read_ada: FATAL: kernel initialisation failed (%s)", cudaGetErrorString(cudaGetLastError()));
         std::exit(1);
     }
-    basalt::log::info("basalt", "hc read: sm_89 kernel, %d CTAs of %d threads", d.ctas, kThreads);
+    halo::log::info("halo", "hc read: sm_89 kernel, %d CTAs of %d threads", d.ctas, kThreads);
 }
 
 int hc_read_ada_occupancy(int n_tok, int* smem_bytes) {
@@ -650,7 +650,7 @@ bool hc_read_ada_supported(const FusedGrArgs* a, int n_tok) {
 void hc_read_ada(const FusedGrArgs* a, int n_tok, void* stream) {
     AdaDev& d = ada_dev();
     if (!hc_read_ada_supported(a, n_tok)) {
-        basalt::log::error("basalt", "hc_read_ada: unsupported arguments or device");
+        halo::log::error("halo", "hc_read_ada: unsupported arguments or device");
         std::exit(1);
     }
     Hc8View vd, vu, vi;
@@ -681,9 +681,9 @@ void hc_read_ada(const FusedGrArgs* a, int n_tok, void* stream) {
     ada_kernel(n_tok)<<<g, kThreads, (size_t) ada_smem(n_tok, g), (cudaStream_t) stream>>>(p);
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "hc_read_ada: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "hc_read_ada: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

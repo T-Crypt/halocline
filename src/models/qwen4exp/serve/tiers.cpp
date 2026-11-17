@@ -1,8 +1,8 @@
 // src/models/qwen4exp/serve/tiers.cpp - tiers operations for the persistent engine.
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "qfn_state.hpp"
 
-namespace basalt::models::qwen4exp::serve {
+namespace halo::models::qwen4exp::serve {
 
 // Seeds the adaptive tier's usage counts from the routing of the prompt just read, so the first adaptation rounds
 // of a request already move the experts the new topic uses toward the GPUs.  The earlier usage decays to kSeedKeep and
@@ -34,7 +34,7 @@ void seed_usage_from_prompt(std::vector<float>& usage, const std::vector<uint32_
 // no free place waits for a later round.  `released` gets the (layer, in) pairs whose places are free once the incoming
 // experts are resident on the GPU.
 template <class Swap, class CopyBack, class Wait>
-bool resident_spare_swaps(basalt::core::FileExpertSource& src, const std::vector<int32_t>& host_res, int64_t n_expert,
+bool resident_spare_swaps(halo::core::FileExpertSource& src, const std::vector<int32_t>& host_res, int64_t n_expert,
                           std::vector<Swap>& swaps, CopyBack&& copy_back, Wait&& wait,
                           std::vector<std::pair<int32_t, int32_t>>& released) {
     if (!src.complement_ready() || swaps.empty()) return true;
@@ -187,7 +187,7 @@ bool QfnRuntime::adapt() {
     bool staged = false;   // the adapt stream holds copies back
     const auto copy_back = [&](int32_t layer, int32_t slot, uint8_t* dst) -> bool {
         staged = true;
-        return cudaMemcpyAsync(dst, xcache.device_slot(slot), (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(layer),
+        return cudaMemcpyAsync(dst, xcache.device_slot(slot), (size_t) halo::kernels::cpu::expert_layout().blob_bytes(layer),
                                cudaMemcpyDeviceToHost, adapt_stream) == cudaSuccess;
     };
     const auto wait_copies = [&]() -> bool {
@@ -200,14 +200,14 @@ bool QfnRuntime::adapt() {
         const int32_t slot = host_res[out];
         const uint8_t* b = srcp->blob(s.layer, s.in);
         if (slot < 0 || b == nullptr ||
-            cudaMemcpyAsync(xcache.device_slot(slot), b, (size_t) basalt::kernels::cpu::expert_layout().blob_bytes(s.layer),
+            cudaMemcpyAsync(xcache.device_slot(slot), b, (size_t) halo::kernels::cpu::expert_layout().blob_bytes(s.layer),
                             cudaMemcpyHostToDevice, adapt_stream) != cudaSuccess) {
-            basalt::log::error("basalt serve", "adaptive swap copy failed (layer %d, slot %d): %s",
+            halo::log::error("halo serve", "adaptive swap copy failed (layer %d, slot %d): %s",
                          (int) s.layer, (int) slot, cudaGetErrorString(cudaGetLastError()));
             return false;
         }
         main_live = true;
-        host_res[out] = basalt::core::kNotResident;   // evicted now: the CPU computes it meanwhile
+        host_res[out] = halo::core::kNotResident;   // evicted now: the CPU computes it meanwhile
         srcp->prefetch(s.layer, s.out);   // a file-backed arena released its pages: read them back ahead
         pending.emplace_back((int32_t) in, slot);      // resident once the copy has landed
     }
@@ -245,7 +245,7 @@ bool QfnRuntime::xq_round(std::vector<Swap>* ranked) {
     if (xq_across && swaps.size() < base) rank_once(swaps, std::min(base - swaps.size(), kOnceSwaps));
     xq.clear();
     size_t n_noplace = 0;
-    const auto& lay = basalt::kernels::cpu::expert_layout();
+    const auto& lay = halo::kernels::cpu::expert_layout();
     auto plan = [&](const Swap& s) -> bool {
         const int32_t slot = host_res[(size_t) s.lout * g.n_expert + s.out];
         if (slot < 0) return true;
@@ -257,7 +257,7 @@ bool QfnRuntime::xq_round(std::vector<Swap>* ranked) {
             if (dst == nullptr) { ++n_noplace; return true; }   // no free place: a later round
             if (cudaMemcpyAsync(dst, xcache.device_slot(slot), (size_t) lay.blob_bytes(s.lout),
                                 cudaMemcpyDeviceToHost, adapt_stream) != cudaSuccess) {
-                basalt::log::error("basalt serve", "an eviction copy failed (layer %d, slot %d): %s",
+                halo::log::error("halo serve", "an eviction copy failed (layer %d, slot %d): %s",
                              (int) s.lout, (int) slot, cudaGetErrorString(cudaGetLastError()));
                 return false;
             }
@@ -290,15 +290,15 @@ bool QfnRuntime::xq_advance(bool wait) {
     if (xq_stage == 1) {
         for (const XSwap& x : xq) {
             if (x.xchg && !src.spare_land(x.lout, x.out, x.off)) {
-                basalt::log::error("basalt serve", "an evicted expert has no RAM place (layer %d, expert %d)",
+                halo::log::error("halo serve", "an evicted expert has no RAM place (layer %d, expert %d)",
                              (int) x.lout, (int) x.out);
                 return false;
             }
-            host_res[(size_t) x.lout * g.n_expert + x.out] = basalt::core::kNotResident;
+            host_res[(size_t) x.lout * g.n_expert + x.out] = halo::core::kNotResident;
         }
         {   // the residency uploads go ahead of the incoming copies in the copy queue
             std::string perr;
-            if (!ver.dm_presync(perr)) basalt::log::warn("basalt serve", "%s", perr.c_str());
+            if (!ver.dm_presync(perr)) halo::log::warn("halo serve", "%s", perr.c_str());
             res_upload();
             ver.dm_fence(adapt_stream);
         }
@@ -314,14 +314,14 @@ bool QfnRuntime::xq_advance(bool wait) {
             w[g.n_layers] = xq_no;
             if (cudaMemcpyAsync(ver.landed_words(), w, (size_t) g.n_layers * 4, cudaMemcpyHostToDevice, adapt_stream) !=
                 cudaSuccess) {
-                basalt::log::error("basalt serve", "the landed words' copy failed: %s", cudaGetErrorString(cudaGetLastError()));
+                halo::log::error("halo serve", "the landed words' copy failed: %s", cudaGetErrorString(cudaGetLastError()));
                 return false;
             }
             pw = w;
         }
         if (deferred) {   // the RAM copies are queued once the next window is launched, and run beside it
             auto copies = [&, pw] {
-                const auto& lay2 = basalt::kernels::cpu::expert_layout();
+                const auto& lay2 = halo::kernels::cpu::expert_layout();
                 std::vector<uint32_t> ord;   // layer order: a layer's word goes up right after its own copies
                 for (uint32_t i = 0; i < (uint32_t) xq.size(); ++i) ord.push_back(i);
                 std::stable_sort(ord.begin(), ord.end(), [&](uint32_t a, uint32_t b) { return xq[a].layer < xq[b].layer; });
@@ -330,12 +330,12 @@ bool QfnRuntime::xq_advance(bool wait) {
                     const uint8_t* b = srcp->blob(x.layer, x.in);
                     if (b == nullptr || cudaMemcpyAsync(xcache.device_slot(x.slot), b, (size_t) lay2.blob_bytes(x.layer),
                                                         cudaMemcpyHostToDevice, adapt_stream) != cudaSuccess)
-                        basalt::log::warn("basalt serve", "adaptive swap copy failed (layer %d, slot %d): %s",
+                        halo::log::warn("halo serve", "adaptive swap copy failed (layer %d, slot %d): %s",
                                      (int) x.layer, (int) x.slot, cudaGetErrorString(cudaGetLastError()));
                     if (pw != nullptr && (k + 1 == ord.size() || xq[ord[k + 1]].layer != x.layer) &&
                         cudaMemcpyAsync(ver.landed_words() + x.layer, pw + g.n_layers, 4, cudaMemcpyHostToDevice,
                                         adapt_stream) != cudaSuccess)
-                        basalt::log::warn("basalt serve", "the landed word's copy failed (layer %d): %s", (int) x.layer,
+                        halo::log::warn("halo serve", "the landed word's copy failed (layer %d): %s", (int) x.layer,
                                      cudaGetErrorString(cudaGetLastError()));
                 }
                 cudaEventRecord(adapt_ev, adapt_stream);
@@ -363,7 +363,7 @@ bool QfnRuntime::xq_advance(bool wait) {
     if (nowait) {
         std::string perr;
         if (!ver.landed_need(xq_no, perr)) {
-            basalt::log::error("basalt serve", "%s", perr.c_str());
+            halo::log::error("halo serve", "%s", perr.c_str());
             return false;
         }
         xq_unsettled = true;
@@ -390,7 +390,7 @@ int QfnRuntime::init_tiers() {
 
     if (!o.expert_profile_save.empty() && !all_experts_resident) {
         if (drive.d.usage.empty() || host_res.empty())
-            basalt::log::warn("basalt serve", "--expert-profile-save needs the adaptive tier (--adapt-every and "
+            halo::log::warn("halo serve", "--expert-profile-save needs the adaptive tier (--adapt-every and "
                                  "--adapt-swaps above 0) and an expert profile: nothing will be saved");
         else
             heat.assign(drive.d.usage.size(), 0.0);
@@ -398,7 +398,7 @@ int QfnRuntime::init_tiers() {
     profile_saved_at = Clock::now();
     adapt_stream = nullptr;
     if (cudaStreamCreateWithFlags(&adapt_stream, cudaStreamNonBlocking) != cudaSuccess) {
-        basalt::log::error("basalt serve", "cannot create the refill stream");
+        halo::log::error("halo serve", "cannot create the refill stream");
         return 1;
     }
 
@@ -429,7 +429,7 @@ int QfnRuntime::init_tiers() {
     // the rounds rank over all layers when every layer's blobs are one size (a slot then takes any layer's expert)
     xq_across = true;
     for (int64_t l = 1; xq_across && l < g.n_layers; ++l)
-        xq_across = basalt::kernels::cpu::expert_layout().blob_bytes(l) == basalt::kernels::cpu::expert_layout().blob_bytes(0);
+        xq_across = halo::kernels::cpu::expert_layout().blob_bytes(l) == halo::kernels::cpu::expert_layout().blob_bytes(0);
 
     xq_stage = 0;   // 0 idle, 1 evictions copying to RAM, 2 incoming experts copying to their slots
     xq_saturated = false;   // the last round had at least kSatRatio times --adapt-swaps misses to swap
@@ -451,4 +451,4 @@ int QfnRuntime::init_tiers() {
     return 0;
 }
 
-}  // namespace basalt::models::qwen4exp::serve
+}  // namespace halo::models::qwen4exp::serve

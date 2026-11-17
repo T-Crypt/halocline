@@ -1,6 +1,6 @@
 // src/program/grammar/grammar.cpp - see grammar.hpp. The GBNF parser, the pushdown stacks (interned, with memoized
 // closure and character steps) and the vocabulary trie walk.
-#include "basalt/program/grammar/grammar.hpp"
+#include "halo/program/grammar/grammar.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <unordered_set>
 
-namespace basalt::program::grammar {
+namespace halo::program::grammar {
 
 namespace {
 
@@ -971,4 +971,4 @@ std::vector<std::vector<Element>> GrammarState::stack_elements() const {
     return out;
 }
 
-}  // namespace basalt::program::grammar
+}  // namespace halo::program::grammar

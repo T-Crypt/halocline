@@ -1,9 +1,9 @@
 // src/models/qwen4exp/decode/layout.cpp - the shape checks.  See the header for why this exists.
-#include "basalt/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
 
 #include <cstdio>
 
-namespace basalt::core {
+namespace halo::core {
 namespace {
 
 /// A required 2-D shape.  `ne0` is the CONTIGUOUS axis, matching the manifest and `s_gemv`'s convention
@@ -170,4 +170,4 @@ bool check_all(const WeightTable& table, const ModelGeometry& g, std::string& er
     return true;
 }
 
-}  // namespace basalt::core
+}  // namespace halo::core

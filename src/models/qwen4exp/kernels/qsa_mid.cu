@@ -1,16 +1,16 @@
-// src/models/qwen4exp/kernels/qsa_mid.cu - see include/basalt/models/qwen4exp/kernels/qsa_mid.hpp.
+// src/models/qwen4exp/kernels/qsa_mid.cu - see include/halo/models/qwen4exp/kernels/qsa_mid.hpp.
 //
 // Its own translation unit: dense_tc.cu's device code without its host side.  Built WITHOUT fast math, like it.
 #define FZ_DEV_ONLY
 #include "dense_tc.cu"
-#include "basalt/models/qwen4exp/kernels/qsa_mid.hpp"
+#include "halo/models/qwen4exp/kernels/qsa_mid.hpp"
 #include "smem_opt_in.cuh"
 
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
@@ -199,7 +199,7 @@ void qsa_qproj_half(int type, const void* w, const void* x, float* y, int n_in, 
                     int blocks, void* stream) {
     if (!qsa_qproj_half_supported(type, w, n_in, n_out) || ncols < 1 || ncols > kMaxCols || (half != 0 && half != 1) ||
         ((uintptr_t) x & 3) != 0) {
-        basalt::log::error("basalt", "qsa_qproj_half: type %d n_in %d n_out %d ncols %d not supported", type, n_in, n_out,
+        halo::log::error("halo", "qsa_qproj_half: type %d n_in %d n_out %d ncols %d not supported", type, n_in, n_out,
                            ncols);
         std::exit(1);
     }
@@ -215,9 +215,9 @@ void qsa_qproj_half(int type, const void* w, const void* x, float* y, int n_in, 
     }
     const cudaError_t e = cudaGetLastError();
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "qsa_qproj_half: %s", cudaGetErrorString(e));
+        halo::log::error("halo", "qsa_qproj_half: %s", cudaGetErrorString(e));
         std::exit(1);
     }
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

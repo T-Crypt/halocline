@@ -1,8 +1,8 @@
 // tests/platform/memory_test.cpp - lock_resident on 256 MiB (or what the locked-memory limit allows), the RAM floor, the
 // file cache decisions and the read-ahead hint on a mapped file view (CPU only, no GPU, no model; one temp file).
-#include "basalt/platform/memory.hpp"
+#include "halo/platform/memory.hpp"
 
-#include "basalt/platform/file.hpp"
+#include "halo/platform/file.hpp"
 
 #include <chrono>
 #include <cstdio>
@@ -25,7 +25,7 @@ uint64_t gib(double g) { return (uint64_t) (g * 1073741824.0); }
 
 // The file tier's unbuffered choice (true = the file cache keeps its reads, so they stay buffered)
 int file_cache_keeps_cases() {
-    using basalt::platform::file_cache_keeps;
+    using halo::platform::file_cache_keeps;
     struct Case { const char* what; double avail, arena, read; bool keeps; };
     const double experts = 71.7;   // routed experts of a large model
     const Case cases[] = {
@@ -56,7 +56,7 @@ int file_cache_keeps_cases() {
 }
 // The reserve and the serve guard's decision, on injected MemAvailable readings
 int ram_reserve_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     auto check = [&](const char* what, double got, double want) {
         const bool ok = got > want - 0.01 && got < want + 0.01;
@@ -87,7 +87,7 @@ int ram_reserve_cases() {
 // is not what the seam promises, so what is checked is that every range shape returns without faulting and that the
 // mapping's bytes stay exactly as written.
 int read_ahead_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const bool on = read_ahead_enabled();
     std::printf("read-ahead %-58s -> %s%s\n", "read_ahead_enabled (both platforms)", on ? "on" : "off",
@@ -97,7 +97,7 @@ int read_ahead_cases() {
     const uint64_t bytes = 256ull << 10;   // spans more than one 128 KiB hint window
     std::vector<uint8_t> pattern(bytes);
     for (uint64_t i = 0; i < bytes; ++i) pattern[i] = (uint8_t) (i * 13u + (i >> 8) * 7u);
-    const std::string path = (std::filesystem::temp_directory_path() / "basalt_memory_test_view.bin").string();
+    const std::string path = (std::filesystem::temp_directory_path() / "halo_memory_test_view.bin").string();
     {
         std::ofstream f(path, std::ios::binary);
         f.write((const char*) pattern.data(), (std::streamsize) bytes);
@@ -151,12 +151,12 @@ int read_ahead_cases() {
 // drop_mapped_view on a real mapped view: ranges of every shape return, bad ranges are refused, and the bytes read
 // back as written after the pages were given up (they are re-read from the file when touched again).
 int drop_view_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const uint64_t bytes = 1ull << 20;
     std::vector<uint8_t> pattern(bytes);
     for (uint64_t i = 0; i < bytes; ++i) pattern[i] = (uint8_t) (i * 31u + (i >> 9) * 5u);
-    const std::string path = (std::filesystem::temp_directory_path() / "basalt_memory_test_drop.bin").string();
+    const std::string path = (std::filesystem::temp_directory_path() / "halo_memory_test_drop.bin").string();
     {
         std::ofstream f(path, std::ios::binary);
         f.write((const char*) pattern.data(), (std::streamsize) bytes);
@@ -208,12 +208,12 @@ int drop_view_cases() {
 // pages back (Windows; Linux leaves them to MemAvailable) and they read back as written; once the view is withdrawn
 // the guard leaves it alone. The floor is left at 0 afterwards, so the guard thread never reads low again.
 int guard_reclaim_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const uint64_t bytes = 64ull << 20;
     std::vector<uint8_t> pattern(bytes);
     for (uint64_t i = 0; i < bytes; ++i) pattern[i] = (uint8_t) (i * 29u + (i >> 10) * 3u);
-    const std::string path = (std::filesystem::temp_directory_path() / "basalt_memory_test_guard.bin").string();
+    const std::string path = (std::filesystem::temp_directory_path() / "halo_memory_test_guard.bin").string();
     {
         std::ofstream f(path, std::ios::binary);
         f.write((const char*) pattern.data(), (std::streamsize) bytes);
@@ -288,7 +288,7 @@ int guard_reclaim_cases() {
 }
 // When the guard gives the mapped view back, on injected readings
 int reclaim_due_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const uint64_t floor = gib(6.0), lead = gib(1.0), after = gib(7.0), step = 256ull << 20;
     auto check = [&](const char* what, bool got, bool want) {
@@ -307,7 +307,7 @@ int reclaim_due_cases() {
 }
 // The watchdog's line: the budget flag is named only when the resident copy is big enough for it to shrink.
 int exhausted_message_cases() {
-    using basalt::platform::ram_exhausted_message;
+    using halo::platform::ram_exhausted_message;
     int fail = 0;
     const uint64_t margin = gib(4.0);
     struct Case { const char* what; bool resident; double copy_gib; bool names_budget; bool names_mmap; };
@@ -329,7 +329,7 @@ int exhausted_message_cases() {
 }
 // Without a stall reading: samples every 100 ms through BelowFloorClock into ram_level
 int ram_level_sustained_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const uint64_t floor = gib(3.09), hard = kRamHardFloor;
     const MemoryStalls none{false, 0.0, 0.0}, calm{true, 2.0, 0.0}, busy{true, kStallSomePct, 0.0};
@@ -383,7 +383,7 @@ int ram_level_sustained_cases() {
 }
 // The serve guard's level: below the floor a request runs on unless RAM is under the hard floor or the OS stalls on it
 int ram_level_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const uint64_t floor = gib(3.09), hard = kRamHardFloor;
     const MemoryStalls calm{true, 2.0, 0.0}, busy{true, kStallSomePct, 0.0}, stalled{true, 5.0, kStallFullPct},
@@ -420,7 +420,7 @@ int ram_level_cases() {
 // How long a request arriving below the floor waits
 // The guard paused (a sleeping engine) judges no reading; unpausing judges a fresh one before it returns.
 int guard_pause_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     if (available_memory() == 0) {
         std::printf("guard pause: SKIPPED, no available-RAM reading here\n");
         return 0;
@@ -449,7 +449,7 @@ int guard_pause_cases() {
     return fail;
 }
 int admit_wait_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     auto check = [&](const char* what, bool got, bool want) {
         std::printf("admit wait %-60s %s%s\n", what, got ? "waits" : "starts", got == want ? "" : "   <-- WRONG");
@@ -477,7 +477,7 @@ int admit_wait_cases() {
 }
 // The pressure file's avg10 figures
 int stall_parse_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const MemoryStalls a = parse_memory_stalls("some avg10=12.34 avg60=1.00 avg300=0.10 total=123\n"
                                                "full avg10=5.60 avg60=0.50 avg300=0.05 total=45\n");
@@ -494,7 +494,7 @@ int stall_parse_cases() {
 }
 // The stop's error: the floor it fell under, and the budget flag only when the engine's own growth took the RAM
 int stop_message_cases() {
-    using namespace basalt::platform;
+    using namespace halo::platform;
     int fail = 0;
     const uint64_t floor = 3161ull << 20, hard = kRamHardFloor;
     const MemoryStalls calm{true, 1.0, 0.0}, stalled{true, 75.0, 45.0}, none{};
@@ -549,21 +549,21 @@ int main() {
     void* p = std::malloc(bytes);
     if (p == nullptr) return 2;
     std::memset(p, 1, bytes);
-    const basalt::platform::LockResult r = basalt::platform::lock_resident(p, bytes);
+    const halo::platform::LockResult r = halo::platform::lock_resident(p, bytes);
     std::printf("lock_resident: ok=%d locked=%llu KiB of %llu KiB (%s)\n", (int) r.ok,
                 (unsigned long long) (r.locked_bytes >> 10), (unsigned long long) (bytes >> 10), r.note.c_str());
     int fail = !(r.ok && r.locked_bytes == bytes) || fail_keeps;
-    basalt::platform::unlock_resident(p, bytes);
+    halo::platform::unlock_resident(p, bytes);
     // With a progress callback the lock runs in chunks: the counts only rise and the last one is the whole region.
     std::vector<uint64_t> seen;
-    const basalt::platform::LockResult rp =
-        basalt::platform::lock_resident(p, bytes, [&](uint64_t done) { seen.push_back(done); });
+    const halo::platform::LockResult rp =
+        halo::platform::lock_resident(p, bytes, [&](uint64_t done) { seen.push_back(done); });
     bool rising = !seen.empty() && seen.back() == bytes;
     for (size_t i = 1; i < seen.size(); ++i) rising = rising && seen[i] > seen[i - 1];
     std::printf("lock_resident with progress: ok=%d %zu reports%s\n", (int) rp.ok, seen.size(),
                 rising ? "" : "   <-- WRONG");
     fail |= !(rp.ok && rp.locked_bytes == bytes && rising);
-    basalt::platform::unlock_resident(p, bytes);
+    halo::platform::unlock_resident(p, bytes);
     std::free(p);
     std::printf("platform_memory_test: %s\n", fail ? "FAILED" : "OK");
     return fail;

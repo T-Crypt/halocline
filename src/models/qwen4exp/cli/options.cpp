@@ -1,25 +1,25 @@
-#include "basalt/models/qwen4exp/shared_names.hpp"
+#include "halo/models/qwen4exp/shared_names.hpp"
 #include "options.hpp"
 #include "../../../program/cli/help.hpp"
 
-#include "basalt/core/model_file.hpp"
-#include "basalt/model/rope_flags.hpp"
-#include "basalt/kernels/sampler.hpp"
-#include "basalt/log.hpp"
-#include "basalt/models/qwen4exp/options.hpp"
+#include "halo/core/model_file.hpp"
+#include "halo/model/rope_flags.hpp"
+#include "halo/kernels/sampler.hpp"
+#include "halo/log.hpp"
+#include "halo/models/qwen4exp/options.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-namespace basalt::models::qwen4exp::cli {
+namespace halo::models::qwen4exp::cli {
 
-std::string profile_key(const basalt::core::Json& meta) {
-    using T = basalt::core::Json::Type;
-    const basalt::core::Json* kv = meta.get("gguf_kv");
-    const basalt::core::Json* arch = kv ? kv->get("general.architecture") : nullptr;
+std::string profile_key(const halo::core::Json& meta) {
+    using T = halo::core::Json::Type;
+    const halo::core::Json* kv = meta.get("gguf_kv");
+    const halo::core::Json* arch = kv ? kv->get("general.architecture") : nullptr;
     if (arch == nullptr || !arch->is_string() || arch->s.empty()) return {};
-    const basalt::core::Json* nl = kv->get(arch->s + ".block_count");
-    const basalt::core::Json* ne = kv->get(arch->s + ".expert_count");
+    const halo::core::Json* nl = kv->get(arch->s + ".block_count");
+    const halo::core::Json* ne = kv->get(arch->s + ".expert_count");
     if (nl == nullptr || ne == nullptr || nl->type != T::Int || ne->type != T::Int || nl->neg || ne->neg) return {};
     return arch->s + "-" + std::to_string(nl->u64()) + "x" + std::to_string(ne->u64());
 }
@@ -46,11 +46,11 @@ std::optional<int> resolve_model_options(Options& o) {
     }
     if (!o.adapt_every_given && o.serve) o.adapt_every = 1;
     if (o.mmap_experts && !o.shared_expert_arena.empty()) {
-        basalt::log::error("basalt generate", "--shared-expert-arena backs the resident arena and cannot be used with --mmap-experts");
+        halo::log::error("halo generate", "--shared-expert-arena backs the resident arena and cannot be used with --mmap-experts");
         return 2;
     }
     if (o.resident_cpu_experts && !o.mmap_experts) {
-        basalt::log::error("basalt generate", "--resident-cpu-experts requires --mmap-experts");
+        halo::log::error("halo generate", "--resident-cpu-experts requires --mmap-experts");
         return 2;
     }
     return std::nullopt;
@@ -69,7 +69,7 @@ std::optional<int> prepare_input_options(Options& o) {
         o.stop_eos = true;
     }
     if (!have_tokens) {
-        basalt::log::error("basalt generate", "--tokens is required (this build has no tokenizer; see the "
+        halo::log::error("halo generate", "--tokens is required (this build has no tokenizer; see the "
                              "header of src/program/generate.cpp)");
         usage();
         return 2;
@@ -77,13 +77,13 @@ std::optional<int> prepare_input_options(Options& o) {
 
     if ((o.ple_io != "direct" && o.ple_io != "ram") || o.ple_row_cache < 0 || o.ple_inflight < 1 ||
         o.ple_inflight > 1024 || !(o.ple_delay_us >= 0)) {
-        basalt::log::error("basalt generate", "invalid --ple-io/--ple-row-cache/--ple-inflight/--ple-delay-us");
+        halo::log::error("halo generate", "invalid --ple-io/--ple-row-cache/--ple-inflight/--ple-delay-us");
         return 2;
     }
     if (o.kv.empty()) o.kv = "fp16";
     if (o.kv == "q4") o.kv = "q4_0";
     if (o.kv != "fp16" && o.kv != "int8" && o.kv != "q4_0" && o.kv != "k8v4") {
-        basalt::log::error("basalt generate", "--kv must be fp16, int8, q4_0 or k8v4");
+        halo::log::error("halo generate", "--kv must be fp16, int8, q4_0 or k8v4");
         return 2;
     }
     return std::nullopt;
@@ -92,27 +92,27 @@ std::optional<int> prepare_input_options(Options& o) {
 std::optional<int> validate_generation_options(const Options& o, int min_vram_reserve_mib) {
     // positions, cells and pooled-block indices are cast to int32 on the device path.
     if (o.max_context > 2147483647LL - 8) {
-        basalt::log::error("basalt generate", "--max-context must be below 2^31");
+        halo::log::error("halo generate", "--max-context must be below 2^31");
         return 2;
     }
     if (o.max_new <= 0 || o.max_context <= 0 || o.max_new > o.max_context ||
         o.tokens.size() > (size_t) (o.max_context - o.max_new)) {
-        basalt::log::error("basalt generate", "positive --max-new and --max-context must fit the prompt and generation");
+        halo::log::error("halo generate", "positive --max-new and --max-context must fit the prompt and generation");
         return 2;
     }
-    if (const auto code = basalt::model::check_rope_flags(o.rope, "basalt generate")) return code;
+    if (const auto code = halo::model::check_rope_flags(o.rope, "halo generate")) return code;
     if (!std::isfinite(o.temperature) || o.temperature < 0 || !std::isfinite(o.top_p) ||
         o.top_p <= 0 || o.top_p > 1 || o.top_k < 0 || o.expert_cache < -1 ||
         o.pool_workers < 0) {
-        basalt::log::error("basalt generate", "invalid sampling or resource parameter");
+        halo::log::error("halo generate", "invalid sampling or resource parameter");
         return 2;
     }
     if (!(o.prefill_cpu_share >= 0.0 && o.prefill_cpu_share <= 1.0)) {
-        basalt::log::error("basalt generate", "--prefill-cpu-share must be a number from 0 to 1");
+        halo::log::error("halo generate", "--prefill-cpu-share must be a number from 0 to 1");
         return 2;
     }
     if (o.vram_reserve_given && o.vram_reserve_mib < min_vram_reserve_mib) {
-        basalt::log::error("basalt", "--vram-reserve-mib %d leaves less VRAM free than the engine needs once "
+        halo::log::error("halo", "--vram-reserve-mib %d leaves less VRAM free than the engine needs once "
                              "everything is loaded; the smallest safe value is %d", o.vram_reserve_mib, min_vram_reserve_mib);
         return 2;
     }
@@ -121,11 +121,11 @@ std::optional<int> validate_generation_options(const Options& o, int min_vram_re
 
 std::optional<int> validate_kv_streaming(const Options& o) {
     if (o.kv_resident < 0) {
-        basalt::log::error("basalt generate", "--kv-resident must be >= 0");
+        halo::log::error("halo generate", "--kv-resident must be >= 0");
         return 2;
     }
     if (o.kv == "k8v4" && o.kv_resident > 0) {
-        basalt::log::error("basalt generate", "--kv k8v4 does not support --kv-resident streaming (yet)");
+        halo::log::error("halo generate", "--kv k8v4 does not support --kv-resident streaming (yet)");
         return 2;
     }
     return std::nullopt;
@@ -141,7 +141,7 @@ bool normalize_speculation_options(Options& o) {
         o.mtp.clear();
     }
     // Prompt lookup (the suffix drafter, on by default): the MTP keeps its --spec windows and a lookup window may be
-    // up to 2 tokens longer (at most the verifier width); the draft policy (basalt/spec/draft_policy.hpp) takes one only where it pays.
+    // up to 2 tokens longer (at most the verifier width); the draft policy (halo/spec/draft_policy.hpp) takes one only where it pays.
     // --suffix-draft 0 turns it off.
     if (o.suffix_draft > 0 && o.spec >= 2 && o.mtp_max_t == 0) {
         o.mtp_max_t = o.spec;
@@ -150,8 +150,8 @@ bool normalize_speculation_options(Options& o) {
     return no_spec;
 }
 
-basalt::kernels::SamplerParams sampling_options(const Options& o) {
-    basalt::kernels::SamplerParams sp;
+halo::kernels::SamplerParams sampling_options(const Options& o) {
+    halo::kernels::SamplerParams sp;
     sp.greedy = o.greedy;
     sp.seed = o.seed;
     sp.top_k = o.top_k;
@@ -161,9 +161,9 @@ basalt::kernels::SamplerParams sampling_options(const Options& o) {
     // per request instead
     if (!o.serve) {
         if (sp.greedy || sp.temperature <= 0.0f)
-            basalt::log::info("basalt generate", "sampling greedy");
+            halo::log::info("halo generate", "sampling greedy");
         else
-            basalt::log::info("basalt generate", "sampling temperature=%g top_k=%d top_p=%g seed=%llu",
+            halo::log::info("halo generate", "sampling temperature=%g top_k=%d top_p=%g seed=%llu",
                          (double) sp.temperature, sp.top_k > 0 && sp.top_k < 64 ? sp.top_k : 64, (double) sp.top_p,
                          (unsigned long long) sp.seed);
     }
@@ -172,4 +172,4 @@ basalt::kernels::SamplerParams sampling_options(const Options& o) {
     return sp;
 }
 
-}  // namespace basalt::models::qwen4exp::cli
+}  // namespace halo::models::qwen4exp::cli

@@ -1,6 +1,6 @@
-// src/prefill/moe_mmq.cu - see include/basalt/prefill/moe_mmq.hpp.  llama.cpp's MMQ (ggml-cuda, MIT) lives in
+// src/prefill/moe_mmq.cu - see include/halo/prefill/moe_mmq.hpp.  llama.cpp's MMQ (ggml-cuda, MIT) lives in
 // src/prefill/mmq/; mmq_host.cu supplies the host symbols it references.
-#include "basalt/prefill/moe_mmq.hpp"
+#include "halo/prefill/moe_mmq.hpp"
 
 #include "mmq/mmq.cuh"
 #include "mmq/quantize.cuh"
@@ -8,14 +8,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <type_traits>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::prefill::mmq {
+namespace halo::prefill::mmq {
 namespace {
 
 void ck(cudaError_t e, const char* what) {
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "prefill mmq: %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "prefill mmq: %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -158,7 +158,7 @@ void with_type(ggml_type t, F&& f) {
         case GGML_TYPE_Q6_K: f(std::integral_constant<ggml_type, GGML_TYPE_Q6_K>{}); break;
         case GGML_TYPE_NVFP4: f(std::integral_constant<ggml_type, GGML_TYPE_NVFP4>{}); break;
         default:
-            basalt::log::error("basalt", "prefill mmq: type %d is not covered", (int) t);
+            halo::log::error("halo", "prefill mmq: type %d is not covered", (int) t);
             std::exit(1);
     }
 }
@@ -202,7 +202,7 @@ bool fits(int t, int64_t w_rows) {
             static bool said[GGML_TYPE_COUNT] = {};
             if (t >= 0 && t < GGML_TYPE_COUNT && !said[t]) {
                 said[t] = true;
-                basalt::log::warn("basalt", "prompt kernels: llama.cpp's MMQ has no tile for %s (%lld rows) on GPU %d "
+                halo::log::warn("halo", "prompt kernels: llama.cpp's MMQ has no tile for %s (%lld rows) on GPU %d "
                                      "(%zu bytes of shared memory per block): that product takes the non-MMQ path ", ggml_type_name((ggml_type) t), (long long) w_rows, id, smpbo);
             }
             return false;
@@ -342,4 +342,4 @@ void iota(int32_t* dst, int64_t n, void* stream) {
     ck(cudaGetLastError(), "iota");
 }
 
-}  // namespace basalt::prefill::mmq
+}  // namespace halo::prefill::mmq

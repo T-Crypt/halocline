@@ -1,6 +1,6 @@
 // src/models/qwen4exp/kernels/ple.cu - the PLE block's GPU half.
 //
-// See include/basalt/models/qwen4exp/kernels/ple.hpp for the structure and for the `normalized`-is-the-conv-input finding.
+// See include/halo/models/qwen4exp/kernels/ple.hpp for the structure and for the `normalized`-is-the-conv-input finding.
 //
 // The arithmetic follows the captured CPU ggml graph (captured input and output vectors):
 //
@@ -11,14 +11,14 @@
 //   * the gate's `sqrt` and `sigmoid` are f32.
 //
 // ple_value is the single-token BF16/F32 MMVF, and the post-projection arithmetic is `native_ple_postops`.
-#include "basalt/models/qwen4exp/kernels/ple.hpp"
-#include "basalt/kernels/bf16_gemv.hpp"
-#include "basalt/kernels/f16_bits.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/kernels/quantize_act.hpp"
-#include "basalt/models/qwen4exp/kernels/s2_gemv_q8.hpp"
-#include "basalt/kernels/native_mmvq.hpp"
-#include "basalt/models/qwen4exp/kernels/native_ple_postops.hpp"
+#include "halo/models/qwen4exp/kernels/ple.hpp"
+#include "halo/kernels/bf16_gemv.hpp"
+#include "halo/kernels/f16_bits.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/kernels/quantize_act.hpp"
+#include "halo/models/qwen4exp/kernels/s2_gemv_q8.hpp"
+#include "halo/kernels/native_mmvq.hpp"
+#include "halo/models/qwen4exp/kernels/native_ple_postops.hpp"
 
 #include <cuda_runtime.h>
 
@@ -27,9 +27,9 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
-#include "basalt/log.hpp"
+#include "halo/log.hpp"
 
-namespace basalt::kernels {
+namespace halo::kernels {
 namespace {
 
 constexpr int THREADS = 256;
@@ -50,7 +50,7 @@ __global__ void history_advance_kernel(float* __restrict__ history, const float*
 
 void ck(cudaError_t e, const char* what) {
     if (e != cudaSuccess) {
-        basalt::log::error("basalt", "ple_block: %s: %s", what, cudaGetErrorString(e));
+        halo::log::error("halo", "ple_block: %s: %s", what, cudaGetErrorString(e));
         std::exit(1);
     }
 }
@@ -100,7 +100,7 @@ void ple_block(const float* emb, const float* hidden, const float* hist_rows, co
     // **THE WORKSPACE IS CARVED FROM THE CALLER'S, NOT ALLOCATED**: allocation and synchronization are errors
     // inside a stream capture, and the token path makes no allocations.
     if (scratch == nullptr) {
-        basalt::log::error("basalt", "ple_block: scratch is null; the caller owns it (see ple_block_scratch_bytes)");
+        halo::log::error("halo", "ple_block: scratch is null; the caller owns it (see ple_block_scratch_bytes)");
         std::exit(1);
     }
     const struct Export { const float* pointer; size_t count; const char* name; } exports[] = {
@@ -214,4 +214,4 @@ void ple_key_rows(const float* emb, int T, const PleWeights& w, float* key, void
     native_mmvq(w.key_native_type, w.key_native_data, q8_1, key, NG_N_EMBD, NG_HC_DIM, T, stream);
 }
 
-}  // namespace basalt::kernels
+}  // namespace halo::kernels

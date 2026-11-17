@@ -1,6 +1,6 @@
 #include "common.hpp"
 
-namespace basalt::core {
+namespace halo::core {
 
 using namespace mtp_detail;
 
@@ -41,7 +41,7 @@ bool MtpDrafter::is_hc8_matrix(const Tensor& t) {
 
 bool MtpDrafter::plan_bytes(const MtpFiles& files, const ModelGeometry& g, uint64_t& out, std::string& err) {
     uint64_t dense = files.dense.size();
-    if (basalt::kernels::hc8_only()) {   // the dense blob without the matrices that are held as 8-bit copies only
+    if (halo::kernels::hc8_only()) {   // the dense blob without the matrices that are held as 8-bit copies only
         std::vector<Tensor> tensors;
         if (!parse_index(files.index, tensors, err)) return false;
         uint64_t kept = 0;
@@ -51,7 +51,7 @@ bool MtpDrafter::plan_bytes(const MtpFiles& files, const ModelGeometry& g, uint6
         }
         dense = kept;
     }
-    out = dense + (uint64_t) g.n_expert * basalt::kernels::cpu::BLOB;
+    out = dense + (uint64_t) g.n_expert * halo::kernels::cpu::BLOB;
     return true;
 }
 

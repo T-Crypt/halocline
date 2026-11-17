@@ -1,22 +1,22 @@
 #pragma once
 
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/prefill/gemm.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/prefill/gemm.hpp"
 #include <algorithm>
 #include <chrono>
 #include <string>
 
-namespace basalt::prefill::detail {
+namespace halo::prefill::detail {
 
 using Clock = std::chrono::steady_clock;
 constexpr float EPS = 1e-6f;
-constexpr int64_t N = basalt::kernels::cpu::H, HC = 4, D = N * HC, LR = 320, K = basalt::kernels::cpu::K, NE = basalt::kernels::cpu::NE;
+constexpr int64_t N = halo::kernels::cpu::H, HC = 4, D = N * HC, LR = 320, K = halo::kernels::cpu::K, NE = halo::kernels::cpu::NE;
 constexpr int64_t C = 10240, ZV = 6144, HV = 48;
 // staging holds the largest blob of the pack (a native pack's blobs differ per layer)
-inline int64_t MAXBLOB() { return (int64_t) basalt::kernels::cpu::expert_layout().max_blob; }
+inline int64_t MAXBLOB() { return (int64_t) halo::kernels::cpu::expert_layout().max_blob; }
 // host->device expert staging ring of a chunk below stream_all_min(): two groups of MMQ_GROUP experts, so a slot is
 // copied into again only once the group that read it has run
 constexpr int STAGE = 32;
@@ -59,4 +59,4 @@ bool native_proj(Gemm& gm, const core::WeightRef* w, const uint16_t* X, float* Y
 bool bf16_proj(Gemm& gm, const core::WeightRef* w, const uint16_t* X, float* Y, int64_t T, const std::string& name,
                std::string& err, int64_t ld = 0);
 extern double g_pinned_share;
-}  // namespace basalt::prefill::detail
+}  // namespace halo::prefill::detail

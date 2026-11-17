@@ -2,16 +2,16 @@
 
 #include "state.hpp"
 #include "layout.hpp"
-#include "basalt/models/qwen4exp/prefill/prefill.hpp"
-#include "basalt/models/qwen4exp/decode/mtp.hpp"
-#include "basalt/core/progress.hpp"
-#include "basalt/core/on_device.hpp"
-#include "basalt/models/qwen4exp/decode/layout.hpp"
-#include "basalt/models/qwen4exp/kernels/ngram.hpp"
-#include "basalt/kernels/cpu/expert_layout.hpp"
-#include "basalt/models/qwen4exp/geometry.hpp"
-#include "basalt/models/qwen4exp/kernels/qsa.hpp"
-#include "basalt/models/qwen4exp/decode/layer.hpp"
+#include "halo/models/qwen4exp/prefill/prefill.hpp"
+#include "halo/models/qwen4exp/decode/mtp.hpp"
+#include "halo/core/progress.hpp"
+#include "halo/core/on_device.hpp"
+#include "halo/models/qwen4exp/decode/layout.hpp"
+#include "halo/models/qwen4exp/kernels/ngram.hpp"
+#include "halo/kernels/cpu/expert_layout.hpp"
+#include "halo/models/qwen4exp/geometry.hpp"
+#include "halo/models/qwen4exp/kernels/qsa.hpp"
+#include "halo/models/qwen4exp/decode/layer.hpp"
 #include <algorithm>
 #include <atomic>
 #include <string>
@@ -19,7 +19,7 @@
 #include <vector>
 #include <future>
 
-namespace basalt::prefill {
+namespace halo::prefill {
 using namespace detail;
 
 struct Prefill::Run {
@@ -41,7 +41,7 @@ struct Prefill::Run {
     core::SessionState& ss = *m.ss;
     const Clock::time_point t_start = Clock::now();
     const int64_t LB = owner.stage_lb_, LE = owner.stage_le_;
-    basalt::kernels::QsaShapes s = basalt::kernels::qsa_real_shapes();
+    halo::kernels::QsaShapes s = halo::kernels::qsa_real_shapes();
     const uint64_t gdn_floats = (uint64_t) g.ssm_state_size * g.ssm_v_heads * g.ssm_state_size +
                                 (uint64_t) g.ssm_conv_channels * (g.ssm_d_conv - 1);
     int32_t prev[2] = {ss.ple_prev[0], ss.ple_prev[1]};
@@ -53,7 +53,7 @@ struct Prefill::Run {
     // the PLE block batched over the chunk: a BF16 or GGUF-native key (else token by token)
     const bool ple_batch = ple_on &&
                            (ss.ple.w.key_bf16 != nullptr || ss.ple.w.key_native_data != nullptr) &&
-                           m.region_bytes / ((uint64_t) (3 * basalt::kernels::NG_HC_DIM + N + 4) * 4 + (uint64_t) N * 2 + 4096) >= 64;
+                           m.region_bytes / ((uint64_t) (3 * halo::kernels::NG_HC_DIM + N + 4) * 4 + (uint64_t) N * 2 + 4096) >= 64;
     const int32_t prev0[2] = {prev[0], prev[1]};
     std::string ple_next_err;
     std::future<bool> ple_next;             // declared after everything it reads: an early return waits for it
@@ -112,7 +112,7 @@ struct Prefill::Run::Chunk {
     // this chunk's stream - every non-resident expert of every layer, layer by layer in id order (entry
     // k lands in ring slot k % ring); a copy is issued once the entry `ring` before it is consumed (its slot's
     // `used` event recorded), so the copy stream never waits on an event that is not queued yet
-    const basalt::kernels::cpu::ExpertLayout& lay0 = basalt::kernels::cpu::expert_layout();
+    const halo::kernels::cpu::ExpertLayout& lay0 = halo::kernels::cpu::expert_layout();
     const bool stream_all = m.ring > STAGE && T >= stream_all_min() && m.src != nullptr;
     struct StreamEntry { int32_t l, e; const uint8_t* blob; int job; };
     std::vector<StreamEntry> seq;
@@ -143,4 +143,4 @@ struct Prefill::Run::Chunk {
     bool normed = false;   // the previous half's write already normed R for this half (grs, xn16)
 };
 
-}  // namespace basalt::prefill
+}  // namespace halo::prefill
