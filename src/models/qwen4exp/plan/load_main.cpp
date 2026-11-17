@@ -1,4 +1,4 @@
-// src/models/qwen4exp/plan/load_main.cpp - `halo-load`: the expert arena load, measurable at any scale.
+// src/models/qwen4exp/plan/load_main.cpp - `halocline-load`: the expert arena load, measurable at any scale.
 //
 // It loads with several threads in large chunks and checksums each layer.  The size is a FLAG rather than hard-coded because the honest way to measure a 34 GB
 // load is to measure a smaller one first and project - and because pinning 34 GB evicts every page of page
@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
         else if (a == "--no-pin") pin = false;
         else if (a == "--stream") stream = true;
         else if (a == "--help" || a == "-h") {
-            std::printf("usage: halo-load --file experts.bin [--layers N] [--threads N] [--chunk-mb N]\n"
+            std::printf("usage: halocline-load --file experts.bin [--layers N] [--threads N] [--chunk-mb N]\n"
                         "                   [--no-pin]\n");
             return 0;
         } else {

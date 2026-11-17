@@ -250,8 +250,10 @@ int real(const std::string& gguf, int n_random, const std::string& tokens_path, 
          bool direct_only, double stress_secs) {
     k::PleTable mm, direct;
     std::string err;
-    halo::core::ModelFile container;   // a .basalt file serves its source tensors as a GGUF view
-    if (gguf.size() > 7 && gguf.compare(gguf.size() - 7, 7, ".basalt") == 0 &&
+    halo::core::ModelFile container;   // a .halo file serves its source tensors as a GGUF view
+    const bool pack = (gguf.size() > 5 && gguf.compare(gguf.size() - 5, 5, ".halo") == 0) ||
+                      (gguf.size() > 7 && gguf.compare(gguf.size() - 7, 7, ".basalt") == 0);
+    if (pack &&
         (!container.open(gguf, err) || !container.load_meta(err) || !container.register_gguf_view(err))) {
         std::fprintf(stderr, "container open: %s\n", err.c_str());
         return 2;

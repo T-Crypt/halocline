@@ -1,4 +1,4 @@
-// src/core/model_file.cpp - the .basalt reader, the byte ranges the loaders share, a small JSON parser and the
+// src/core/model_file.cpp - the .halo reader, the byte ranges the loaders share, a small JSON parser and the
 // hc8 table.  Host only.  See the header.
 #include "halo/core/model_file.hpp"
 
@@ -275,7 +275,7 @@ bool ModelFile::open(const std::string& path, std::string& err) {
     meta_loaded_ = false;
     uint64_t actual = 0;
     if (!platform::file_size(path, actual)) { err = "cannot open " + path; return false; }
-    if (actual < kHeaderBytes) { err = path + ": not a .basalt model file (too short)"; return false; }
+    if (actual < kHeaderBytes) { err = path + ": not a Halocline model file (too short)"; return false; }
     std::vector<uint8_t> head((size_t) kHeaderBytes);
     {
         const int fd = platform::open_fd_utf8(path);
@@ -286,12 +286,14 @@ bool ModelFile::open(const std::string& path, std::string& err) {
     }
     FileHeader h;
     std::memcpy(&h, head.data(), sizeof h);
-    if (std::memcmp(h.magic, kModelMagic, sizeof kModelMagic) != 0) {
-        err = path + ": not a .basalt model file (bad magic)";
+    // a file written before the rename carries the legacy magic: both load, so the packs already on disk need no rewrite
+    if (std::memcmp(h.magic, kModelMagic, sizeof kModelMagic) != 0 &&
+        std::memcmp(h.magic, kLegacyModelMagic, sizeof kLegacyModelMagic) != 0) {
+        err = path + ": not a Halocline model file (bad magic)";
         return false;
     }
     if (h.version != kModelVersion) {
-        err = path + ": .basalt version " + std::to_string(h.version) + ", this build reads version " +
+        err = path + ": Halocline model file version " + std::to_string(h.version) + ", this build reads version " +
               std::to_string(kModelVersion) +
               (h.version < kModelVersion ? "; upgrade it with tools/migrations/halo_v1_to_v2.py" : "");
         return false;
@@ -457,7 +459,11 @@ bool hc8_read(const FileRange& r, std::map<std::string, Hc8Copy>& out, std::stri
     out.clear();
     Hc8Header h{};
     if (!read_range_at(r, 0, &h, sizeof h, err)) return false;
-    if (std::memcmp(h.magic, "BASALTH8", 8) != 0 || h.version != 1) { err = "hc8: bad magic or version in " + r.path; return false; }
+    // both magics: the table as this build writes it, and the one in every file written before the rename
+    if ((std::memcmp(h.magic, kHc8Magic, 8) != 0 && std::memcmp(h.magic, kLegacyHc8Magic, 8) != 0) || h.version != 1) {
+        err = "hc8: bad magic or version in " + r.path;
+        return false;
+    }
     const uint64_t total = r.size();
     if (h.n_entries > 4096) { err = "hc8: implausible entry count"; return false; }
     std::vector<Hc8Entry> entries(h.n_entries);

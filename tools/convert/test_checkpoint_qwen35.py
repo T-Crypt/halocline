@@ -256,7 +256,7 @@ class Qwen35Test(unittest.TestCase):
         t = Path(cls.tmp.name)
         (t / "ck").mkdir()
         cls.fx = Fixture(t / "ck")
-        out = t / "x.basalt"
+        out = t / "x.halo"
         r = subprocess.run([sys.executable, str(HERE / "convert.py"), "--checkpoint", str(t / "ck"), "--out", str(out),
                             "--workers", "2"], capture_output=True, text=True)
         if r.returncode:
@@ -525,7 +525,7 @@ class Qwen35CompressedTensorsTest(unittest.TestCase):
         t = Path(cls.tmp.name)
         (t / "ck").mkdir()
         cls.fx = Fixture(t / "ck", ct=True)
-        out = t / "x.basalt"
+        out = t / "x.halo"
         r = subprocess.run([sys.executable, str(HERE / "convert.py"), "--checkpoint", str(t / "ck"), "--out", str(out),
                             "--head", "nvfp4", "--workers", "2"], capture_output=True, text=True)
         if r.returncode:
@@ -614,7 +614,7 @@ class Qwen35Fp8HeadTest(unittest.TestCase):
         t = Path(cls.tmp.name)
         (t / "ck").mkdir()
         cls.fx = Fixture(t / "ck", ct=True)
-        out = t / "x.basalt"
+        out = t / "x.halo"
         r = subprocess.run([sys.executable, str(HERE / "convert.py"), "--checkpoint", str(t / "ck"), "--out", str(out),
                             "--workers", "2"], capture_output=True, text=True)
         if r.returncode:

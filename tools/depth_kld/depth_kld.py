@@ -5,7 +5,7 @@ n_ctx-2), so its windows never sit deeper than half the context and a window aft
 context and 100 GB of rows. With llama-kl-first.patch (beside this file) llama-perplexity takes LLAMA_KL_FIRST=D and
 scores positions D .. n_ctx-2 instead; with n_ctx = D + W + 1 each chunk is a D-token prefix and a W-row window. The
 file starts with "_logitsF" and stores D after n_chunk (i32); everything else is llama.cpp's layout, and both
-llama.cpp's --kl-divergence and Halocline's quality gate (include/halo/program/ppl_gate.hpp, halo-bench --quality)
+llama.cpp's --kl-divergence and Halocline's quality gate (include/halo/program/ppl_gate.hpp, halocline-bench --quality)
 read it.
 
 The patch is against llama.cpp 2cbe0ec (git -C LLAMA apply tools/depth_kld/llama-kl-first.patch, then build

@@ -261,9 +261,9 @@ struct Options {
 
 void usage(const std::string& engine) {
     std::printf(
-        "halo-bench - the standard benchmark: decode fixtures, prefill depths, optional quality gate\n"
+        "halocline-bench - the standard benchmark: decode fixtures, prefill depths, optional quality gate\n"
         "\n"
-        "usage: halo-bench --model FILE.basalt [options] [-- ENGINE ARGS...]\n"
+        "usage: halocline-bench --model FILE.halo [options] [-- ENGINE ARGS...]\n"
         "\n"
         "what to run (default: -p 16384 -t conv,struct,prose; giving one of -p / -t runs only what is given)\n"
         "  -t LIST            decode fixtures, any of conv,struct,prose; they always run in that order, because\n"
@@ -302,11 +302,11 @@ void usage(const std::string& engine) {
         "                     host-to-device copy speed (the figures --community records), then exit; no model, no engine\n"
         "\n"
         "engine\n"
-        "  --model FILE       a .basalt model file\n"
+        "  --model FILE       a .halo model file (a legacy .basalt pack also loads)\n"
         "  --gpu A,B,..|auto  the GPUs, as for the server and the engine (default: GPU 0 alone). Every\n"
-        "                     other --flag is an engine flag, passed on as given (same names as `halo`; the engine\n"
+        "                     other --flag is an engine flag, passed on as given (same names as `halocline`; the engine\n"
         "                     rejects a bad one at startup); --print-command shows the command and exits\n"
-        "  --engine BIN       engine binary (default: halo beside this program, else the build's)\n"
+        "  --engine BIN       engine binary (default: halocline beside this program, else the build's)\n"
         "  --set \"F V ...\"    FLAG VALUE pairs that replace or add engine arguments (repeatable)\n"
         "  --spec N           speculation window for the engine (--spec N, e.g. 7; also --spec after --); without it\n"
         "                     the engine default (speculation with the pack drafter, window 8); --spec 0 is a\n"
@@ -760,7 +760,7 @@ int main(int argc, char** argv) {
     Options o;
     std::string err;
     if (!parse_args(argc, argv, o, err)) {
-        halo::log::error("halo-bench", "%s", err.c_str());
+        halo::log::error("halocline-bench", "%s", err.c_str());
         return 2;
     }
     halo::platform::ignore_broken_pipe();   // a closed pipe surfaces as a failed write
@@ -768,7 +768,7 @@ int main(int argc, char** argv) {
 
     if (o.hardware) {
         Nvml nvml;
-        if (!nvml.open()) halo::log::warn("halo-bench", "NVML is unavailable: PCIe links are NOT recorded");
+        if (!nvml.open()) halo::log::warn("halocline-bench", "NVML is unavailable: PCIe links are NOT recorded");
         const Hardware hw = measure_hardware();
         std::vector<std::pair<std::string, Nvml::Snap>> cards;
         for (const auto& x : hw.h2d) {
@@ -795,7 +795,7 @@ int main(int argc, char** argv) {
     const bool do_prefill = !o.depths.empty();
     const bool do_perf = do_decode || do_prefill;
     if (do_quality && o.kld_base.empty()) {
-        halo::log::error("halo-bench", "the quality gate needs --kld-base FILE");
+        halo::log::error("halocline-bench", "the quality gate needs --kld-base FILE");
         return 2;
     }
 
@@ -806,7 +806,7 @@ int main(int argc, char** argv) {
         args = {"--model", fs::absolute(o.model).string()};
     }
     if (engine_bin.empty() || !fs::exists(engine_bin)) {
-        halo::log::error("halo-bench", "the engine binary %s does not exist (--engine BIN)", engine_bin.c_str());
+        halo::log::error("halocline-bench", "the engine binary %s does not exist (--engine BIN)", engine_bin.c_str());
         return 2;
     }
     if (o.community && (!o.passthrough.empty() || !o.sets.empty())) {
@@ -819,17 +819,17 @@ int main(int argc, char** argv) {
         std::vector<std::string> plan_args = {"--model", fs::absolute(o.model).string(), "--gpu", "0"};
         merge_args(plan_args, extra);
         std::string answer;
-        const std::string plan_log = halo::platform::temp_dir() + "/halo-bench-plan-" + std::to_string((long long) halo::platform::process_id());
+        const std::string plan_log = halo::platform::temp_dir() + "/halocline-bench-plan-" + std::to_string((long long) halo::platform::process_id());
         (void) engine_plan(engine_bin, plan_args, plan_log, answer);
         std::error_code rm_ec;
         fs::remove(plan_log, rm_ec);
-        halo::log::error("halo-bench", "%s", halo::program::community_refusal(extra, answer).c_str());
+        halo::log::error("halocline-bench", "%s", halo::program::community_refusal(extra, answer).c_str());
         return 2;
     }
     if (o.community) {
         std::string serr;
         if (!community_submitter_error(o, serr).empty()) {
-            halo::log::error("halo-bench", "%s", serr.c_str());
+            halo::log::error("halocline-bench", "%s", serr.c_str());
             return 2;
         }
     }
@@ -837,7 +837,7 @@ int main(int argc, char** argv) {
     std::string community_kv;   // the cache format a community run passes; empty when the model takes neither
     if (o.fixtures.empty() || o.community) {   // the model's own fixtures, when it has them; the community row's model name
         std::string answer;
-        const std::string plan_log = halo::platform::temp_dir() + "/halo-bench-plan-" + std::to_string((long long) halo::platform::process_id());
+        const std::string plan_log = halo::platform::temp_dir() + "/halocline-bench-plan-" + std::to_string((long long) halo::platform::process_id());
         const std::string abs_model = fs::absolute(o.model).string();
         const int asked = o.model.empty() ? 0 : engine_plan(engine_bin, {"--model", abs_model, "--gpu", "0"}, plan_log, answer);
         if (o.community) {
@@ -855,12 +855,12 @@ int main(int argc, char** argv) {
     std::vector<std::string> quality_flags;
     if (do_quality && !o.model.empty()) {   // what the gate starts this model with, and the window it scores
         std::string answer;
-        const std::string plan_log = halo::platform::temp_dir() + "/halo-bench-plan-" + std::to_string((long long) halo::platform::process_id()) + ".log";
+        const std::string plan_log = halo::platform::temp_dir() + "/halocline-bench-plan-" + std::to_string((long long) halo::platform::process_id()) + ".log";
         const int asked = engine_plan(engine_bin, {"--model", fs::absolute(o.model).string(), "--gpu", "0", "--ppl-base", o.kld_base}, plan_log, answer);
         std::error_code rm_ec;
         fs::remove(plan_log, rm_ec);
         if (asked != 0) {
-            halo::log::error("halo-bench", "--quality: the engine cannot plan this model");
+            halo::log::error("halocline-bench", "--quality: the engine cannot plan this model");
             return 1;
         }
         quality_flags = split(halo::program::plan_field(answer, "quality_flags"), ' ');
@@ -877,8 +877,8 @@ int main(int argc, char** argv) {
         std::vector<halo::program::GpuCard> used;
         // a community run uses every visible card; CUDA_VISIBLE_DEVICES picks them
         const std::string want = o.community ? "auto" : has_arg(args, "--gpu") ? arg_value(args, "--gpu") : o.gpu;
-        if (!halo::program::select_gpus(want, "halo-bench", gpu_value, used, gerr)) {
-            halo::log::error("halo-bench", "%s", gerr.c_str());
+        if (!halo::program::select_gpus(want, "halocline-bench", gpu_value, used, gerr)) {
+            halo::log::error("halocline-bench", "%s", gerr.c_str());
             return 2;
         }
         set_arg(args, "--gpu", gpu_value);
@@ -892,14 +892,14 @@ int main(int argc, char** argv) {
             if (!wants(kDecode[i].name)) continue;
             std::vector<std::vector<int64_t>> lines;
             if (!read_id_lines((fs::path(o.fixtures) / kDecode[i].file).string(), lines, err) || lines.empty()) {
-                halo::log::error("halo-bench", "%s", err.empty() ? (std::string(kDecode[i].file) + " is empty").c_str() : err.c_str());
+                halo::log::error("halocline-bench", "%s", err.empty() ? (std::string(kDecode[i].file) + " is empty").c_str() : err.c_str());
                 return 2;
             }
             for (auto& l : lines) decode_ids[i].insert(decode_ids[i].end(), l.begin(), l.end());
         }
     if (do_prefill) {
         if (!read_id_lines((fs::path(o.fixtures) / "prefill.ids").string(), prefill_parts, err) || prefill_parts.size() != 3) {
-            halo::log::error("halo-bench", "%s", err.empty() ? "prefill.ids needs three lines (before, body, after)" : err.c_str());
+            halo::log::error("halocline-bench", "%s", err.empty() ? "prefill.ids needs three lines (before, body, after)" : err.c_str());
             return 2;
         }
     }
@@ -925,7 +925,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (o.community && community_model.empty()) {
-        halo::log::error("halo-bench", "--community: the engine reports no community model name for %s (architecture '%s'); "
+        halo::log::error("halocline-bench", "--community: the engine reports no community model name for %s (architecture '%s'); "
                            "no row was written", o.model.c_str(), community_arch.c_str());
         return 1;
     }
@@ -934,12 +934,12 @@ int main(int argc, char** argv) {
     std::string work = o.logs;
     bool temp_work = false;
     if (work.empty()) {
-        work = halo::platform::temp_dir() + "/halo-bench-" + std::to_string((long long) halo::platform::process_id());
+        work = halo::platform::temp_dir() + "/halocline-bench-" + std::to_string((long long) halo::platform::process_id());
         temp_work = true;
     }
     std::error_code ec;
     fs::create_directories(work, ec);
-    if (ec) { halo::log::error("halo-bench", "cannot create %s", work.c_str()); return 2; }
+    if (ec) { halo::log::error("halocline-bench", "cannot create %s", work.c_str()); return 2; }
     struct Cleanup {
         std::string dir;
         bool on;
@@ -953,30 +953,30 @@ int main(int argc, char** argv) {
 
     Nvml nvml;
     const bool have_nvml = nvml.open();
-    if (!have_nvml) halo::log::warn("halo-bench", "NVML is unavailable: power limits and clocks are NOT recorded");
+    if (!have_nvml) halo::log::warn("halocline-bench", "NVML is unavailable: power limits and clocks are NOT recorded");
     if (o.community && (!have_nvml || nvml.count() == 0)) {
-        halo::log::error("halo-bench", "--community needs NVML (the NVIDIA driver's management library) to read the GPU names, "
+        halo::log::error("halocline-bench", "--community needs NVML (the NVIDIA driver's management library) to read the GPU names, "
                              "VRAM and enforced power limits for the row; it could not be loaded");
         return 1;
     }
     if (o.community) {
         if (const std::string card = community_card_error(nvml); !card.empty()) {
-            halo::log::error("halo-bench", "%s No row was written.", card.c_str());
+            halo::log::error("halocline-bench", "%s No row was written.", card.c_str());
             return 1;
         }
     }
     if (o.community && std::string(HALO_BENCH_GIT).find_first_not_of("0123456789abcdef") != std::string::npos) {
-        halo::log::error("halo-bench", "--community needs a build from a git checkout: the row records the commit");
+        halo::log::error("halocline-bench", "--community needs a build from a git checkout: the row records the commit");
         return 1;
     }
     if (o.community && HALO_BENCH_DIRTY)
-        halo::log::warn("halo-bench", "tracked files differ from commit %s; the row names that commit", HALO_BENCH_GIT);
+        halo::log::warn("halocline-bench", "tracked files differ from commit %s; the row names that commit", HALO_BENCH_GIT);
     Hardware hw;
     if (o.community) {
         hw = measure_hardware();
-        if (hw.cpu.empty()) halo::log::warn("halo-bench", "the CPU could not be read; the row has no cpu");
-        if (hw.ram_gbps <= 0) halo::log::warn("halo-bench", "the RAM read speed could not be measured (needs 3 GiB free); the row has no ram_gbps");
-        if (hw.h2d.empty()) halo::log::warn("halo-bench", "the host-to-device copy speed could not be measured; the rows' gpus have no h2d_gbps");
+        if (hw.cpu.empty()) halo::log::warn("halocline-bench", "the CPU could not be read; the row has no cpu");
+        if (hw.ram_gbps <= 0) halo::log::warn("halocline-bench", "the RAM read speed could not be measured (needs 3 GiB free); the row has no ram_gbps");
+        if (hw.h2d.empty()) halo::log::warn("halocline-bench", "the host-to-device copy speed could not be measured; the rows' gpus have no h2d_gbps");
     }
     std::vector<Nvml::Snap> gpus_start;
     for (size_t i = 0; i < nvml.count(); ++i) gpus_start.push_back(nvml.snap(i));
@@ -1017,16 +1017,16 @@ int main(int argc, char** argv) {
         const Session& sess = sessions[si];
         const std::string log_path = (fs::path(work) / (si == 0 ? "engine.log" : fmt("engine-%zu.log", si))).string();
         Engine eng;
-        halo::log::info("halo-bench", "starting %s (log: %s)", engine_bin.c_str(), log_path.c_str());
+        halo::log::info("halocline-bench", "starting %s (log: %s)", engine_bin.c_str(), log_path.c_str());
         if (!eng.start(engine_bin, perf_args, log_path, err)) {
-            halo::log::error("halo-bench", "%s", err.c_str());
+            halo::log::error("halocline-bench", "%s", err.c_str());
             return 1;
         }
         if (eng.info.count("lossy")) {
             lossy = eng.info["lossy"];
             if (o.community) {
                 eng.stop();
-                halo::log::error("halo-bench", "the engine runs with flags that change the model's output (%s). No row was written.",
+                halo::log::error("halocline-bench", "the engine runs with flags that change the model's output (%s). No row was written.",
                                    lossy.c_str());
                 return 1;
             }
@@ -1038,9 +1038,9 @@ int main(int argc, char** argv) {
             if (spill != 0.0) {
                 eng.stop();
                 if (spill < 0)
-                    halo::log::warn("halo-bench", "the engine did not report where the experts live; cannot check for SSD spill");
+                    halo::log::warn("halocline-bench", "the engine did not report where the experts live; cannot check for SSD spill");
                 else
-                    halo::log::error("halo-bench", "this run would read %.1f GiB of experts from the SSD. Community runs need every "
+                    halo::log::error("halocline-bench", "this run would read %.1f GiB of experts from the SSD. Community runs need every "
                                  "expert in VRAM or RAM: free roughly %.0f GiB more RAM (close other programs) "
                                  "and run again. No row was written.", spill, std::ceil(spill));
                 return 1;
@@ -1053,15 +1053,15 @@ int main(int argc, char** argv) {
             const double host = std::atof(eng.info["host_weight_bytes"].c_str()) / 1073741824.0;
             if (host > 0.0) {
                 eng.stop();
-                halo::log::error("halo-bench", "this run keeps %.2f GiB of weights in host RAM. Community runs need every weight "
+                halo::log::error("halocline-bench", "this run keeps %.2f GiB of weights in host RAM. Community runs need every weight "
                                    "on the card. No row was written.", host);
                 return 1;
             }
             if (eng.info.count("host_embedding_bytes") && std::atof(eng.info["host_embedding_bytes"].c_str()) > 0.0)
-                halo::log::info("halo-bench", "note: the token embedding (%.2f GiB) stays in page-locked host RAM by design; not counted as spill",
+                halo::log::info("halocline-bench", "note: the token embedding (%.2f GiB) stays in page-locked host RAM by design; not counted as spill",
                                   std::atof(eng.info["host_embedding_bytes"].c_str()) / 1073741824.0);
             if (eng.info.count("host_vision_bytes") && std::atof(eng.info["host_vision_bytes"].c_str()) > 0.0)
-                halo::log::info("halo-bench", "note: the vision encoder (%.2f GiB) waits in host RAM and loads per request; not counted as spill",
+                halo::log::info("halocline-bench", "note: the vision encoder (%.2f GiB) waits in host RAM and loads per request; not counted as spill",
                                   std::atof(eng.info["host_vision_bytes"].c_str()) / 1073741824.0);
         }
         if (si == 0) {
@@ -1074,7 +1074,7 @@ int main(int argc, char** argv) {
                 r.name = kDecode[i].name;
                 r.run = run;
                 if (!eng.request(sampling_keys(kDecode[i].temperature, o.seed), kDecode[i].max_new, decode_ids[i], r.d)) {
-                    halo::log::error("halo-bench", "%s (run %d): %s", r.name.c_str(), run, r.d.err.c_str());
+                    halo::log::error("halocline-bench", "%s (run %d): %s", r.name.c_str(), run, r.d.err.c_str());
                     failed = true;
                     break;
                 }
@@ -1105,7 +1105,7 @@ int main(int argc, char** argv) {
                 r.run = run;
                 r.depth = depth;
                 if (!eng.request(" top_p=0.95 top_k=20", depth == kPrefillBase ? kPrefillBaseDecode : 1, ids, r.d)) {
-                    halo::log::error("halo-bench", "pp%lld (run %d): %s", depth, run, r.d.err.c_str());
+                    halo::log::error("halocline-bench", "pp%lld (run %d): %s", depth, run, r.d.err.c_str());
                     failed = true;
                     break;
                 }
@@ -1123,7 +1123,7 @@ int main(int argc, char** argv) {
         eng.stop();
         for (size_t i = 0; i < gpus_end.size() && i < gpus_start.size(); ++i)
             if (gpus_end[i].power_limit_w != gpus_start[i].power_limit_w)
-                halo::log::warn("halo-bench", "the power limit of GPU %zu changed during the run (%.0f W -> %.0f W)", i,
+                halo::log::warn("halocline-bench", "the power limit of GPU %zu changed during the run (%.0f W -> %.0f W)", i,
                              gpus_start[i].power_limit_w, gpus_end[i].power_limit_w);
         }
         if (failed) return 1;
@@ -1138,7 +1138,7 @@ int main(int argc, char** argv) {
                 for (size_t i = 0; i < results.size(); ++i)
                     if (results[i].name != "prefill") order.push_back(i);
             } else {
-                halo::log::warn("halo-bench", "the draft log has %zu request blocks for %d requests: window statistics skipped",
+                halo::log::warn("halocline-bench", "the draft log has %zu request blocks for %d requests: window statistics skipped",
                              blocks.size(), n_requests);
             }
             for (size_t k = 0; k < order.size(); ++k) results[order[k]].win = window_stats(blocks[k]);
@@ -1153,7 +1153,7 @@ int main(int argc, char** argv) {
         quality.t = o.quality_t;
         quality.n_chunks_asked = o.quality_chunks;
         if (!read_kld_base(o.kld_base, n_ctx, n_vocab, n_chunk, first_row, chunks, o.quality_chunks, quality.err)) {
-            halo::log::error("halo-bench", "%s", quality.err.c_str());
+            halo::log::error("halocline-bench", "%s", quality.err.c_str());
         } else {
             std::vector<std::string> qa = args;
             for (size_t f = 0; f < quality_flags.size(); ++f) {
@@ -1172,9 +1172,9 @@ int main(int argc, char** argv) {
             for (const auto& a : qa) quality.args += (quality.args.empty() ? "" : " ") + a;
             Engine eng;
             const auto t0 = Clock::now();
-            halo::log::info("halo-bench", "starting the engine for the quality gate");
+            halo::log::info("halocline-bench", "starting the engine for the quality gate");
             if (!eng.start(engine_bin, qa, (fs::path(work) / "engine-quality.log").string(), quality.err)) {
-                halo::log::error("halo-bench", "%s", quality.err.c_str());
+                halo::log::error("halocline-bench", "%s", quality.err.c_str());
             } else {
                 if (eng.info.count("lossy")) lossy = eng.info["lossy"];
                 quality.load_s = secs(t0, Clock::now());
@@ -1228,7 +1228,7 @@ int main(int argc, char** argv) {
                smi && std::atof(smi->c_str()) > 0) {
         power = fmt("%.0f W", std::atof(smi->c_str()));
     }
-    if (power == "unknown") halo::log::warn("halo-bench", "the power limit could not be read; pass --power-label W");
+    if (power == "unknown") halo::log::warn("halocline-bench", "the power limit could not be read; pass --power-label W");
 
     // one table row per test: values over the repetitions
     struct Row {
@@ -1279,7 +1279,7 @@ int main(int argc, char** argv) {
 
     std::string rep;
     if (o.format == "md" && do_perf) {
-        rep += fmt("halo-bench  build %s  power limit %s%s\n\n", HALO_BENCH_GIT, power.c_str(), lossy.empty() ? "" : "  LOSSY");
+        rep += fmt("halocline-bench  build %s  power limit %s%s\n\n", HALO_BENCH_GIT, power.c_str(), lossy.empty() ? "" : "  LOSSY");
         std::vector<std::array<std::string, 4>> cells;
         cells.push_back({"test", "t/s", "accept %", "draft len"});
         for (const Row& r : rows) {
@@ -1354,7 +1354,7 @@ int main(int argc, char** argv) {
         if (gpu_err.empty() && (pre_tps[0] <= 0 || pre_tps[1] <= 0 || dec_ms <= 0)) gpu_err = "a request reported no time";
         if (gpu_err.empty() && ram_b == 0) gpu_err = "the system RAM size could not be read";
         if (!gpu_err.empty()) {
-            halo::log::error("halo-bench", "cannot write the community row: %s", gpu_err.c_str());
+            halo::log::error("halocline-bench", "cannot write the community row: %s", gpu_err.c_str());
             std::fputs(rep.c_str(), stdout);
             return 1;
         }
@@ -1367,7 +1367,7 @@ int main(int argc, char** argv) {
         crow.preset = "community-1";
         crow.model = community_model;
         if (!info.count("kv") || info["kv"].empty()) {
-            halo::log::error("halo-bench", "cannot write the community row: the engine did not report its KV cache format");
+            halo::log::error("halocline-bench", "cannot write the community row: the engine did not report its KV cache format");
             return 1;
         }
         crow.kv = info["kv"];
@@ -1544,16 +1544,16 @@ int main(int argc, char** argv) {
         std::printf("\nCOMMUNITY ROW:\n%s\n", (added ? edit.row_text : community_row).c_str());
         std::fflush(stdout);
         if (added && edit.replaced) {
-            halo::log::info("halo-bench", "runs[%zu] of %s has this run's setup (submitter, model, quant, GPUs, CPU, RAM, system): it was updated in "
+            halo::log::info("halocline-bench", "runs[%zu] of %s has this run's setup (submitter, model, quant, GPUs, CPU, RAM, system): it was updated in "
                               "place, not added", edit.index, path.c_str());
             if (!edit.notes.empty())
-                halo::log::info("halo-bench", "its notes were kept: \"%s\". Check they still apply to this run", edit.notes.c_str());
-            halo::log::info("halo-bench", "review the row, commit it and open a pull request (docs/community.md)");
+                halo::log::info("halocline-bench", "its notes were kept: \"%s\". Check they still apply to this run", edit.notes.c_str());
+            halo::log::info("halocline-bench", "review the row, commit it and open a pull request (docs/community.md)");
         } else if (added) {
-            halo::log::info("halo-bench", "the row was added to %s; review it, commit it and open a pull request (docs/community.md)",
+            halo::log::info("halocline-bench", "the row was added to %s; review it, commit it and open a pull request (docs/community.md)",
                               path.c_str());
         } else {
-            halo::log::warn("halo-bench", "the row was not added to %s (%s); paste it at the end of the runs list of docs/community/benchmarks.json, "
+            halo::log::warn("halocline-bench", "the row was not added to %s (%s); paste it at the end of the runs list of docs/community/benchmarks.json, "
                               "run python3 tools/check_benchmarks.py --fix on it and open a pull request (docs/community.md)",
                               path.c_str(), why.c_str());
         }

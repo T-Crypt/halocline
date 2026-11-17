@@ -544,7 +544,10 @@ bool drop_mapped_view(const void* base, uint64_t view_bytes, uint64_t off, uint6
 
 namespace {
 constexpr uint64_t kSharedArenaHeaderBytes = 4096;
-constexpr char kSharedArenaMagic[16] = "BASALT-ARENA-V1";
+constexpr char kSharedArenaMagic[16] = "HALOCLINE-ARENA";
+// every backing file written before the rename carries this one; a file with it still opens, and its version field
+// says the rest
+constexpr char kLegacySharedArenaMagic[16] = "BASALT-ARENA-V1";
 
 struct SharedArenaHeader {
     char magic[16];
@@ -617,7 +620,8 @@ static void* alloc_region_raw(uint64_t bytes, RegionBacking& got, std::string& n
             SharedArenaHeader hdr{};
             const ssize_t got_header = ::pread(fd, &hdr, sizeof hdr, 0);
             if (got_header != (ssize_t) sizeof hdr ||
-                std::memcmp(hdr.magic, kSharedArenaMagic, sizeof hdr.magic) != 0 ||
+                (std::memcmp(hdr.magic, kSharedArenaMagic, sizeof hdr.magic) != 0 &&
+                 std::memcmp(hdr.magic, kLegacySharedArenaMagic, sizeof hdr.magic) != 0) ||
                 hdr.version != 1 || hdr.header_bytes != kSharedArenaHeaderBytes || hdr.arena_bytes != bytes) {
                 close(fd);
                 note = "shared arena " + shared_file + " has an incompatible or missing header";

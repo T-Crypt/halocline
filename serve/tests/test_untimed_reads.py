@@ -79,7 +79,7 @@ class UntimedReads(unittest.TestCase):
         silent = Silent()
         proc = SimpleNamespace(stdin=io.StringIO(), stdout=silent, kill=silent.kill, poll=lambda: None)
         v = Vision.__new__(Vision)
-        v.spawn = (["halo-vision"], None, None)
+        v.spawn = (["halocline-vision"], None, None)
         v.dir = Path(tempfile.mkdtemp(prefix="halo-vision-test-"))
         try:
             with mock.patch.object(vision.subprocess, "Popen", lambda *a, **k: proc), \

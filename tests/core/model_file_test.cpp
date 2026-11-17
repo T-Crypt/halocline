@@ -1,6 +1,7 @@
-// tests/core/model_file_test.cpp - the .basalt reader (halo/core/model_file.hpp) on a synthetic file: the table and
+// tests/core/model_file_test.cpp - the .halo reader (halo/core/model_file.hpp) on a synthetic file: the table and
 // its refusals, the JSON of `meta`, the GGUF view of the `gguf` section, the expert layout read from its section's
-// text, and the hc8 table round trip.  No model, no GPU.
+// text, the hc8 table round trip, and both magics (this build's and the one every file written before the rename
+// carries).  No model, no GPU.
 #include "halo/artifact/gguf_reader.hpp"
 #include "halo/core/model_file.hpp"
 #include "halo/kernels/cpu/expert_layout.hpp"
@@ -37,10 +38,10 @@ struct Sec { std::string name; std::string data; };
 
 /// Writes a model file with the given sections, each at a multiple of kSectionAlign.
 std::string write_model(const fs::path& path, const std::vector<Sec>& secs, bool truncate = false,
-                        uint32_t version = kModelVersion) {
+                        uint32_t version = kModelVersion, const char* magic = kModelMagic) {
     std::vector<char> file((size_t) kHeaderBytes, 0);
     FileHeader h{};
-    std::memcpy(h.magic, kModelMagic, 8);
+    std::memcpy(h.magic, magic, 8);
     h.version = version;
     h.n_sections = (uint32_t) secs.size();
     for (size_t i = 0; i < secs.size(); ++i) {
@@ -61,9 +62,9 @@ std::string write_model(const fs::path& path, const std::vector<Sec>& secs, bool
 }
 
 /// An hc8 section holding one copy (the layout model_file.hpp describes).
-std::string hc8_section(const Hc8Copy& c) {
+std::string hc8_section(const Hc8Copy& c, const char* magic = kHc8Magic) {
     Hc8Header h{};
-    std::memcpy(h.magic, "BASALTH8", 8);
+    std::memcpy(h.magic, magic, 8);
     h.version = 1;
     h.n_entries = 1;
     Hc8Entry e{};
@@ -102,8 +103,8 @@ int main() {
     const std::string layout =
         "# experts v5: layer gu_type d_type offset blob_bytes (n_expert 2, total 0)\n";
 
-    const std::string path = write_model(d.path / "m.basalt", {{"meta", meta}, {"gguf", gg}, {"hc8", hc8_bytes},
-                                                                {"experts.layout", layout}});
+    const std::string path = write_model(d.path / "m.halo", {{"meta", meta}, {"gguf", gg}, {"hc8", hc8_bytes},
+                                                              {"experts.layout", layout}});
     std::printf("1. the table\n");
     ModelFile m;
     check(m.open(path, err), "open: " + err);
@@ -115,14 +116,22 @@ int main() {
     {
         ModelFile bad;
         std::string e2;
-        const std::string trunc = write_model(d.path / "t.basalt", {{"meta", meta}}, true);
+        const std::string trunc = write_model(d.path / "t.halo", {{"meta", meta}}, true);
         check(!bad.open(trunc, e2) && e2.find("truncated") != std::string::npos, "a truncated file is refused: " + e2);
-        std::ofstream(d.path / "n.basalt") << std::string(70000, 'x');
-        check(!bad.open((d.path / "n.basalt").string(), e2), "a file without the magic is refused");
-        const std::string v1 = write_model(d.path / "v1.basalt", {{"meta", meta}}, false, 1);
+        std::ofstream(d.path / "n.halo") << std::string(70000, 'x');
+        check(!bad.open((d.path / "n.halo").string(), e2), "a file without the magic is refused");
+        const std::string v1 = write_model(d.path / "v1.halo", {{"meta", meta}}, false, 1);
         check(!bad.open(v1, e2) && e2.find("version 1") != std::string::npos &&
                   e2.find("tools/migrations/halo_v1_to_v2.py") != std::string::npos,
               "a version 1 file is refused with the migration's name: " + e2);
+        // every pack on disk was written before the rename: its magic is the legacy one and it loads unchanged
+        const std::string legacy = write_model(d.path / "legacy.halo", {{"meta", meta}, {"gguf", gg}},
+                                               false, kModelVersion, kLegacyModelMagic);
+        ModelFile old;
+        std::vector<uint8_t> old_raw;
+        check(old.open(legacy, e2), "a file with the legacy magic opens: " + e2);
+        check(old.find("gguf") != nullptr && old.read("gguf", old_raw, e2) && old_raw == raw,
+              "and its sections read as the new magic's do");
     }
 
     std::printf("2. meta and the GGUF view\n");
@@ -149,7 +158,7 @@ int main() {
     {
         std::vector<uint8_t> text;
         check(m.read("experts.layout", text, err), "read the layout section");
-        // a header of the .basalt spelling with no rows is refused as incomplete, not for its header
+        // a layout header with no rows is refused as incomplete, not for its header
         const bool ok = halo::kernels::cpu::expert_layout_load_text(std::string(text.begin(), text.end()), 2, 2, err, 2560, 640);
         check(!ok && err.find("missing or not contiguous") != std::string::npos,
               "\"# experts v5\" is read as a layout header: " + err);
@@ -160,6 +169,15 @@ int main() {
         check(hc8_read(m.range("hc8"), back, err) && back.count(c.name) && back[c.name].data == c.data &&
                   back[c.name].rows == 3 && back[c.name].srow == 8,
               "the hc8 section reads back byte for byte: " + err);
+        // a table written before the rename carries the legacy magic and reads the same copy
+        std::string e3;
+        const std::string legacy_path = write_model(
+            d.path / "hc8-legacy.halo", {{"hc8", hc8_section(c, kLegacyHc8Magic)}}, false, kModelVersion, kLegacyModelMagic);
+        ModelFile legacy_file;
+        std::map<std::string, Hc8Copy> legacy_back;
+        check(legacy_file.open(legacy_path, e3) && hc8_read(legacy_file.range("hc8"), legacy_back, e3) &&
+                  legacy_back.count(c.name) && legacy_back[c.name].data == c.data,
+              "an hc8 table with the legacy magic reads the same copy: " + e3);
         hc8_set_table(back);
         check(hc8_find(c.name, 3, 64) != nullptr && hc8_find(c.name, 3, 32) == nullptr && hc8_find("x", 3, 64) == nullptr,
               "hc8_find matches name and shape");

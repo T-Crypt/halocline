@@ -1,6 +1,6 @@
-"""Every flag the engine lists in its help reaches the engine through halo-bench.
+"""Every flag the engine lists in its help reaches the engine through halocline-bench.
 
-    HALO_BIN=bin/halo HALO_BENCH_BIN=bin/halo-bench python3 -m unittest tools.test_bench_flags
+    HALO_BIN=bin/halocline HALO_BENCH_BIN=bin/halocline-bench python3 -m unittest tools.test_bench_flags
 """
 import json
 import os
@@ -11,8 +11,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE = Path(os.environ.get("HALO_BIN", ROOT / "bin" / "halo"))
-BENCH = Path(os.environ.get("HALO_BENCH_BIN", ROOT / "bin" / "halo-bench"))
+ENGINE = Path(os.environ.get("HALO_BIN", ROOT / "bin" / "halocline"))
+BENCH = Path(os.environ.get("HALO_BENCH_BIN", ROOT / "bin" / "halocline-bench"))
 # bench's own options that share an engine flag's name
 BENCH_OWNED = {"--help", "--model", "--engine", "--spec", "--set", "--seed", "--gpu"}
 
@@ -22,7 +22,7 @@ def engine_flags() -> list[str]:
     return sorted(set(re.findall(r"^\s+(--[a-z0-9][a-z0-9-]*)", out, re.M)))
 
 
-@unittest.skipUnless(ENGINE.is_file() and BENCH.is_file(), "build bin/halo and bin/halo-bench first")
+@unittest.skipUnless(ENGINE.is_file() and BENCH.is_file(), "build bin/halocline and bin/halocline-bench first")
 class BenchFlags(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -36,7 +36,7 @@ class BenchFlags(unittest.TestCase):
         self.tmp.cleanup()
 
     def command(self, *extra: str) -> list[str]:
-        r = subprocess.run([str(BENCH), "--engine", str(ENGINE), "--model", "m.basalt", "--fixtures", str(self.fixtures),
+        r = subprocess.run([str(BENCH), "--engine", str(ENGINE), "--model", "m.halo", "--fixtures", str(self.fixtures),
                             "--print-command", *extra], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout.split()
@@ -77,7 +77,7 @@ class BenchFlags(unittest.TestCase):
         cmd = self.command("--seed", "7")
         self.assertNotIn("--seed", cmd)
         for bad in ("0", "-3", "x"):
-            r = subprocess.run([str(BENCH), "--model", "m.basalt", "--seed", bad], capture_output=True, text=True)
+            r = subprocess.run([str(BENCH), "--model", "m.halo", "--seed", bad], capture_output=True, text=True)
             self.assertEqual(r.returncode, 2)
 
     def test_built_ins_are_minimal(self):
@@ -95,7 +95,7 @@ class BenchFlags(unittest.TestCase):
         self.assertNotIn("--spec", cmd)
 
     def command_community(self) -> list[str]:
-        r = subprocess.run([str(BENCH), "--model", "m.basalt", "--fixtures", str(self.fixtures), "--print-command",
+        r = subprocess.run([str(BENCH), "--model", "m.halo", "--fixtures", str(self.fixtures), "--print-command",
                             "--community", "--submitter", "test"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout.split()
@@ -104,7 +104,7 @@ class BenchFlags(unittest.TestCase):
         for extra in (["--spec", "0"], ["--kv", "int8"], ["-t", "conv"], ["-p", "16384"], ["-r", "2"], ["--quality"], ["--seed", "7"],
                       ["--set", "--kv int8"], ["-o", "json"], ["--engine", "x"], ["--", "--spec", "3"]):
             with self.subTest(extra=extra):
-                r = subprocess.run([str(BENCH), "--model", "m.basalt", "--community", *extra],
+                r = subprocess.run([str(BENCH), "--model", "m.halo", "--community", *extra],
                                    capture_output=True, text=True)
                 self.assertEqual(r.returncode, 2)
                 self.assertIn("incomparable", r.stderr)
@@ -112,7 +112,7 @@ class BenchFlags(unittest.TestCase):
     def test_community_refuses_a_submitter_the_table_checker_rejects(self):
         for name in ("two words", "x" * 41, "tab\tname"):
             with self.subTest(name=name):
-                r = subprocess.run([str(BENCH), "--model", "m.basalt", "--community", "--submitter", name],
+                r = subprocess.run([str(BENCH), "--model", "m.halo", "--community", "--submitter", name],
                                    capture_output=True, text=True)
                 self.assertEqual(r.returncode, 2)
                 self.assertIn("--submitter", r.stderr)
@@ -122,7 +122,7 @@ class BenchFlags(unittest.TestCase):
         plan = subprocess.run([str(ENGINE), "--gpu-plan", "--gpu", "auto"], capture_output=True, text=True)
         self.assertEqual(plan.returncode, 0, plan.stderr)
         self.assertEqual(cmd[cmd.index("--gpu") + 1], json.loads(plan.stdout)["devices"])   # every visible card
-        r = subprocess.run([str(BENCH), "--model", "m.basalt", "--community", "--gpu", "0"], capture_output=True, text=True)
+        r = subprocess.run([str(BENCH), "--model", "m.halo", "--community", "--gpu", "0"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
         self.assertIn("incomparable", r.stderr)
 

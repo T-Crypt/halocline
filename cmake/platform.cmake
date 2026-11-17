@@ -36,7 +36,7 @@ target_include_directories(platform PUBLIC ${HALO_CMAKE_ROOT}/include)
 target_link_libraries(platform PUBLIC warnings ${CMAKE_DL_LIBS})
 
 
-# The .basalt reader (host-only like `platform`): the engine's `core` and the vision programs, which open a section in
+# The .halo reader (host-only like `platform`): the engine's `core` and the vision programs, which open a section in
 # place, link the one copy.
 add_library(model_file STATIC ${HALO_CMAKE_ROOT}/src/core/model_file.cpp)
 target_include_directories(model_file PUBLIC ${HALO_CMAKE_ROOT}/include)

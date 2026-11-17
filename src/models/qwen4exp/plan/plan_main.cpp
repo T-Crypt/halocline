@@ -1,4 +1,4 @@
-// src/models/qwen4exp/plan/plan_main.cpp - the `halo-plan` CLI: print the memory plan, or say why it does not close.
+// src/models/qwen4exp/plan/plan_main.cpp - the `halocline-plan` CLI: print the memory plan, or say why it does not close.
 //
 // The engine must adapt to the GPU it is running on, so the plan is computed from measured free VRAM and the
 // requested context rather than configured by hand.  This tool is that computation on its own, which is what
@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
             next(v);
             free_vram = v;
         } else if (a == "--help" || a == "-h") {
-            std::printf("usage: halo-plan [--max-context N] [--vram BYTES] [--dense B] [--embd B]\n"
+            std::printf("usage: halocline-plan [--max-context N] [--vram BYTES] [--dense B] [--embd B]\n"
                         "                   [--workspace B] [--state B] [--pool B]\n"
                         "  --state defaults to the geometry's own GDN recurrence + conv history, NOT to 0:\n"
                         "  a planner fed zero would silently plan without 117.7 MB (85 expert slots) of\n"
@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
         std::printf("%s", halo::plan::to_string(p).c_str());
         return 0;
     } catch (const halo::plan::DoesNotClose& e) {
-        halo::log::error("halo-plan", "%s", e.what());
+        halo::log::error("halocline-plan", "%s", e.what());
         return 1;
     }
 }

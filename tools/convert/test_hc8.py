@@ -76,7 +76,7 @@ class Section(unittest.TestCase):
     def test_table_layout(self):
         a, b = H.quantize(bf16(np.ones((2, 32)))), H.quantize(bf16(np.full((1, 64), 2.0)))
         blob = H.table([("x", 2, 32, a), ("mtp.y", 1, 64, b)])
-        self.assertEqual(blob[:8], b"BASALTH8")
+        self.assertEqual(blob[:8], b"HALOCLH8")
         t = H.read_table(blob)
         self.assertEqual(list(t), ["x", "mtp.y"])
         self.assertEqual(t["x"], (2, 32, 8, a))
@@ -84,6 +84,14 @@ class Section(unittest.TestCase):
         first = H.ENTRY.unpack_from(blob, H.HEADER.size)[5]
         self.assertEqual(first, 512)                         # 16 + 2 x 160, rounded up to 256
         self.assertEqual(H.ENTRY.size, 160)
+
+    def test_a_table_written_before_the_rename_reads(self):
+        # the magic is the only difference, and a pack on disk has the legacy one
+        a = H.quantize(bf16(np.ones((2, 32))))
+        blob = H.table([("x", 2, 32, a)])
+        legacy = H.LEGACY_MAGIC + blob[8:]
+        self.assertEqual(H.read_table(legacy), H.read_table(blob))
+        self.assertEqual(H.read_table(legacy)["x"], (2, 32, 8, a))
 
     def test_section_order_and_sources(self):
         rng = np.random.default_rng(5)

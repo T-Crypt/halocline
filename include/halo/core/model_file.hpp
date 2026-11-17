@@ -1,5 +1,5 @@
 #pragma once
-// Reader for the .basalt model file (the layout is in model_format.hpp), and the byte ranges the loaders read.
+// Reader for the .halo model file (the layout is in model_format.hpp), and the byte ranges the loaders read.
 //
 // Every loader takes a FileRange: a path, an offset and a size; `--model` gives the sections of one file.
 // A section is 2 MiB aligned in the file, so a range can be mapped, and read with O_DIRECT at its own offsets.
@@ -7,10 +7,10 @@
 // The source tensors in the `gguf` section are served through the GGUF reader (halo/artifact/gguf_reader.hpp):
 // `ModelFile::register_gguf_view` makes `GgufFile(model path)` answer with `meta.gguf_kv` and the tensors of
 // `meta.tensors`, whose offsets are absolute file offsets, so the loaders that read GGUF tensors in place read them
-// from the .basalt unchanged.
+// from the .halo unchanged.
 //
 // The `hc8` section is a table of the 8-bit hyper-connection copies, little-endian:
-//   Hc8Header                 magic "BASALTH8", version, n_entries
+//   Hc8Header                 magic "HALOCLH8" ("BASALTH8" in a file written before the rename), version, n_entries
 //   n_entries x Hc8Entry      name (NUL-padded), rows, cols, srow, offset (from the start of the section), bytes
 //   data                      at each entry's offset (a multiple of 256): rows x cols int8 codes, then
 //                             rows x srow f16 scales (a row's cols / 32 scales first, the rest zero), `bytes` in all
@@ -112,22 +112,28 @@ private:
     bool meta_loaded_ = false;
 };
 
-/// Where each loader reads from: the sections of the .basalt.
+/// Where each loader reads from: the sections of the .halo.
 struct ModelSources {
     FileRange dense, dense_index, experts, experts_layout, hc8;
     FileRange mtp_dense, mtp_dense_index, mtp_experts, mtp_draft_vocab;
     /// The vision projector GGUF (`vision/mmproj`), opened in place by the image encoders.
     FileRange vision;
-    /// The file that serves the source GGUF tensors and metadata when they come from a .basalt, else empty.
+    /// The file that serves the source GGUF tensors and metadata when they come from a .halo, else empty.
     std::string model_path;
 };
 
-/// The ranges of a .basalt's sections (those that exist).
+/// The ranges of a .halo's sections (those that exist).
 void model_sources(const ModelFile& m, ModelSources& s);
 
 // ---- the hc8 table
+/// The table's magic as this build's writer writes it, and the one every file written before the rename carries.
+/// The reader accepts both: the section's SHA-256 in the header covers these bytes, and nothing verifies it at open,
+/// so a legacy table loads as it did.
+constexpr char kHc8Magic[8] = {'H', 'A', 'L', 'O', 'C', 'L', 'H', '8'};
+constexpr char kLegacyHc8Magic[8] = {'B', 'A', 'S', 'A', 'L', 'T', 'H', '8'};
+
 struct Hc8Header {
-    char magic[8];             ///< "BASALTH8"
+    char magic[8];             ///< kHc8Magic, or kLegacyHc8Magic in a file written before the rename
     uint32_t version;          ///< 1
     uint32_t n_entries;
 };
@@ -155,7 +161,7 @@ void hc8_set_table(std::map<std::string, Hc8Copy> table);
 /// The loaded copy of `name` when its shape is rows x cols, else nullptr.
 const Hc8Copy* hc8_find(const std::string& name, int rows, int cols);
 
-/// Reads a table from a range (the `hc8` section of a .basalt).
+/// Reads a table from a range (the `hc8` section of a .halo).
 bool hc8_read(const FileRange& r, std::map<std::string, Hc8Copy>& out, std::string& err);
 
 }  // namespace halo::core

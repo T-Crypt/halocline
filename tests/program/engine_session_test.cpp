@@ -94,12 +94,12 @@ int main(int argc, char** argv) {
         const fs::path top = fs::path(dir) / "engine_session_test_install";
         fs::remove_all(top);
         fs::create_directories(top / "bin");
-        const std::string bench = (top / "bin" / "halo-bench.exe").string(), built = "/build/bin/halo";
+        const std::string bench = (top / "bin" / "halocline-bench.exe").string(), built = "/build/bin/halocline";
         check(halo::program::default_engine(bench, built) == built, "no engine beside the program: the build's");
-        std::ofstream((top / "bin" / "halo.exe").string()) << "x";
-        fs::permissions(top / "bin" / "halo.exe", fs::perms::owner_all);
+        std::ofstream((top / "bin" / "halocline.exe").string()) << "x";
+        fs::permissions(top / "bin" / "halocline.exe", fs::perms::owner_all);
         const std::string got = halo::program::default_engine(bench, built);
-        check(got == (top / "bin" / "halo.exe").string(), "the engine beside the program, with its suffix", got);
+        check(got == (top / "bin" / "halocline.exe").string(), "the engine beside the program, with its suffix", got);
         check(halo::program::default_engine("", built) == built, "a program that cannot name itself: the build's");
         check(halo::program::default_fixtures(top.string(), "/build/data/bench") == "/build/data/bench",
               "no data/bench in the install: the build's fixtures");

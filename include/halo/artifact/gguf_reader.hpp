@@ -17,7 +17,7 @@
 // already established independently (1,223 / 1 tensors; 202 Q2_0 in shard 1). Agreement with those
 // numbers is the test.
 //
-// Target: halo-gguf (CMake).  Run: halo-gguf <file.gguf> [--check]
+// Target: halocline-gguf (CMake).  Run: halocline-gguf <file.gguf> [--check]
 
 #include <cstdint>
 #include <cstdio>
@@ -341,7 +341,7 @@ inline MetaValue read_value(Cursor& c, MetaType t, int depth = 0) {
 }
 
 // A GGUF-shaped view of a file that is not a GGUF: the metadata and the tensor directory come from elsewhere
-// (a .basalt model file's `meta` section) and every tensor offset is an absolute file offset.  Registered under the
+// (a .halo model file's `meta` section) and every tensor offset is an absolute file offset.  Registered under the
 // file's path, so everything that opens `GgufFile(path)` reads the tensors in place from it.
 struct VirtualGguf {
     std::map<std::string, MetaValue> meta;

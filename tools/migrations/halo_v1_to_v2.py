@@ -1,6 +1,6 @@
-"""Write a version 2 .basalt file from a version 1 file, without re-quantizing anything.
+"""Write a version 2 .halo file from a version 1 .basalt file, without re-quantizing anything.
 
-    python3 tools/migrations/halo_v1_to_v2.py OLD.basalt NEW.basalt [--force]
+    python3 tools/migrations/halo_v1_to_v2.py OLD.basalt NEW.halo [--force]
 
 Every model section is copied byte for byte (its SHA-256 checked against OLD's table); `profile` is dropped; `hc8` is
 computed from the file's own hyper-connection matrices (tools/convert/hc8.py); `meta` loses `profile`, `hc8`,
@@ -55,7 +55,7 @@ def migrate(src: Path, out: Path) -> None:
     except ValueError as e:
         die(str(e))
     if old.version != 1:
-        die(f"{src} is .basalt version {old.version}; this script reads version 1")
+        die(f"{src} is Halocline model file version {old.version}; this script reads version 1")
     meta = json.loads(old.read("meta"))
     partial = Path(str(out) + ".partial")
     partial.unlink(missing_ok=True)
@@ -96,7 +96,7 @@ def migrate(src: Path, out: Path) -> None:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("old", help="the version 1 .basalt file (read only)")
-    ap.add_argument("new", help="the version 2 .basalt file to write")
+    ap.add_argument("new", help="the version 2 .halo file to write")
     ap.add_argument("--force", action="store_true", help="overwrite NEW")
     a = ap.parse_args()
     src, out = Path(a.old), Path(a.new)

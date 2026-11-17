@@ -1,4 +1,4 @@
-"""Sections of a .basalt file built from the source weights, for tools/convert/convert.py.
+"""Sections of a .halo file built from the source weights, for tools/convert/convert.py.
 
   dense / dense.index       float tensors in the form the engine reads, and the table of every non-expert tensor
   experts / experts.layout  per layer, n_expert blobs of [gate | up | down] rows, and where each layer starts

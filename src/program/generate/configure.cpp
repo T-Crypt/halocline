@@ -25,7 +25,7 @@ int run(int argc, char** argv) {
     // ---- the GPUs: chosen before any CUDA call, which then sees only them, the main card as device 0
     std::vector<halo::program::GpuCard> chosen_cards;
     if (const auto code = cli::select_gpus(common, chosen_cards)) return *code;
-    // ---- where every loader reads from: the sections of the .basalt file
+    // ---- where every loader reads from: the sections of the .halo file
     if (const auto code = cli::prepare_model_process(common)) return *code;
     if (const std::optional<int> code = adapter->run(common, chosen_cards)) return *code;
     return run_session_model(common, *adapter);

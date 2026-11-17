@@ -1,21 +1,21 @@
-"""Build the single .basalt model file from the source GGUF shards.
+"""Build the single .halo model file from the source GGUF shards.
 
-    python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --mmproj MMPROJ.gguf --out MODEL.basalt \\
+    python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --mmproj MMPROJ.gguf --out MODEL.halo \\
         [--mtp-source DIR] [--mtp-dense FILE] [--draft-vocab FILE] [--name NAME] [--compat-bf16] [--no-vision] [--force]
-    python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --sections-from BASE.basalt --out MODEL.basalt [--name NAME] [--force]
-    python3 tools/convert/convert.py --dspark FILE --into PACK.basalt --undo-dir DIR
-    python3 tools/convert/convert.py --sections-from BASE.basalt --checkpoint DIR --out MODEL.basalt [--dense-q8-0] [--mtp-dense FILE] \\
+    python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --sections-from BASE.halo --out MODEL.halo [--name NAME] [--force]
+    python3 tools/convert/convert.py --dspark FILE --into PACK.halo --undo-dir DIR
+    python3 tools/convert/convert.py --sections-from BASE.halo --checkpoint DIR --out MODEL.halo [--dense-q8-0] [--mtp-dense FILE] \\
         [--name NAME] [--workers N] [--force]
-    python3 tools/convert/convert.py --sections-from DEEPSEEK.basalt --checkpoint DIR --out MODEL.basalt [--stream-shards] \\
+    python3 tools/convert/convert.py --sections-from DEEPSEEK.halo --checkpoint DIR --out MODEL.halo [--stream-shards] \\
         [--name NAME] [--workers N] [--force]
-    python3 tools/convert/convert.py --checkpoint QWEN35_DIR --out MODEL.basalt [--drafter DFLASH2_DIR] [--head nvfp4] [--name NAME] [--workers N] [--force]
-    python3 tools/convert/convert.py --gguf QWEN35.gguf --out MODEL.basalt [--mmproj MMPROJ.gguf | --no-vision] [--name NAME] [--force]
+    python3 tools/convert/convert.py --checkpoint QWEN35_DIR --out MODEL.halo [--drafter DFLASH2_DIR] [--head nvfp4] [--name NAME] [--workers N] [--force]
+    python3 tools/convert/convert.py --gguf QWEN35.gguf --out MODEL.halo [--mmproj MMPROJ.gguf | --no-vision] [--name NAME] [--force]
         (a dense qwen35 GGUF: every tensor copied as stored, tools/convert/gguf_qwen35.py; check with
-         python3 tools/convert/gguf_qwen35.py verify MODEL.basalt QWEN35.gguf)
+         python3 tools/convert/gguf_qwen35.py verify MODEL.halo QWEN35.gguf)
 
 Inputs
   --gguf FILE        the model's GGUF: shard 1 of a split model (the others are found beside it) or --gguf per shard
-  --sections-from BASE.basalt  with --gguf: the drafter, DSpark and vision sections are copied from BASE byte for byte
+  --sections-from BASE.halo  with --gguf: the drafter, DSpark and vision sections are copied from BASE byte for byte
                      (BASE's vocabulary must be the GGUF's); replaces --mmproj, --mtp-*, --draft-vocab and --dspark. A
                      tensor with a section of its own (the Engram table) whose shard stops after its header is copied
                      from BASE's section of the same tensor
@@ -56,16 +56,16 @@ From a dense qwen35 NVFP4 checkpoint (no --sections-from; tools/convert/checkpoi
                      to NVFP4 (UE4M3 scale of least squared error per 16 values); a head already NVFP4 is kept
 
 Dense requantization
-    python3 tools/convert/convert.py --requant-dense-q6k PACK.basalt [--checkpoint DIR] --out MODEL.basalt [--workers N] [--force]
+    python3 tools/convert/convert.py --requant-dense-q6k PACK.halo [--checkpoint DIR] --out MODEL.halo [--workers N] [--force]
   Every Q8_0 dense projection whose rows are whole 256-value blocks (GDN qkv/z/out, attention q/k/v/o, the shared
   experts' gate and up) is written as Q6_K; everything else is copied byte for byte. --checkpoint DIR quantizes from the
   BF16 shards (each tensor is checked against the Q8_0 copy in PACK); without it the Q8_0 values are requantized.
 
 Adding the drafter to a deepseek41 pack that exists
-  --dspark FILE --into PACK.basalt --undo-dir DIR
+  --dspark FILE --into PACK.halo --undo-dir DIR
                      writes dspark/gguf and a new meta past the file's end and replaces the header in one write: no other
                      section moves or changes. DIR (new) keeps the old header and meta;
-  --roll-back --into PACK.basalt --undo-dir DIR
+  --roll-back --into PACK.halo --undo-dir DIR
                      puts them back and cuts the file to its old size.
 
 Options
@@ -751,17 +751,17 @@ def requant_dense(a) -> None:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--sections-from", metavar="PACK.basalt",
-                    help="with --checkpoint or --gguf: the drafter and vision projector come from this .basalt; everything "
+    ap.add_argument("--sections-from", metavar="PACK.halo",
+                    help="with --checkpoint or --gguf: the drafter and vision projector come from this .halo; everything "
                          "else from the checkpoint or the GGUF")
     ap.add_argument("--gguf", action="append", metavar="FILE",
                     help="the model's GGUF: shard 1 of a split model (the others are found beside it), or repeat per shard")
     ap.add_argument("--mmproj", help="vision projector GGUF (required unless --no-vision)")
     ap.add_argument("--dspark", metavar="FILE", help="deepseek41: the DSpark drafter GGUF, stored whole as dspark/gguf")
-    ap.add_argument("--into", metavar="PACK.basalt", help="with --dspark: add it to this pack, whose other sections stay as they are")
+    ap.add_argument("--into", metavar="PACK.halo", help="with --dspark: add it to this pack, whose other sections stay as they are")
     ap.add_argument("--undo-dir", metavar="DIR", help="with --into: a new directory for what --roll-back restores")
     ap.add_argument("--roll-back", action="store_true", help="with --into and --undo-dir: restore the pack as it was")
-    ap.add_argument("--out", help="the .basalt file to write")
+    ap.add_argument("--out", help="the .halo file to write")
     ap.add_argument("--mtp-source", metavar="DIR", help="the drafter's BF16 tensors written by tools/convert/mtp_fetch.py fetch")
     ap.add_argument("--mtp-dense", metavar="FILE", help="a tuned (self-distilled) mtp/dense section to embed (needs --mtp-source)")
     ap.add_argument("--draft-vocab", metavar="FILE", help="int32 token ids the draft head may propose (needs --mtp-source)")
@@ -769,7 +769,7 @@ def main():
     ap.add_argument("--compat-bf16", action="store_true",
                     help="convert small projections stored in another form to BF16 (rounds)")
     ap.add_argument("--no-vision", action="store_true")
-    ap.add_argument("--requant-dense-q6k", metavar="PACK.basalt",
+    ap.add_argument("--requant-dense-q6k", metavar="PACK.halo",
                     help="copy PACK with its Q8_0 dense projections requantized to Q6_K")
     ap.add_argument("--checkpoint", metavar="DIR",
                     help="an NVFP4 safetensors checkpoint: with --sections-from, the language model is read from it; "

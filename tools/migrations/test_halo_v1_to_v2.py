@@ -38,8 +38,9 @@ class Migrate(unittest.TestCase):
         self.sections = [("tokenizer/vocab.json", b'{"a":0}'), ("dense", dense), ("dense.index", index),
                          ("mtp/dense", self.mw.tobytes()), ("mtp/dense.index", mtp_index), ("profile", b"P" * 20),
                          ("hc8", b"old"), ("vision/mmproj", b"M" * 100)]
-        self.v1 = self.t / "old.basalt"
+        self.v1 = self.t / "old.basalt"     # a version 1 pack predates the rename, so its name and magic are the old ones
         saved, model_file.VERSION = model_file.VERSION, 1
+        saved_magic, model_file.MAGIC = model_file.MAGIC, model_file.LEGACY_MAGIC
         try:
             w = ModelWriter(str(self.v1))
             for n, b in self.sections:
@@ -47,13 +48,13 @@ class Migrate(unittest.TestCase):
             w.add_bytes("meta", json.dumps(self.meta).encode())
             w.close()
         finally:
-            model_file.VERSION = saved
+            model_file.VERSION, model_file.MAGIC = saved, saved_magic
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def test_migrate(self):
-        out = self.t / "new.basalt"
+        out = self.t / "new.halo"
         M.migrate(self.v1, out)
         m = ModelFile(str(out))
         self.assertEqual(m.version, 2)
@@ -78,17 +79,17 @@ class Migrate(unittest.TestCase):
         self.assertNotIn("general.sampling.presence_penalty", kv)
 
     def test_refusals(self):
-        out = self.t / "new.basalt"
+        out = self.t / "new.halo"
         M.migrate(self.v1, out)
         with self.assertRaises(SystemExit) as c:
-            M.migrate(out, self.t / "again.basalt")
+            M.migrate(out, self.t / "again.halo")
         self.assertIn("version 2", str(c.exception))
         with self.assertRaises(ValueError) as c:
             ModelFile(str(self.v1))
         self.assertIn("tools/migrations/halo_v1_to_v2.py", str(c.exception))
         with open(self.v1, "rb") as f:
             self.assertEqual(struct.unpack_from("<I", f.read(12), 8)[0], 1)
-        self.assertFalse((self.t / "again.basalt.partial").exists())
+        self.assertFalse((self.t / "again.halo.partial").exists())
 
 
 if __name__ == "__main__":

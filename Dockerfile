@@ -16,7 +16,7 @@
 # installed: bin/, serve/, tools/, data/ and .venv/ under one top directory. A
 # binary finds its install root as the directory above itself, and reads the
 # expert profiles from <install root>/data/profiles, execs the python of
-# <install root>/.venv for `halo serve` and looks for the halo-vision
+# <install root>/.venv for `halocline serve` and looks for the halocline-vision
 # sidecar beside itself. The top directory is the same fixed path in both stages
 # because the venv's own scripts name it absolutely.
 #
@@ -25,7 +25,7 @@
 #            an older file) and, since HOME is pinned there, the server's folder
 #            per model under ~/.cache/halo: its engine log and, when the
 #            conversation disk tier is on, that tier
-#   /models  the .basalt model files
+#   /models  the .halo model files
 
 ARG CUDA_TAG=13.4.3
 
@@ -80,4 +80,4 @@ ENV HOME=/data \
 # server.port (8080) and the host mapping has to match it.
 EXPOSE 8080
 
-ENTRYPOINT ["halo", "serve", "--config", "/data/halo_config.json", "--host", "0.0.0.0"]
+ENTRYPOINT ["halocline", "serve", "--config", "/data/halo_config.json", "--host", "0.0.0.0"]

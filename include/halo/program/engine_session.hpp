@@ -43,7 +43,7 @@ public:
 
     std::map<std::string, std::string> info;
     /// Prefix of the load-progress lines `start` prints to stderr while it waits for READY.
-    std::string label = "halo-bench";
+    std::string label = "halocline-bench";
 
 private:
     bool write_all(const std::string& s);

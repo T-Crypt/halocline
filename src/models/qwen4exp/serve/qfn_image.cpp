@@ -34,7 +34,7 @@ Flow QfnRequest::prepare_image() {
                 if (got == 0) break;
                 if (got != 5 || hdr[0] != 0x31455653 || hdr[1] < 1 || hdr[2] < 1 || hdr[3] < 1 ||
                     (int64_t) hdr[2] * hdr[3] != hdr[1] || hdr[4] != (int32_t) runtime_.g.n_embd) {
-                    ve = "bad embeddings file (expected halo-vision records of width " +
+                    ve = "bad embeddings file (expected halocline-vision records of width " +
                          std::to_string((long long) runtime_.g.n_embd) + ")";
                     break;
                 }

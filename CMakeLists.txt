@@ -207,15 +207,15 @@ foreach(_m IN LISTS HALO_MODELS)
 endforeach()
 
 
-add_executable(halo-gguf src/artifact/gguf_reader.cpp)
-target_link_libraries(halo-gguf PRIVATE artifact models)
-halo_embed_manifest(halo-gguf)
+add_executable(halocline-gguf src/artifact/gguf_reader.cpp)
+target_link_libraries(halocline-gguf PRIVATE artifact models)
+halo_embed_manifest(halocline-gguf)
 
-add_executable(halo-dequant src/artifact/dequant.cpp)
-target_link_libraries(halo-dequant PRIVATE artifact)
-halo_embed_manifest(halo-dequant)
+add_executable(halocline-dequant src/artifact/dequant.cpp)
+target_link_libraries(halocline-dequant PRIVATE artifact)
+halo_embed_manifest(halocline-dequant)
 # this file is now nothing but the CLI entry point, and its inherited guard spells that as a "selftest"
-target_compile_definitions(halo-dequant PRIVATE DEQUANT_SELFTEST)
+target_compile_definitions(halocline-dequant PRIVATE DEQUANT_SELFTEST)
 if(BUILD_TESTING)
   # the reader refuses a duplicate tensor name at open, naming it (a synthetic GGUF: no model, no GPU)
   add_executable(gguf_reader_test tests/artifact/gguf_reader_test.cpp)
@@ -256,8 +256,8 @@ target_include_directories(plan INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(plan INTERFACE warnings)
 
 if(HALO_MODEL_QWEN4EXP)
-add_executable(halo-plan src/models/qwen4exp/plan/plan_main.cpp)
-target_link_libraries(halo-plan PRIVATE plan)
+add_executable(halocline-plan src/models/qwen4exp/plan/plan_main.cpp)
+target_link_libraries(halocline-plan PRIVATE plan)
 endif()
 
 # ---- platform (host OS boundary) ------------------------------------
@@ -272,12 +272,12 @@ target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # linker error ("unresolved external symbol cudaGraphInstantiate") names the function rather than the cause.
 target_link_libraries(core PUBLIC model_file artifact platform warnings ${_gpu_runtime_target})
 
-add_executable(halo-device src/models/qwen4exp/plan/device_main.cpp)
-target_link_libraries(halo-device PRIVATE core)
+add_executable(halocline-device src/models/qwen4exp/plan/device_main.cpp)
+target_link_libraries(halocline-device PRIVATE core)
 
 if(HALO_MODEL_QWEN4EXP)
-add_executable(halo-load src/models/qwen4exp/plan/load_main.cpp)
-target_link_libraries(halo-load PRIVATE core kernels)
+add_executable(halocline-load src/models/qwen4exp/plan/load_main.cpp)
+target_link_libraries(halocline-load PRIVATE core kernels)
 endif()
 
 # ---- kernels ----
@@ -437,7 +437,7 @@ if(BUILD_TESTING)
   target_link_libraries(conversation_snapshot_test PRIVATE model_qwen4exp_engine)
   halo_gpu_test(NAME conversation_snapshot_test COMMAND conversation_snapshot_test)
   set_tests_properties(conversation_snapshot_test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
-  # the .basalt reader: table, meta JSON, the GGUF view of the source tensors, the layout text, the hc8 table
+  # the .halo reader: table, meta JSON, the GGUF view of the source tensors, the layout text, the hc8 table
   add_executable(model_file_test tests/core/model_file_test.cpp)
   target_link_libraries(model_file_test PRIVATE model_qwen4exp_engine)
   halo_embed_manifest(model_file_test)
@@ -496,18 +496,24 @@ add_library(serve_shared STATIC src/program/serve/commands.cpp
 target_include_directories(serve_shared PUBLIC include PRIVATE ${_gpu_include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src/program/tokenizer)
 target_link_libraries(serve_shared PUBLIC tiers model engine_session grammar tokenizer spec ${_gpu_runtime_target})
 
-add_executable(halo src/program/generate.cpp
+add_executable(halocline src/program/generate.cpp
                        src/program/generate/adapter.cpp
                        src/program/generate/configure.cpp
                        src/program/cli/arguments.cpp
                        src/program/cli/serve.cpp
                        src/program/cli/startup.cpp
                        src/program/cli/gpu.cpp)
-halo_ship_to_bin(halo)
-target_include_directories(halo PRIVATE ${_gpu_include_directories})
-target_link_libraries(halo PRIVATE models serve_shared engine_session ${_gpu_runtime_target})
-halo_embed_manifest(halo)
-# `halo serve` runs the Python server from the directory above bin/; the engine reads its expert profiles from data/profiles
+halo_ship_to_bin(halocline)
+target_include_directories(halocline PRIVATE ${_gpu_include_directories})
+target_link_libraries(halocline PRIVATE models serve_shared engine_session ${_gpu_runtime_target})
+halo_embed_manifest(halocline)
+# `halocline serve` runs the Python server from the directory above bin/; the engine reads its expert profiles from
+# data/profiles. bin/halo stays as a symlink to this binary so scripts that call the old name keep working.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_custom_command(TARGET halocline POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE_NAME:halocline> $<TARGET_FILE_DIR:halocline>/halo
+    VERBATIM)
+endif()
 
 # The standard benchmark: a host-only program that drives the engine over its stdin/stdout protocol.
 # The commit stamp is refreshed on every build (not only at configure time), by a target that rewrites the header
@@ -519,7 +525,7 @@ add_custom_target(git_stamp
   COMMENT "Refreshing the commit stamp")
 execute_process(COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_CURRENT_SOURCE_DIR} -DOUT=${_git_stamp}
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/git_stamp.cmake)
-# the engine driven as a child process and the report logic, shared by halo-bench and halo-probe
+# the engine driven as a child process and the report logic, shared by halocline-bench and halocline-probe
 add_library(engine_session STATIC src/program/engine_session.cpp src/program/load_summary.cpp src/program/probe_report.cpp src/program/probe_derive.cpp src/program/auto_plan.cpp src/program/community_row.cpp src/program/host_rates.cpp
             src/program/gpu_select.cpp src/program/prompt_chunks.cpp src/program/image_loan.cpp)
 target_include_directories(engine_session PUBLIC include)
@@ -550,9 +556,9 @@ if(BUILD_TESTING)
   halo_cpu_test(NAME tokenizer_test COMMAND tokenizer_test)
   set_tests_properties(tokenizer_test PROPERTIES TIMEOUT 60)
 endif()
-add_executable(halo-bench src/program/bench_main.cpp)
-halo_ship_to_bin(halo-bench)
-# the image encoder sidecar, bin/halo-vision (its own project, built with this one)
+add_executable(halocline-bench src/program/bench_main.cpp)
+halo_ship_to_bin(halocline-bench)
+# the image encoder sidecar, bin/halocline-vision (its own project, built with this one)
 add_subdirectory(tools/vision)
 if(HALO_MODEL_QWEN4EXP)
 target_link_libraries(model_qwen4exp PUBLIC vision_cuda)
@@ -594,26 +600,26 @@ if(BUILD_TESTING)
     set_tests_properties(ffmpeg_abi_test PROPERTIES SKIP_RETURN_CODE 77)
   endif()
 endif()
-add_dependencies(halo-bench halo halo-device git_stamp)
-target_include_directories(halo-bench PRIVATE ${CMAKE_BINARY_DIR}/stamp)
-target_link_libraries(halo-bench PRIVATE engine_session platform warnings ${CMAKE_DL_LIBS})
-halo_embed_manifest(halo-bench)
-target_compile_definitions(halo-bench PRIVATE
-  HALO_BENCH_ENGINE="$<TARGET_FILE:halo>"
-  HALO_BENCH_DEVICE="$<TARGET_FILE:halo-device>"
+add_dependencies(halocline-bench halocline halocline-device git_stamp)
+target_include_directories(halocline-bench PRIVATE ${CMAKE_BINARY_DIR}/stamp)
+target_link_libraries(halocline-bench PRIVATE engine_session platform warnings ${CMAKE_DL_LIBS})
+halo_embed_manifest(halocline-bench)
+target_compile_definitions(halocline-bench PRIVATE
+  HALO_BENCH_ENGINE="$<TARGET_FILE:halocline>"
+  HALO_BENCH_DEVICE="$<TARGET_FILE:halocline-device>"
   HALO_BENCH_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/data/bench"
   HALO_BENCH_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
   HALO_BENCH_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
   HALO_BENCH_CUDA="${CMAKE_CUDA_COMPILER_VERSION}")
 
-# halo-probe: starts the engine, measures its rates and cold decode speed, prints a report
-add_executable(halo-probe src/program/probe_main.cpp)
-halo_ship_to_bin(halo-probe)
-add_dependencies(halo-probe halo)
-target_link_libraries(halo-probe PRIVATE engine_session platform warnings ${CMAKE_DL_LIBS})
-halo_embed_manifest(halo-probe)
-target_compile_definitions(halo-probe PRIVATE
-  HALO_BENCH_ENGINE="$<TARGET_FILE:halo>"
+# halocline-probe: starts the engine, measures its rates and cold decode speed, prints a report
+add_executable(halocline-probe src/program/probe_main.cpp)
+halo_ship_to_bin(halocline-probe)
+add_dependencies(halocline-probe halocline)
+target_link_libraries(halocline-probe PRIVATE engine_session platform warnings ${CMAKE_DL_LIBS})
+halo_embed_manifest(halocline-probe)
+target_compile_definitions(halocline-probe PRIVATE
+  HALO_BENCH_ENGINE="$<TARGET_FILE:halocline>"
   HALO_BENCH_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/data/bench")
 
 # the model-pack tests below and the i-quant fixtures need python3; looked up before the first of them
@@ -625,7 +631,7 @@ if(BUILD_TESTING)
 if(HALO_STDIN_STOP_MODEL AND Python3_Interpreter_FOUND)
   add_test(NAME stdin_stop_test
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/program/stdin_stop_test.py
-                   $<TARGET_FILE:halo> ${HALO_STDIN_STOP_MODEL} ${CMAKE_CURRENT_SOURCE_DIR}/data/bench/conv.ids
+                   $<TARGET_FILE:halocline> ${HALO_STDIN_STOP_MODEL} ${CMAKE_CURRENT_SOURCE_DIR}/data/bench/conv.ids
                    ${HALO_STDIN_STOP_ARGS})
   set_property(TEST stdin_stop_test APPEND PROPERTY LABELS gpu)
   set_tests_properties(stdin_stop_test PROPERTIES TIMEOUT 600)
@@ -636,7 +642,7 @@ endif()
 if(HALO_GRAMMAR_MODEL AND Python3_Interpreter_FOUND)
   add_test(NAME grammar_engine_test
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/program/grammar_engine_test.py
-                   $<TARGET_FILE:halo> ${HALO_GRAMMAR_MODEL} ${HALO_GRAMMAR_ARGS})
+                   $<TARGET_FILE:halocline> ${HALO_GRAMMAR_MODEL} ${HALO_GRAMMAR_ARGS})
   set_property(TEST grammar_engine_test APPEND PROPERTY LABELS gpu)
   set_tests_properties(grammar_engine_test PROPERTIES TIMEOUT 900)
 endif()
@@ -646,7 +652,7 @@ endif()
 if(HALO_GRAMMAR_MODEL AND Python3_Interpreter_FOUND)
   add_test(NAME grammar_batch_test
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/program/grammar_batch_test.py
-                   $<TARGET_FILE:halo> ${HALO_GRAMMAR_MODEL} ${HALO_GRAMMAR_BATCH_ARGS})
+                   $<TARGET_FILE:halocline> ${HALO_GRAMMAR_MODEL} ${HALO_GRAMMAR_BATCH_ARGS})
   set_property(TEST grammar_batch_test APPEND PROPERTY LABELS gpu)
   set_tests_properties(grammar_batch_test PROPERTIES TIMEOUT 1500)
 endif()
@@ -711,7 +717,7 @@ if(Python3_Interpreter_FOUND)
   if(HALO_MODEL_QWEN4EXP)
   halo_gpu_test(NAME generate_prompt_test
                   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/program/generate_prompt_test.py
-                          --engine $<TARGET_FILE:halo>
+                          --engine $<TARGET_FILE:halocline>
                           --model ${CMAKE_CURRENT_SOURCE_DIR}/models/Qwen3.8-FN-NVFP4.basalt)
   set_tests_properties(generate_prompt_test PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
   endif()
@@ -1157,7 +1163,7 @@ foreach(_t cpu_test compiler_test region_test process_pipe_test system_test file
   set_tests_properties(platform_${_t} PROPERTIES TIMEOUT 120)
 endforeach()
 
-# the engine's load lines condensed for halo-bench: lines, throttling, terminal mode (CPU only)
+# the engine's load lines condensed for halocline-bench: lines, throttling, terminal mode (CPU only)
 add_executable(load_summary_test tests/program/load_summary_test.cpp)
 target_link_libraries(load_summary_test PRIVATE engine_session warnings)
 halo_embed_manifest(load_summary_test)
@@ -1179,7 +1185,7 @@ halo_embed_manifest(log_test)
 halo_cpu_test(NAME log_test COMMAND log_test)
 set_tests_properties(log_test PROPERTIES TIMEOUT 60)
 
-# halo-probe's report: rates block and layout (CPU only)
+# halocline-probe's report: rates block and layout (CPU only)
 add_executable(probe_report_test tests/program/probe_report_test.cpp)
 target_link_libraries(probe_report_test PRIVATE engine_session warnings)
 halo_embed_manifest(probe_report_test)
@@ -1202,7 +1208,7 @@ target_link_libraries(prompt_chunks_test PRIVATE engine_session warnings)
 halo_cpu_test(NAME prompt_chunks_test COMMAND prompt_chunks_test)
 set_tests_properties(prompt_chunks_test PROPERTIES TIMEOUT 60)
 
-# halo-probe's suggested values: the worker pick, the balance share and the suggestion lines (CPU only)
+# halocline-probe's suggested values: the worker pick, the balance share and the suggestion lines (CPU only)
 add_executable(probe_derive_test tests/program/probe_derive_test.cpp)
 target_link_libraries(probe_derive_test PRIVATE engine_session warnings)
 halo_embed_manifest(probe_derive_test)
@@ -1312,7 +1318,7 @@ endif()
 # The GPU test runs ON THE TARGET PC. `--selftest` allocates
 # and writes real VRAM, so a machine without a device fails this test rather than skipping it silently -
 # which is correct: an engine that targets one GPU should not report a pass for having no GPU.
-halo_gpu_test(NAME cuda_device_selftest COMMAND halo-device --selftest)
+halo_gpu_test(NAME cuda_device_selftest COMMAND halocline-device --selftest)
 endif()
 
 # ---- kernels_cpu ----

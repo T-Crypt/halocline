@@ -234,7 +234,7 @@ int history_advance_regression() {
 int main(int argc, char** argv) {
     bool selftest = false;
     bool check_fixtures = false;
-    std::string dense = "dense.bin";   // the dense section of a .basalt, extracted to a file
+    std::string dense = "dense.bin";   // the dense section of a .halo, extracted to a file
     // --gguf: the shard that holds the PLE table
     std::string gguf = "../../Q2_0/Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00002-of-00002.gguf";
     std::string in_bin = "ple_in.bin", out_bin = "ple_out.bin";

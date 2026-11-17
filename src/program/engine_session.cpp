@@ -249,7 +249,7 @@ std::string fixtures_for(const std::string& dir, const std::string& plan_answer)
 std::string default_engine(const std::string& self, const std::string& built) {
     if (!self.empty()) {
         const std::filesystem::path p(self);
-        const std::string beside = (p.parent_path() / ("halo" + p.extension().string())).string();
+        const std::string beside = (p.parent_path() / ("halocline" + p.extension().string())).string();
         if (halo::platform::path_executable(beside)) return beside;
     }
     return built;

@@ -1,4 +1,4 @@
-// src/artifact/dequant.cpp - the `halo-dequant` CLI (dequantize a GGUF tensor and dump F32).
+// src/artifact/dequant.cpp - the `halocline-dequant` CLI (dequantize a GGUF tensor and dump F32).
 // The dequantizers themselves are header-only in include/halo/artifact/dequant.hpp.
 #include "halo/artifact/dequant.hpp"
 

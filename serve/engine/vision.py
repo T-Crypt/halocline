@@ -90,7 +90,7 @@ def video_rows(line: str) -> VideoRows:
 
 
 class Vision:
-    """The resident `halo-vision` encoder: `ENC <image> <out>` and `ENCV <video> <out>` lines in, embeddings out,
+    """The resident `halocline-vision` encoder: `ENC <image> <out>` and `ENCV <video> <out>` lines in, embeddings out,
     cached by content hash."""
 
     def __init__(self, cfg: dict, log=None, env: dict | None = None, start: bool = True):

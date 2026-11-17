@@ -1,4 +1,4 @@
-"""Read and write the .basalt model file (the layout in include/halo/core/model_format.hpp).
+"""Read and write the .halo model file (the layout in include/halo/core/model_format.hpp).
 
     w = ModelWriter(path)
     w.add_bytes("meta", json_bytes)
@@ -18,7 +18,8 @@ import hashlib
 import os
 import struct
 
-MAGIC = b"BASALTMF"
+MAGIC = b"HALOCLMF"
+LEGACY_MAGIC = b"BASALTMF"      # every file written before the rename: the reader accepts it, the writer does not write it
 VERSION = 2
 MIGRATION = "tools/migrations/halo_v1_to_v2.py"
 SECTION_ALIGN = 2 << 20
@@ -243,11 +244,11 @@ class ModelFile:
         with open(path, "rb") as f:
             head = f.read(HEADER_BYTES)
         magic, version, n, file_bytes, _ = HEADER.unpack_from(head, 0)
-        if magic != MAGIC:
-            raise ValueError(f"{path}: not a .basalt model file")
+        if magic not in (MAGIC, LEGACY_MAGIC):
+            raise ValueError(f"{path}: not a Halocline model file")
         if version not in versions:
             hint = f"; upgrade it with {MIGRATION}" if version < VERSION else ""
-            raise ValueError(f"{path}: .basalt version {version}, this build reads version {VERSION}{hint}")
+            raise ValueError(f"{path}: Halocline model file version {version}, this build reads version {VERSION}{hint}")
         self.version = version
         if os.path.getsize(path) < file_bytes:
             raise ValueError(f"{path}: truncated ({os.path.getsize(path)} of {file_bytes} bytes)")

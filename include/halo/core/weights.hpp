@@ -108,7 +108,7 @@ struct LoadReport {
 struct PackFiles {
     FileRange index;
     FileRange files[4];
-    /// The dense section and its index, from a .basalt (or any ModelSources).
+    /// The dense section and its index, from a .halo (or any ModelSources).
     static PackFiles from(const ModelSources& s);
 };
 

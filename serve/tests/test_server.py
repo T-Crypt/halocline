@@ -1235,18 +1235,18 @@ class GpuChoice(unittest.TestCase):
         ok = mock.Mock(returncode=0, stderr="",
                        stdout='{"devices":"1,0","cards":[{"smi":1},{"smi":0}],"notes":[],"warning":"","error":""}\n')
         with mock.patch("subprocess.run", return_value=ok) as run:
-            self.assertEqual(model_plan("/x/halo", "/m.basalt", "1,0", ["--kv", "int8"])["devices"], "1,0")
-            self.assertEqual(run.call_args.args[0], ["/x/halo", "--model", "/m.basalt", "--kv", "int8", "--gpu-plan", "--gpu", "1,0"])
-            model_plan("/x/halo", "/m.basalt", None, [])
-            self.assertEqual(run.call_args.args[0], ["/x/halo", "--model", "/m.basalt", "--gpu-plan"])
+            self.assertEqual(model_plan("/x/halo", "/m.halo", "1,0", ["--kv", "int8"])["devices"], "1,0")
+            self.assertEqual(run.call_args.args[0], ["/x/halo", "--model", "/m.halo", "--kv", "int8", "--gpu-plan", "--gpu", "1,0"])
+            model_plan("/x/halo", "/m.halo", None, [])
+            self.assertEqual(run.call_args.args[0], ["/x/halo", "--model", "/m.halo", "--gpu-plan"])
         bad = mock.Mock(returncode=2, stderr="", stdout='{"devices":"","cards":[],"notes":[],"warning":"","error":"gpu 2: 2 GPUs are visible (0-1)"}')
         with mock.patch("subprocess.run", return_value=bad), self.assertRaisesRegex(ValueError, "2 GPUs are visible"):
-            model_plan("/x/halo", "/m.basalt", "2", [])
+            model_plan("/x/halo", "/m.halo", "2", [])
         refused = mock.Mock(returncode=2, stdout="", stderr="halo: error: unknown argument: --kv\nusage: halo\n")
         with mock.patch("subprocess.run", return_value=refused), self.assertRaisesRegex(ValueError, "unknown argument: --kv"):
-            model_plan("/x/halo", "/m.basalt", None, ["--kv", "int8"])
+            model_plan("/x/halo", "/m.halo", None, ["--kv", "int8"])
         with mock.patch("subprocess.run", side_effect=OSError), self.assertRaisesRegex(ValueError, "could not check"):
-            model_plan("/x/halo", "/m.basalt", "auto", [])
+            model_plan("/x/halo", "/m.halo", "auto", [])
 
     def test_vision_modes(self):
         from serve.engine.vision import vision_mode

@@ -187,7 +187,7 @@ def load_config_file(path: str, ap: argparse.ArgumentParser) -> ConfigFile:
     for key, value in server.items():
         name = config_name(key)
         if name == "engine-bin":
-            raise ValueError("server.engine-bin: engine-bin is set by halo serve")
+            raise ValueError("server.engine-bin: engine-bin is set by halocline serve")
         if name in ENTRY_OPTIONS or name in MODEL_OPTIONS:
             raise ValueError(f'server.{key}: a model setting, set it under "engine" or in a model entry')
         if name not in known:
@@ -521,8 +521,8 @@ def build_parser() -> argparse.ArgumentParser:
                                  allow_abbrev=False)
     ap.add_argument("--mock-engine", action="store_true",
                     help="run a scripted engine instead of the model, for clients and tests (no --model needed)")
-    ap.add_argument("--model", help="the .basalt model file: the engine, tokenizer, sampling and vision come from it")
-    ap.add_argument("--engine-bin", help=argparse.SUPPRESS)      # set by `halo serve`
+    ap.add_argument("--model", help="the .halo model file: the engine, tokenizer, sampling and vision come from it")
+    ap.add_argument("--engine-bin", help=argparse.SUPPRESS)      # set by `halocline serve`
     ap.add_argument("--alias", help="the model name the API reports (default: the name stored in the model file)")
     ap.add_argument("--parallel", type=parallel_count, metavar="N",
                     help=f"requests served at once, 1..{PARALLEL_MAX} (default 1: one at a time); more requests wait "

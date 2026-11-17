@@ -98,7 +98,7 @@ int QfnRuntime::capture_windows() {
     sfx.emplace(std::max(1, o.suffix_draft), 64, (size_t) o.max_context + 4096);
     policy.emplace(S);   // MTP or lookup window, learned over the whole process
     // The vision path (--vision): GENI <max_new> <embeddings file> <id,id,...> carries images and videos.  The
-    // file is one or more halo-vision records (int32 'SVE1', n, nx, ny, n_embd, then n x n_embd floats) in prompt
+    // file is one or more halocline-vision records (int32 'SVE1', n, nx, ny, n_embd, then n x n_embd floats) in prompt
     // order, one per picture and one per two-frame video group; each record's rows go to its run of <|image_pad|> or
     // <|video_pad|> tokens, whose M-RoPE positions are Qwen3-VL's (mrope_positions.hpp): t = p, h = p + y,
     // w = p + x, and the text after the run continues at p + max(nx, ny).

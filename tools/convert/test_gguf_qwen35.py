@@ -81,7 +81,7 @@ class Qwen35GgufTest(unittest.TestCase):
         return g.write(self.t / "tiny-UD-IQ4_XS.gguf")
 
     def args(self, **kw):
-        d = dict(gguf=[str(self.gguf)], out=str(self.t / "out.basalt"), mmproj=None, no_vision=True, name=None,
+        d = dict(gguf=[str(self.gguf)], out=str(self.t / "out.halo"), mmproj=None, no_vision=True, name=None,
                  force=False, dry_run=False)
         d.update(kw)
         return type("A", (), d)()
@@ -96,7 +96,7 @@ class Qwen35GgufTest(unittest.TestCase):
         def die(msg):
             raise S.ConvertError(msg)
         G.build(self.args(**kw), convert.Job, convert.fingerprint, die, export)
-        mf = ModelFile(str(self.t / "out.basalt"))
+        mf = ModelFile(str(self.t / "out.halo"))
         return mf, json.loads(mf.read("meta"))
 
     def test_every_tensor_is_copied_as_stored(self):
@@ -112,7 +112,7 @@ class Qwen35GgufTest(unittest.TestCase):
             self.assertEqual(e["offset"] % 32, 0)
         self.assertEqual(meta["tensors"]["blk.0.ffn_gate.weight"]["type"], "IQ4_XS")
         self.assertEqual(meta["tensors"]["mtp.fc.weight"]["shape"], [2 * H, H])
-        self.assertEqual(G.verify(self.t / "out.basalt", self.gguf), [])
+        self.assertEqual(G.verify(self.t / "out.halo", self.gguf), [])
 
     def test_meta_counts_main_layers_and_names_the_drafter(self):
         _, meta = self.build()
@@ -150,16 +150,16 @@ class Qwen35GgufTest(unittest.TestCase):
 
     def test_verify_sees_a_changed_byte(self):
         self.build()
-        mf = ModelFile(str(self.t / "out.basalt"))
+        mf = ModelFile(str(self.t / "out.halo"))
         meta = json.loads(mf.read("meta"))
         base, _ = mf.section("gguf")
         e = meta["tensors"]["blk.2.ssm_out.weight"]
-        with open(self.t / "out.basalt", "r+b") as f:
+        with open(self.t / "out.halo", "r+b") as f:
             f.seek(base + e["offset"] + 5)
             b = f.read(1)
             f.seek(base + e["offset"] + 5)
             f.write(bytes([b[0] ^ 1]))
-        bad = G.verify(self.t / "out.basalt", self.gguf)
+        bad = G.verify(self.t / "out.halo", self.gguf)
         self.assertEqual(len(bad), 1)
         self.assertTrue(bad[0].startswith("blk.2.ssm_out.weight: SHA-256"))
 

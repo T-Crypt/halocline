@@ -1,4 +1,4 @@
-"""A .basalt pack's language-model sections read straight from an NVFP4 safetensors checkpoint (NVIDIA Model
+"""A .halo pack's language-model sections read straight from an NVFP4 safetensors checkpoint (NVIDIA Model
 Optimizer's layout, as in nvidia/Qwen3.8-Flash-Next-NVFP4), for tools/convert/convert.py.
 
   experts / experts.layout  each routed expert's NVFP4 gate | up | down rows moved into Halocline's blocks (codes and

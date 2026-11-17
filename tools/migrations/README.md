@@ -6,7 +6,7 @@ ships its own, [data/profiles](../../data/profiles)), and the 8-bit hyper-connec
 file's own matrices, bit for bit what the engine used to compute at every start.
 
 ```sh
-python3 tools/migrations/halo_v1_to_v2.py Qwen3.8-FN-NVFP4.basalt Qwen3.8-FN-NVFP4.v2.basalt
+python3 tools/migrations/halo_v1_to_v2.py Qwen3.8-FN-NVFP4.basalt Qwen3.8-FN-NVFP4.v2.halo
 ```
 
 It needs Python 3.10+ with numpy, and free disk space for a second copy of the file. The old file is only read; delete

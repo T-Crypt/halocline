@@ -1,4 +1,4 @@
-"""The sections the vision sidecar reads from a .basalt file:
+"""The sections the vision sidecar reads from a .halo file:
 
     vision/mmproj       the projector GGUF, whole
     vision/text_vocab   a vocab-only GGUF of the text model (metadata without tensors or split keys), used for the

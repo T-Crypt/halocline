@@ -14,7 +14,7 @@ namespace halo::program {
 /// not known.
 double measure_ram_read_gbps();
 
-/// The lines `halo-device --link-rates` prints: "pcie_h2d BUS_ID GB_PER_S" per GPU, pinned host-to-device copy
+/// The lines `halocline-device --link-rates` prints: "pcie_h2d BUS_ID GB_PER_S" per GPU, pinned host-to-device copy
 /// speed, the bus id as printed. Other lines are ignored.
 std::vector<std::pair<std::string, double>> parse_link_rates(const std::string& text);
 

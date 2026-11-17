@@ -18,7 +18,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-EXECUTABLES = ("halo", "halo-bench", "halo-probe", "halo-vision")
+EXECUTABLES = ("halocline", "halocline-bench", "halocline-probe", "halocline-vision")
 TOOLS = ("tools/tokenizer.py", "tools/model_file.py", "tools/migrations/config_v1_to_v2.py")
 FILES = ("requirements.txt", "LICENSE", "THIRD_PARTY_LICENSES", "README.md")
 TREES = ("serve", "data/profiles", "data/bench", "docs")

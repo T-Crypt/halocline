@@ -11,8 +11,9 @@
 
 namespace halo::program::cli {
 
-/// `halo serve --config FILE` or `halo serve MODEL.basalt [--python PY] [server args...]`: runs the Python server
-/// over this binary.  The server gets `--engine-bin` and what was typed; a MODEL.basalt argument stands for `--model MODEL.basalt`.
+/// `halocline serve --config FILE` or `halocline serve MODEL.halo [--python PY] [server args...]`: runs the Python server
+/// over this binary.  The server gets `--engine-bin` and what was typed; a MODEL.halo argument stands for `--model MODEL.halo`.
+/// `--engine-bin` is this process's /proc/self/exe, so a run through the legacy bin/halo symlink still names bin/halocline.
 /// Only returns on failure.
 int serve_subcommand(int argc, char** argv) {
     std::string python;
@@ -36,12 +37,12 @@ int serve_subcommand(int argc, char** argv) {
         if (a == "--python") python = value();
         else if (a == "--model") { extra.insert(extra.end(), {a, absolute(value())}); have_model = true; }
         else if (a == "--config") extra.insert(extra.end(), {a, absolute(value())});
-        // only the first argument can be MODEL.basalt; a later bare word is the value of the option before it
+        // only the first argument can be MODEL.halo; a later bare word is the value of the option before it
         else if (i == 2 && !have_model && !a.empty() && a[0] != '-') { extra.insert(extra.end(), {"--model", absolute(a)}); have_model = true; }
         else extra.push_back(a);
     }
     if (extra.empty()) {
-        halo::log::error("halo", "usage: halo serve --config FILE | MODEL.basalt [--python PY] [server args...]");
+        halo::log::error("halo", "usage: halocline serve --config FILE | MODEL.halo [--python PY] [server args...]");
         return 2;
     }
     const std::string exe = halo::platform::module_path();

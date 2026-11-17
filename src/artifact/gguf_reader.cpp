@@ -1,4 +1,4 @@
-// src/artifact/gguf_reader.cpp - the `halo-gguf` CLI.  The reader itself is header-only in
+// src/artifact/gguf_reader.cpp - the `halocline-gguf` CLI.  The reader itself is header-only in
 // include/halo/artifact/gguf_reader.hpp; this file is just the entry point, so it cannot drift
 // from the library it exercises.
 #include "halo/artifact/gguf_reader.hpp"

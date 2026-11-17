@@ -22,7 +22,7 @@ class Levels(unittest.TestCase):
     def test_engine_markers(self):
         self.assertEqual(self.read("halo generate: ready", "halo generate: warning: low", "halo serve: error: x",
                                    "halo: error: CUDA out of memory", "halo batch adapt: window 3: 2 swaps",
-                                   "halo-bench: warning: NVML is unavailable"),
+                                   "halocline-bench: warning: NVML is unavailable"),
                          ["info", "warn", "err", "err", "info", "warn"])
 
     def test_older_engine_markers(self):

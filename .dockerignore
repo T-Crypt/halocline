@@ -9,5 +9,7 @@ assets
 **/*.pyc
 *.basalt
 **/*.basalt
+*.halo
+**/*.halo
 **/*.tar.gz
 **/*.zip

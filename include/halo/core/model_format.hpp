@@ -1,5 +1,5 @@
 #pragma once
-// The .basalt model file: one file holds everything the engine, the server and the vision sidecar load.
+// The .halo model file: one file holds everything the engine, the server and the vision sidecar load.
 //
 // Layout (little-endian):
 //   [0, 64 KiB)          FileHeader, then n_sections SectionEntry records (the table fits in the first 64 KiB)
@@ -34,14 +34,17 @@
 
 namespace halo::core {
 
-constexpr char kModelMagic[8] = {'B', 'A', 'S', 'A', 'L', 'T', 'M', 'F'};
+constexpr char kModelMagic[8] = {'H', 'A', 'L', 'O', 'C', 'L', 'M', 'F'};
+// Every file written before the rename carries this one.  A reader accepts it so the packs already on disk keep
+// loading, and a writer always writes kModelMagic.
+constexpr char kLegacyModelMagic[8] = {'B', 'A', 'S', 'A', 'L', 'T', 'M', 'F'};
 constexpr uint32_t kModelVersion = 2;
 constexpr uint64_t kSectionAlign = 2ull << 20;
 constexpr uint64_t kHeaderBytes = 64ull << 10;
 constexpr uint64_t kTensorAlign = 4096;
 
 struct FileHeader {
-    char magic[8];           ///< kModelMagic
+    char magic[8];           ///< kModelMagic, or kLegacyModelMagic in a file written before the rename
     uint32_t version;        ///< kModelVersion
     uint32_t n_sections;
     uint64_t file_bytes;     ///< the whole file, for a truncation check

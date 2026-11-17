@@ -118,7 +118,7 @@ std::optional<int> start(int argc, char** argv, std::unique_ptr<CommonOptions>& 
 
 std::optional<int> prepare_model_process(const CommonOptions& o) {
     if (o.model.empty()) {
-        halo::log::error("halo generate", "--model FILE.basalt is required");
+        halo::log::error("halo generate", "--model FILE.halo is required");
         usage();
         return 2;
     }

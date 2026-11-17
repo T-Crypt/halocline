@@ -1,4 +1,4 @@
-// tests/core/expert_layout_test.cpp - the expert layout text (a .basalt's `experts.layout` section), without a model
+// tests/core/expert_layout_test.cpp - the expert layout text (a .halo's `experts.layout` section), without a model
 // or a GPU.
 //
 //   1. The layouts of real models (tests/data/native_experts: Q2_0, IQ2_XS, IQ3_XXS, IQ3_S, IQ1_M, a second IQ2_XS)

@@ -1,4 +1,4 @@
-// src/models/qwen4exp/plan/device_main.cpp - `halo-device`: report the GPU, the plan, and exercise the arena.
+// src/models/qwen4exp/plan/device_main.cpp - `halocline-device`: report the GPU, the plan, and exercise the arena.
 //
 // This prints the memory plan against the actual cudaMemGetInfo, on its own so it can run
 // without the model.  It is also the run-time half of the architecture policy: CMake refuses to COMPILE for another
@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
         else if (std::strcmp(argv[i], "--list-devices") == 0) list_devices = true;
         else if (std::strcmp(argv[i], "--link-rates") == 0) link_rates = true;
         else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
-            std::printf("usage: halo-device [--selftest] [--list-devices] [--link-rates]\n"
+            std::printf("usage: halocline-device [--selftest] [--list-devices] [--link-rates]\n"
                         "  --list-devices  every GPU the runtime enumerates, numbered as\n"
                         "                  CUDA_VISIBLE_DEVICES numbers them, and whether this binary can run it\n"
                         "  --link-rates    per GPU, one line \"pcie_h2d BUS_ID GB_PER_S\": pinned host-to-device copy speed\n");
@@ -102,11 +102,11 @@ int main(int argc, char** argv) {
             } catch (const halo::core::CudaError&) {
                 std::printf("selftest: over-allocation refused as required\n");
             }
-            std::printf("halo-device selftest OK\n");
+            std::printf("halocline-device selftest OK\n");
         }
         return 0;
     } catch (const std::exception& e) {
-        halo::log::error("halo-device", "%s", e.what());
+        halo::log::error("halocline-device", "%s", e.what());
         return 1;
     }
 }

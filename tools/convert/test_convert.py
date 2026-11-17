@@ -88,20 +88,20 @@ class ConvertTest(unittest.TestCase):
 
     def args(self, **kw):
         t = self.t
-        d = dict(gguf=[str(self.gguf)], mmproj=str(t / "mmproj.gguf"), out=str(t / "out.basalt"), mtp_source=None, mtp_dense=None,
+        d = dict(gguf=[str(self.gguf)], mmproj=str(t / "mmproj.gguf"), out=str(t / "out.halo"), mtp_source=None, mtp_dense=None,
                  draft_vocab=None, name="Tiny",
                  compat_bf16=False, no_vision=False, force=False, sections_from=None)
         d.update(kw)
         return type("A", (), d)()
 
     def model(self):
-        return ModelFile(str(self.t / "out.basalt"))
+        return ModelFile(str(self.t / "out.halo"))
 
     # ---------------------------------------------------------------- sections
     def test_sections(self):
         convert.convert(self.args())
         m = self.model()
-        self.assertFalse((self.t / "out.basalt.partial").exists())
+        self.assertFalse((self.t / "out.halo.partial").exists())
         want = {"hc8", "vision/mmproj", "dense", "dense.index", "experts", "experts.layout", "gguf", "meta"}
         want |= {"tokenizer/" + k for k in self.tok}
         self.assertEqual(set(m.names()), want)
@@ -193,6 +193,27 @@ class ConvertTest(unittest.TestCase):
         m = self.model()
         self.assertFalse([n for n in m.names() if n.startswith("mtp/")])
 
+    def test_the_magic_and_a_file_written_before_the_rename(self):
+        convert.convert(self.args())
+        pack = self.t / "out.halo"
+        with open(pack, "rb") as f:
+            self.assertEqual(f.read(8), b"HALOCLMF")
+        # the same bytes with the legacy magic: every pack on disk carries it, and it reads the same sections
+        data = bytearray(pack.read_bytes())
+        data[:8] = b"BASALTMF"
+        legacy = self.t / "legacy.halo"
+        legacy.write_bytes(data)
+        new, old = ModelFile(str(pack)), ModelFile(str(legacy))
+        self.assertEqual(old.names(), new.names())
+        self.assertEqual(old.read("meta"), new.read("meta"))
+        self.assertTrue(old.verify("meta"))
+        # neither magic: the reader says what it is looking for
+        data[:8] = b"NOTAPACK"
+        (self.t / "bad.halo").write_bytes(data)
+        with self.assertRaises(ValueError) as c:
+            ModelFile(str(self.t / "bad.halo"))
+        self.assertIn("not a Halocline model file", str(c.exception))
+
     def test_hc8_from_the_pack_matrices(self):
         convert.convert(self.args())
         t = H.read_table(self.model().read("hc8"))
@@ -232,8 +253,8 @@ class ConvertTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as cm:
             convert.convert(self.args(gguf=[str(path)]))
         self.assertIn("requires BF16", str(cm.exception))
-        self.assertFalse((self.t / "out.basalt").exists())
-        self.assertFalse((self.t / "out.basalt.partial").exists())
+        self.assertFalse((self.t / "out.halo").exists())
+        self.assertFalse((self.t / "out.halo.partial").exists())
 
     def test_draft_vocab_needs_the_drafter(self):
         (self.t / "dv.bin").write_bytes(np.array([0, 1], dtype="<i4").tobytes())
@@ -310,12 +331,12 @@ class ConvertTest(unittest.TestCase):
     def test_sections_from_with_gguf(self):
         import pack_vision
         self.vision = pack_vision.vision_sections
-        convert.convert(self.args(out=str(self.t / "base.basalt")))
-        base = ModelFile(str(self.t / "base.basalt"))
+        convert.convert(self.args(out=str(self.t / "base.halo")))
+        base = ModelFile(str(self.t / "base.halo"))
         path, _ = self.mixed_gguf(["Q6_K", "Q5_K"])
-        convert.convert(self.args(gguf=[str(path)], out=str(self.t / "new.basalt"), sections_from=str(self.t / "base.basalt"),
+        convert.convert(self.args(gguf=[str(path)], out=str(self.t / "new.halo"), sections_from=str(self.t / "base.halo"),
                                   mmproj=None, name="Mixed"))
-        m = ModelFile(str(self.t / "new.basalt"))
+        m = ModelFile(str(self.t / "new.halo"))
         for n in m.names():
             self.assertTrue(m.verify(n), n)
         self.assertEqual(m.read("vision/mmproj"), base.read("vision/mmproj"))
@@ -587,7 +608,7 @@ class Q6KRequantTest(unittest.TestCase):
         qa, qb = S.q8_0(a), S.q8_0(b)
         with tempfile.TemporaryDirectory() as tmp:
             t = Path(tmp)
-            w = ModelWriter(str(t / "base.basalt"))
+            w = ModelWriter(str(t / "base.halo"))
             w.add_bytes("dense", b"d" * 100)
             offs = w.add_parts("gguf", [qa, qb], 32)
             w.add_bytes("experts", b"e" * 300)
@@ -595,8 +616,8 @@ class Q6KRequantTest(unittest.TestCase):
                     "blk.0.attn_k.weight": {"type": "Q8_0", "type_id": 8, "shape": [160, 4], "bytes": len(qb), "offset": offs[1]}}
             w.add_bytes("meta", json.dumps({"tensors": tens}).encode())
             w.close()
-            out = t / "out.basalt"
-            args = type("A", (), {"out": str(out), "requant_dense_q6k": str(t / "base.basalt"), "checkpoint": None,
+            out = t / "out.halo"
+            args = type("A", (), {"out": str(out), "requant_dense_q6k": str(t / "base.halo"), "checkpoint": None,
                                   "workers": 2, "force": False})
             convert.requant_dense(args)
             m = ModelFile(str(out))

@@ -16,7 +16,8 @@ import numpy as np
 G8 = 32
 HEADER = struct.Struct("<8sII")                 # magic, version, n_entries
 ENTRY = struct.Struct("<128sIIIIQQ")             # name, rows, cols, srow, reserved, offset, bytes
-MAGIC = b"BASALTH8"
+MAGIC = b"HALOCLH8"
+LEGACY_MAGIC = b"BASALTH8"     # every table written before the rename: read as before, never written now
 VERSION = 1
 DATA_ALIGN = 256
 # the drafter's matrices: bf16 tensors of its hyper-connection blocks
@@ -73,7 +74,7 @@ def table(copies: list[tuple[str, int, int, bytes]]) -> bytes:
 def read_table(blob: bytes) -> dict[str, tuple[int, int, int, bytes]]:
     """name -> (rows, cols, srow, copy)."""
     magic, version, n = HEADER.unpack_from(blob, 0)
-    if magic != MAGIC or version != VERSION:
+    if magic not in (MAGIC, LEGACY_MAGIC) or version != VERSION:
         raise Hc8Error("bad magic or version")
     out = {}
     for i in range(n):

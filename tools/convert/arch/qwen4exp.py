@@ -53,7 +53,7 @@ class Qwen4Exp(Arch):
         "Qwen3.8-Flash-Next UD-IQ4_XS", so a row's quant label is the file's, not a guess."""
         name = Path(first_gguf).name
         tail = name.split("Next-")[-1] if "Next-" in name else ""
-        for sep in ("-00001-of", ".gguf", ".basalt"):
+        for sep in ("-00001-of", ".gguf", ".halo", ".basalt"):
             tail = tail.split(sep)[0]
         if tail:
             return "Qwen3.8-Flash-Next " + tail
