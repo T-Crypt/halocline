@@ -1,18 +1,6 @@
 {
-  "engine": {
-    "resident-experts": true
-  },
-  "models": [
-    {
-      "gpu": "0",
-      "kv": "int8",
-      "max-context": 262144,
-      "model": "models/QFN-UD-IQ4_XS.basalt"
-    }
-  ],
-  "server": {
-    "host": "127.0.0.1",
-    "port": 8080
-  },
-  "version": 2
+  "version": 2,
+  "models": [{ "model": "QFN-UD-IQ4_XS.halo", "gpu": "0", "max-context": 262144, "kv": "int8" }],
+  "engine": { "resident-experts": true, "spec": 8, "prefill": "auto" },
+  "server": { "host": "127.0.0.1", "port": 8080 }
 }

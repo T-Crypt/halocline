@@ -9,7 +9,9 @@
       "model": "models/Qwen3.8-27B-UD-Q4_K_XL-vision.halo",
       "gpu": "0",
       "spec": 8,
-      "long-context": true,
+      "kv": "k8v4",
+      "mtp-kv": "int8",
+      "max-context": 175616,
       "vision": "cpu"
     }
   ]

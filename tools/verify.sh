@@ -24,7 +24,7 @@ step "model layering" tools/check_model_layering.sh
 step "engine log lines (stderr)" tools/check_stderr_logging.sh
 step "build structure (.cu includes)" tools/check_cu_includes.sh
 step "server suite" "$PY" -m unittest discover -s serve/tests -t . -q
-step "tool tests" "$PY" -m unittest tools.test_bench_flags tools.test_bench_fixtures tools.test_serve_launcher \
+step "tool tests" "$PY" -m unittest tools.test_bench_flags tools.test_config_examples tools.test_bench_fixtures tools.test_serve_launcher \
     tools.test_tokenizer tools.test_greedy_identity tools.test_package_release -q
 step "converter tests" "$PY" -m unittest discover -s tools/convert -p 'test_*.py' -q
 step "migration tests" "$PY" -m unittest discover -s tools/migrations -p 'test_*.py' -q
