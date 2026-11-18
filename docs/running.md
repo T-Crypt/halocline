@@ -76,7 +76,7 @@ loaded model does not have is left out, not shown as 0. The Speed footer names t
 monitor's request detail. `/monitor`, linked from the header, is the request inspector: every kept request (the newest
 12, or all 500 with `?requests=all`) with its prompt and output tokens, prefill and decode rates, wait, load, first
 token, draft offers and acceptance, tokens per window, expert shares and the DONE timings. The server keeps no prompt or
-answer text, so there is no content pane. `/metrics` also carries `engine.path`, `live.tok_s_mean`, `live.max_tokens`,
+answer text, so the detail's Content section says exactly that. `/metrics` also carries `engine.path`, `live.tok_s_mean`, `live.max_tokens`,
 `requests_kept`, each GPU's `clock_sm_mhz` and `clock_mem_mhz`, `hardware.disk_write_mb`, and per request `queue_s`,
 `load_s` and `timings`.
 

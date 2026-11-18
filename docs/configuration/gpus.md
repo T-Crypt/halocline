@@ -1,7 +1,7 @@
 # GPUs
 
 Halocline runs on one NVIDIA Ada card, compute capability 8.9 (sm_89). The build compiles device code for 8.9
-alone, and the start refuses a visible card of any other architecture
+alone, and the start refuses a chosen card of any other architecture
 ([SPECS.md](../../SPECS.md)). The multi-card paths came from Basalt v0.4.1 (`d3b75742`) and were removed in
 `575a92c0`: there is no expert tier, layer split, prompt split or tensor parallel, and no second card is used in any
 mode. `33cfca03` made sm_89 the only target.
