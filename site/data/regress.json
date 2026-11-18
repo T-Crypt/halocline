@@ -1,0 +1,234 @@
+{
+  "_generated_by": "site/extract.py",
+  "_note": "Every value names the file it came from. Do not edit by hand; run python3 site/extract.py --write.",
+  "values": {
+    "gate1": {
+      "verdict": "PASS"
+    },
+    "gate2": {
+      "saved_verdict": "FAIL",
+      "first_delta_pct": 31.8,
+      "limit_pct": 3.0,
+      "rerun_verdict": "PASS"
+    },
+    "gate3": {
+      "verdict": "PASS"
+    },
+    "gate4": {
+      "verdict": "PASS"
+    },
+    "greedy": {
+      "ref_tokens": 900.0,
+      "new_tokens": 900.0,
+      "verdict": "GREEDY IDENTICAL"
+    },
+    "abba": {
+      "ref": {
+        "a": 5878.32,
+        "b": 5993.69,
+        "mean": 5936.004999999999
+      },
+      "new": {
+        "a": 5891.78,
+        "b": 5947.53,
+        "mean": 5919.655
+      },
+      "delta_pct": -0.2754377733846125
+    },
+    "pair": {
+      "ref": {
+        "pp32k": 5785.14,
+        "pp131k": 1841.51,
+        "kld": 0.0819529,
+        "top1": 90.4549,
+        "conv": 135.247,
+        "struct": 266.195,
+        "prose": 136.954
+      },
+      "new": {
+        "pp32k": 5826.51,
+        "pp131k": 2427.66,
+        "kld": 0.0819529,
+        "top1": 90.4549,
+        "conv": 134.927,
+        "struct": 264.515,
+        "prose": 136.793
+      },
+      "decode_max_pct": 0.6311162869325093
+    },
+    "release": {
+      "ref": "d314a21a",
+      "new": "b22ecbb2"
+    },
+    "sampling": {
+      "top1": {
+        "verdict": "pass",
+        "delta": 0.0,
+        "ci": [
+          -0.0048,
+          0.0024
+        ],
+        "a": 0.8725
+      },
+      "top10": {
+        "verdict": "pass",
+        "delta": 0.0,
+        "ci": [
+          -0.001,
+          0.0009
+        ],
+        "a": 0.9987
+      },
+      "logprob": {
+        "verdict": "pass",
+        "delta": 0.0,
+        "ci": [
+          -0.0093,
+          0.0085
+        ],
+        "a": -0.3585
+      }
+    },
+    "tools": {
+      "ref": {
+        "call_ok": 12.0,
+        "call_total": 12.0,
+        "none_ok": 12.0,
+        "none_total": 12.0,
+        "all_ok": 24.0,
+        "all_total": 24.0
+      },
+      "new": {
+        "call_ok": 12.0,
+        "call_total": 12.0,
+        "none_ok": 12.0,
+        "none_total": 12.0,
+        "all_ok": 24.0,
+        "all_total": 24.0,
+        "agree": 24.0
+      }
+    }
+  },
+  "_sources": {
+    "abba.delta_pct": "computed: ABBA means",
+    "abba.new.a": "evals/2026-11-17/halocline-sparse-regress/2b-pp131k/new-a/bench.json#summary[pp131072].tok_s_mean",
+    "abba.new.b": "evals/2026-11-17/halocline-sparse-regress/2b-pp131k/new-b/bench.json#summary[pp131072].tok_s_mean",
+    "abba.new.mean": "computed: mean of the two ABBA arms",
+    "abba.ref.a": "evals/2026-11-17/halocline-sparse-regress/2b-pp131k/ref-a/bench.json#summary[pp131072].tok_s_mean",
+    "abba.ref.b": "evals/2026-11-17/halocline-sparse-regress/2b-pp131k/ref-b/bench.json#summary[pp131072].tok_s_mean",
+    "abba.ref.mean": "computed: mean of the two ABBA arms",
+    "gate1.verdict": "evals/2026-11-17/halocline-sparse-regress/summary.md line 9",
+    "gate2.first_delta_pct": "evals/2026-11-17/halocline-sparse-regress/summary.md line 10",
+    "gate2.limit_pct": "evals/2026-11-17/halocline-sparse-regress/summary.md line 10",
+    "gate2.rerun_verdict": "evals/2026-11-17/halocline-sparse-regress/README.md line 12",
+    "gate2.saved_verdict": "evals/2026-11-17/halocline-sparse-regress/summary.md line 10",
+    "gate3.verdict": "evals/2026-11-17/halocline-sparse-regress/summary.md line 11",
+    "gate4.verdict": "evals/2026-11-17/halocline-sparse-regress/summary.md line 12",
+    "greedy.new_tokens": "evals/2026-11-17/halocline-sparse-regress/1-greedy/greedy.txt",
+    "greedy.ref_tokens": "evals/2026-11-17/halocline-sparse-regress/1-greedy/greedy.txt",
+    "greedy.verdict": "evals/2026-11-17/halocline-sparse-regress/1-greedy/greedy.txt",
+    "pair.decode_max_pct": "computed: the valid REF/NEW pair in this run",
+    "pair.new.conv": "evals/2026-11-17/halocline-sparse-regress/2-kv/new2/bench.json#summary[tg conv].tok_s_mean",
+    "pair.new.kld": "evals/2026-11-17/halocline-sparse-regress/2-kv/new2/bench.json#quality.kld_mean",
+    "pair.new.pp131k": "evals/2026-11-17/halocline-sparse-regress/2-kv/new2/bench.json#summary[pp131072].tok_s_mean",
+    "pair.new.pp32k": "evals/2026-11-17/halocline-sparse-regress/2-kv/new2/bench.json#summary[pp32768].tok_s_mean",
+    "pair.new.prose": "evals/2026-11-17/halocline-sparse-regress/2-kv/new2/bench.json#summary[tg prose].tok_s_mean",
+    "pair.new.struct": "evals/2026-11-17/halocline-sparse-regress/2-kv/new2/bench.json#summary[tg struct].tok_s_mean",
+    "pair.new.top1": "evals/2026-11-17/halocline-sparse-regress/2-kv/new2/bench.json#quality.top1_pct",
+    "pair.ref.conv": "evals/2026-11-17/halocline-sparse-regress/2-kv/ref1/bench.json#summary[tg conv].tok_s_mean",
+    "pair.ref.kld": "evals/2026-11-17/halocline-sparse-regress/2-kv/ref1/bench.json#quality.kld_mean",
+    "pair.ref.pp131k": "evals/2026-11-17/halocline-sparse-regress/2-kv/ref1/bench.json#summary[pp131072].tok_s_mean",
+    "pair.ref.pp32k": "evals/2026-11-17/halocline-sparse-regress/2-kv/ref1/bench.json#summary[pp32768].tok_s_mean",
+    "pair.ref.prose": "evals/2026-11-17/halocline-sparse-regress/2-kv/ref1/bench.json#summary[tg prose].tok_s_mean",
+    "pair.ref.struct": "evals/2026-11-17/halocline-sparse-regress/2-kv/ref1/bench.json#summary[tg struct].tok_s_mean",
+    "pair.ref.top1": "evals/2026-11-17/halocline-sparse-regress/2-kv/ref1/bench.json#quality.top1_pct",
+    "release.new": "evals/2026-11-17/halocline-sparse-regress/README.md line 5",
+    "release.ref": "evals/2026-11-17/halocline-sparse-regress/README.md line 4",
+    "sampling.logprob.a": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.logprob.ci": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.logprob.delta": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.logprob.verdict": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top1.a": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top1.ci": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top1.delta": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top1.verdict": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top10.a": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top10.ci": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top10.delta": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "sampling.top10.verdict": "evals/2026-11-17/halocline-sparse-regress/3-sampling/compare.txt",
+    "tools.new.agree": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-new.txt",
+    "tools.new.all_ok": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-new.txt",
+    "tools.new.all_total": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-new.txt",
+    "tools.new.call_ok": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-new.txt",
+    "tools.new.call_total": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-new.txt",
+    "tools.new.none_ok": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-new.txt",
+    "tools.new.none_total": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-new.txt",
+    "tools.ref.all_ok": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-ref.txt",
+    "tools.ref.all_total": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-ref.txt",
+    "tools.ref.call_ok": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-ref.txt",
+    "tools.ref.call_total": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-ref.txt",
+    "tools.ref.none_ok": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-ref.txt",
+    "tools.ref.none_total": "evals/2026-11-17/halocline-sparse-regress/4-tools/score-ref.txt"
+  },
+  "_formats": {
+    "abba.delta_pct": "pct",
+    "abba.new.a": "tps",
+    "abba.new.b": "tps",
+    "abba.new.mean": "tps",
+    "abba.ref.a": "tps",
+    "abba.ref.b": "tps",
+    "abba.ref.mean": "tps",
+    "gate1.verdict": "text",
+    "gate2.first_delta_pct": "pct",
+    "gate2.limit_pct": "pct",
+    "gate2.rerun_verdict": "text",
+    "gate2.saved_verdict": "text",
+    "gate3.verdict": "text",
+    "gate4.verdict": "text",
+    "greedy.new_tokens": "tokens",
+    "greedy.ref_tokens": "tokens",
+    "greedy.verdict": "text",
+    "pair.decode_max_pct": "pct",
+    "pair.new.conv": "tps",
+    "pair.new.kld": "kld",
+    "pair.new.pp131k": "tps",
+    "pair.new.pp32k": "tps",
+    "pair.new.prose": "tps",
+    "pair.new.struct": "tps",
+    "pair.new.top1": "pct",
+    "pair.ref.conv": "tps",
+    "pair.ref.kld": "kld",
+    "pair.ref.pp131k": "tps",
+    "pair.ref.pp32k": "tps",
+    "pair.ref.prose": "tps",
+    "pair.ref.struct": "tps",
+    "pair.ref.top1": "pct",
+    "release.new": "text",
+    "release.ref": "text",
+    "sampling.logprob.a": "kld",
+    "sampling.logprob.ci": "kld_ci",
+    "sampling.logprob.delta": "kld_delta",
+    "sampling.logprob.verdict": "text",
+    "sampling.top1.a": "kld",
+    "sampling.top1.ci": "kld_ci",
+    "sampling.top1.delta": "kld_delta",
+    "sampling.top1.verdict": "text",
+    "sampling.top10.a": "kld",
+    "sampling.top10.ci": "kld_ci",
+    "sampling.top10.delta": "kld_delta",
+    "sampling.top10.verdict": "text",
+    "tools.new.agree": "int",
+    "tools.new.all_ok": "int",
+    "tools.new.all_total": "int",
+    "tools.new.call_ok": "int",
+    "tools.new.call_total": "int",
+    "tools.new.none_ok": "int",
+    "tools.new.none_total": "int",
+    "tools.ref.all_ok": "int",
+    "tools.ref.all_total": "int",
+    "tools.ref.call_ok": "int",
+    "tools.ref.call_total": "int",
+    "tools.ref.none_ok": "int",
+    "tools.ref.none_total": "int"
+  }
+}

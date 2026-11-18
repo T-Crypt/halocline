@@ -1,0 +1,184 @@
+{
+  "_generated_by": "site/extract.py",
+  "_note": "Every value names the file it came from. Do not edit by hand; run python3 site/extract.py --write.",
+  "values": {
+    "sparse": {
+      "depth36": {
+        "label": "36K"
+      },
+      "depth137": {
+        "label": "137K"
+      },
+      "halocline": {
+        "kv": "int8",
+        "warm_low": 147.8,
+        "warm_high": 181.6,
+        "36k": {
+          "decode": 123.1,
+          "prompt": 6298,
+          "tokens": 36467
+        },
+        "137k": {
+          "decode": 121.0,
+          "prompt": 5664,
+          "tokens": 137400
+        }
+      },
+      "strata": {
+        "kv": "q4_0",
+        "version": "0.2.10",
+        "drafter": "DFlash2",
+        "warm_low": 94.6,
+        "warm_high": 100.5,
+        "36k": {
+          "decode": 68.1,
+          "prompt": 2403,
+          "tokens": 36467
+        },
+        "137k": {
+          "decode": 86.6,
+          "prompt": 2864,
+          "tokens": 137400
+        }
+      },
+      "no_drafter": {
+        "warm_low": 102.6,
+        "warm_high": 103.2,
+        "36k": {
+          "decode": 91.3,
+          "prompt": 6274,
+          "tokens": 36467
+        },
+        "137k": {
+          "decode": 91.3,
+          "prompt": 6523,
+          "tokens": 137400
+        }
+      }
+    },
+    "dense": {
+      "depth16": {
+        "label": "16K"
+      },
+      "depth36": {
+        "label": "36K"
+      },
+      "depth137": {
+        "label": "137K"
+      },
+      "halocline": {
+        "pp16k": 3423.81,
+        "pp36k": 3242.03,
+        "conv": 98.4784,
+        "struct": 192.708,
+        "prose": 86.8338
+      },
+      "ninfer": {
+        "warm_low": 112.5,
+        "warm_high": 118.3,
+        "pp36k": 3215,
+        "decode36k": 118.0,
+        "tokens36k": 36467,
+        "pp137k": 2155,
+        "decode137k": 93.0,
+        "tokens137k": 137400
+      }
+    }
+  },
+  "_sources": {
+    "dense.depth137.label": "evals/2026-11-16/halocline-p0-floors/README.md line 31",
+    "dense.depth16.label": "evals/2026-11-17/halocline-d8-kv/README.md line 51",
+    "dense.depth36.label": "evals/2026-11-17/halocline-d8-kv/README.md line 51",
+    "dense.halocline.conv": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[tg conv].tok_s_mean",
+    "dense.halocline.pp16k": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[pp16384].tok_s_mean",
+    "dense.halocline.pp36k": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[pp36864].tok_s_mean",
+    "dense.halocline.prose": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[tg prose].tok_s_mean",
+    "dense.halocline.struct": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[tg struct].tok_s_mean",
+    "dense.ninfer.decode137k": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.long.detail",
+    "dense.ninfer.decode36k": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.needle.detail",
+    "dense.ninfer.pp137k": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.long.detail",
+    "dense.ninfer.pp36k": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.needle.detail",
+    "dense.ninfer.tokens137k": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.long.detail",
+    "dense.ninfer.tokens36k": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.needle.detail",
+    "dense.ninfer.warm_high": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.speed.detail",
+    "dense.ninfer.warm_low": "evals/2026-11-16/halocline-p0-floors/ninfer-1.json#results.speed.detail",
+    "sparse.depth137.label": "evals/2026-11-17/halocline-llama-swap/README.md line 16",
+    "sparse.depth36.label": "evals/2026-11-17/halocline-llama-swap/README.md line 15",
+    "sparse.halocline.137k.decode": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.long.detail",
+    "sparse.halocline.137k.prompt": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.long.detail",
+    "sparse.halocline.137k.tokens": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.long.detail",
+    "sparse.halocline.36k.decode": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.needle.detail",
+    "sparse.halocline.36k.prompt": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.needle.detail",
+    "sparse.halocline.36k.tokens": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.needle.detail",
+    "sparse.halocline.kv": "evals/2026-11-17/halocline-llama-swap/README.md line 7",
+    "sparse.halocline.warm_high": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.speed.detail",
+    "sparse.halocline.warm_low": "evals/2026-11-17/halocline-llama-swap/smoke.json#results.speed.detail",
+    "sparse.no_drafter.137k.decode": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.long.detail",
+    "sparse.no_drafter.137k.prompt": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.long.detail",
+    "sparse.no_drafter.137k.tokens": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.long.detail",
+    "sparse.no_drafter.36k.decode": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.needle.detail",
+    "sparse.no_drafter.36k.prompt": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.needle.detail",
+    "sparse.no_drafter.36k.tokens": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.needle.detail",
+    "sparse.no_drafter.warm_high": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.speed.detail",
+    "sparse.no_drafter.warm_low": "evals/2026-11-17/halocline-sparse-serve/smoke-1.json#results.speed.detail",
+    "sparse.strata.137k.decode": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.long.detail",
+    "sparse.strata.137k.prompt": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.long.detail",
+    "sparse.strata.137k.tokens": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.long.detail",
+    "sparse.strata.36k.decode": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.needle.detail",
+    "sparse.strata.36k.prompt": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.needle.detail",
+    "sparse.strata.36k.tokens": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.needle.detail",
+    "sparse.strata.drafter": "evals/2026-11-16/halocline-p0-floors/README.md line 3",
+    "sparse.strata.kv": "evals/2026-11-16/halocline-p0-floors/README.md line 3",
+    "sparse.strata.version": "evals/2026-11-16/halocline-p0-floors/README.md line 3",
+    "sparse.strata.warm_high": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.speed.detail",
+    "sparse.strata.warm_low": "evals/2026-11-16/halocline-p0-floors/strata/2r-df2.json#results.speed.detail"
+  },
+  "_formats": {
+    "dense.depth137.label": "text",
+    "dense.depth16.label": "text",
+    "dense.depth36.label": "text",
+    "dense.halocline.conv": "tps",
+    "dense.halocline.pp16k": "tps",
+    "dense.halocline.pp36k": "tps",
+    "dense.halocline.prose": "tps",
+    "dense.halocline.struct": "tps",
+    "dense.ninfer.decode137k": "tps",
+    "dense.ninfer.decode36k": "tps",
+    "dense.ninfer.pp137k": "tps",
+    "dense.ninfer.pp36k": "tps",
+    "dense.ninfer.tokens137k": "tokens",
+    "dense.ninfer.tokens36k": "tokens",
+    "dense.ninfer.warm_high": "tps",
+    "dense.ninfer.warm_low": "tps",
+    "sparse.depth137.label": "text",
+    "sparse.depth36.label": "text",
+    "sparse.halocline.137k.decode": "tps",
+    "sparse.halocline.137k.prompt": "tps",
+    "sparse.halocline.137k.tokens": "tokens",
+    "sparse.halocline.36k.decode": "tps",
+    "sparse.halocline.36k.prompt": "tps",
+    "sparse.halocline.36k.tokens": "tokens",
+    "sparse.halocline.kv": "text",
+    "sparse.halocline.warm_high": "tps",
+    "sparse.halocline.warm_low": "tps",
+    "sparse.no_drafter.137k.decode": "tps",
+    "sparse.no_drafter.137k.prompt": "tps",
+    "sparse.no_drafter.137k.tokens": "tokens",
+    "sparse.no_drafter.36k.decode": "tps",
+    "sparse.no_drafter.36k.prompt": "tps",
+    "sparse.no_drafter.36k.tokens": "tokens",
+    "sparse.no_drafter.warm_high": "tps",
+    "sparse.no_drafter.warm_low": "tps",
+    "sparse.strata.137k.decode": "tps",
+    "sparse.strata.137k.prompt": "tps",
+    "sparse.strata.137k.tokens": "tokens",
+    "sparse.strata.36k.decode": "tps",
+    "sparse.strata.36k.prompt": "tps",
+    "sparse.strata.36k.tokens": "tokens",
+    "sparse.strata.drafter": "text",
+    "sparse.strata.kv": "text",
+    "sparse.strata.version": "text",
+    "sparse.strata.warm_high": "tps",
+    "sparse.strata.warm_low": "tps"
+  }
+}

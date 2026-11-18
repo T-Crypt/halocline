@@ -1,0 +1,79 @@
+{
+  "_generated_by": "site/extract.py",
+  "_note": "Every value names the file it came from. Do not edit by hand; run python3 site/extract.py --write.",
+  "values": {
+    "surface": {
+      "name": "Surface",
+      "depth": 0,
+      "label": "0"
+    },
+    "sunlit": {
+      "name": "Sunlit layer",
+      "depth": 8192,
+      "label": "8K"
+    },
+    "twilight": {
+      "name": "Twilight",
+      "depth": 32768,
+      "label": "32K"
+    },
+    "boundary": {
+      "name": "The halocline",
+      "depth": 65536,
+      "label": "64K"
+    },
+    "deep": {
+      "name": "Deep",
+      "depth": 131072,
+      "label": "128K"
+    },
+    "floor": {
+      "name": "Floor",
+      "depth": 262144,
+      "label": "262K"
+    },
+    "top_depth": 262144
+  },
+  "_sources": {
+    "boundary.depth": "plan: SITE_PLAN.md section 2",
+    "boundary.label": "plan: SITE_PLAN.md section 2",
+    "boundary.name": "plan: SITE_PLAN.md section 2",
+    "deep.depth": "plan: SITE_PLAN.md section 2",
+    "deep.label": "plan: SITE_PLAN.md section 2",
+    "deep.name": "plan: SITE_PLAN.md section 2",
+    "floor.depth": "plan: SITE_PLAN.md section 2",
+    "floor.label": "plan: SITE_PLAN.md section 2",
+    "floor.name": "plan: SITE_PLAN.md section 2",
+    "sunlit.depth": "plan: SITE_PLAN.md section 2",
+    "sunlit.label": "plan: SITE_PLAN.md section 2",
+    "sunlit.name": "plan: SITE_PLAN.md section 2",
+    "surface.depth": "plan: SITE_PLAN.md section 2",
+    "surface.label": "plan: SITE_PLAN.md section 2",
+    "surface.name": "plan: SITE_PLAN.md section 2",
+    "top_depth": "plan: SITE_PLAN.md section 2",
+    "twilight.depth": "plan: SITE_PLAN.md section 2",
+    "twilight.label": "plan: SITE_PLAN.md section 2",
+    "twilight.name": "plan: SITE_PLAN.md section 2"
+  },
+  "_formats": {
+    "boundary.depth": "depth",
+    "boundary.label": "text",
+    "boundary.name": "text",
+    "deep.depth": "depth",
+    "deep.label": "text",
+    "deep.name": "text",
+    "floor.depth": "depth",
+    "floor.label": "text",
+    "floor.name": "text",
+    "sunlit.depth": "depth",
+    "sunlit.label": "text",
+    "sunlit.name": "text",
+    "surface.depth": "depth",
+    "surface.label": "text",
+    "surface.name": "text",
+    "top_depth": "depth",
+    "twilight.depth": "depth",
+    "twilight.label": "text",
+    "twilight.name": "text"
+  }
+}
