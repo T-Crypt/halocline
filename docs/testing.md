@@ -91,4 +91,7 @@ First run, 2026-11-18, found and fixed: the stderr and `.cu`-include allowlists 
 `dd23a24a` had removed; the server's log-level reader did not recognise `halocline-bench:` lines as engine output
 (the rename in `4a1ee136` turned `basalt(?:-[a-z]+)?` into `halo(?:-[a-z]+)?`), so bench warnings showed as info; and a
 fixture test still read the DeepSeek fixtures that `e8af75c6` removed.
+With a build tree it also found: the engine help offered `--draft-experts` and `--no-prompt-skip`, whose parsers
+`e8af75c6` removed (now gone from the help), and `tools/test_bench_flags.py` did not scan `src/model/rope_flags.cpp`;
+and `--gpu auto` returned every sm_89 card, which the one-card check then refused (fixed in `gpu_select.cpp`).
 
