@@ -59,7 +59,7 @@ from 4-bit weights, an int8 KV cache and a draft layer, on a single 24 GB card.
 | **Sparse** | Qwen3.8-Flash-Next (`qwen4_exp`): 512 experts, 10 active plus 1 shared, QSA sparse attention, gated residual, n-gram embedding, MTP drafter. Experts that do not fit the card live in page-locked RAM. **Runs.** |
 | **Dense** | Qwen3.8-27B (`qwen35`), standing in for Qwen4-27B until its weights exist: Gated DeltaNet and gated attention (3 to 1), SwiGLU, MTP drafter. Unsloth's v3.1 UD GGUFs repacked with every tensor as stored; the matrices run on llama.cpp's MMQ and MMVQ kernels in their stored types. **Runs.** 262K context is open ([roadmap](docs/roadmap.md#p1-the-dense-path-qwen38-27b-the-priority)). |
 | **Weights** | Unsloth GGUFs, converted to a pack that copies the quantized tensors byte for byte. One interim exception: the 195 `hc_*` tensors (Q8_0 in the GGUF) are cast to BF16. |
-| **API** | OpenAI chat completions and Responses, Anthropic Messages, streaming and tool calls, one request at a time, meant to sit behind [llama-swap](https://github.com/mostlygeek/llama-swap). No chat UI. |
+| **API** | OpenAI chat completions and Responses, Anthropic Messages, streaming and tool calls, and a stats page, all from one standalone server (`halocline serve`). One request at a time is the supported mode. Run it alone, or add it to [llama-swap](https://github.com/mostlygeek/llama-swap) as one entry ([Ada user?](#ada-user) step 6). No chat UI. |
 
 
 ## The question
@@ -166,6 +166,74 @@ Every engine commit in this history passed these gates, and its logs and hash fi
 
 The engine ships every test and the data behind every number: an `evals/` tree with the command, the raw JSON and the
 log that made each measurement, `gates/` with the SASS hashes per step, and `logs/` with the ctest and build logs.
+
+## Ada user?
+
+You have an RTX 40-series card or an Ada workstation or server card and want to try this. Halocline is pre-alpha, with
+one maintainer and one reference machine, and its numbers hold on that machine until you measure your own. The steps
+below take you from a clean checkout to a validated pack and a posted bench.
+
+**1. Check the card.** `nvidia-smi --query-gpu=name,compute_cap --format=csv` has to print `8.9`. The build refuses
+anything else, and that stays. You need Linux x86-64 and the CUDA toolkit (the reference machine runs 13.4). The dense
+packs need a 24 GB card: RTX 4090, RTX 5000 or 6000 Ada, L40, L40S. Nobody has measured a smaller Ada card yet.
+
+**2. Build**, with the tests:
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89 -DBUILD_TESTING=ON
+ninja -C build
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
+
+**3. Test**, with nothing else on the card:
+
+```sh
+ctest --test-dir build -L cpu -j 16                          # host logic, formats, tokenizers
+ctest --test-dir build -L gpu -j 1                           # kernels against CPU references; logs/ctest-gpu.sm89.log lists the sm_89 skips
+.venv/bin/python -m unittest discover -s serve/tests -t .    # the server
+```
+
+**4. Convert a pack.** Start with the dense 27B: it lives on the card, so the host RAM and the expert tiers do not enter
+into it. Download `Qwen3.8-27B-UD-Q4_K_XL.gguf` from [unsloth/Qwen3.8-27B-GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF), then:
+
+```sh
+.venv/bin/python tools/convert/convert.py --gguf Qwen3.8-27B-UD-Q4_K_XL.gguf --no-vision --out Qwen3.8-27B-UD-Q4_K_XL.halo
+.venv/bin/python tools/convert/gguf_qwen35.py verify Qwen3.8-27B-UD-Q4_K_XL.halo Qwen3.8-27B-UD-Q4_K_XL.gguf
+```
+
+The sparse model needs 64 GiB of RAM and about 190 GiB of disk; its commands are under [Build and run](#build-and-run).
+
+**5. Validate.** Fetch `qwen38-27b-bf16-base.kld` (12.7 GB) from
+[basalt-kld-bases](https://huggingface.co/datasets/jesdga/basalt-kld-bases), check its SHA-256 against
+[the precision page](docs/precision/qwen38-27b.md), and score your pack:
+
+```sh
+bin/halocline-bench --model Qwen3.8-27B-UD-Q4_K_XL.halo --quality 100 --kld-base qwen38-27b-bf16-base.kld -- --kv int8
+```
+
+The reference machine reads mean KLD 0.00582 and top-1 96.67%. The pack copies the GGUF's tensors as stored, so your
+result should land close to that. A clear gap points at the conversion or a bug: open an issue with the full output.
+
+**6. Serve.** `halocline serve` is a standalone server and needs nothing else:
+
+```sh
+bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8093 --spec 8 --max-context 122880 --kv int8
+```
+
+OpenAI and Anthropic clients talk to `http://127.0.0.1:8093/v1`, and the same address in a browser shows the stats page.
+It binds to loopback by default. To expose it, read [security](docs/configuration/index.md) and set `--api-key`. To run
+it beside other models under [llama-swap](https://github.com/mostlygeek/llama-swap), add one entry whose `cmd` is that
+line and whose `proxy` is that port.
+
+**7. Post a bench.** `bin/halocline-bench --community --model PACK.halo --submitter YOUR_NAME` runs the fixed preset
+and adds one row to `docs/community/benchmarks.json`. The row records the card, its power limit, the PCIe link, the CPU
+and the RAM. Open a pull request with that file, and paste the step 5 summary lines in the description if you ran it.
+[docs/community.md](docs/community.md) explains the preset. The preset has only run on the sparse pack so far, so the
+first 27B row also tests it on the dense path: say so in the pull request if it fails.
+
+**8. Contribute.** Read [CONTRIBUTING.md](CONTRIBUTING.md) before you write code. It lists the work this repo takes and
+the work it closes. In short: sm_89 only, the Qwen4 family only, and no change merges that slows the reference profiles
+or moves their KLD past the paired interval.
 
 ## Build and run
 

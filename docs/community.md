@@ -32,6 +32,10 @@ conversion took 235 s and the first load 88 s; every load after that reads the p
 Qwen3.8-27B from Unsloth's UD-Q4_K_XL is the second supported weight. Its GGUF converter path is not written yet, so
 no 27B row can exist until it is.
 
+2026-11-17: the qwen35 path of the converter exists (`tools/convert/gguf_qwen35.py`) and the dense packs run, so a 27B
+row can now be made. The preset has not run on a 27B pack yet: the first row is its test. The commands are in the
+README's [Ada user?](../README.md#ada-user) section.
+
 ## The cards
 
 VRAM, SM count, bandwidth and power are vendor figures. The last column is what this repository's reference run

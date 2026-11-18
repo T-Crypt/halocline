@@ -4,6 +4,48 @@ Halocline is one engine for one card and one model family: sm_89 (Ada) and the Q
 keep the measurements honest and the engine fast on that target. The README states the scope; this file states the
 rules for a change.
 
+## Core values
+
+1. **sm_89, and only sm_89.** Every kernel, default and number is for the Ada architecture.
+2. **Quality is the product.** The engine stays close to BF16, and the KLD gate against the frozen BF16 base decides
+   what "close" means. Speed counts only at a measured quality.
+3. **The reference configuration is protected.** No change that hurts it merges, whatever it does for another setup
+   (the rule is below).
+4. **Every number has a source.** A claim without the eval directory that produced it does not go in.
+5. **One fast path.** A change that wins replaces the old path. A change that does not win stays out.
+
+## What gets worked, and what gets closed
+
+| Worked | Closed |
+|---|---|
+| Speed and quality on sm_89 for the Qwen4 family, dense and sparse | Another GPU architecture (Ampere, Hopper, Blackwell), another vendor or backend (ROCm, Metal, SYCL, CPU-only), or `#if` branches for one. Fork it as `halocline-<arch>` |
+| Bugs with a reproduction on an Ada card: the command, the full output, `nvidia-smi`, the commit | Another model family. Fork it as `halocline-<family>` |
+| The missing gates in [`docs/testing.md`](docs/testing.md) | Windows or macOS support |
+| Community bench rows from any Ada card ([`docs/community.md`](docs/community.md)) | Per-user tuning flags, environment-variable knobs, kernels picked at run time |
+| Docs fixes, the carried-over Basalt pages first | A lossy change as a default without the maintainer's decision, however small its cost |
+| | A chat UI |
+| | Anything that breaks the reference configuration's speed, KLD or flags |
+
+Ask in an issue before you start on something large. A pull request outside the left column gets closed with a link to
+this table, not a review.
+
+## The reference configuration is protected
+
+The reference configuration is the machine in [`SPECS.md`](SPECS.md) and the profiles it serves: the dense
+UD-Q4_K_XL pack and the sparse UD-IQ4_XS pack, with the flags in [the README](README.md#build-and-run) and
+[`docs/models/`](docs/models/). A change merges only when, on that machine:
+
+- decode and prefill at those profiles stay within run-to-run range, measured ABBA against the previous build;
+- mean and p99 KLD against the frozen BF16 base stay within the paired interval of the previous build
+  (`tools/ppl_gate.py --diff`), and greedy identity holds where the change claims the output is unchanged;
+- the shipped flags, the served profiles and every existing pack load and serve as before.
+
+A change that trades KLD for something else, such as a smaller KV cache or a lossier kernel, lands behind a flag with
+its measured cost (K8V4 KV: +0.00093 KLD at 36K, opt-in). Only the maintainer makes such a lever a default.
+
+You do not need the reference machine to contribute. Send the gates from your Ada card, and the maintainer reruns them
+on the reference machine before the merge.
+
 ## Scope
 
 - **CUDA on Ada (sm_89) only.** No ROCm, no Intel, no Apple, no CPU-only main path, no Blackwell, no Hopper. The build
