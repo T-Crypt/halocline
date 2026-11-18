@@ -21,7 +21,7 @@ ctest --test-dir build -L cpu -j 16 --output-on-failure
 ```
 
 `bin/halocline` (with a `halo` symlink), `bin/halocline-bench`, `bin/halocline-probe` and `bin/halocline-vision` land
-in `bin/`. `ctest -L gpu` runs the kernel suite and needs the card to itself; [`docs/testing.md`](../testing.md) lists
+in `bin/`. `ctest -L gpu` runs the kernel suite and needs the card to itself; [`docs/testing.md`](testing.md) lists
 what each suite covers.
 
 ## Container image
