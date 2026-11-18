@@ -60,9 +60,9 @@ tensors do not overlap. `meta.arch` is informational: the adapter is picked from
 |---|---|---|---|
 | `meta` | the JSON above | yes | yes |
 | `tokenizer/<file>` | `vocab.json`, `merges.txt`, `token_type.json`, `tokenizer.json` and, when the source GGUF carries `tokenizer.chat_template`, `chat_template.jinja` ([tokenizer.py](../tools/tokenizer.py)) | yes | yes |
-| `gguf` | every non-expert tensor, in its GGUF bytes, and the dense drafter's tensors | 866 tensors | 1,080 tensors |
-| `dense`, `dense.index` | the dense weight pool and its text index (`# dense index v3`) | no | yes |
-| `experts`, `experts.layout` | the routed experts' blobs and their text layout (`# experts v5` in the pack on disk; v6 and v7 from the NVFP4 routes) | no | yes |
+| `gguf` | the source tensors in their GGUF bytes: every tensor of a dense pack, its drafter's included, and a sparse pack's quantized non-expert rows, whose float forms sit in `dense` | 866 tensors | 1,080 tensors |
+| `dense`, `dense.index` | the dense weight pool and its text index (`# dense index v3`), which also names the rows the pool leaves in `gguf` | no | yes |
+| `experts`, `experts.layout` | the routed experts' blobs and their text layout (`# experts v5` in the pack on disk; v6 for NVFP4 packs, v7 for a layer whose gate and up types differ) | no | yes |
 | `mtp/dense`, `mtp/dense.index`, `mtp/experts`, `mtp/draft_vocab` | the sparse path's drafter files; `mtp/draft_vocab` optional | no | yes, without one in this pack |
 | `hc8` | the 8-bit hyper-connection copies the sparse decoder reads | no | yes, required by that start |
 | `vision/mmproj` | the projector GGUF, whole | yes | only with `--mmproj` |
