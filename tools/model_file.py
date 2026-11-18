@@ -11,12 +11,16 @@
 
     append_section(path, "name", "/path/source", new_meta, undo_dir)   # no other section moves or changes
     undo_append(path, undo_dir)
+
+    python tools/model_file.py verify PACK [--section NAME ...]      # every section against its SHA-256
 """
 from __future__ import annotations
 
 import hashlib
 import os
 import struct
+import sys
+import time
 
 MAGIC = b"HALOCLMF"
 LEGACY_MAGIC = b"BASALTMF"      # every file written before the rename: the reader accepts it, the writer does not write it
@@ -274,14 +278,149 @@ class ModelFile:
 
     def verify(self, name: str) -> bool:
         off, size, digest = self.sections[name]
-        h = hashlib.sha256()
-        with open(self.path, "rb") as f:
-            f.seek(off)
-            left = size
-            while left > 0:
-                b = f.read(min(COPY_CHUNK, left))
-                if not b:
-                    return False
-                h.update(b)
-                left -= len(b)
-        return h.digest() == digest
+        got, n = hash_range(self.path, off, size)
+        return n == size and got == digest
+
+
+# ------------------------------------------------------------------ verify a pack (the CLI)
+def hash_range(path: str, off: int, size: int, progress=None, name: str = "") -> tuple[bytes, int]:
+    """SHA-256 of `size` bytes at `off`, one COPY_CHUNK at a time so a section is never held in memory.
+    `progress(name, done, total)` is called after each chunk. Returns (digest, bytes hashed)."""
+    h = hashlib.sha256()
+    done = 0
+    with open(path, "rb") as f:
+        f.seek(off)
+        while done < size:
+            b = f.read(min(COPY_CHUNK, size - done))
+            if not b:
+                break
+            h.update(b)
+            done += len(b)
+            if progress is not None:
+                progress(name, done, size)
+    return h.digest(), done
+
+
+class _Progress:
+    """One rewritten line on stderr while a large section is hashed; nothing when stderr is not a terminal, so a
+    piped run gets only the section lines."""
+    STEP = 1 << 30
+
+    def __init__(self, stream):
+        self.stream, self.name, self.next = stream, None, 0
+
+    def __call__(self, name: str, done: int, total: int) -> None:
+        if not self.stream.isatty():
+            return
+        if name != self.name:
+            self.name, self.next = name, 0
+        if done < self.next and done != total:
+            return
+        self.next = done + self.STEP
+        self.stream.write(f"\r  {name} {done / (1 << 30):.1f} of {total / (1 << 30):.1f} GiB")
+        self.stream.flush()
+
+    def clear(self) -> None:
+        if self.stream.isatty():
+            self.stream.write("\r" + " " * 78 + "\r")
+            self.stream.flush()
+        self.name = None
+
+
+def check_pack(path: str, only: list[str] | None = None, out=None) -> int:
+    """Print the header checks ModelFile::open makes, then one line per section: its size and whether its bytes hash to
+    the SHA-256 in the directory. The hash streams, so a 17 GB pack is never held in memory.
+
+    `only` limits the sections checked; the header is checked either way. Returns 0 when everything matches, 1 when
+    anything does not, 2 when the file or a requested section name is wrong."""
+    out = out or sys.stdout
+    t0 = time.monotonic()
+    try:
+        actual = os.path.getsize(path)
+    except OSError as e:
+        print(f"verify: {e}", file=sys.stderr)
+        return 2
+    out.write(f"{path}: {actual:,} bytes ({actual / (1 << 30):.2f} GiB)\n")
+    with open(path, "rb") as f:
+        head = f.read(HEADER_BYTES)
+    if len(head) < HEADER_BYTES:
+        out.write(f"header: BAD: {len(head)} bytes, a pack starts with a {HEADER_BYTES}-byte header\n")
+        return 1
+    magic, version, n, file_bytes, _ = HEADER.unpack_from(head, 0)
+    problems = []
+    if magic == MAGIC:
+        how = ""
+    elif magic == LEGACY_MAGIC:
+        how = " (the spelling files written before the rename carry)"
+    else:
+        problems.append(f"magic {magic!r} is neither {MAGIC!r} nor {LEGACY_MAGIC!r}")
+        how = ""
+    if version != VERSION:
+        problems.append(f"version {version}, this build reads version {VERSION}")
+    if n > MAX_SECTIONS:
+        problems.append(f"{n} sections, the directory holds {MAX_SECTIONS}")
+    if actual < file_bytes:
+        problems.append(f"truncated: it declares {file_bytes:,} bytes")
+    out.write(f"header: magic {magic.decode('ascii', 'replace')}{how}, version {version}, {n} sections, "
+              f"{file_bytes:,} bytes declared, {actual:,} on disk")
+    out.write("  ok\n" if not problems else "  BAD: " + "; ".join(problems) + "\n")
+    if actual > file_bytes:
+        out.write(f"note: {actual - file_bytes:,} bytes after the declared end (the reader ignores them)\n")
+    if problems:
+        out.write("verify: FAIL, the header is not one this engine opens\n")
+        return 1
+
+    entries = []
+    for i in range(n):
+        name_b, off, size, digest, _ = ENTRY.unpack_from(head, HEADER.size + i * ENTRY.size)
+        entries.append((name_b.rstrip(b"\0").decode("utf-8", "replace"), off, size, digest))
+    names = [e[0] for e in entries]
+    if only:
+        unknown = [s for s in only if s not in names]
+        if unknown:
+            print(f"verify: no section named {', '.join(unknown)}; the pack has {', '.join(names)}", file=sys.stderr)
+            return 2
+        entries = [e for e in entries if e[0] in only]
+
+    prog = _Progress(sys.stderr)
+    bad, hashed = 0, 0
+    for name, off, size, digest in entries:
+        if off % SECTION_ALIGN or off < HEADER_BYTES or off > file_bytes or size > file_bytes - off:
+            prog.clear()
+            out.write(f"  {name:<44} {size:>14,} bytes  BAD: outside the declared file or off the "
+                      f"{SECTION_ALIGN >> 20} MiB alignment\n")
+            bad += 1
+            continue
+        got, n_read = hash_range(path, off, size, prog, name)
+        prog.clear()
+        hashed += n_read
+        ok = n_read == size and got == digest
+        bad += 0 if ok else 1
+        out.write(f"  {name:<44} {size:>14,} bytes  {'ok' if ok else 'BAD'}")
+        if not ok:
+            out.write(f": SHA-256 {got.hex()[:16]}..., directory {digest.hex()[:16]}..." if n_read == size else
+                      f": short read, {n_read:,} of {size:,} bytes")
+        out.write("\n")
+        out.flush()
+
+    secs = time.monotonic() - t0
+    what = f"{len(entries)} of {len(names)} sections" if only else f"{len(names)} sections"
+    out.write(f"verify: {what}, {hashed:,} bytes hashed in {secs:.1f} s, {bad} bad"
+              f" -> {'OK' if not bad else 'FAIL'}\n")
+    return 0 if not bad else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(prog="model_file.py", description="Read, write and verify .halo model files.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    v = sub.add_parser("verify", help="hash every section and compare it with the directory")
+    v.add_argument("pack")
+    v.add_argument("--section", action="append", metavar="NAME", help="check only this section (repeatable)")
+    a = ap.parse_args(argv)
+    return check_pack(a.pack, a.section)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

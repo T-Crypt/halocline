@@ -24,7 +24,10 @@ H, FF, N_LAYERS = 256, 512, 4
 PER_256 = {"Q8_0": 272, "Q4_K": 144, "Q6_K": 210, "IQ4_XS": 136}
 
 
-class Qwen35GgufTest(unittest.TestCase):
+class TinyModel:
+    """A synthetic qwen35 model: four main layers (three GDN, one attention) and the drafter layer llama.cpp stores as
+    blk.4. A fixture rather than a test case, so the pack-integrity tests build the same model."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.t = Path(self.tmp.name)
@@ -55,7 +58,11 @@ class Qwen35GgufTest(unittest.TestCase):
         g.add("qwen35.nextn_predict_layers", nextn, "u32")
         g.add("qwen35.full_attention_interval", 4, "u32")
         g.add("qwen35.embedding_length", H, "u32")
+        g.add("tokenizer.ggml.model", "gpt2")
         g.add("tokenizer.ggml.tokens", ["a", "b", "c", "d"])
+        g.add("tokenizer.ggml.merges", ["a b"])
+        g.add("tokenizer.ggml.token_type", [1, 1, 1, 1])
+        g.add("tokenizer.chat_template", "{% for m in messages %}{{ m.role }}: {{ m.content }}\n{% endfor %}")
         put = {"Q": self.quant, "F": lambda g_, n, c, r, ty: self.f32(g_, n, c * r)}
         tensors = [("token_embd.weight", 256, 4, "Q4_K"), ("output.weight", 256, 4, "Q6_K"), ("output_norm.weight", H, 1, "F")]
         for il in range(N_LAYERS + nextn):
@@ -86,19 +93,34 @@ class Qwen35GgufTest(unittest.TestCase):
         d.update(kw)
         return type("A", (), d)()
 
-    def build(self, **kw):
-        def export(src, out_dir):
-            d = Path(out_dir) / "tokenizer"
-            d.mkdir(parents=True, exist_ok=True)
-            (d / "tokenizer.json").write_bytes(b"{}")
-            return sorted(d.iterdir())
+    @staticmethod
+    def stub_tokenizer(src, out_dir):
+        """A stand-in for convert.export_tokenizer that needs no regex: one file, written the same way each time."""
+        d = Path(out_dir) / "tokenizer"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "tokenizer.json").write_bytes(b"{}")
+        return sorted(d.iterdir())
 
+    def build(self, export=None, **kw):
         def die(msg):
             raise S.ConvertError(msg)
-        G.build(self.args(**kw), convert.Job, convert.fingerprint, die, export)
-        mf = ModelFile(str(self.t / "out.halo"))
+        a = self.args(**kw)
+        G.build(a, convert.Job, convert.fingerprint, die, export or self.stub_tokenizer)
+        mf = ModelFile(str(a.out))
         return mf, json.loads(mf.read("meta"))
 
+    def flip(self, section, offset=0):
+        """Flip one bit of one byte inside `section` of out.halo; the directory keeps the hash it had."""
+        mf = ModelFile(str(self.t / "out.halo"))
+        off, _ = mf.section(section)
+        with open(self.t / "out.halo", "r+b") as f:
+            f.seek(off + offset)
+            b = f.read(1)
+            f.seek(off + offset)
+            f.write(bytes([b[0] ^ 1]))
+
+
+class Qwen35GgufTest(TinyModel, unittest.TestCase):
     def test_every_tensor_is_copied_as_stored(self):
         mf, meta = self.build()
         gguf = mf.read("gguf")
@@ -112,7 +134,7 @@ class Qwen35GgufTest(unittest.TestCase):
             self.assertEqual(e["offset"] % 32, 0)
         self.assertEqual(meta["tensors"]["blk.0.ffn_gate.weight"]["type"], "IQ4_XS")
         self.assertEqual(meta["tensors"]["mtp.fc.weight"]["shape"], [2 * H, H])
-        self.assertEqual(G.verify(self.t / "out.halo", self.gguf), [])
+        self.assertEqual(G.verify(self.t / "out.halo", self.gguf, tokenizer_files=self.stub_tokenizer), [])
 
     def test_meta_counts_main_layers_and_names_the_drafter(self):
         _, meta = self.build()
@@ -159,7 +181,7 @@ class Qwen35GgufTest(unittest.TestCase):
             b = f.read(1)
             f.seek(base + e["offset"] + 5)
             f.write(bytes([b[0] ^ 1]))
-        bad = G.verify(self.t / "out.halo", self.gguf)
+        bad = G.verify(self.t / "out.halo", self.gguf, tokenizer_files=self.stub_tokenizer)
         self.assertEqual(len(bad), 1)
         self.assertTrue(bad[0].startswith("blk.2.ssm_out.weight: SHA-256"))
 
