@@ -131,7 +131,7 @@ Unless `relaxed-drafting` is on, output is exactly plain decoding's.
 
 | Setting | Where | Type, values | Default | What it does |
 | --- | --- | --- | --- | --- |
-| `spec` | engine | integer; 0 to 16 on Qwen3.8-27B | 8 with a drafter on either path, 0 without one | Verify windows of at most N tokens. `0` or `1` turns it off. |
+| `spec` | engine | integer; 0 to 16 on Qwen3.8-27B | 8 with a drafter on either path, 0 without one | Verify windows of at most N tokens. `0` or `1` turns it off. On Flash-Next the prompt lookup may widen a window by up to 2 tokens (at most 8); `mtp-max-t` caps the drafter's own windows. |
 | `suffix-draft` | engine | tokens | 3 (`0` = the drafter only) | Flash-Next and Qwen3.8-27B. Prompt lookup: fill a window from an earlier repeat of at least N tokens. |
 | `mtp-max-t` | engine | integer | 0 (= `spec`) | Flash-Next only. Caps the MTP's own windows. |
 | `mtp-window` | engine | cells | Flash-Next: 32768 (`0` = all); Qwen3.8-27B: 0 (`0` = every cell) | The drafter attends to the last N cells. On Qwen3.8-27B a nonzero N keeps a ring of N + 15 cells (at least 32), so a conversation from such a run is read again rather than parked. |
