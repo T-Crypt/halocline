@@ -1,0 +1,898 @@
+[
+{
+"id": 1,
+"t": 1795016142.862,
+"src": "srv",
+"lvl": "info",
+"msg": "legend   pp=prompt read  tg=generation  c=cached  acc=drafts accepted  dl=tokens per window  hit=expert cache  pcie=routed experts over PCIe"
+},
+{
+"id": 2,
+"t": 1795016144.597,
+"src": "srv",
+"lvl": "info",
+"msg": "Qwen3.8-27B UD-Q4_K_XL  ctx=175616 kv=k8v4 mtp-kv=int8 profile spec=8 temp=1.0 top_p=0.95 top_k=20 vision=cpu"
+},
+{
+"id": 3,
+"t": 1795016146.589,
+"src": "srv",
+"lvl": "info",
+"msg": "ready    http://127.0.0.1:8095/v1  openai+anthropic  stats http://127.0.0.1:8095/"
+},
+{
+"id": 4,
+"t": 1795016147.048,
+"src": "eng",
+"lvl": "info",
+"msg": "halo: gpu: RTX 4090 (nvidia-smi 0)"
+},
+{
+"id": 5,
+"t": 1795016147.048,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: total 17297401856"
+},
+{
+"id": 6,
+"t": 1795016147.048,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: plan cuda0 17297401856"
+},
+{
+"id": 7,
+"t": 1795016147.048,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 0 17297401856"
+},
+{
+"id": 8,
+"t": 1795016147.798,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 715161600 17297401856"
+},
+{
+"id": 9,
+"t": 1795016147.798,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 916508672 17297401856"
+},
+{
+"id": 10,
+"t": 1795016147.798,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 1117835264 17297401856"
+},
+{
+"id": 11,
+"t": 1795016147.798,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 1319161856 17297401856"
+},
+{
+"id": 12,
+"t": 1795016147.798,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 1520488448 17297401856"
+},
+{
+"id": 13,
+"t": 1795016147.798,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 1721815040 17297401856"
+},
+{
+"id": 14,
+"t": 1795016147.798,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 1897298816 17297401856"
+},
+{
+"id": 15,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 2104014592 17297401856"
+},
+{
+"id": 16,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 2278463232 17297401856"
+},
+{
+"id": 17,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 2467279488 17297401856"
+},
+{
+"id": 18,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 2672327296 17297401856"
+},
+{
+"id": 19,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 2849838592 17297401856"
+},
+{
+"id": 20,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 3038491008 17297401856"
+},
+{
+"id": 21,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 3233665408 17297401856"
+},
+{
+"id": 22,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 3431329024 17297401856"
+},
+{
+"id": 23,
+"t": 1795016148.049,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 3616142592 17297401856"
+},
+{
+"id": 24,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 3834450048 17297401856"
+},
+{
+"id": 25,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 4046040064 17297401856"
+},
+{
+"id": 26,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 4223551360 17297401856"
+},
+{
+"id": 27,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 4430565248 17297401856"
+},
+{
+"id": 28,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 4639533824 17297401856"
+},
+{
+"id": 29,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 4853909120 17297401856"
+},
+{
+"id": 30,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 5064352256 17297401856"
+},
+{
+"id": 31,
+"t": 1795016148.299,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 5268417024 17297401856"
+},
+{
+"id": 32,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 5480007040 17297401856"
+},
+{
+"id": 33,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 5699952896 17297401856"
+},
+{
+"id": 34,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 5905644672 17297401856"
+},
+{
+"id": 35,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 6120072320 17297401856"
+},
+{
+"id": 36,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 6297583616 17297401856"
+},
+{
+"id": 37,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 6471294976 17297401856"
+},
+{
+"id": 38,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 6670474112 17297401856"
+},
+{
+"id": 39,
+"t": 1795016148.549,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 6856750848 17297401856"
+},
+{
+"id": 40,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 7057579776 17297401856"
+},
+{
+"id": 41,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 7237844736 17297401856"
+},
+{
+"id": 42,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 7448164992 17297401856"
+},
+{
+"id": 43,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 7654921728 17297401856"
+},
+{
+"id": 44,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 7857500544 17297401856"
+},
+{
+"id": 45,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 8050463104 17297401856"
+},
+{
+"id": 46,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 8259238272 17297401856"
+},
+{
+"id": 47,
+"t": 1795016148.799,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 8480044288 17297401856"
+},
+{
+"id": 48,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 8698187904 17297401856"
+},
+{
+"id": 49,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 8875699200 17297401856"
+},
+{
+"id": 50,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 9053426688 17297401856"
+},
+{
+"id": 51,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 9227465728 17297401856"
+},
+{
+"id": 52,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 9406287744 17297401856"
+},
+{
+"id": 53,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 9588345600 17297401856"
+},
+{
+"id": 54,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 9776998016 17297401856"
+},
+{
+"id": 55,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 9964596864 17297401856"
+},
+{
+"id": 56,
+"t": 1795016149.05,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 10158296704 17297401856"
+},
+{
+"id": 57,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 10356779520 17297401856"
+},
+{
+"id": 58,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 10584548736 17297401856"
+},
+{
+"id": 59,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 10765009152 17297401856"
+},
+{
+"id": 60,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 10951256320 17297401856"
+},
+{
+"id": 61,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 11144956160 17297401856"
+},
+{
+"id": 62,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 11329471616 17297401856"
+},
+{
+"id": 63,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 11532050432 17297401856"
+},
+{
+"id": 64,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 11726437248 17297401856"
+},
+{
+"id": 65,
+"t": 1795016149.3,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 11902155648 17297401856"
+},
+{
+"id": 66,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 12100649856 17297401856"
+},
+{
+"id": 67,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 12318793472 17297401856"
+},
+{
+"id": 68,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 12543326848 17297401856"
+},
+{
+"id": 69,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 12761470464 17297401856"
+},
+{
+"id": 70,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 12936330752 17297401856"
+},
+{
+"id": 71,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 13111056768 17297401856"
+},
+{
+"id": 72,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 13286406528 17297401856"
+},
+{
+"id": 73,
+"t": 1795016149.55,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 13478622464 17297401856"
+},
+{
+"id": 74,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 13685379200 17297401856"
+},
+{
+"id": 75,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 13886904448 17297401856"
+},
+{
+"id": 76,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 14060615808 17297401856"
+},
+{
+"id": 77,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 14270936064 17297401856"
+},
+{
+"id": 78,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 14477692800 17297401856"
+},
+{
+"id": 79,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 14672079616 17297401856"
+},
+{
+"id": 80,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 14859594496 17297401856"
+},
+{
+"id": 81,
+"t": 1795016149.8,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 15043425024 17297401856"
+},
+{
+"id": 82,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 15250181760 17297401856"
+},
+{
+"id": 83,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 15468775936 17297401856"
+},
+{
+"id": 84,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 15660878336 17297401856"
+},
+{
+"id": 85,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 15888868736 17297401856"
+},
+{
+"id": 86,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 16111160704 17297401856"
+},
+{
+"id": 87,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 16335759616 17297401856"
+},
+{
+"id": 88,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 16516024576 17297401856"
+},
+{
+"id": 89,
+"t": 1795016150.051,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 16722166912 17297401856"
+},
+{
+"id": 90,
+"t": 1795016150.301,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 16928923648 17297401856"
+},
+{
+"id": 91,
+"t": 1795016150.301,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 17145169920 17297401856"
+},
+{
+"id": 92,
+"t": 1795016150.301,
+"src": "eng",
+"lvl": "info",
+"msg": "halo load: cuda0 17297401856 17297401856"
+},
+{
+"id": 93,
+"t": 1795016150.301,
+"src": "eng",
+"lvl": "info",
+"msg": "halo qwen35: 817 tensors, 15.79 GiB on the GPU, 0.67 GiB of embedding in page-locked RAM; 7.42 GiB free"
+},
+{
+"id": 94,
+"t": 1795016152.303,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense: image encoder: 0.87 GiB staged in page-locked RAM, on the card per request"
+},
+{
+"id": 95,
+"t": 1795016152.528,
+"src": "srv",
+"lvl": "info",
+"msg": "loaded   16.1GiB 5.5s  cuda0=16.1GiB"
+},
+{
+"id": 96,
+"t": 1795016152.529,
+"src": "srv",
+"lvl": "info",
+"msg": "weights  loaded, ctx=175616 images=on"
+},
+{
+"id": 97,
+"t": 1795016152.529,
+"src": "srv",
+"lvl": "info",
+"msg": "video    on, FFmpeg 9 (libavformat 63.1.102) from /usr/lib/libavformat.so.63"
+},
+{
+"id": 98,
+"t": 1795016152.531,
+"src": "srv",
+"lvl": "info",
+"msg": "thinking budget 688 tokens, output cap 1200 (answer-room auto)"
+},
+{
+"id": 99,
+"t": 1795016152.553,
+"src": "eng",
+"lvl": "info",
+"msg": "halo serve: 2411 MiB of VRAM free with everything loaded"
+},
+{
+"id": 100,
+"t": 1795016153.544,
+"src": "srv",
+"lvl": "info",
+"msg": "live | s1 tg=101/1200 107.2t/s | total 107t/s"
+},
+{
+"id": 101,
+"t": 1795016155.574,
+"src": "srv",
+"lvl": "info",
+"msg": "live | s1 tg=241/1200 81.1t/s | total 81t/s"
+},
+{
+"id": 102,
+"t": 1795016157.619,
+"src": "srv",
+"lvl": "info",
+"msg": "live | s1 tg=398/1200 79.3t/s | total 79t/s"
+},
+{
+"id": 103,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: 200 decode windows: mean ms per window by its row count T; GPU events on the window's stream, the window uncaptured (PDL off) and its wall from its first stamp to the next window's first, so a stage's ms holds the launch gap before its own first kernel; accept is host-side and lands in gap"
+},
+{
+"id": 104,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 1 windows 6 window 26.249 ms | embed 0.008 (0.0%) | attn-pre 1.104 (4.2%) | attn-qk 0.092 (0.3%) | attn-core 0.310 (1.2%) | attn-out 0.573 (2.2%) | gdn-pre 4.272 (16.3%) | gdn-rec 0.887 (3.4%) | gdn-out 1.501 (5.7%) | ffn-up 8.803 (33.5%) | ffn-down 4.292 (16.4%) | head 1.107 (4.2%) | sample 0.041 (0.2%) | mtp-draft 3.176 (12.1%) | mtp-hist 0.035 (0.1%) | stages 26.199 (99.8%), gap 0.051"
+},
+{
+"id": 105,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 2 windows 28 window 25.686 ms | embed 0.007 (0.0%) | attn-pre 1.114 (4.3%) | attn-qk 0.087 (0.3%) | attn-core 0.374 (1.5%) | attn-out 0.577 (2.2%) | gdn-pre 3.407 (13.3%) | gdn-rec 0.779 (3.0%) | gdn-out 1.517 (5.9%) | ffn-up 8.681 (33.8%) | ffn-down 4.316 (16.8%) | head 1.112 (4.3%) | sample 0.021 (0.1%) | mtp-draft 3.202 (12.5%) | mtp-hist 0.122 (0.5%) | stages 25.315 (98.6%), gap 0.371"
+},
+{
+"id": 106,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 3 windows 92 window 27.689 ms | embed 0.007 (0.0%) | attn-pre 1.114 (4.0%) | attn-qk 0.087 (0.3%) | attn-core 0.462 (1.7%) | attn-out 0.587 (2.1%) | gdn-pre 3.419 (12.3%) | gdn-rec 0.830 (3.0%) | gdn-out 1.546 (5.6%) | ffn-up 8.803 (31.8%) | ffn-down 4.382 (15.8%) | head 1.117 (4.0%) | sample 0.021 (0.1%) | mtp-draft 4.782 (17.3%) | mtp-hist 0.154 (0.6%) | stages 27.313 (98.6%), gap 0.376"
+},
+{
+"id": 107,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 4 windows 47 window 30.822 ms | embed 0.008 (0.0%) | attn-pre 1.132 (3.7%) | attn-qk 0.088 (0.3%) | attn-core 0.519 (1.7%) | attn-out 0.592 (1.9%) | gdn-pre 3.465 (11.2%) | gdn-rec 0.922 (3.0%) | gdn-out 1.560 (5.1%) | ffn-up 8.905 (28.9%) | ffn-down 5.558 (18.0%) | head 1.122 (3.6%) | sample 0.022 (0.1%) | mtp-draft 6.368 (20.7%) | mtp-hist 0.176 (0.6%) | stages 30.435 (98.7%), gap 0.387"
+},
+{
+"id": 108,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 5 windows 12 window 34.389 ms | embed 0.007 (0.0%) | attn-pre 1.155 (3.4%) | attn-qk 0.090 (0.3%) | attn-core 0.569 (1.7%) | attn-out 0.595 (1.7%) | gdn-pre 3.533 (10.3%) | gdn-rec 1.037 (3.0%) | gdn-out 1.566 (4.6%) | ffn-up 9.122 (26.5%) | ffn-down 6.999 (20.4%) | head 1.128 (3.3%) | sample 0.024 (0.1%) | mtp-draft 7.955 (23.1%) | mtp-hist 0.203 (0.6%) | stages 33.984 (98.8%), gap 0.405"
+},
+{
+"id": 109,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 6 windows 4 window 38.543 ms | embed 0.008 (0.0%) | attn-pre 1.556 (4.0%) | attn-qk 0.090 (0.2%) | attn-core 0.667 (1.7%) | attn-out 0.728 (1.9%) | gdn-pre 4.331 (11.2%) | gdn-rec 1.135 (2.9%) | gdn-out 1.948 (5.1%) | ffn-up 10.761 (27.9%) | ffn-down 5.701 (14.8%) | head 1.505 (3.9%) | sample 0.025 (0.1%) | mtp-draft 9.543 (24.8%) | mtp-hist 0.138 (0.4%) | stages 38.136 (98.9%), gap 0.407"
+},
+{
+"id": 110,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 7 windows 2 window 40.141 ms | embed 0.008 (0.0%) | attn-pre 1.542 (3.8%) | attn-qk 0.090 (0.2%) | attn-core 0.700 (1.7%) | attn-out 0.722 (1.8%) | gdn-pre 4.302 (10.7%) | gdn-rec 1.177 (2.9%) | gdn-out 1.927 (4.8%) | ffn-up 10.759 (26.8%) | ffn-down 5.668 (14.1%) | head 1.512 (3.8%) | sample 0.025 (0.1%) | mtp-draft 11.129 (27.7%) | mtp-hist 0.165 (0.4%) | stages 39.727 (99.0%), gap 0.414"
+},
+{
+"id": 111,
+"t": 1795016158.557,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 8 windows 9 window 40.598 ms | embed 0.008 (0.0%) | attn-pre 1.548 (3.8%) | attn-qk 0.090 (0.2%) | attn-core 0.791 (1.9%) | attn-out 0.721 (1.8%) | gdn-pre 4.323 (10.6%) | gdn-rec 1.246 (3.1%) | gdn-out 1.922 (4.7%) | ffn-up 10.816 (26.6%) | ffn-down 5.672 (14.0%) | head 1.509 (3.7%) | sample 0.026 (0.1%) | mtp-draft 11.117 (27.4%) | mtp-hist 0.331 (0.8%) | stages 40.119 (98.8%), gap 0.479"
+},
+{
+"id": 112,
+"t": 1795016159.659,
+"src": "srv",
+"lvl": "info",
+"msg": "live | s1 tg=616/1200 87.3t/s | total 87t/s"
+},
+{
+"id": 113,
+"t": 1795016160.642,
+"src": "srv",
+"lvl": "info",
+"msg": "thinking budget reached (688 tokens), wrapping up"
+},
+{
+"id": 114,
+"t": 1795016160.808,
+"src": "eng",
+"lvl": "info",
+"msg": "halo serve: prompt 79 tokens = 0 reused + 79 read in 40 ms (1951.2 tok/s), 689 generated in 8070 ms (85.4 tok/s), drafts accepted 423 of 744, 1 checkpoints"
+},
+{
+"id": 115,
+"t": 1795016161.678,
+"src": "srv",
+"lvl": "info",
+"msg": "live | s1 tg=836/1200 92.1t/s | total 92t/s"
+},
+{
+"id": 116,
+"t": 1795016163.691,
+"src": "srv",
+"lvl": "info",
+"msg": "live | s1 tg=969/1200 87.4t/s | total 87t/s"
+},
+{
+"id": 117,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: 200 decode windows: mean ms per window by its row count T; GPU events on the window's stream, the window uncaptured (PDL off) and its wall from its first stamp to the next window's first, so a stage's ms holds the launch gap before its own first kernel; accept is host-side and lands in gap"
+},
+{
+"id": 118,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 1 windows 8 window 25.252 ms | embed 0.008 (0.0%) | attn-pre 1.103 (4.4%) | attn-qk 0.085 (0.3%) | attn-core 0.323 (1.3%) | attn-out 0.573 (2.3%) | gdn-pre 3.401 (13.5%) | gdn-rec 0.783 (3.1%) | gdn-out 1.502 (5.9%) | ffn-up 8.807 (34.9%) | ffn-down 4.289 (17.0%) | head 1.107 (4.4%) | sample 0.020 (0.1%) | mtp-draft 3.175 (12.6%) | mtp-hist 0.026 (0.1%) | stages 25.203 (99.8%), gap 0.049"
+},
+{
+"id": 119,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 2 windows 11 window 25.723 ms | embed 0.007 (0.0%) | attn-pre 1.113 (4.3%) | attn-qk 0.087 (0.3%) | attn-core 0.388 (1.5%) | attn-out 0.576 (2.2%) | gdn-pre 3.408 (13.2%) | gdn-rec 0.778 (3.0%) | gdn-out 1.515 (5.9%) | ffn-up 8.685 (33.8%) | ffn-down 4.317 (16.8%) | head 1.112 (4.3%) | sample 0.021 (0.1%) | mtp-draft 3.201 (12.4%) | mtp-hist 0.144 (0.6%) | stages 25.351 (98.6%), gap 0.372"
+},
+{
+"id": 120,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 3 windows 99 window 28.111 ms | embed 0.007 (0.0%) | attn-pre 1.115 (4.0%) | attn-qk 0.087 (0.3%) | attn-core 0.514 (1.8%) | attn-out 0.588 (2.1%) | gdn-pre 3.420 (12.2%) | gdn-rec 0.831 (3.0%) | gdn-out 1.547 (5.5%) | ffn-up 8.805 (31.3%) | ffn-down 4.382 (15.6%) | head 1.117 (4.0%) | sample 0.021 (0.1%) | mtp-draft 4.785 (17.0%) | mtp-hist 0.162 (0.6%) | stages 27.380 (97.4%), gap 0.731"
+},
+{
+"id": 121,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 4 windows 32 window 30.872 ms | embed 0.007 (0.0%) | attn-pre 1.130 (3.7%) | attn-qk 0.088 (0.3%) | attn-core 0.589 (1.9%) | attn-out 0.591 (1.9%) | gdn-pre 3.461 (11.2%) | gdn-rec 0.919 (3.0%) | gdn-out 1.560 (5.1%) | ffn-up 8.902 (28.8%) | ffn-down 5.543 (18.0%) | head 1.122 (3.6%) | sample 0.022 (0.1%) | mtp-draft 6.371 (20.6%) | mtp-hist 0.183 (0.6%) | stages 30.488 (98.8%), gap 0.383"
+},
+{
+"id": 122,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 5 windows 11 window 34.432 ms | embed 0.008 (0.0%) | attn-pre 1.157 (3.4%) | attn-qk 0.090 (0.3%) | attn-core 0.641 (1.9%) | attn-out 0.596 (1.7%) | gdn-pre 3.532 (10.3%) | gdn-rec 1.041 (3.0%) | gdn-out 1.566 (4.5%) | ffn-up 9.124 (26.5%) | ffn-down 6.994 (20.3%) | head 1.127 (3.3%) | sample 0.024 (0.1%) | mtp-draft 7.967 (23.1%) | mtp-hist 0.172 (0.5%) | stages 34.038 (98.9%), gap 0.394"
+},
+{
+"id": 123,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 6 windows 7 window 38.607 ms | embed 0.008 (0.0%) | attn-pre 1.548 (4.0%) | attn-qk 0.091 (0.2%) | attn-core 0.691 (1.8%) | attn-out 0.723 (1.9%) | gdn-pre 4.316 (11.2%) | gdn-rec 1.124 (2.9%) | gdn-out 1.935 (5.0%) | ffn-up 10.739 (27.8%) | ffn-down 5.684 (14.7%) | head 1.504 (3.9%) | sample 0.024 (0.1%) | mtp-draft 9.529 (24.7%) | mtp-hist 0.274 (0.7%) | stages 38.190 (98.9%), gap 0.417"
+},
+{
+"id": 124,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 7 windows 5 window 40.327 ms | embed 0.008 (0.0%) | attn-pre 1.546 (3.8%) | attn-qk 0.089 (0.2%) | attn-core 0.751 (1.9%) | attn-out 0.720 (1.8%) | gdn-pre 4.309 (10.7%) | gdn-rec 1.178 (2.9%) | gdn-out 1.924 (4.8%) | ffn-up 10.761 (26.7%) | ffn-down 5.660 (14.0%) | head 1.511 (3.7%) | sample 0.025 (0.1%) | mtp-draft 11.116 (27.6%) | mtp-hist 0.294 (0.7%) | stages 39.892 (98.9%), gap 0.435"
+},
+{
+"id": 125,
+"t": 1795016164.81,
+"src": "eng",
+"lvl": "info",
+"msg": "halo dense profile: T 8 windows 27 window 40.516 ms | embed 0.008 (0.0%) | attn-pre 1.545 (3.8%) | attn-qk 0.088 (0.2%) | attn-core 0.818 (2.0%) | attn-out 0.717 (1.8%) | gdn-pre 4.309 (10.6%) | gdn-rec 1.239 (3.1%) | gdn-out 1.916 (4.7%) | ffn-up 10.805 (26.7%) | ffn-down 5.666 (14.0%) | head 1.511 (3.7%) | sample 0.026 (0.1%) | mtp-draft 11.125 (27.5%) | mtp-hist 0.290 (0.7%) | stages 40.062 (98.9%), gap 0.454"
+},
+{
+"id": 126,
+"t": 1795016165.721,
+"src": "srv",
+"lvl": "info",
+"msg": "live | s1 tg=1106/1200 84.3t/s | total 84t/s"
+},
+{
+"id": 127,
+"t": 1795016167.041,
+"src": "srv",
+"lvl": "info",
+"msg": "s1 done  pp=79/0c 0.0s  tg=1200 80.0t/s acc=54%  ttft=0.1s  end=length"
+},
+{
+"id": 128,
+"t": 1795016167.062,
+"src": "eng",
+"lvl": "info",
+"msg": "halo serve: prompt 770 tokens = 767 reused + 3 read in 27 ms (111.3 tok/s), 509 generated in 6363 ms (80.0 tok/s), drafts accepted 292 of 538, 2 checkpoints"
+}
+]

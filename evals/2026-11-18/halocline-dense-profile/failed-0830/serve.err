@@ -1,0 +1,1 @@
+[server] error: /data/models/halocline/packs/Qwen3.8-27B-UD-Q4_K_XL-vision.halo: ~/wt/halocline-dense-profile/bin/halocline-vision not found (build the vision sidecar), or drop --vision

@@ -1,0 +1,26 @@
+{
+ "model": "Qwen3.8-27B UD-Q4_K_XL",
+ "url": "http://127.0.0.1:8095",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 99.5-133.1 t/s (cold 137.6), prompt 2593 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 33 tok, 0.3 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 12.5 s, prompt 3124 t/s, decode 99.1 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 61.3 s, prompt 2286 t/s, decode 71.6 t/s"
+  }
+ }
+}

@@ -136,6 +136,16 @@ FFN's gate/up and down; the LM head; sampling; and the MTP drafter's draft (`mtp
 `bin/halocline serve PACK ... --profile`, or `halocline-bench ... -- --profile`; its numbers are not for A/B (uncaptured,
 PDL off) and the batch window of several sessions is not stamped.
 
+*Measured 2026-11-18 (`evals/2026-11-18/halocline-dense-profile`, served K8V4 flags, one server per workload):* under
+`serve` the tables land in the server's log buffer (`GET /api/logs`, the stats page), not the terminal. attn-core is
+1.8% of the window at short context, 10.7% at 36K and 27-29% at 137K, and it steps exactly with ceil(6T/16): 7.65 ms
+for T = 1-2, 14.9 for T = 3-5, 22.3 for T = 6-8 at 137K. That is S1, measured: reading the KV once saves about 7% of
+window time on prose and 11% on struct at 137K. The MTP drafter is 15-21% of every window at every depth; a draft step
+costs 1.6-2.0 ms, of which the full 248,320-row head is 1.1 ms. NInfer's `--lm-head-draft` is a frequency-ranked
+131,072-row draft head with an id map (FR-Spec, arXiv 2502.14856); that is the drafter lever (rows gathered as stored,
+verify on the full head, so the output distribution is unchanged). GEMV at T = 6 steps up (MMQ past `kMmvqMaxRows`),
+but mean T is 2.7-3.9, so S2 is third.
+
 ### D6: identity and state (state round trip done 2026-11-17 on the real pack; build-to-build identity open)
 
 Greedy identity across the last two builds, and `qwen35_checkpoint_round_trip` with the real pack. Accept: 900 of 900

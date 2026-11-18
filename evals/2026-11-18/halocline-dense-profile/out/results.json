@@ -1,0 +1,62 @@
+[
+ {
+  "name": "short-prose",
+  "prompt_tokens": 79,
+  "completion_tokens": 1200,
+  "wall_s": 20.3,
+  "prompt_tps": 2936.8,
+  "decode_tps": 80.0,
+  "profile_lines": 18,
+  "log_lines": 128
+ },
+ {
+  "name": "short-struct",
+  "prompt_tokens": 102,
+  "completion_tokens": 1200,
+  "wall_s": 15.0,
+  "prompt_tps": 3791.8,
+  "decode_tps": 191.1,
+  "profile_lines": 9,
+  "log_lines": 117
+ },
+ {
+  "name": "d36k-prose",
+  "prompt_tokens": 36471,
+  "completion_tokens": 1200,
+  "wall_s": 33.5,
+  "prompt_tps": 130767.3,
+  "decode_tps": 67.8,
+  "profile_lines": 18,
+  "log_lines": 131
+ },
+ {
+  "name": "d36k-struct",
+  "prompt_tokens": 36494,
+  "completion_tokens": 1200,
+  "wall_s": 30.6,
+  "prompt_tps": 130849.8,
+  "decode_tps": 120.1,
+  "profile_lines": 9,
+  "log_lines": 121
+ },
+ {
+  "name": "d137k-prose",
+  "prompt_tokens": 137404,
+  "completion_tokens": 1200,
+  "wall_s": 84.0,
+  "prompt_tps": 2184483.3,
+  "decode_tps": 106.8,
+  "profile_lines": 15,
+  "log_lines": 137
+ },
+ {
+  "name": "d137k-struct",
+  "prompt_tokens": 137427,
+  "completion_tokens": 1200,
+  "wall_s": 81.4,
+  "prompt_tps": 2184849.0,
+  "decode_tps": 111.8,
+  "profile_lines": 9,
+  "log_lines": 130
+ }
+]
