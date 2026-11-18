@@ -50,6 +50,40 @@ Configure with `-DBUILD_TESTING=ON`, build, and run `ctest --test-dir build`. Th
 - Server tests: `python -m unittest discover -s serve/tests -t .` after `pip install -r requirements-test.txt`.
 - Tokenizer parity: register `tokenizer_parity` with `-DHALO_TOKENIZER_DIR=<a pack's tokenizer/ directory>`.
 
+## Verifying a pack
+
+Every section of a `.halo` file carries a SHA-256 in the file's directory. Two checks run without the GPU. One reads a
+pack against its own directory; the other compares it with the files it was converted from. Both stream, so a 17 GB pack
+is never held in memory.
+
+```sh
+# every section against the directory, one line per section: name, bytes, ok or BAD
+.venv/bin/python tools/model_file.py verify Qwen3.8-27B-UD-Q4_K_XL.halo
+
+# the sections a suspicion names, when hashing all of them is too slow
+.venv/bin/python tools/model_file.py verify PACK.halo --section gguf --section meta
+```
+
+`verify` prints the header checks the engine makes when it opens a pack (the magic, including the spelling files written
+before the rename carry; the version this build reads; the section count; the declared size against the size on disk;
+each section's bounds and its 2 MiB alignment), then hashes every section in 64 MiB reads and prints the SHA-256 it got
+beside the one the directory holds when they differ. The exit code is 0 when everything matches, 1 when anything does
+not, and 2 when the file is missing or a named section does not exist. A progress line on stderr shows where a long
+section is, and only on a terminal.
+
+The converter's own check compares a pack with the inputs it was built from, not only tensor by tensor:
+
+```sh
+.venv/bin/python tools/convert/gguf_qwen35.py verify PACK.halo SOURCE.gguf [--mmproj PROJECTOR.gguf]
+```
+
+It compares every tensor (presence, type, shape, bytes, and the SHA-256 of the source bytes, the pack bytes and the
+meta's record); `meta.gguf_kv` against the GGUF's metadata and `meta.sources[0]` against the GGUF's name and size; every
+`tokenizer/*` section byte for byte against what the converter writes from the same GGUF (the four tokenizer files, and
+`chat_template.jinja` when the GGUF carries `tokenizer.chat_template`); `vision/text_vocab` against the vocab-only GGUF
+the converter makes from the source; and, with `--mmproj`, `vision/mmproj` against the projector file, byte for byte.
+Without `--mmproj` that one section is not compared, and the command says so.
+
 ## Benchmark
 
 `halocline-bench` reads its prompts from `data/bench` (run it from the repository root, or pass `--fixtures DIR`). The

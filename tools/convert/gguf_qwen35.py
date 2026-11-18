@@ -16,12 +16,15 @@ llama.cpp's qwen35 conversion has already put the tensors in the order the adapt
 in, ssm_a = -exp(A_log), GDN value heads tiled (value head h meets key head h % group_count), conv kernels as
 [kernel, channels]. checkpoint_qwen35.py writes the same conventions from an NVFP4 checkpoint.
 
-`verify(pack, gguf)` re-reads both files and compares every tensor's SHA-256: the D2 gate (docs/roadmap.md).
+`verify(pack, gguf, mmproj)` re-reads both files and compares every tensor's SHA-256, every `tokenizer/` section with
+what the converter writes from the GGUF, the vision sections, and the metadata the converter copies: the D2 gate
+(docs/roadmap.md).
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import pathlib
 import re
 import sys
@@ -148,7 +151,6 @@ def sha256_range(path, off: int, size: int) -> str:
 
 def build(a, Job, fingerprint, die, export_tokenizer) -> None:
     """`export_tokenizer(gguf, dir)` writes the tokenizer files under dir/tokenizer and returns them (convert.py's)."""
-    import os
     src = pathlib.Path(a.gguf[0])
     if len(a.gguf) != 1:
         die("a qwen35 GGUF is one file; merge split GGUFs first (llama-gguf-split --merge)")
@@ -232,13 +234,16 @@ def build(a, Job, fingerprint, die, export_tokenizer) -> None:
     print(f"done: {len(job.rows)} sections, {out.stat().st_size / (1 << 30):.3f} GiB, {time.time() - job.t0:.1f} s -> {out}")
 
 
-def verify(pack: pathlib.Path, gguf: pathlib.Path) -> list[str]:
-    """Every tensor of `pack` against the source GGUF: the same bytes (SHA-256 of both reads) and the meta's record.
-    Returns the mismatches; empty when the pack is a lossless copy."""
-    mf = ModelFile(str(pack))
-    meta = json.loads(mf.read("meta"))
+def _export_tokenizer(gguf: pathlib.Path, out_dir: pathlib.Path):
+    """What the converter writes under tokenizer/, from convert.py (imported here: convert imports this module)."""
+    from convert import export_tokenizer
+    return export_tokenizer(gguf, out_dir)
+
+
+def _verify_tensors(mf, meta: dict, plan: Plan, pack: pathlib.Path, gguf: pathlib.Path) -> list[str]:
+    """Every tensor of the pack against the GGUF it names: presence, type, shape, bytes, and the SHA-256 of the source
+    bytes, of the pack bytes and of the meta's record."""
     base, _ = mf.section("gguf")
-    plan = Plan(gguf)
     want = {n: (p, off, size, t) for n, p, off, size, t in plan.rows}
     got = meta["tensors"]
     bad = [f"{n}: in the GGUF, not in the pack" for n in sorted(set(want) - set(got))]
@@ -257,16 +262,124 @@ def verify(pack: pathlib.Path, gguf: pathlib.Path) -> list[str]:
     return bad
 
 
+def _verify_meta(meta: dict, plan: Plan, gguf: pathlib.Path) -> list[str]:
+    """`gguf_kv` and `sources[0]`: the metadata the converter copies from the GGUF's header, and where it came from."""
+    bad = []
+    kv = meta.get("gguf_kv") or {}
+    if kv != plan.kv:
+        diff = sorted(k for k in set(kv) | set(plan.kv) if kv.get(k) != plan.kv.get(k))
+        bad.append(f"meta gguf_kv: {len(diff)} keys differ from the GGUF's metadata ({', '.join(diff[:6])}"
+                   f"{', ...' if len(diff) > 6 else ''})")
+    sources = meta.get("sources") or [{}]
+    src = sources[0]
+    if (src.get("path"), src.get("size")) != (gguf.name, gguf.stat().st_size):
+        bad.append(f"meta sources[0]: {src.get('path')!r} {src.get('size')}, the GGUF is {gguf.name!r} "
+                   f"{gguf.stat().st_size:,} bytes")
+    return bad
+
+
+def _verify_tokenizer(mf, gguf: pathlib.Path, export) -> list[str]:
+    """Every `tokenizer/*` section against the file the converter writes from the GGUF's metadata: the four tokenizer
+    files, and chat_template.jinja when the GGUF carries tokenizer.chat_template."""
+    have = {n: mf.read(n) for n in mf.names() if n.startswith("tokenizer/")}
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            files = export(gguf, pathlib.Path(tmp))
+        except ValueError as e:
+            return [f"tokenizer/: the GGUF's tokenizer cannot be exported ({e})"]
+        want = {f"tokenizer/{p.name}": p.read_bytes() for p in files}
+    bad = [f"{n}: the converter writes it, the pack has no such section" for n in sorted(set(want) - set(have))]
+    bad += [f"{n}: in the pack, not what the converter writes from the GGUF (extra file)"
+            for n in sorted(set(have) - set(want))]
+    for n in sorted(set(want) & set(have)):
+        if want[n] != have[n]:
+            bad.append(f"{n}: {len(have[n]):,} bytes in the pack, {len(want[n]):,} from the GGUF "
+                       f"(SHA-256 {hashlib.sha256(have[n]).hexdigest()[:16]} vs "
+                       f"{hashlib.sha256(want[n]).hexdigest()[:16]})")
+    return bad
+
+
+def _verify_vision(mf, meta: dict, pack: pathlib.Path, gguf: pathlib.Path, mmproj) -> list[str]:
+    """`vision/mmproj` against the projector file when one is given, byte for byte; `vision/text_vocab` against the
+    vocab-only GGUF the converter makes from the source; and meta.vision against the sections that are there."""
+    bad = []
+    names = mf.names()
+    vis = meta.get("vision")
+    has = "vision/mmproj" in names
+    if has and not isinstance(vis, dict):
+        bad.append("meta vision: the pack has vision/mmproj, meta has no vision record")
+    if vis and not has:
+        bad.append("vision/mmproj: meta names it, the pack has no such section")
+    if has:
+        off, size = mf.section("vision/mmproj")
+        if isinstance(vis, dict):
+            if vis.get("mmproj_bytes") != size:
+                bad.append(f"meta vision.mmproj_bytes {vis.get('mmproj_bytes')}, the section is {size:,} bytes")
+            if vis.get("mmproj") != "vision/mmproj":
+                bad.append(f"meta vision.mmproj {vis.get('mmproj')!r}, the section is 'vision/mmproj'")
+        if mmproj is not None:
+            src_n = os.path.getsize(mmproj)
+            src_h = sha256_range(mmproj, 0, src_n)
+            pack_h = sha256_range(pack, off, size)
+            if not (src_h == pack_h and src_n == size):
+                bad.append(f"vision/mmproj: {size:,} bytes in the pack, {src_n:,} in {mmproj.name} "
+                           f"(SHA-256 {pack_h[:16]} vs {src_h[:16]})")
+    elif mmproj is not None:
+        bad.append(f"vision/mmproj: --mmproj {mmproj.name} was given, the pack has no such section")
+    if "vision/text_vocab" in names:
+        import pack_vision
+        want = pack_vision.vocab_only_gguf(str(gguf))
+        got = mf.read("vision/text_vocab")
+        if want is None:
+            bad.append("vision/text_vocab: the GGUF carries no tokenizer metadata for it")
+        elif got != want:
+            bad.append(f"vision/text_vocab: {len(got):,} bytes in the pack, {len(want):,} from the GGUF's metadata")
+    return bad
+
+
+def verify(pack: pathlib.Path, gguf: pathlib.Path, mmproj=None, tokenizer_files=None) -> list[str]:
+    """Everything of `pack` this GGUF and projector would produce, against what they are now:
+
+      tensors        every tensor's type, shape, bytes and SHA-256 against the GGUF's, and the meta's record of each
+      meta           gguf_kv against the GGUF's metadata, sources[0] against the GGUF's name and size
+      tokenizer/     each section byte for byte against what convert.py's export writes from the GGUF
+      vision/        mmproj byte for byte against `mmproj` when given, text_vocab against the vocab-only GGUF, and
+                     meta.vision against the two sections
+
+    Returns the mismatches; empty when the pack is what these inputs produce. `tokenizer_files` replaces the converter's
+    export (tests use it); `mmproj` may be None, and then vision/mmproj is not compared."""
+    mf = ModelFile(str(pack))
+    meta = json.loads(mf.read("meta"))
+    plan = Plan(gguf)
+    bad = _verify_tensors(mf, meta, plan, pack, gguf)
+    bad += _verify_meta(meta, plan, gguf)
+    bad += _verify_tokenizer(mf, gguf, tokenizer_files or _export_tokenizer)
+    bad += _verify_vision(mf, meta, pack, gguf, mmproj)
+    return bad
+
+
 if __name__ == "__main__":
     import argparse
-    ap = argparse.ArgumentParser(description="Check a qwen35 pack against the GGUF it was converted from, tensor by tensor.")
+    ap = argparse.ArgumentParser(description="Check a qwen35 pack against the GGUF (and projector) it was converted "
+                                             "from, section by section.")
     ap.add_argument("cmd", choices=("verify",))
     ap.add_argument("pack")
     ap.add_argument("gguf")
+    ap.add_argument("--mmproj", metavar="GGUF", help="the projector GGUF the pack was built with; its bytes are "
+                    "compared with vision/mmproj")
     a = ap.parse_args()
-    bad = verify(pathlib.Path(a.pack), pathlib.Path(a.gguf))
+    pack, gguf = pathlib.Path(a.pack), pathlib.Path(a.gguf)
+    bad = verify(pack, gguf, pathlib.Path(a.mmproj) if a.mmproj else None)
     for b in bad[:20]:
         print("MISMATCH", b)
-    n = len(json.loads(ModelFile(a.pack).read("meta"))["tensors"])
-    print(f"verify: {n} tensors, {len(bad)} mismatches -> {'LOSSLESS' if not bad else 'FAIL'}")
+    if len(bad) > 20:
+        print(f"... and {len(bad) - 20} more mismatches")
+    mf = ModelFile(str(pack))
+    meta = json.loads(mf.read("meta"))
+    n_tok = sum(1 for n in mf.names() if n.startswith("tokenizer/"))
+    vis = [n for n in mf.names() if n.startswith("vision/")]
+    if "vision/mmproj" in vis and not a.mmproj:
+        print("note: vision/mmproj is not compared: pass --mmproj to check it")
+    print(f"verify: {len(meta['tensors'])} tensors, {n_tok} tokenizer files, {len(vis)} vision sections, "
+          f"{len(bad)} mismatches -> {'LOSSLESS' if not bad else 'FAIL'}")
     sys.exit(1 if bad else 0)
