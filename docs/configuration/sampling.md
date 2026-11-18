@@ -1,8 +1,5 @@
 # Sampling and thinking
 
-> [!WARNING]
-> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
-
 A request's sampling fields win. A field it leaves out takes the server option of the same name, then the model file's `sampling`
 default, then the engine's. `/props` reports what is in effect. An out-of-range value is a 400 that names the field.
 
@@ -14,8 +11,8 @@ default, then the engine's. `/props` reports what is in effect. An out-of-range 
 | `min_p` | [0, 1] | Drop tokens below `min_p` times the top token's probability. |
 | `repetition_penalty` | > 0 | Multiplicative penalty on tokens in the window. `1` is off. |
 | `presence_penalty`, `frequency_penalty` | number | Flat, and count-based, penalties. `0` is off. |
-| `penalty_last_n` | 0..4096 | Window for the penalties (default 64). |
-| `seed` | integer | Fixes the draw for a reproducible sampled reply on Qwen3.8-27B; on Flash-Next two runs of the same seeded request can still differ. Without one, a request with `top_k` 1 to 64 on a model with a block drafter (Qwen3.8-27B) draws its drafts and keeps them by speculative sampling ([precision](../precision/qwen38-27b.md)): the same distribution, more drafts kept, but the text then depends on the windows the draft policy picks. |
+| `penalty_last_n` | 0..4096 | Window for the penalties; `0` turns them off. |
+| `seed` | integer | Fixes the random draw. Without one, each request is seeded from the clock. |
 | `relaxed_drafting` | [0, 1] or `false` | This request's relaxed-drafting threshold. `false` or `0` forces exact sampling. |
 
 Also read: `max_tokens` / `max_completion_tokens` (`0` or `-1` = the rest of the context), `stop`, `logit_bias`, `reasoning_effort`,
@@ -24,7 +21,7 @@ Also read: `max_tokens` / `max_completion_tokens` (`0` or `-1` = the rest of the
 llama.cpp clients also work: `POST /tokenize` (`content`, `parse_special`) and `/detokenize` (`tokens`) use the model's tokenizer, `/props` reports `chat_template_caps` for the model (tool calls, parallel calls, reasoning effort,
 system role, preserve reasoning), `chat_template_kwargs.preserve_reasoning` keeps earlier turns' thinking in the prompt, and
 `reasoning_budget` is read on the chat endpoint: `0` is thinking off, `-1` is no cap at the highest effort, and N > 0 is an N-token
-budget at the level it names (up to 2048 low, up to 8192 medium, else high; DeepSeek renders medium as high, 75 of 100). When fields disagree, off from any of them wins, then
+budget at the level it names (up to 2048 low, up to 8192 medium, else high). When fields disagree, off from any of them wins, then
 `chat_template_kwargs.reasoning_effort`, then `reasoning_effort`, then the level a `reasoning_budget` implies, and last the entry's
 `reasoning-effort` (unset: the template's default). For the token
 cap, `reasoning_budget_tokens` wins over `thinking_budget_tokens`, then `reasoning_budget`, then `thinking.budget_tokens`.
@@ -33,8 +30,8 @@ cap, `reasoning_budget_tokens` wins over `thinking_budget_tokens`, then `reasoni
 
 A request can ask for each generated token's log probability and the likeliest tokens at its place. The engine computes them
 on the GPU from the row's full head logits: the natural log of the token's probability under the model's own distribution,
-before temperature, penalties, `logit_bias`, top-k/top-p and any grammar mask. The reply's tokens are the same with or without
-them, and decode speed stays within a few percent.
+before temperature, penalties, `logit_bias`, top-k/top-p and any grammar mask. The reply's tokens are the same with or
+without them.
 
 - **Chat Completions:** `logprobs: true` and `top_logprobs` (0 to 20). `choices[0].logprobs.content` has one entry per answer
   token, `{token, logprob, bytes, top_logprobs: [{token, logprob, bytes}]}`, likeliest first. Streaming: each chunk carries the
@@ -51,8 +48,7 @@ them, and decode speed stays within a few percent.
 - **Uses:** with `response_format` set to a schema whose field is an `enum`, the `top_logprobs` at the value's first
   token give each label's probability (a classifier); in an agent, a tool call whose least likely token sits far below
   its alternative is one the model was unsure of.
-- Tokens the server writes itself (the close of a thinking budget) have none. Refused with parallel slots split over GPUs by
-  layer (pipelined batch groups).
+- Tokens the server writes itself (the close of a thinking budget) have none.
 
 ## Thinking
 
