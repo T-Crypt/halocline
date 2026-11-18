@@ -283,7 +283,7 @@ function enginePane(eng, live, hw, hst, conv, reqs) {
         row("MTP window", num(eng.mtp_window) ? cells(eng.mtp_window) : null),
         row("MTP ring", num(eng.mtp_ring) ? cells(eng.mtp_ring) : null),
         row("MTP max", num(eng.mtp_max) && eng.mtp_max > 0 ? `${fmt(eng.mtp_max)}<small>tokens</small>` : null),
-        row("Suffix lookup", num(eng.lookup) && eng.lookup > 0 ? `${fmt(eng.lookup)}<small>tokens</small>` : null)]) : "")
+        row("Suffix lookup", num(eng.spec) && eng.spec > 0 && num(eng.lookup) && eng.lookup > 0 ? `${fmt(eng.lookup)}<small>tokens</small>` : null)]) : "")
     + (sparse ? sec("Experts", [
         row("Routed", num(eng.expert_total) ? fmt(eng.expert_total) : null),
         row("On the card", onCard),
