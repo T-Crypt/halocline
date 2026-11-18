@@ -7,8 +7,8 @@ rounds beside decode, moves the most used experts into VRAM. The dense path has 
 
 Routing counts rank the experts not in VRAM. A round swaps the most-routed ones in for the least-routed resident ones.
 A round takes three window boundaries: the evicted experts are copied out to the RAM copy, the incoming ones are
-copied in on a side stream, then they are used (`src/models/qwen4exp/serve/tiers.cpp:417`). Counts decay after each
-round. Every layer ranks together when their expert blobs are one size. Moving experts changes rounding, so output with
+copied in on a side stream, then they are used. Counts decay after each round. Every layer ranks together when
+their expert blobs are one size. Moving experts changes rounding, so output with
 adaptation on is not bit-identical run to run.
 
 ## Settings

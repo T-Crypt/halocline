@@ -1,7 +1,7 @@
 # Platforms
 
 Linux x64, NVIDIA Ada (sm_89). The engine checks the compute capability at start and refuses anything else, and the
-build refuses any `CMAKE_CUDA_ARCHITECTURES` except 89 (`CMakeLists.txt:40`, `src/program/cli/gpu.cpp:60`).
+build refuses any `CMAKE_CUDA_ARCHITECTURES` except 89.
 
 | | Linux |
 | --- | --- |
@@ -55,16 +55,16 @@ may only shrink.
 
 The seams have one implementation each, Linux. The Windows bodies were carried from Basalt v0.4.1 (`d3b75742`) and
 removed in `575a92c0`. What remains is `src/platform/halo.exe.manifest` and an empty `halo_embed_manifest()` in
-`CMakeLists.txt:88`, which change nothing on Linux. Halocline does not build or test on Windows; the README lists the
+`CMakeLists.txt`, which change nothing on Linux. Halocline does not build or test on Windows; the README lists the
 leftover Windows and Docker files as open work.
 
 ## FFmpeg for video
 
 Video input loads FFmpeg's shared libraries at run time: `libavformat.so.N`, `libavcodec.so.N`, `libavutil.so.N` and
-`libswscale.so.N` of release 6, 7, 8 or 9, newest first (`include/halo/vision/ffmpeg_abi.hpp:121`). Nothing is linked
-or shipped, and the libraries must all be from one release. On Linux the distribution's runtime packages provide them
+`libswscale.so.N` of release 6, 7, 8 or 9, newest first. Nothing is linked or shipped, and the libraries must
+all be from one release. On Linux the distribution's runtime packages provide them
 (for example `libavformat.so.62` for FFmpeg 8), found by the system loader. Without them video is off and the server
 says why.
 
 GPU decoding needs an FFmpeg build with NVDEC and a card with room for its surfaces; a stream NVDEC refuses, or one
-whose surfaces do not fit, decodes on the CPU with the same pixels (`src/vision/video.cpp:257`, `:481`).
+whose surfaces do not fit, decodes on the CPU with the same pixels.

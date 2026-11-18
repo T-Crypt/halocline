@@ -18,12 +18,11 @@ One setting picks the card: `gpu`. It means the same in the server (`--gpu`, or 
 Cards are numbered as `nvidia-smi` numbers them. When `CUDA_VISIBLE_DEVICES` is set, the numbers count within its list
 (`CUDA_VISIBLE_DEVICES=1,0` makes `gpu 0` the card `nvidia-smi` calls 1), and its entries are read as `nvidia-smi`
 numbers or UUID prefixes. A number past the visible cards, a card listed twice or a card that is not sm_89 stops the
-start with an error (`src/program/gpu_select.cpp:136`, `:203`).
+start with an error.
 
-A list of two or more cards is refused: `Halocline runs on exactly one GPU; N were chosen`
-(`src/program/cli/gpu.cpp:39`, `src/program/gpu_select.cpp:302`). The server asks the engine for the choice before
-anything loads, prints its notes and warning, and gives the engine only that card, renumbered from 0
-(`serve/server.py:158`, `:177`).
+A list of two or more cards is refused: `Halocline runs on exactly one GPU; N were chosen`. The server asks the
+engine for the choice before anything loads, prints its notes and warning, and gives the engine only that card,
+renumbered from 0.
 
 ## What the card holds
 

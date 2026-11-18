@@ -14,9 +14,8 @@ tokens. Both paths use this method. Their numbers: [Qwen3.8-Flash-Next](qwen38-f
   window tokens are the reference text, so the drafter's output is not used.
 - **Reference:** a llama.cpp KL-divergence base file (`--kl-divergence-base`).
 - **KLD** is KL(base || test) over the full vocabulary, from the fp32 log-softmax, summed in double. Base terms at
-  log-probability -16 or below are skipped, a tiny underestimate (`include/halo/program/ppl_gate.hpp:165`).
-- **Reported:** PPL, mean KLD (the tables also give median, p99 and max) and top-1 agreement
-  (`src/program/bench_main.cpp:1407-1409`).
+  log-probability -16 or below are skipped, a tiny underestimate.
+- **Reported:** PPL, mean KLD (the tables also give median, p99 and max) and top-1 agreement.
 - **Length:** 20 chunks for a quick check. A change to numerics is scored on 100.
 - **Determinism:** two runs of one build match row for row, with the placement pinned (see
   [greedy identity](#greedy-identity)).
