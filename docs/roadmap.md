@@ -195,6 +195,10 @@ The work, in order:
    **Decided 2026-11-18 (maintainer): K8V4 is the dense default.** Served profile UD-Q4_K_XL, `--kv k8v4 --mtp-kv int8`,
    175,616 tokens, MTP and vision; its llama-swap smoke passes, the 137K needle included. The engine's own default for an
    unset `--kv` is still fp16. 262K stays open (rotated 4-bit, or a smaller drafter cache).
+   **Open, deferred (maintainer 2026-11-18, "we will fix it later"):** make K8V4 the engine's default for an unset
+   `--kv` on the dense path (`kv_format` in `src/models/qwen35/adapter.cpp`, and the "fp16 (the default)" message).
+   The trap: K8V4 has no streamed form, so a run that passes `--kv-resident` without `--kv` would be refused; resolve
+   that (streaming falls back to int8, or the refusal names `--kv int8`) and run the GPU suite before the change lands.
 
 Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
 
