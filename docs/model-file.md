@@ -157,10 +157,13 @@ The dense stack refuses NVFP4 in ggml blocks (type 40) and names the re-conversi
 - **Not checked on load.** `ModelFile::open` checks the magic, the version, the section count, truncation and each
   section's alignment and bounds. It never hashes a section, so a changed byte inside one loads
   ([model_file.cpp](../src/core/model_file.cpp)).
-- **Checkable.** `ModelFile.verify(name)` recomputes a section's hash from the Python reader
-  ([model_file.py](../tools/model_file.py)); no command runs it over a whole pack. For a dense GGUF pack,
-  `python3 tools/convert/gguf_qwen35.py verify PACK.halo MODEL.gguf` re-reads the source and the pack and compares every
-  tensor's SHA-256 with the other and with `source_sha256` ([gguf_qwen35.py](../tools/convert/gguf_qwen35.py)).
+- **Checkable.** `python3 tools/model_file.py verify PACK.halo [--section NAME ...]` (2026-11-18) repeats the
+  engine's header checks and hashes every section against its directory entry, one line per section, exit 1 on any
+  mismatch; the 17.3 GiB dense vision pack verifies in about 12 s. For a dense GGUF pack,
+  `python3 tools/convert/gguf_qwen35.py verify PACK.halo MODEL.gguf [--mmproj PROJECTOR.gguf]` re-reads the source and
+  compares every tensor's SHA-256, `meta.gguf_kv`, the tokenizer sections (rebuilt from the same GGUF) and the vision
+  sections ([gguf_qwen35.py](../tools/convert/gguf_qwen35.py)); `docs/building.md` has both commands. Converting the
+  same GGUF twice gives byte-identical packs (`tools/convert/test_pack_integrity.py`).
 - **No whole-file checksum.** `file_bytes` catches a truncated file only, and a file longer than its table is accepted.
   The 40 reserved bytes of the header and the 16 of each entry carry nothing.
 
