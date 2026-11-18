@@ -14,7 +14,8 @@ void check(const char* what) {
     if (e != cudaSuccess) { halo::log::error("halo", "%s: %s", what, cudaGetErrorString(e)); std::exit(1); }
 }
 
-// E = the widest element the row size divides into (16, 4 or 1 bytes): a Q6_K head row of 2560 values is 2100 bytes
+// E = the widest element the row size divides into (16, 4 or 1 bytes): a Q6_K row is 210 bytes a 256-value block,
+// so a row of an odd number of blocks divides by 4 but not by 16
 template <typename E>
 __global__ void gather_rows_kernel(const E* __restrict__ src, long long row_e, const int32_t* __restrict__ ids,
                                    long long n, E* __restrict__ dst) {
