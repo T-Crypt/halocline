@@ -1,0 +1,126 @@
+  1/124 Test   #1: qwen35_checkpoint_round_trip .......   Passed   52.04 sec
+  2/124 Test   #4: qwen35_mtp_cache_test ..............***Failed   54.77 sec
+  3/124 Test   #8: adapter_builtin_test ...............   Passed    0.06 sec
+  4/124 Test  #11: qsa_prompt_attn_parity .............   Passed    6.19 sec
+  5/124 Test  #12: qsa_topk_active_parity .............   Passed    0.61 sec
+  6/124 Test  #14: host_registration_test .............   Passed    0.13 sec
+  7/124 Test  #15: direct_upload_test .................   Passed    0.74 sec
+  8/124 Test  #21: checkpoint_transfer_test ...........   Passed    0.33 sec
+  9/124 Test  #25: conversation_snapshot_test .........   Passed    0.25 sec
+ 10/124 Test  #27: native_dense_ple_key_test ..........   Passed    0.22 sec
+ 11/124 Test  #28: expert_cache_per_layer_test ........   Passed    0.12 sec
+ 12/124 Test  #29: expert_cache_segmented_test ........   Passed    0.31 sec
+ 13/124 Test  #30: file_expert_homes_test .............   Passed    0.52 sec
+ 14/124 Test  #31: file_expert_repin_test .............   Passed    0.44 sec
+ 15/124 Test  #32: kv_arena_test ......................   Passed    0.26 sec
+ 16/124 Test  #40: dense_ops_parity ...................   Passed    0.83 sec
+ 17/124 Test  #41: nvfp4_planes_test ..................   Passed    0.13 sec
+ 18/124 Test  #42: gdn_seg_split_parity ...............   Passed    0.47 sec
+ 19/124 Test  #43: window_gemm_parity .................   Passed    8.16 sec
+ 20/124 Test  #44: window_gemm_two_gpu ................***Skipped   0.02 sec
+ 21/124 Test  #45: narrow_bf16_parity .................   Passed    0.13 sec
+ 22/124 Test  #46: gqa_attn_parity ....................   Passed    5.00 sec
+ 23/124 Test  #47: gqa_k8v4_parity ....................***Failed    1.03 sec
+ 24/124 Test  #48: gqa_far_parity .....................   Passed    1.14 sec
+ 25/124 Test  #50: generate_prompt_test ...............***Skipped   0.04 sec
+ 26/124 Test  #53: iq_parity_fixtures .................   Passed    0.12 sec
+ 27/124 Test  #54: iq_parity ..........................   Passed    0.16 sec
+ 28/124 Test  #60: mmvq_multi_parity ..................   Passed    1.33 sec
+ 29/124 Test  #61: dec_gdn_parity .....................   Passed    2.79 sec
+ 30/124 Test  #62: route_tail_skip_parity .............   Passed    0.29 sec
+ 31/124 Test  #63: route_prior_parity .................   Passed    0.65 sec
+ 32/124 Test  #64: pair_snapshot_parity ...............   Passed    0.88 sec
+ 33/124 Test  #65: dense_tc_parity ....................   Passed    0.97 sec
+ 34/124 Test  #66: dec_commit_parity ..................   Passed    0.62 sec
+ 35/124 Test  #67: dec_commit_finisher ................   Passed   23.25 sec
+ 36/124 Test  #68: dec_commit_lazy ....................   Passed    2.60 sec
+ 37/124 Test  #69: iq_multi_parity ....................   Passed    2.02 sec
+ 38/124 Test  #70: gdn_chunk_parity ...................   Passed   13.11 sec
+ 39/124 Test  #71: hc8_parity .........................   Passed    0.50 sec
+ 40/124 Test  #72: native_grouped_parity ..............   Passed    5.06 sec
+ 41/124 Test  #73: native_grouped_parity_glue .........   Passed   34.30 sec
+ 42/124 Test  #74: mixed_gu_parity ....................   Passed    0.80 sec
+ 43/124 Test  #75: shared_expert_parity ...............   Passed    0.13 sec
+ 44/124 Test  #76: hc_fused_parity ....................***Skipped   0.03 sec
+ 45/124 Test  #77: dm_route_ada_parity ................   Passed    1.43 sec
+ 46/124 Test  #78: hc_fused_ada_parity ................   Passed    0.38 sec
+ 47/124 Test  #79: hc_read_ada_parity .................   Passed    3.55 sec
+ 48/124 Test  #80: mid_chain_parity ...................   Passed    7.53 sec
+ 49/124 Test  #81: mid_chain_hold .....................***Skipped   0.03 sec
+ 50/124 Test  #82: mid_chain_hold_abort ...............***Skipped   0.02 sec
+ 51/124 Test  #83: qsa_mid_parity .....................***Skipped   0.03 sec
+ 52/124 Test  #84: gr_parity ..........................   Passed    0.27 sec
+ 53/124 Test  #85: gdn_parity .........................   Passed    0.15 sec
+ 54/124 Test  #86: s2_gemv_q8_parity ..................   Passed    0.14 sec
+ 55/124 Test  #87: sampler_parity .....................   Passed    9.59 sec
+ 56/124 Test  #88: sampler_split_parity ...............   Passed    1.22 sec
+ 57/124 Test  #89: sampler_drawn_parity ...............   Passed    6.32 sec
+ 58/124 Test  #90: logprobs_parity ....................   Passed    0.31 sec
+ 59/124 Test  #91: decode_cluster_parity ..............   Passed    0.13 sec
+ 60/124 Test  #92: rope_parity ........................   Passed    0.13 sec
+ 61/124 Test  #93: quantize_act_parity ................   Passed    0.15 sec
+ 62/124 Test  #94: route_window_parity ................   Passed    0.15 sec
+ 63/124 Test  #95: router_top10_parity ................   Passed    0.12 sec
+ 64/124 Test  #96: s_gemv_parity ......................   Passed    0.15 sec
+ 65/124 Test  #97: elementwise_parity .................   Passed    0.14 sec
+ 66/124 Test  #98: bf16_gemv_parity ...................   Passed    0.20 sec
+ 67/124 Test  #99: s_gemv_q8k_parity ..................   Passed    0.13 sec
+ 68/124 Test #100: qsa_parity .........................   Passed    0.39 sec
+ 69/124 Test #101: qsa_scores_parity ..................   Passed    0.64 sec
+ 70/124 Test #102: qsa_topk_parity ....................   Passed    0.60 sec
+ 71/124 Test #103: kv_q8_parity .......................   Passed    0.16 sec
+ 72/124 Test #104: qsa_dec_attn_parity ................   Passed    2.75 sec
+ 73/124 Test #105: qsa_dec_fused_parity ...............   Passed    0.41 sec
+ 74/124 Test #106: qsa_seg_parity .....................   Passed    3.98 sec
+ 75/124 Test #107: ple_win_parity .....................   Passed    0.52 sec
+ 76/124 Test #108: ple_key_rows_parity ................   Passed    1.07 sec
+ 77/124 Test #109: q5k_head_parity ....................   Passed    0.40 sec
+ 78/124 Test #110: q80_proxy_parity ...................   Passed    0.80 sec
+ 79/124 Test #111: q80_vhead_parity ...................   Passed    0.85 sec
+ 80/124 Test #112: q6k_head_parity ....................   Passed    0.46 sec
+ 81/124 Test #113: q6k_vhead_parity ...................   Passed    1.60 sec
+ 82/124 Test #114: kv_stream_parity ...................   Passed    5.66 sec
+ 83/124 Test #115: kv_hybrid_parity ...................   Passed    0.23 sec
+ 84/124 Test #116: kv_q4_parity .......................   Passed    0.13 sec
+ 85/124 Test #117: cvec_parity ........................   Passed    0.19 sec
+ 86/124 Test #118: s2_expert_grouped_parity ...........   Passed    0.24 sec
+ 87/124 Test #152: device_memory_test .................   Passed    0.12 sec
+ 88/124 Test #154: ple_reader_selftest ................   Passed   11.56 sec
+ 89/124 Test #155: cuda_device_selftest ...............   Passed    0.13 sec
+ 90/124 Test #166: router_dot_parity ..................   Passed    0.06 sec
+ 91/124 Test #167: fp8_gemm_test ......................   Passed    0.49 sec
+ 92/124 Test #168: e4m3_producers_test ................   Passed    0.22 sec
+ 93/124 Test #169: bf16_chunk_test ....................   Passed    0.35 sec
+ 94/124 Test #170: prefill_fused_moe_test .............   Passed    1.82 sec
+ 95/124 Test #171: prefill_fused_iq_test ..............   Passed   45.58 sec
+ 96/124 Test #172: prefill_cpu_share_test .............   Passed    3.48 sec
+ 97/124 Test #173: prefill_route_count_test ...........   Passed    0.17 sec
+ 98/124 Test #174: prefill_layout_nvfp4 ...............   Passed    0.19 sec
+ 99/124 Test #175: prefill_layout_mixed ...............   Passed    0.16 sec
+100/124 Test #176: prefill_layout_kquant ..............   Passed    0.16 sec
+101/124 Test #177: prefill_layout_q2 ..................   Passed    0.16 sec
+102/124 Test #178: prefill_mmq_iq1s_test ..............   Passed   14.42 sec
+103/124 Test #179: prefill_mmq_kq_test ................   Passed   17.85 sec
+104/124 Test #180: prefill_mmq_nvfp4_test .............   Passed    9.63 sec
+105/124 Test #182: prefill_hc_up_mix_test .............   Passed    4.33 sec
+106/124 Test #183: fp4_dense_tma_test .................   Passed    0.88 sec
+107/124 Test #184: silu_parity ........................   Passed    0.13 sec
+108/124 Test #185: iq1s_parity ........................   Passed   30.99 sec
+109/124 Test #187: dec_moe_parity_nvfp4 ...............   Passed    1.00 sec
+110/124 Test #188: dec_moe_parity_kq ..................   Passed    8.54 sec
+111/124 Test #189: native_expert_parity_q4_K_q5_1 .....   Passed    0.40 sec
+112/124 Test #190: native_expert_parity_q4_K_q8_0 .....   Passed    0.35 sec
+113/124 Test #191: native_expert_parity_q5_K_q8_0 .....   Passed    0.31 sec
+114/124 Test #192: native_expert_parity_q6_K_q8_0 .....   Passed    0.28 sec
+115/124 Test #193: native_expert_parity_q8_0_q8_0 .....   Passed    0.23 sec
+116/124 Test #194: native_expert_parity_q4_K_q5_0 .....   Passed    0.32 sec
+117/124 Test #195: native_expert_parity_q5_0_q8_0 .....   Passed    0.22 sec
+118/124 Test #196: native_expert_parity_q2_K_q8_0 .....   Passed    0.30 sec
+119/124 Test #197: native_expert_parity_q3_K_q8_0 .....   Passed    0.24 sec
+120/124 Test #201: native_expert_parity_q5_1_min ......   Passed    0.13 sec
+121/124 Test #203: native_expert_parity_bf16_embd .....   Passed    0.13 sec
+122/124 Test #204: native_expert_parity_q6k_embd ......   Passed    0.13 sec
+123/124 Test #205: native_expert_parity_q8_embd_hot ...   Passed    0.60 sec
+124/124 Test #206: native_expert_parity_nvfp4 .........   Passed    0.96 sec
+98% tests passed, 2 tests failed out of 124
+Total Test time (real) = 433.96 sec

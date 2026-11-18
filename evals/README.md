@@ -13,6 +13,10 @@ number without a run behind it.
 | `2026-11-17/halocline-kv-kld/` | the KV format by KLD against BF16, then speed; and the draft window sweep. Raw `rows.tsv` per KV under `rows/` |
 | `2026-11-17/halocline-sparse-serve/` | the first sparse serve without the drafter: smoke, needle at 36K and 137K |
 | `2026-11-17/halocline-llama-swap/` | the same smoke through llama-swap with the drafter and int8 KV |
+| `2026-11-17/halocline-greedy-identity-final/` | greedy identity rerun after wave 2b: the pre-removal build against the published build |
+| `2026-11-17/halocline-dense-load/` | the dense path's first load (D3): a lossless GGUF repack of Qwen3.8-27B, loaded and generating |
+| `2026-11-17/halocline-dense-quality/` | the dense D4 gate (KLD against BF16), D5 speed, the first llama.cpp arm, the 262K fit probe |
+| `2026-11-17/halocline-d8-kv/` | dense K8V4 against int8 KV: quality, decode, prefill ABBA, the context each format reaches |
 
 Each directory holds the README that explains the run, the commands, the raw JSON, the logs from the engine and the
 script that drove it. `rows.tsv` files are the per-chunk gate output: one row per scored position, with the base and

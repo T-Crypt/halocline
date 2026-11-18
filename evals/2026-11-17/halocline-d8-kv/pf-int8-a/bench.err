@@ -1,0 +1,7 @@
+halocline-bench: starting ~/wt/halocline-d8-int/bin/halocline (log: evals/2026-11-17/halocline-d8-kv/pf-int8-a/engine.log)
+halocline-bench: loading 16.1 GiB: cuda0 0.0 / 16.1 GiB
+halocline-bench: loading cuda0 16.1 / 16.1 GiB done (3 s)
+halocline-bench: engine ready in 4 s
+  run 1 conv    97.8 tok/s, 1126 tokens
+  run 1 pp16384 16676 tokens, 3421 t/s engine, 3405 t/s wall
+  run 1 pp36864 37485 tokens, 3241 t/s engine, 3234 t/s wall

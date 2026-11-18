@@ -34,13 +34,18 @@ Both Unsloth quants will be scored (UD-IQ4_XS and UD-Q4_K_XL), each with the KV 
 The choice is whole-system KLD at depth first, speed second, as BUILD_SPEC §11.6 fixes it. Weight error and KV error
 trade off, so neither is picked in advance.
 
-## What has not run
+## What has run (2026-11-17)
 
-- No load, no KLD, no greedy identity, no speed run.
-- The baseline it must beat exists: NInfer-Qwen3.8-27B on the same card measured 112.4 to 118.3 tok/s warm decode,
+- The D4 gate on both quants ([`evals/2026-11-17/halocline-dense-quality`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-dense-quality/)):
+  UD-Q4_K_XL with int8 KV scores 0.00582 mean KLD and 96.67% top-1 against BF16, within llama.cpp's own error bar on
+  the same GGUF (0.00573 with f16 KV). UD-IQ4_XS scores 0.0162, 2.8 times worse, so UD-Q4_K_XL is the dense baseline.
+- K8V4 KV against int8 on UD-Q4_K_XL ([`evals/2026-11-17/halocline-d8-kv`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-kv/)):
+  below.
+- Not yet: KLD at depth (the BF16 depth bases exist; the runs are `evals/2026-11-17/halocline-d8-depth`, pending), a
+  quality score for NInfer on this base, and the task suite.
+- The speed floor to beat: NInfer-Qwen3.8-27B on the same card measured 112.4 to 118.3 tok/s warm decode,
   118.3 decode and 3,215 prompt at 36K, 93.0 decode and 2,155 prompt at 137K
-  ([`evals/2026-11-16/halocline-p0-floors`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-16/halocline-p0-floors)).
-  Those are speed floors. NInfer's quality on this base has not been scored.
+  ([`evals/2026-11-16/halocline-p0-floors`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-16/halocline-p0-floors/)).
 
 ## The comparison
 
@@ -51,7 +56,7 @@ The dense path's goal is lower KLD and better output than NInfer and llama.cpp o
 - speed is ABBA in one session, one engine on the card, power limit recorded;
 - KLD near the baseline does not rank models, so the task suite in `docs/roadmap.md` runs beside it.
 
-The table is filled when D2 to D5 of the roadmap land. Until then this page is a plan, not a result.
+D2 to D4 have landed; the NInfer quality arm (D7) has not run, so the comparison table is not filled yet.
 
 ## KV formats and context (2026-11-17)
 
@@ -60,19 +65,22 @@ int8 form the dense path already had, V is stored in rotated q4_0 blocks (`inclu
 quantizer and block the sparse path's `q4_0` cache ships). The rotation is applied at the cache write and each head's
 attention output is rotated back once, which is exact: a Hadamard transform commutes with attention over V.
 
-| Format | Bytes a cell (one attention layer) | Max context on UD-Q4_K_XL, MTP and vision | Notes |
+| Format | Bytes a cell (one attention layer) | Max context on UD-Q4_K_XL, MTP and vision | Mean KLD at 36K (100 chunks) |
 |---|---|---|---|
-| `fp16` | 4,096 | 71,188 | the reference format |
-| `int8` | 2,112 | 130,832 | the served profile (122,880) |
-| `k8v4` | 1,632 | 164,094 | 184,694 once the MTP drafter's KV is a 32K ring (D8 item 2) |
+| `fp16` | 4,096 | 71,188 | not scored (the reference format) |
+| `int8` | 2,112 | 130,832; 138,061 with `--mtp-kv int8` | 0.00582, top-1 96.67% |
+| `k8v4` | 1,632 | 164,094; **175,629 with `--mtp-kv int8`**; 187,183 adding the 32K drafter ring | 0.00676, top-1 96.39%: +0.00093 [+0.00074, +0.00113] paired |
 
-Numbers from `tests/kernels/dense_kv_planner_test.cpp` with the planner's own formula and the 7,597 MiB UD-Q4_K_XL
-leaves free with vision packs (`evals/2026-11-17/halocline-dense-quality/fit/`). The 262,144-cell totals at int8
-(11,830 MiB) and fp16 (19,766 MiB) are unchanged by the new format and are pinned by the same test. A cell is 4 KV heads
-of 256 values plus the format's scales; K8V4 is 1,024 bytes of K codes, 32 bytes of K scales and 576 bytes of V blocks.
+Context numbers from `tests/kernels/dense_kv_planner_test.cpp` with the planner's own formula and the 7,597 MiB
+UD-Q4_K_XL leaves free with vision packs (`evals/2026-11-17/halocline-dense-quality/fit/`). The 262,144-cell totals at
+int8 (11,830 MiB) and fp16 (19,766 MiB) are pinned by the same test. A cell is 4 KV heads of 256 values plus the
+format's scales; K8V4 is 1,024 bytes of K codes, 32 bytes of K scales and 576 bytes of V blocks. KLD from
+[`evals/2026-11-17/halocline-d8-kv`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-kv/).
 
-No KLD has been scored for K8V4 on this model, and no decode or prefill number: those need the card. The gates it
-carries are the repo's usual ones (CONTRIBUTING §"What every change must include"): the CPU quantizer test
-(`kv_q4_layout_test`), the GPU parity test against a double-precision reference (`gqa_k8v4_parity`), and then the
-100-chunk KLD table and the long-context windows of P0 item 3.
-
+- **K8V4's cost is small and measurable**: +16% mean KLD over int8 at 36K, 0.28 top-1 points, for 27% more context at
+  the same drafter settings. Whether that cost grows with depth is what the depth bases decide.
+- **The drafter's cache is free**: `--mtp-kv int8` gives byte-identical scored rows to `--mtp-kv fp16`, because the
+  verify pass decides every token. It buys 7,000 to 11,500 cells and is the recommended setting with either format.
+- Speed: decode within 2% of int8; prefill -2.1% at 16K and -4.6% at 36K (8-warp kernel, ABBA).
+- 262,144 cells need 4-bit K too: rotated q4_0 K and V (`--kv q4_0`, 1,152 bytes a cell) is on branch `d8-q4`, with
+  its parity test passing on the GPU and no KLD yet (roadmap D8 item 3).

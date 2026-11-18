@@ -148,12 +148,23 @@ The work, in order:
    vision on UD-Q4_K_XL, and 184,694 once the drafter's KV is the 32K ring of item 2 below - the ~184K this item quotes.
    A pass over the format's bytes measured nothing yet: the KLD table, the long-context windows and decode and prefill
    are open. Rotated 4-bit K and V is not started (the task's second phase).*
+
+   *Measured 2026-11-17 evening (`evals/2026-11-17/halocline-d8-kv`):* K8V4 on UD-Q4_K_XL at 36K scores 0.00676 mean
+   KLD against int8's 0.00582, paired +0.00093 [+0.00074, +0.00113], top-1 -0.28 points; decode within 2%; prefill
+   -2.1% / -4.6% at 16K / 36K after the 8-warp prompt shapes (`7e0f43c4`; -6.7% / -12.7% at 4 warps). The K8V4 prompt
+   kernel had a sign bug for blocks with a positive largest value (`2b6095a4`). The planner reaches 175,629 cells with
+   `--mtp-kv int8`. Rotated 4-bit K and V (`--kv q4_0`, 1,152 B a cell) is on branch `d8-q4`: GPU parity passes
+   (decode 0.00082, prompt 0.0234 against fp64), planner 241,285 cells with `--mtp-kv int8` and 265,176 adding the 32K
+   ring (262,144 fits with both, 53 MiB to spare); its KLD has not run.
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
    **2026-11-17:** both levers landed as opt-in flags, the default unchanged: `--mtp-kv fp16|int8` (the drafter's cache
    at 528 MiB at 262K in int8) and `--mtp-window N` (it reads the last N cells; its cache is a ring of N + 15, 128.05
    MiB at N = 32,768). A windowed session is not parked (a ring has no linear image). The acceptance A/B that would pick
    a default has not run.
+   **Measured 2026-11-17:** `--mtp-kv int8` leaves the 100-chunk gate's scored rows byte-identical to fp16 (the verify
+   pass decides every token) and decode within 2%, so it is the recommended setting with every format; the ring stays
+   a last resort because it gives up parking and the conversation cache.
 3. **The quant is UD-Q4_K_XL** (maintainer decision, 2026-11-17: 2.8 times lower KLD than UD-IQ4_XS outweighs context).
    Its context by KV format, with ~4.6 GiB left for KV once the MTP KV is a ring: int8 ~142K, K8V4 ~184K, rotated 4-bit
    K and V ~261K (262K after a small workspace trim). **The deciding measurement:** UD-Q4_K_XL with K8V4 at 184K against

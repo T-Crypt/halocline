@@ -25,10 +25,10 @@
 | Against llama.cpp, same GGUF | | at parity: 0.00573 (f16 KV) and 0.01638 (q8_0 KV) |
 | Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS) |
 | Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
-| Context | 262,144, int8 KV | 262,144 does not fit yet: it needs K8V4 or 4-bit KV ([D8](docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job)) |
+| Context | 262,144, int8 KV | 122,880 served (int8 KV); 175,629 with K8V4 KV, +0.00093 KLD at 36K ([`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/)); 262,144 needs 4-bit K and V ([D8](docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job)) |
 | Vision | | packs carry the projector; serving untested |
 | Status | **runs**, served through llama-swap | **runs**, gated; 262K and the NInfer comparison open |
-| Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/) |
+| Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/) |
 
 Both paths share the build, the pack format, the server and the gates: the same BF16 KLD method, greedy identity, the
 GPU suite. The sparse path trades quality for a model 4.6 times larger; the dense path keeps every weight on the card

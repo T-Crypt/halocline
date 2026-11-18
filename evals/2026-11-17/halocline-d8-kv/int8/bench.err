@@ -1,0 +1,23 @@
+halocline-bench: starting ~/wt/halocline-d8-int/bin/halocline (log: evals/2026-11-17/halocline-d8-kv/int8/engine.log)
+halocline-bench: loading 16.1 GiB: cuda0 0.0 / 16.1 GiB
+halocline-bench: loading cuda0 16.1 / 16.1 GiB done (3 s)
+halocline-bench: engine ready in 4 s
+  run 1 conv    98.5 tok/s, 1152 tokens
+  run 1 struct  192.7 tok/s, 7230 tokens
+  run 1 prose   86.8 tok/s, 1200 tokens
+  run 1 pp16384 16676 tokens, 3424 t/s engine, 3407 t/s wall
+  run 1 pp36864 37485 tokens, 3242 t/s engine, 3235 t/s wall
+halocline-bench: starting the engine for the quality gate
+halocline-bench: loading 16.1 GiB: cuda0 0.0 / 16.1 GiB
+halocline-bench: loading cuda0 16.1 / 16.1 GiB done (3 s)
+halocline-bench: engine ready in 4 s
+  quality 10/100 chunks, 62 s
+  quality 20/100 chunks, 124 s
+  quality 30/100 chunks, 186 s
+  quality 40/100 chunks, 248 s
+  quality 50/100 chunks, 311 s
+  quality 60/100 chunks, 373 s
+  quality 70/100 chunks, 435 s
+  quality 80/100 chunks, 497 s
+  quality 90/100 chunks, 560 s
+  quality 100/100 chunks, 622 s
