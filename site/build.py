@@ -294,7 +294,7 @@ def line_chart(cid, title, desc, series, y_label, caption, x_ticks, y_fmt="tps")
         for x, y, depth, value in pts:
             label = f'{s["name"]}: {extract.format_value(value, y_fmt)} at {extract.format_value(depth, "tokens")} tokens'
             parts.append(
-                f'<g class="hover" data-label="{esc(label)}" tabindex="0"><circle cx="{x:.1f}" cy="{y:.1f}" r="4.2" fill="{s["color"]}" '
+                f'<g class="hover" data-label="{esc(label)}"><circle cx="{x:.1f}" cy="{y:.1f}" r="4.2" fill="{s["color"]}" '
                 f'stroke="#03141d" stroke-width="1.5"/><circle cx="{x:.1f}" cy="{y:.1f}" r="12" fill="transparent"/></g>'
             )
     parts.append("</g></svg>")
@@ -336,7 +336,7 @@ def bar_chart(cid, title, desc, rows, x_label, caption, value_fmt="kld"):
         if r.get("ci"):
             label += f' plus or minus {extract.format_value(r["ci"], value_fmt)}'
         parts.append(
-            f'<g class="hover" data-label="{esc(label)}" tabindex="0"><rect x="{ml}" y="{y}" width="{pw}" height="32" fill="transparent"/></g>'
+            f'<g class="hover" data-label="{esc(label)}"><rect x="{ml}" y="{y}" width="{pw}" height="32" fill="transparent"/></g>'
         )
         parts.append(svg_text(ml + bw + 8, y + 20, extract.format_value(r["value"], value_fmt), 10, PALETTE["ink"], "start"))
     parts.append(svg_text(ml + pw / 2, h - 6, x_label, 10, PALETTE["faint"], "middle"))
@@ -389,7 +389,7 @@ def interval_plot(cid, title, desc, rows, caption, value_fmt="kld_delta"):
         parts.append(svg_text(x1 + 8, y + 4, extract.format_value(r["value"], value_fmt), 10, PALETTE["ink"], "start"))
         label = f'{r["label"]}: {extract.format_value(r["value"], value_fmt)}, interval {extract.format_value(r["lo"], value_fmt)} to {extract.format_value(r["hi"], value_fmt)}'
         parts.append(
-            f'<g class="hover" data-label="{esc(label)}" tabindex="0"><rect x="{ml}" y="{y-16}" width="{pw}" height="32" fill="transparent"/></g>'
+            f'<g class="hover" data-label="{esc(label)}"><rect x="{ml}" y="{y-16}" width="{pw}" height="32" fill="transparent"/></g>'
         )
     parts.append(svg_text(ml + pw / 2, h - 4, "paired mean KLD difference", 10, PALETTE["faint"], "middle"))
     parts.append("</g></svg>")
@@ -448,7 +448,7 @@ def overlap_chart(cid, title, desc, ex, caption):
         f'position {extract.format_value(positions[idx], "tokens")}: base {base[idx]:.4f}, engine {test[idx]:.4f}'
     )
     parts.append(
-        f'<g class="hover" data-label="{esc(label)}" tabindex="0"><circle cx="{xs[idx]:.1f}" cy="{ypos(test[idx]):.1f}" r="4" fill="{PALETTE["accent"]}"/>'
+        f'<g class="hover" data-label="{esc(label)}"><circle cx="{xs[idx]:.1f}" cy="{ypos(test[idx]):.1f}" r="4" fill="{PALETTE["accent"]}"/>'
         f'<rect x="{xs[idx]-14:.1f}" y="{mt}" width="28" height="{ph}" fill="transparent"/></g>'
     )
     parts.append("</g></svg>")
