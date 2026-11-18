@@ -115,6 +115,15 @@ output; struct is 153.8 tok/s at 351 GB/s.
   KV head's window rows in one CTA (`TokenTile * GroupSize <= 48`) and reads each cell once. The only lever whose value
   grows with depth (one redundant KV read is about 6 ms of a 30 ms window at 137K). Gate: bitwise against the current
   kernel at T = 1..9, then 36K / 137K / the format's maximum.
+
+  *Built 2026-11-18 (W14, branch `s1-decode-attn`, no GPU run yet):* `decode_mma_window_kernel` puts every row of a
+  window for one KV head in one block, R = ceil(M / 16) 16-row m16 groups a block (R <= 3, so T <= 8 at 6 query heads a
+  KV head), and decodes each 32-cell K/V chunk into shared memory once for all of a block's groups, so a window reads
+  its cells once per split instead of `ceil(6T/16)` times. Shared bytes a block: 46,080 at R = 1, 58,368 at R = 2,
+  70,656 at R = 3 (two blocks an SM at R = 1, one from R = 2), registers 96 / 128 / 168 with no spills. A row runs the
+  tiled kernel's statements inside the tiled kernel's 16-row group, so its output is bitwise that kernel's (the parity
+  tests hold T = 1..9 against the tiled launch on fp16, int8, K8V4, the far cache, a ring and a batch window's
+  segments). Windows past 48 rows (M > 48) keep the tiled launch. The GPU A/B at 36K and 137K is pending.
 - **S2, one weight pass for the whole verify window at GEMV rate.** `kMmvqMaxRows = 5` (`src/dense/forward.cpp:59`):
   wider windows drop to MMQ, so struct (mean 7.5 rows) streams 351 GB/s against 758 GB/s for a T=1 window. Port
   llama.cpp #31533 (few-row MMQ, see Q4) first, then measure MMVQ with fp32 activation scales to 8 rows (also Q2).
