@@ -240,7 +240,8 @@ class SlotRows(Slots):
         slot = self.busy_rows(1, "one slot busy")[0]["id"]
         ts[0].join(10)
         kept = self.get("/slots")[slot]
-        self.assertEqual((kept["state"], kept["drafts_offered"], kept["drafts_accepted"]), ("idle", 40, 30))
+        # the request's two passes (its thinking never closes, so the server closes it) at 40 offered / 30 each
+        self.assertEqual((kept["state"], kept["drafts_offered"], kept["drafts_accepted"]), ("idle", 80, 60))
         self.assertGreater(kept["ctx_used"], 20)
         self.assertEqual(self.get("/slots")[(slot + 1) % 3]["drafts_offered"], None)
 

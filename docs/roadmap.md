@@ -30,6 +30,17 @@ These hold for every change until the maintainer replaces them.
    Hugging Face, the lab's research base), A/B'd on the gates above, and kept only on a measured win.
 5. **Model targets stay open.** Qwen4-27B and a Qwen4 Flash are not public. Whether Qwen3.8-Flash-Next stays the
    Flash target or a new Flash ships is unknown: the sparse path keeps Flash-Next as its baseline until weights land.
+6. **The bar for replacing NInfer (maintainer, 2026-11-18, raises the earlier "exceeds performance with on-par
+   quality").** Quality is already past that bar (10x closer to BF16 than NInfer at 65K and 140K, D7), so the bar is
+   now: **at a served 262,144-token context, Halocline matches or beats NInfer's client-seen decode rate on every
+   workload, while keeping today's quality lead.** Measured as `vs_ninfer.py` measures it: the six ab.py workloads
+   (short, 36K, 137K; prose and struct), greedy, streamed through llama-swap, ABBA, the same rate formula for both
+   engines. One losing row means the bar is not met.
+7. **Quality is never traded for speed (maintainer, 2026-11-18).** "Do NOT sacrifice quality lead for ninfers
+   speed/decode, if we get higher quality, then focus on improving it lossless. Not converting or changing what we do
+   now." Speed work is lossless: front end, scheduling, kernels that pass fp64 parity and the paired depth-KLD gate at
+   +0.00000 against the served K8V4 reference. No weight conversion (D1 stands), no lower-precision KV or drafter
+   format bought for speed. A quality gain is welcome; the speed work then continues on top of it, losslessly.
 
 Status:
 

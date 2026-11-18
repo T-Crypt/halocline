@@ -161,7 +161,10 @@ class Totals(unittest.TestCase):
         self.assertEqual(t["prompt"], sum(r["prompt_tokens"] for r in rows))
         self.assertEqual(t["reused"], 3 * n)
         self.assertAlmostEqual(t["prompt_ms"], 40.0 * n)
-        self.assertAlmostEqual(t["decode_ms"], 20.0 * n)
+        # each request runs two passes (the mock's thinking never closes, so the server closes it and the model
+        # answers): decode is both passes' 20 ms plus the second pass's 40 ms read of the close, not the last pass's
+        self.assertAlmostEqual(t["decode_ms"], sum(r["timings"]["predicted_ms"] for r in rows))
+        self.assertAlmostEqual(t["decode_ms"], (20.0 + 20.0 + 40.0) * n)
         self.assertGreater(t["written"], 0)
 
 

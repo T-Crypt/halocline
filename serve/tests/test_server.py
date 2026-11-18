@@ -2099,6 +2099,24 @@ class LiveRate(unittest.TestCase):
                 self.svc._progress(0, st=st)
             self.assertIn(want, out.getvalue())
 
+    def test_merge_passes(self):
+        """The 2026-11-18 served case: a thinking pass and a wrap-up answer pass make one reply's figures."""
+        from serve.service import merge_passes, request_timings
+        think = {"generated": 688, "prompt_tokens": 36471, "reused": 0, "prompt_ms": 11637.0, "decode_ms": 9246.0,
+                 "finish": "length", "drafts_accepted": 370, "drafts_offered": 659}
+        answer = {"generated": 509, "prompt_tokens": 37162, "reused": 37158, "prompt_ms": 37.0, "decode_ms": 3142.0,
+                  "finish": "length", "drafts_accepted": 426, "drafts_offered": 452}
+        m = merge_passes([think, answer])
+        self.assertEqual((m["prompt_tokens"], m["reused"], m["prompt_ms"]), (36471, 0, 11637.0))
+        self.assertEqual(m["decode_ms"], 9246.0 + 3142.0 + 37.0)
+        self.assertEqual((m["generated"], m["drafts_accepted"], m["drafts_offered"]), (1197, 796, 1111))
+        self.assertEqual(m["finish"], "length")
+        self.assertAlmostEqual(request_timings(36471, 1200, m)["predicted_per_second"], 96.3, delta=0.1)
+        self.assertEqual(merge_passes([answer]), answer)
+        self.assertEqual(merge_passes([]), {})
+        # a count one pass lacks is not reported for part of the reply
+        self.assertNotIn("drafts_offered", merge_passes([think, {"generated": 5, "decode_ms": 50.0, "prompt_ms": 1.0}]))
+
     def test_done_line_formats(self):
         from serve.service import done_line, request_timings
         last = {"prompt_ms": 1200.0, "decode_ms": 8560.0, "generated": 412, "reused": 3700,
@@ -2849,6 +2867,10 @@ class CachingThinkingEngine(ThinkingEngine):
     the previous pass's stream (a continued request finds its own prompt and tokens there)."""
     FIRST = 3
 
+    def __init__(self, tok):
+        super().__init__(tok)
+        self.passes = []         # each pass's `last`, in order
+
     def generate(self, ids, max_new, sampling, cancel, embeddings=None, session=None):
         reused = self.FIRST if not self.prompts else len(self.prompts[-1])
         n = 0
@@ -2859,6 +2881,7 @@ class CachingThinkingEngine(ThinkingEngine):
         finally:
             self.last = {"generated": n, "prompt_tokens": len(ids), "prompt_ms": 40.0, "decode_ms": 20.0 * n,
                          "finish": "stop", "reused": min(reused, len(ids)), "hits": 9, "lookups": 10}
+            self.passes.append(self.last)
 
 
 class ThinkingBudget(unittest.TestCase):
@@ -2916,6 +2939,21 @@ class ThinkingBudget(unittest.TestCase):
         self.assertEqual(b["usage"]["prompt_tokens_details"]["cached_tokens"], CachingThinkingEngine.FIRST)
         self.assertEqual(b["timings"]["cache_n"], CachingThinkingEngine.FIRST)
         self.assertEqual(b["timings"]["prompt_n"] + b["timings"]["cache_n"], b["usage"]["prompt_tokens"])
+
+    def test_timings_of_a_wrapped_up_request_cover_every_pass(self):
+        """The thinking pass and the answer pass both count: decode time is their sum plus the answer pass's read of
+        the closing tokens, the prompt time is the first pass's (it was the last pass's alone before 2026-11-18)."""
+        self.engine = CachingThinkingEngine(self.tok)
+        self.svc.engine = self.engine
+        code, b = self.openai(reasoning_budget_tokens=20)
+        self.assertEqual(code, 200, b)
+        first, second = self.engine.passes
+        t = b["timings"]
+        self.assertEqual(t["prompt_ms"], first["prompt_ms"])
+        self.assertEqual(t["predicted_ms"], first["decode_ms"] + second["decode_ms"] + second["prompt_ms"])
+        engine_tokens = first["generated"] + second["generated"]
+        self.assertAlmostEqual(t["predicted_per_second"], engine_tokens / (t["predicted_ms"] / 1000), delta=0.1)
+        self.assertLess(t["predicted_per_second"], second["generated"] / (second["decode_ms"] / 1000))
 
     def test_the_budget_wraps_up_the_thinking(self):
         from serve.service import REASONING_CLOSE

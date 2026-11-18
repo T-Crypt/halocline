@@ -1156,6 +1156,7 @@ class Service:
             opening, force = parser.feed(self.dialect.nothink_lead + force), None
         tail = ""                                       # the last characters written (the newlines before a call)
         reused0 = None                                  # reused prefix of the request's first engine run
+        pass_lasts, n_passes = [], 0                    # each engine pass's DONE figures, in order; passes run
         timings, before = None, None                    # this request's timings; the engine's `last` before it
         raw_ids = []                                    # every generated id (--debug)
         emb = getattr(self.embeddings, "path", None)
@@ -1253,6 +1254,7 @@ class Service:
                         capped = bool(budget) and parser.state == "reasoning" and budget - thought < cap
                         if capped:
                             cap = max(1, budget - thought)
+                        n_passes += 1
                         gen = self.engine.generate(prompt, cap, sampling, cancel, embeddings=emb,
                                                    session=session, **more) if emb \
                             else self.engine.generate(prompt, cap, sampling, cancel, session=session, **more)
@@ -1375,6 +1377,9 @@ class Service:
                                 if not leaving and not cancel.is_set():
                                     raise
                         run_last = getattr(self.engine, "last", None)
+                        if isinstance(run_last, dict) and run_last is not engine_last0 \
+                                and not any(run_last is p for p in pass_lasts):
+                            pass_lasts.append(run_last)         # this pass's DONE figures (merge_passes)
                         if reused0 is None and isinstance(run_last, dict) and run_last is not engine_last0 \
                                 and run_last.get("reused") is not None:
                             reused0 = min(int(run_last["reused"]), len(ids))    # later passes extend this reply
@@ -1452,6 +1457,14 @@ class Service:
                             # same object as before: no DONE arrived
                             last = dict(getattr(self.engine, "last", {}) or {}) \
                                 if getattr(self.engine, "last", None) is not engine_last0 else {}
+                            final_last = getattr(self.engine, "last", None)
+                            if last and n_passes > 1 and len(pass_lasts) == n_passes - 1 \
+                                    and not any(final_last is p for p in pass_lasts):
+                                pass_lasts.append(final_last)   # the last pass left the loop before its capture
+                            if last and n_passes > 1 and len(pass_lasts) == n_passes:
+                                # several passes (a thinking budget's wrap-up, an answer-now, a resumed tag), each
+                                # with its DONE: the request's figures are all of them, not the last pass's alone
+                                last = merge_passes(pass_lasts)
                             if reused0 is not None and last.get("reused") is not None:
                                 last["reused"] = reused0
                             started = st.get("started", time.time())
@@ -1593,6 +1606,38 @@ def done_line(slot: int | None, prompt_total: int, generated: int, finish: str, 
         if ssd:
             groups.append(f"ssd={ssd * 100:.1f}%")
     return f"[server] {slot_tag(slot)} done  " + "  ".join(groups)
+
+
+SUMMED_COUNTS = ("generated", "hits", "lookups", "file_reads", "offloaded")
+
+
+def merge_passes(passes: list[dict]) -> dict:
+    """One request's DONE figures from the engine passes it ran in. A thinking budget's wrap-up, an answer-now or a
+    resumed tag each start a pass, and before this only the last pass was reported: a 688-token thinking at 74 t/s
+    and a 509-token answer at 162 t/s showed as 162 t/s for the whole reply, while the client saw ~96.
+    The first pass keeps the prompt's figures (prompt_tokens, reused, prompt_ms, prompt_read). A later pass reads
+    only what its own slot lacks (the server's closing tokens, or a re-read of the thinking): that is time spent
+    making the reply, so its read time counts as decode time. Decode time, generated tokens, draft and expert counts
+    add up; a count some pass lacks is dropped rather than reported for part of the reply. finish is the last pass's."""
+    passes = [p for p in passes if isinstance(p, dict)]
+    if not passes:
+        return {}
+    if len(passes) == 1:
+        return dict(passes[0])
+    first, out = passes[0], dict(passes[-1])
+    for k in ("prompt_tokens", "reused", "prompt_ms", "prompt_read"):
+        if k in first:
+            out[k] = first[k]
+        else:
+            out.pop(k, None)
+    out["decode_ms"] = sum(float(p.get("decode_ms") or 0) for p in passes) + \
+        sum(float(p.get("prompt_ms") or 0) for p in passes[1:])
+    for k in SUMMED_COUNTS + ("drafts_accepted", "drafts_offered"):
+        if all(p.get(k) is not None for p in passes):
+            out[k] = sum(int(p[k]) for p in passes)
+        else:
+            out.pop(k, None)
+    return out
 
 
 def request_timings(prompt_tokens: int, generated: int, last: dict) -> dict | None:
