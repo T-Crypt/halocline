@@ -1,0 +1,220 @@
+{
+  "_note": "Each row is one place the engine changes a number. The cost column is a claim with placeholders resolved from site/data; a missing key fails the build.",
+  "rows": [
+    {
+      "part": "sparse",
+      "rounding": "Weights copied as stored",
+      "when": "conversion",
+      "cost": "The whole sparse build reads {kld} mean KLD. The weight file's own share is not isolated from the cache and the gate tensors.",
+      "status": "not isolated",
+      "values": {
+        "kld": "sparse.kv.arms.int8.quality.kld_mean"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "part": "sparse",
+      "rounding": "Gate tensors cast at conversion",
+      "when": "conversion",
+      "cost": "The {hc} gate tensors are stored quantized and read in a wider format. The cast is interim and its cost sits inside the same {kld}.",
+      "status": "interim",
+      "values": {
+        "hc": "sparse.facts.hc_tensors",
+        "kld": "sparse.quality.mean_kld"
+      },
+      "docs": [
+        "README.md",
+        "docs/precision/qwen38-flash-next.md"
+      ]
+    },
+    {
+      "part": "sparse",
+      "rounding": "Cache, {label}",
+      "when": "every request",
+      "cost": "Reference for the paired gate: {kld} mean KLD, {top1} first choice.",
+      "status": "measured",
+      "values": {
+        "label": "sparse.kv.arms.int8.label",
+        "kld": "sparse.kv.arms.int8.quality.kld_mean",
+        "top1": "sparse.kv.arms.int8.quality.top1_pct"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "part": "sparse",
+      "rounding": "Cache, {label}",
+      "when": "every request",
+      "cost": "Paired difference {delta}, interval {ci}. The interval holds zero, so this gate cannot place it ahead of the {label8} cache.",
+      "status": "measured",
+      "values": {
+        "label": "sparse.kv.arms.fp16.label",
+        "delta": "sparse.kv.arms.fp16.delta",
+        "ci": "sparse.kv.arms.fp16.ci",
+        "label8": "sparse.kv.arms.int8.label"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "part": "sparse",
+      "rounding": "Cache, {label}",
+      "when": "every request",
+      "cost": "Paired difference {delta}, interval {ci}, {points} first-choice points.",
+      "status": "measured",
+      "values": {
+        "label": "sparse.kv.arms.k8v4.label",
+        "delta": "sparse.kv.arms.k8v4.delta",
+        "ci": "sparse.kv.arms.k8v4.ci",
+        "points": "sparse.kv.arms.k8v4.points"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "part": "sparse",
+      "rounding": "Cache, {label}",
+      "when": "every request",
+      "cost": "Paired difference {delta}, interval {ci}, {points} first-choice points.",
+      "status": "measured",
+      "values": {
+        "label": "sparse.kv.arms.q4_0.label",
+        "delta": "sparse.kv.arms.q4_0.delta",
+        "ci": "sparse.kv.arms.q4_0.ci",
+        "points": "sparse.kv.arms.q4_0.points",
+        "label8": "sparse.kv.arms.int8.label"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "part": "sparse",
+      "rounding": "Draft layer",
+      "when": "every request",
+      "cost": "Exact by construction: the verify pass decides every emitted token, so the drafter changes speed, not output.",
+      "status": "exact",
+      "values": {},
+      "docs": [
+        "docs/research/FINDINGS.md"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Weights copied as stored",
+      "when": "conversion",
+      "cost": "The whole dense build reads {kld} mean KLD on the same base. The weight file's own share is not isolated.",
+      "status": "not isolated",
+      "values": {
+        "kld": "dense.quality.arms.halo_q4kxl_int8.quality.kld_mean"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-dense-quality/"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Gate tensors read wider at load",
+      "when": "load",
+      "cost": "Stored quantized in the GGUF ({q8}) and read in the full format at load. The cost is not isolated; an exact gate product is open work.",
+      "status": "open",
+      "values": {
+        "q8": "machine.formats.q8_0"
+      },
+      "docs": [
+        "docs/roadmap.md",
+        "evals/2026-11-17/halocline-dense-load/README.md"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Decode activation scales",
+      "when": "every decode window",
+      "cost": "The decode kernel keeps activation scales narrower than the prompt path: {delta} mean KLD, interval {ci}, for the measured decode gain.",
+      "status": "measured",
+      "values": {
+        "delta": "dense.quality.mmvq_delta",
+        "ci": "dense.quality.mmvq_ci"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-dense-quality/"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Cache, {label}",
+      "when": "every request",
+      "cost": "Reference: {kld} mean KLD, {top1} first choice.",
+      "status": "measured",
+      "values": {
+        "label": "dense.kv.arms.int8.label",
+        "kld": "dense.kv.arms.int8.quality.kld_mean",
+        "top1": "dense.kv.arms.int8.quality.top1_pct"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-d8-kv/"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Cache, {label}",
+      "when": "every request",
+      "cost": "Paired difference {delta}, interval {ci}, {points} first-choice points.",
+      "status": "measured",
+      "values": {
+        "label": "dense.kv.arms.k8v4.label",
+        "delta": "dense.kv.arms.k8v4.delta",
+        "ci": "dense.kv.arms.k8v4.ci",
+        "points": "dense.kv.arms.k8v4.points"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-d8-kv/"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Cache, {label}",
+      "when": "every request",
+      "cost": "Paired difference {delta} over the {label8} cache, {delta_k8v4} over the {label_k8v4} cache, on a branch.",
+      "status": "on a branch",
+      "values": {
+        "label": "dense.kv.arms.q4.label",
+        "delta": "dense.kv.arms.q4.delta",
+        "delta_k8v4": "dense.kv.arms.q4.delta_vs_k8v4",
+        "label8": "dense.kv.arms.int8.label",
+        "label_k8v4": "dense.kv.arms.k8v4.label"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-d8-kv/"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Value rotation for the low-bit cache",
+      "when": "cache write and attention output",
+      "cost": "Exact: a Hadamard transform commutes with attention over values, and the output rotates back once per head.",
+      "status": "exact",
+      "values": {},
+      "docs": [
+        "docs/precision/qwen38-27b.md",
+        "docs/roadmap.md"
+      ]
+    },
+    {
+      "part": "dense",
+      "rounding": "Residual stream",
+      "when": "every layer",
+      "cost": "The residual runs in a narrow format. Its cost is not measured; the roadmap makes it the first dense quality lever.",
+      "status": "open",
+      "values": {},
+      "docs": [
+        "docs/roadmap.md"
+      ]
+    }
+  ]
+}

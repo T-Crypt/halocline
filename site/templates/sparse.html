@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+<main id="main" class="model-page">
+  <header class="model-head">
+    <div class="layer-inner">
+      <p class="crumb"><a href="../index.html">The dive</a> · Sparse path</p>
+      <h1>{{ v('machine.models.sparse.name') }}</h1>
+      <p class="tagline">The model that does not fit, served anyway.</p>
+      <p class="lede">Qwen's sparse mixture of experts, served from the card and page-locked RAM. Every number below names its run; the limits sit beside the results, not at the back.</p>
+      <ul class="fact-row">
+        <li><span>Parameters</span><strong>{{ m.num('machine.models.sparse.params_b') }} billion</strong></li>
+        <li><span>Active</span><strong>{{ m.num('machine.models.sparse.active_b') }} billion</strong></li>
+        <li><span>Experts</span><strong>{{ m.num('sparse.facts.experts') }}</strong></li>
+        <li><span>Native context</span><strong>{{ m.num('sparse.facts.native_context') }}</strong></li>
+        <li><span>Mean KLD</span><strong>{{ m.num('sparse.quality.mean_kld') }}</strong></li>
+      </ul>
+    </div>
+  </header>
+
+  <section class="layer layer-sunlit">
+    <div class="layer-inner">
+      <div class="split-head"><h2>What it is</h2><p>A mixture of experts with a fixed attention budget and a draft layer. The architecture lives in the adapter; the weights are Unsloth's file, copied as stored.</p></div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>The shape</h3>
+          <dl class="spec-list">
+            <div><dt>Layers</dt><dd>{{ m.num('sparse.facts.layers') }}</dd></div>
+            <div><dt>Cycle</dt><dd>{{ m.num('sparse.facts.cycles') }} cycles of three Gated DeltaNet layers and one sparse-attention layer</dd></div>
+            <div><dt>Hidden size</dt><dd>{{ m.num('sparse.facts.hidden') }}</dd></div>
+            <div><dt>Experts</dt><dd>{{ m.num('sparse.facts.experts') }}, {{ m.num('sparse.facts.active_routed') }} routed plus {{ m.num('sparse.facts.shared') }} shared active</dd></div>
+            <div><dt>Expert width</dt><dd>{{ m.num('sparse.facts.expert_intermediate') }}</dd></div>
+            <div><dt>n-gram table</dt><dd>{{ m.num('sparse.facts.ngram_vocab') }} entries at layer {{ m.num('sparse.facts.ngram_layer') }}</dd></div>
+          </dl>
+        </div>
+        <div class="panel">
+          <h3>The file</h3>
+          <dl class="spec-list">
+            <div><dt>Quant</dt><dd>{{ v('sparse.quant.label') }} {{ m.src('sparse.quant.label') }}</dd></div>
+            <div><dt>Weights</dt><dd>{{ m.num('machine.models.sparse.weights_bytes') }}</dd></div>
+            <div><dt>Pack</dt><dd>{{ m.num('sparse.pack.size_gib') }}, {{ m.num('sparse.pack.sections') }} sections, built in {{ m.num('sparse.pack.seconds') }} seconds</dd></div>
+            <div><dt>Interim cast</dt><dd>{{ m.num('sparse.facts.hc_tensors') }} gate tensors stored quantized and cast at conversion</dd></div>
+          </dl>
+          <p class="small">The pack copies every quantized tensor as stored. The gate-tensor cast is the one exception, and the KLD numbers include it.</p>
+        </div>
+      </div>
+
+      <div class="split-head"><h2>Where the experts live</h2><p>Placement is part of the profile. It changes latency, not text; the identity gate proves that on the published build.</p></div>
+      <div class="placement-bar" role="img" aria-label="Expert placement: part of the experts in the card's memory, the rest page-locked in host memory, none on disk.">
+        <span class="bar-vram" style="--w: {{ v('sparse.placement.vram_pct').raw }}%"></span>
+        <span class="bar-ram" style="--w: {{ v('sparse.placement.ram_pct').raw }}%"></span>
+      </div>
+      <div class="placement-legend">
+        <span><b>{{ m.num('sparse.placement.vram_gib') }}</b> in the card's cache, {{ m.num('sparse.placement.vram_pct') }} of the expert bytes, {{ m.num('sparse.placement.expert_slots') }} slots</span>
+        <span><b>{{ m.num('sparse.placement.ram_gib') }}</b> page-locked in RAM, {{ m.num('sparse.placement.ram_pct') }}</span>
+        <span><b>{{ m.num('sparse.placement.ssd_gib') }}</b> on the SSD</span>
+        <span><b>{{ m.num('sparse.placement.pcie_gbps') }}</b> host to device</span>
+      </div>
+
+      <div class="split-head"><h2>Quality</h2><p>The same pack and text, four cache formats, one frozen base (the model's {{ v('machine.formats.bf16') }} file). The paired interval is per chunk.</p></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Cache</th><th scope="col">Mean KLD</th><th scope="col">First choice</th><th scope="col">Paired difference</th><th scope="col">Interval</th><th scope="col">Prefill {{ v('sparse.depth.32.label') }}</th><th scope="col">Prefill {{ v('sparse.depth.131.label') }}</th><th scope="col">Structured decode</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.kv_sparse %}
+            <tr><th scope="row">{{ row.label }}</th><td>{{ row.kld }}</td><td>{{ row.top1 }}</td><td>{{ m.cell(row.delta) }}</td><td>{{ m.cell(row.ci) }}</td><td>{{ row.pp32 }}</td><td>{{ row.pp131 }}</td><td>{{ row.decode }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ m.chart(charts.sparse_kv) }}
+
+      <div class="split-head"><h2>The draft layer</h2><p>MTP proposes; the verify pass decides. The window changes how far it drafts, not which token comes out.</p></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Window</th><th scope="col">Conversation</th><th scope="col">Structured</th><th scope="col">Prose</th><th scope="col">Structured acceptance</th><th scope="col">Tokens a pass</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.draft %}
+            <tr><th scope="row">{{ row.label }}</th><td>{{ row.conv }}</td><td>{{ row.struct }}</td><td>{{ row.prose }}</td><td>{{ row.accept }}</td><td>{{ row.tpp }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="split-head"><h2>Served</h2><p>Through llama-swap, with the draft layer and the {{ v('sparse.kv.arms.int8.label') }} cache, at the card's {{ m.num('machine.gpu.power_w', 'W') }} limit. Warm decode is a range over the short fixtures; the needle depths are single runs.</p></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Engine</th><th scope="col">Cache</th><th scope="col">Warm decode</th><th scope="col">{{ v('compare.sparse.depth36.label') }} decode</th><th scope="col">{{ v('compare.sparse.depth36.label') }} prompt</th><th scope="col">{{ v('compare.sparse.depth137.label') }} decode</th><th scope="col">{{ v('compare.sparse.depth137.label') }} prompt</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.sparse_speed %}
+            <tr><th scope="row">{{ row.name }}</th><td>{{ row.cache }}</td><td>{{ row.warm }}</td><td>{{ row.d36 }}</td><td>{{ row.p36 }}</td><td>{{ row.d137 }}</td><td>{{ row.p137 }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="split-head"><h2>Limits</h2><p>What the numbers above do not cover.</p></div>
+      <ul class="limits">
+        <li>The gate scores short chunks, so it cannot see cache rounding that builds up deep in a long context. Needle retrieval at the deep contexts is the guard, not a proof.</li>
+        <li>The weight quant and the cache are not separated. The whole build reads {{ m.num('sparse.quality.mean_kld') }}; the quant's own share is not isolated.</li>
+        <li>{{ m.num('sparse.facts.hc_tensors') }} gate tensors are cast at conversion. That cast is interim and its cost is inside every number here.</li>
+        <li>One machine. Nothing has been measured on another card, CPU or RAM size.</li>
+        <li>No KLD gate has been run on Strata here, so the speed comparison is speed only.</li>
+      </ul>
+      <p class="back"><a href="../index.html#deep">Back to the ledger</a> · <a href="../index.html#boundary">The boundary</a></p>
+    </div>
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+<main id="main">
+
+  <section class="layer layer-surface" id="surface" data-depth="{{ v('layers.surface.depth').raw }}" data-label="{{ v('layers.surface.label') }}">
+    <div class="hero-water-wrap" aria-hidden="true">{{ hero_svg | safe }}</div>
+    <div class="hero-inner">
+      <p class="eyebrow">One engine · two paths · one Ada card</p>
+      <h1>halocline</h1>
+      <p class="tagline">The engine that hides nothing.</p>
+      <p class="lede">A research record of one inference engine on one card: the numbers it measured, the runs behind them, and the questions still open. Scroll to descend. The gauge reads context depth.</p>
+      <ul class="facts">
+        <li>
+          <span class="fact-label">One card</span>
+          <span class="fact-value">{{ v('machine.gpu.name') }}</span>
+          <span class="fact-sub">{{ m.num('machine.gpu.vram_mib') }} · {{ m.num('machine.gpu.power_w', 'W') }} · compute capability {{ m.num('machine.gpu.compute_cap') }}</span>
+        </li>
+        <li>
+          <span class="fact-label">Two models</span>
+          <span class="fact-value">{{ v('machine.models.sparse.name') }}<br>{{ v('machine.models.dense.name') }}</span>
+          <span class="fact-sub"><a href="models/sparse.html">the sparse page</a> · <a href="models/dense.html">the dense page</a></span>
+        </li>
+        <li>
+          <span class="fact-label">Distance to the {{ v('machine.formats.bf16') }} base</span>
+          <span class="fact-value">{{ m.num('sparse.quality.mean_kld') }} sparse<br>{{ m.num('dense.quality.arms.halo_q4kxl_int8.quality.kld_mean') }} dense</span>
+          <span class="fact-sub">mean KLD, lower is closer</span>
+        </li>
+      </ul>
+    </div>
+    <div class="boundary-chip">
+      <span class="chip-kicker">the halocline</span>
+      <span class="chip-main">mean KLD {{ m.num('sparse.quality.mean_kld') }} to the {{ v('machine.formats.bf16') }} base</span>
+      <span class="chip-sub">{{ v('sparse.kv.arms.int8.label') }} cache · {{ m.num('sparse.quality.chunks') }} chunks · <a href="{{ v('sparse.quality.mean_kld').href }}">the run</a></span>
+    </div>
+    <a class="scroll-cue" href="#sunlit"><span class="cue-line"></span>The descent</a>
+  </section>
+
+  <section class="layer layer-sunlit" id="sunlit" data-depth="{{ v('layers.sunlit.depth').raw }}" data-label="{{ v('layers.sunlit.label') }}">
+    <div class="layer-inner">
+      <header class="layer-head">
+        <span class="depth">{{ v('layers.sunlit.label') }} · {{ v('layers.sunlit.name') }}</span>
+        <h2>What it is</h2>
+        <p class="sub">One architecture, one toolchain, one model family, one machine. The engine is tuned for the card below and refuses any other compute capability.</p>
+      </header>
+
+      <div class="two-col">
+        <div class="panel">
+          <h3>The one machine</h3>
+          <dl class="spec-list">
+            <div><dt>Card</dt><dd>{{ v('machine.gpu.name') }} {{ m.src('machine.gpu.name') }}</dd></div>
+            <div><dt>Memory</dt><dd>{{ m.num('machine.gpu.vram_mib') }}</dd></div>
+            <div><dt>Power limit</dt><dd>{{ m.num('machine.gpu.power_w', 'W') }}</dd></div>
+            <div><dt>Link</dt><dd>{{ v('machine.gpu.pcie') }} {{ m.src('machine.gpu.pcie') }}</dd></div>
+            <div><dt>CPU</dt><dd>{{ v('machine.host.cpu') }}, {{ m.num('machine.host.threads') }} threads</dd></div>
+            <div><dt>RAM</dt><dd>{{ m.num('machine.host.ram_gb', 'GB') }}</dd></div>
+            <div><dt>OS</dt><dd>{{ v('machine.software.os') }}, kernel {{ v('machine.software.kernel') }} {{ m.src('machine.software.kernel') }}</dd></div>
+            <div><dt>Driver</dt><dd>{{ v('machine.software.driver') }} {{ m.src('machine.software.driver') }}</dd></div>
+            <div><dt>CUDA</dt><dd>{{ v('machine.software.cuda') }} {{ m.src('machine.software.cuda') }}</dd></div>
+          </dl>
+        </div>
+        <div class="panel">
+          <h3>Nothing moves at run time</h3>
+          <ol class="rules">
+            <li>Weights are copied as stored. The one interim cast is named on the model pages.</li>
+            <li>Experts are placed once from the VRAM budget, and the placement is part of the checked-in profile.</li>
+            <li>Every choice that affects speed or output is resolved once per model, never keyed on a model's name.</li>
+            <li>An expert that moves between the card and RAM changes speed, never text.</li>
+            <li>A regression past the paired interval, or past run-to-run speed, fails the release.</li>
+          </ol>
+          <p class="small">The build refuses any compute capability except {{ v('machine.gpu.compute_cap') }}. On another Ada card it builds, and every number has to be measured again.</p>
+        </div>
+      </div>
+
+      <div class="model-cards">
+        <article class="model-card">
+          <span class="kicker">Sparse</span>
+          <h3>{{ v('machine.models.sparse.name') }}</h3>
+          <p>Sparse experts on the card and in page-locked RAM; one interim cast is named below.</p>
+          <ul class="mini-list">
+            <li>{{ m.num('sparse.facts.experts') }} experts, {{ m.num('sparse.facts.active_routed') }} routed plus {{ m.num('sparse.facts.shared') }} shared active per token</li>
+            <li>{{ m.num('sparse.facts.layers') }} layers, {{ m.num('sparse.facts.native_context') }} native context</li>
+            <li>{{ m.num('machine.models.sparse.weights_bytes') }} bytes of weights, copied as stored</li>
+          </ul>
+          <a class="card-link" href="models/sparse.html">The sparse path</a>
+        </article>
+        <article class="model-card">
+          <span class="kicker">Dense</span>
+          <h3>{{ v('machine.models.dense.name') }}</h3>
+          <p>Every layer on the card; one cast at load is named below.</p>
+          <ul class="mini-list">
+            <li>{{ m.num('dense.facts.layers') }} layers, {{ m.num('dense.facts.hidden') }} hidden, {{ m.num('dense.facts.vocab') }} vocabulary</li>
+            <li>{{ m.num('dense.facts.native_context') }} native context; {{ m.num('machine.models.dense.served_context') }} served today</li>
+            <li>Every layer on the card; the token embedding in page-locked RAM</li>
+          </ul>
+          <a class="card-link" href="models/dense.html">The dense path</a>
+        </article>
+      </div>
+
+      <p class="install-link">The install path, from checkout to a served model, is <a href="{{ v('machine.commands.serve_dense.text').href }}">in the README</a>. This site does not repeat it.</p>
+    </div>
+    <div class="divider" aria-hidden="true"><img src="assets/halocline-divider.svg" alt="" width="1200" height="24" loading="lazy"></div>
+  </section>
+
+  <section class="layer layer-twilight" id="twilight" data-depth="{{ v('layers.twilight.depth').raw }}" data-label="{{ v('layers.twilight.label') }}">
+    <div class="layer-inner">
+      <header class="layer-head">
+        <span class="depth">{{ v('layers.twilight.label') }} · {{ v('layers.twilight.name') }}</span>
+        <h2>Speed</h2>
+        <p class="sub">The same card, one engine at a time. Every speed names its cache, its drafter and the power limit.</p>
+      </header>
+
+      {{ m.chart(charts.sparse_decode) }}
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th scope="col">Engine</th><th scope="col">Cache</th><th scope="col">Warm decode</th><th scope="col">{{ v('compare.sparse.depth36.label') }} decode</th><th scope="col">{{ v('compare.sparse.depth36.label') }} prompt</th><th scope="col">{{ v('compare.sparse.depth137.label') }} decode</th><th scope="col">{{ v('compare.sparse.depth137.label') }} prompt</th><th scope="col">Run</th></tr>
+          </thead>
+          <tbody>
+            {% for row in tables.sparse_speed %}
+            <tr>
+              <th scope="row">{{ row.name }}</th>
+              <td>{{ row.cache }}</td>
+              <td>{{ row.warm }}</td>
+              <td>{{ row.d36 }}</td><td>{{ row.p36 }}</td><td>{{ row.d137 }}</td><td>{{ row.p137 }}</td>
+              <td><a class="src" href="{{ row.href }}">eval</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Halocline rows: {{ v('sparse.quant.label') }}, {{ v('compare.sparse.halocline.kv') }} cache, MTP drafter, {{ m.num('machine.gpu.power_w', 'W') }} limit, one engine on the card. Strata: the same pack, {{ v('compare.sparse.strata.kv') }} cache, its own drafter, the same card and limit. The Strata column is its quiet-host rerun. No KLD gate has been run on Strata here, so this table compares speed only.</p>
+
+      {{ m.chart(charts.sparse_prompt) }}
+
+      <div class="split-head">
+        <h3>The dense arm, against NInfer</h3>
+        <p>Different model, different quant, same card. The {{ v('compare.dense.depth36.label') }} prefill is the like-for-like reading.</p>
+      </div>
+      {{ m.chart(charts.dense_prefill) }}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Arm</th><th scope="col">Prefill {{ v('compare.dense.depth16.label') }}</th><th scope="col">Prefill {{ v('compare.dense.depth36.label') }}</th><th scope="col">Prefill {{ v('compare.dense.depth137.label') }}</th><th scope="col">Decode {{ v('compare.dense.depth36.label') }}</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.dense_speed %}
+            <tr><th scope="row">{{ row.name }}</th><td>{{ m.cell(row.pp16) }}</td><td>{{ m.cell(row.pp36) }}</td><td>{{ m.cell(row.pp137) }}</td><td>{{ m.cell(row.d36) }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Halocline: {{ v('dense.packs.q4kxl.label') }}, {{ v('dense.kv.arms.int8.label') }} cache, {{ m.num('machine.gpu.power_w', 'W') }} limit. NInfer: its own format, the same card and limit. NInfer's decode at {{ v('compare.dense.depth36.label') }} and Halocline's own decode are different fixtures. The site prints both and ranks neither. The like-for-like decode run is open work, and the NInfer prompt is its uncached first run because its later runs hit a prefix cache.</p>
+    </div>
+    <div class="divider" aria-hidden="true"><img src="assets/halocline-divider.svg" alt="" width="1200" height="24" loading="lazy"></div>
+  </section>
+
+  <section class="layer layer-boundary" id="boundary" data-depth="{{ v('layers.boundary.depth').raw }}" data-label="{{ v('layers.boundary.label') }}">
+    <div class="layer-inner">
+      <header class="layer-head boundary-head">
+        <span class="depth">{{ v('layers.boundary.label') }} · {{ v('layers.boundary.name') }}</span>
+        <h2>The boundary</h2>
+        <p class="sub">The one number the engine publishes as its quality claim: the distance between its next-token distribution and the full-precision model's, on the same text.</p>
+      </header>
+
+      <div class="prose">
+        <p>KLD measures how much one probability distribution differs from another. Zero means identical. The gate scores the target token's log-probability at every scored position of a wikitext chunk against a frozen base, then reports the mean over {{ m.num('sparse.quality.rows') }} rows. Lower is closer. The base is the model's {{ v('machine.formats.bf16') }} file: the unquantized reference this repository calls full precision.</p>
+        <p>The engine does not claim the distance is zero. It claims the distance is measured, paired per chunk, and small enough that the gate can separate the cache formats it has to choose between.</p>
+      </div>
+
+      {{ m.chart(charts.boundary_sparse) }}
+
+      <div class="prose">
+        <p>The chart is the overlap the repository's rows file can support: the base's probability of the ground-truth next token and the engine's at every scored position of one chunk. It is not a full-vocabulary overlap. The rows file stores the target token's log-probability, not the top-k distribution; a full overlap would need the twelve-gigabyte base file, which is not in the repository.</p>
+      </div>
+
+      <div class="split-head">
+        <h3>The cache formats, paired</h3>
+        <p>The same pack and text, {{ m.num('sparse.quality.chunks') }} chunks, each format scored against the same base. Paired intervals are per chunk.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Cache</th><th scope="col">Mean KLD</th><th scope="col">First choice</th><th scope="col">Paired difference</th><th scope="col">Interval</th><th scope="col">Prefill {{ v('sparse.depth.32.label') }}</th><th scope="col">Prefill {{ v('sparse.depth.131.label') }}</th><th scope="col">Structured decode</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.kv_sparse %}
+            <tr>
+              <th scope="row">{{ row.label }}</th><td>{{ row.kld }}</td><td>{{ row.top1 }}</td>
+              <td>{{ m.cell(row.delta) }}</td><td>{{ m.cell(row.ci) }}</td><td>{{ row.pp32 }}</td><td>{{ row.pp131 }}</td><td>{{ row.decode }}</td>
+              <td><a class="src" href="{{ row.href }}">eval</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ m.chart(charts.sparse_kv) }}
+
+      <div class="split-head">
+        <h3>The rounding ledger</h3>
+        <p>Every place the engine changes a number, in the order a token meets it. A cost that the runs do not isolate says so.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table ledger">
+          <thead><tr><th scope="col">Path</th><th scope="col">Rounding</th><th scope="col">When</th><th scope="col">Measured cost</th><th scope="col">Status</th><th scope="col">Evidence</th></tr></thead>
+          <tbody>
+            {% for r in roundings if r.part == "sparse" %}
+            <tr>
+              <td>{{ r.part }}</td><td><strong>{{ r.rounding }}</strong></td><td>{{ r.when }}</td><td>{{ r.cost }}</td>
+              <td>{{ m.status(r.status, r.status_class) }}</td>
+              <td>{% for l in r.eval_links %}<a class="src" href="{{ l.href }}">eval</a> {% endfor %}{% for l in r.doc_links %}<a class="src" href="{{ l.href }}">doc</a> {% endfor %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="note">The dense path has its own ledger on <a href="models/dense.html#roundings">the dense page</a>, and its cache table is there too. The two paths share the method, not the numbers.</p>
+    </div>
+    <div class="divider" aria-hidden="true"><img src="assets/halocline-divider.svg" alt="" width="1200" height="24" loading="lazy"></div>
+  </section>
+
+  <section class="layer layer-deep" id="deep" data-depth="{{ v('layers.deep.depth').raw }}" data-label="{{ v('layers.deep.label') }}">
+    <div class="layer-inner">
+      <header class="layer-head">
+        <span class="depth">{{ v('layers.deep.label') }} · {{ v('layers.deep.name') }}</span>
+        <h2>The ledger</h2>
+        <p class="sub">The runs that set the arms this site publishes, assembled from their eval directories. The non-regression reruns and the llama.cpp arms are in the gate and quality tables that use them. There is no release-gate report file yet; the missing fields say so. Every speed below ran at the card's {{ m.num('machine.gpu.power_w', 'W') }} limit, one engine on the card.</p>
+      </header>
+
+      <div class="split-head">
+        <h3>Sparse runs</h3>
+        <p>The cache sweep and the sparse gate, on the one pack. Commit <strong>unknown</strong> means the run came from an archive without its Git metadata; the eval README names the tree.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table runs">
+          <thead><tr><th scope="col">Run</th><th scope="col">Commit</th><th scope="col">Weights</th><th scope="col">Cache</th><th scope="col">Mean KLD</th><th scope="col">{{ v('machine.labels.p99') }}</th><th scope="col">First choice</th><th scope="col">Prefill</th><th scope="col">Structured decode</th><th scope="col">Eval</th></tr></thead>
+          <tbody>
+            {% for row in tables.runs_sparse %}
+            <tr>
+              <th scope="row">{{ row.run }}</th><td class="mono">{{ row.commit }}</td><td>{{ row.weights }}</td><td>{{ row.kv }}</td>
+              <td>{{ row.kld }}</td><td>{{ row.p99 }}</td><td>{{ row.top1 }}</td><td>{{ row.pp }} at {{ row.pp_depth }}</td><td>{{ row.decode }}</td>
+              <td><a class="src" href="{{ row.href }}">eval</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="split-head">
+        <h3>Dense runs</h3>
+        <p>The load, the quality gate and the cache sweep. The rotated four-bit arm is marked as a branch in the run name.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table runs">
+          <thead><tr><th scope="col">Run</th><th scope="col">Commit</th><th scope="col">Weights</th><th scope="col">Cache</th><th scope="col">Mean KLD</th><th scope="col">{{ v('machine.labels.p99') }}</th><th scope="col">First choice</th><th scope="col">Prefill</th><th scope="col">Structured decode</th><th scope="col">Eval</th></tr></thead>
+          <tbody>
+            {% for row in tables.runs_dense %}
+            <tr>
+              <th scope="row">{{ row.run }}</th><td class="mono">{{ row.commit }}</td><td>{{ row.weights }}</td><td>{{ row.kv }}</td>
+              <td>{{ row.kld }}</td><td>{{ row.p99 }}</td><td>{{ row.top1 }}</td><td>{{ row.pp }} at {{ row.pp_depth }}</td><td>{{ row.decode }}</td>
+              <td><a class="src" href="{{ row.href }}">eval</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="note">Those rows were built at the commit shown plus the uncommitted dense engine change named in their eval README. The rotated four-bit row's commit is the id CMake recorded when it configured; its README names the tree it rebuilt from.</p>
+
+      <div class="split-head">
+        <h3>The non-regression gate</h3>
+        <p>What the dense work had to prove about the sparse path. The stored summary still reads fail on the first high-context prefill; the README records the quiet-host rerun that passed.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Gate</th><th scope="col">Verdict</th><th scope="col">What it measured</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.gates %}
+            <tr><th scope="row">{{ row.gate }}</th><td>{{ row.verdict }}</td><td>{{ row.note }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="split-head" id="findings">
+        <h3>The findings ledger</h3>
+        <p>Each entry is a claim, the number behind it, the run that made it, and what it does not prove. The status is the site's own: measured, open, or on a branch.</p>
+      </div>
+      <div class="findings">
+        {% for f in findings %}
+        <article class="finding" id="finding-{{ f.id }}">
+          <header><h4>{{ f.title }}</h4>{{ m.status(f.status, f.status_class) }}</header>
+          <p class="finding-claim">{{ f.claim }}</p>
+          <p class="finding-caveat">{{ f.caveat }}</p>
+          <p class="finding-meta"><span class="date">{{ f.date }}</span>{% for l in f.eval_links %} · <a href="{{ l.href }}">eval</a>{% endfor %}{% for l in f.doc_links %} · <a href="{{ l.href }}">doc</a>{% endfor %}{% if f.sources %} · sources: {% for l in f.sources %}<a href="{{ l.href }}">{{ l.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</p>
+        </article>
+        {% endfor %}
+      </div>
+
+      <div class="split-head" id="open">
+        <h3>Open water</h3>
+        <p>The work the repository names but has not done. These are the reasons a claim is missing, not footnotes to hide.</p>
+      </div>
+      <ul class="open-list">
+        {% for item in open_items %}
+        <li>{{ m.status(item.status, "open") }} <strong>{{ item.title }}</strong> {{ item.accept }} <span class="open-links">{{ m.links(item.doc_links) }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="divider" aria-hidden="true"><img src="assets/halocline-divider.svg" alt="" width="1200" height="24" loading="lazy"></div>
+  </section>
+
+  <section class="layer layer-floor" id="floor" data-depth="{{ v('layers.floor.depth').raw }}" data-label="{{ v('layers.floor.label') }}">
+    <div class="layer-inner">
+      <header class="layer-head">
+        <span class="depth">{{ v('layers.floor.label') }} · {{ v('layers.floor.name') }}</span>
+        <h2>Lineage and build</h2>
+        <p class="sub">The engine starts from a one-time snapshot and has no upstream after it. Credit where the code came from.</p>
+      </header>
+
+      <div class="two-col">
+        <div class="panel">
+          <h3>Lineage</h3>
+          <ul class="lineage">
+            <li><strong>Strata</strong> by {{ v('machine.credits.strata_author') }} and contributors: the expert-offload engine the rest descends from.</li>
+            <li><strong>Basalt</strong> by {{ v('machine.credits.basalt_author') }}: the multi-model engine forked from Strata.</li>
+            <li><strong>basalt_ada</strong>: the Ada port this snapshot merges.</li>
+            <li><strong>Infernix</strong> by {{ v('machine.credits.infernix_author') }}: tile layouts in several kernels.</li>
+            <li>Unsloth for the GGUFs, and Qwen for the models, each under its own licence.</li>
+          </ul>
+          <p class="small">The original notices are in <a href="{{ repo_url }}/blob/main/LICENSE">LICENSE</a> and <a href="{{ repo_url }}/blob/main/THIRD_PARTY_LICENSES">THIRD_PARTY_LICENSES</a>; <a href="{{ repo_url }}/blob/main/LIFTS.md">LIFTS.md</a> records the snapshot.</p>
+        </div>
+        <div class="panel">
+          <h3>Build and run</h3>
+          <pre><code>{{ v('machine.commands.build.text') }}
+
+{{ v('machine.commands.serve_dense.text') }}</code></pre>
+          <p class="small">The commands are from <a href="{{ v('machine.commands.build.text').href }}">the README's build step</a> and <a href="{{ v('machine.commands.serve_dense.text').href }}">its serve step</a>. The test, convert and validate steps are there too. The repository holds every eval, every gate hash and every log behind the numbers on this page.</p>
+        </div>
+      </div>
+
+      <figure class="hero-plate">
+        <picture>
+          <source srcset="assets/halocline-social-preview.png" type="image/png" media="(prefers-reduced-motion: reduce)">
+          <img src="assets/halocline-hero.svg" alt="The repository README's hero plate: a water column split by one bright boundary." loading="lazy" width="1200" height="520">
+        </picture>
+        <figcaption>The repository's README hero, unchanged. Its labels are the README's; every number in the research above is read from the data files. The social preview stands in when the reader asks for reduced motion.</figcaption>
+      </figure>
+
+      <div class="repo-links">
+        <a href="{{ repo_url }}">The repository</a>
+        <a href="{{ repo_url }}/blob/main/README.md">README</a>
+        <a href="{{ repo_url }}/blob/main/SPECS.md">The reference machine</a>
+        <a href="{{ repo_url }}/blob/main/docs/testing.md">What the gates prove</a>
+        <a href="{{ repo_url }}/blob/main/CONTRIBUTING.md">Contributing</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+{% endblock %}

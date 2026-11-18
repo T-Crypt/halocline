@@ -1,0 +1,80 @@
+{% import "macros.html" as m %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title }}</title>
+  <meta name="description" content="{{ page.description }}">
+  <link rel="canonical" href="{{ page.canonical }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Halocline">
+  <meta property="og:title" content="{{ page.title }}">
+  <meta property="og:description" content="{{ page.description }}">
+  <meta property="og:url" content="{{ page.canonical }}">
+  <meta property="og:image" content="{{ page.og_image }}">
+  <meta property="og:image:alt" content="The Halocline social preview: a water column split by one bright boundary.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page.title }}">
+  <meta name="twitter:description" content="{{ page.description }}">
+  <meta name="twitter:image" content="{{ page.og_image }}">
+  <meta name="theme-color" content="#05202d">
+  <link rel="icon" href="{{ page.prefix }}assets/halocline-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ page.prefix }}static/style.css">
+</head>
+<body class="{{ page.body_class }}">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-head">
+    <a class="brand" href="{{ page.prefix }}index.html">
+      <img src="{{ page.prefix }}assets/halocline-mark.svg" alt="" width="34" height="34">
+      <span class="brand-word">halocline</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="{{ page.prefix }}index.html#sunlit"{% if page.nav_current == "sunlit" %} aria-current="true"{% endif %}>What it is</a>
+      <a href="{{ page.prefix }}index.html#twilight"{% if page.nav_current == "twilight" %} aria-current="true"{% endif %}>Speed</a>
+      <a href="{{ page.prefix }}index.html#boundary"{% if page.nav_current == "boundary" %} aria-current="true"{% endif %}>Boundary</a>
+      <a href="{{ page.prefix }}index.html#deep"{% if page.nav_current == "deep" %} aria-current="true"{% endif %}>Ledger</a>
+      <a href="{{ page.prefix }}models/sparse.html"{% if page.nav_current == "sparse" %} aria-current="page"{% endif %}>Sparse</a>
+      <a href="{{ page.prefix }}models/dense.html"{% if page.nav_current == "dense" %} aria-current="page"{% endif %}>Dense</a>
+    </nav>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  {% if page.body_class == "page-index" %}
+  <aside class="gauge" aria-hidden="true" data-top="{{ v('layers.top_depth').raw }}">
+    <div class="gauge-track"><span class="gauge-needle"></span></div>
+    <span class="gauge-readout">surface</span>
+    <ul class="gauge-ticks">
+      {% for l in layers %}
+      <li style="--at: {{ (l.depth.raw / v('layers.top_depth').raw * 100) if l.depth.raw else 0 }}%"><span>{{ l.label }}</span></li>
+      {% endfor %}
+    </ul>
+  </aside>
+  {% endif %}
+
+  <div class="chart-tip" role="status" aria-live="polite"></div>
+
+  <footer class="site-foot">
+    <div class="foot-grid">
+      <div>
+        <span class="brand-word">halocline</span>
+        <p>{{ v('machine.project.status') }} · {{ v('machine.project.licence') }} licence. One engine, one card, one model family.</p>
+      </div>
+      <div>
+        <p class="foot-label">Reproduce</p>
+        <p><a href="{{ repo_url }}">The repository</a><br><a href="{{ v('machine.commands.serve_dense.text').href }}">The install path in the README</a></p>
+      </div>
+      <div>
+        <p class="foot-label">Read</p>
+        <p><a href="{{ repo_url }}/blob/main/SPECS.md">The reference machine</a><br><a href="{{ repo_url }}/blob/main/RESEARCH.md">The research notes</a><br><a href="{{ repo_url }}/blob/main/docs/testing.md">What the gates prove</a></p>
+      </div>
+      <div>
+        <p class="foot-label">This page</p>
+        <p>No analytics. No third-party requests. System fonts only. Every number links to the file that produced it.</p>
+      </div>
+    </div>
+  </footer>
+  <script src="{{ page.prefix }}static/site.js" defer></script>
+</body>
+</html>

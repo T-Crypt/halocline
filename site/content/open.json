@@ -1,0 +1,65 @@
+{
+  "_note": "The open-work ledger. Each item names the accept criteria in docs/roadmap.md or docs/testing.md; no number here is a result.",
+  "items": [
+    {
+      "title": "Full context with the drafter and vision",
+      "status": "open",
+      "accept": "A full-context load with the drafter and vision, the depth-KLD table at the deep windows, and decode at those windows above the NInfer floors.",
+      "docs": ["docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job"]
+    },
+    {
+      "title": "NInfer quality and a like-for-like speed run",
+      "status": "open",
+      "accept": "One table with every arm on the same base and the same fixtures; KLD only if NInfer exposes the gate; speed ABBA with the power limit recorded.",
+      "docs": ["docs/roadmap.md#d7-beat-ninfer-and-llamacpp-on-quality"]
+    },
+    {
+      "title": "KLD at long context",
+      "status": "open",
+      "accept": "Scored windows placed at the deep contexts, per cache format, against the same frozen base.",
+      "docs": ["docs/testing.md", "docs/roadmap.md#p0-close-the-cheap-gaps-in-the-published-build"]
+    },
+    {
+      "title": "Strata KLD",
+      "status": "open",
+      "accept": "The same gate on Strata with its own pack and reference, so the speed table gains a quality column.",
+      "docs": ["docs/testing.md", "docs/roadmap.md#p0-close-the-cheap-gaps-in-the-published-build"]
+    },
+    {
+      "title": "Task-level eval",
+      "status": "open",
+      "accept": "A Lite run with a recorded resolve rate, no engine failures, and one scaffold for every arm.",
+      "docs": ["docs/roadmap.md#p2-task-level-eval-swe-bench"]
+    },
+    {
+      "title": "Tool calls beyond one set",
+      "status": "open",
+      "accept": "A broader labelled set with whether-to-call accuracy against the reference path.",
+      "docs": ["docs/testing.md", "docs/roadmap.md#p0-close-the-cheap-gaps-in-the-published-build"]
+    },
+    {
+      "title": "Dense sampling distribution",
+      "status": "open",
+      "accept": "Seeded runs per prompt, with the first choice and the first ten inside the reference build's own spread.",
+      "docs": ["docs/testing.md"]
+    },
+    {
+      "title": "A release-gate report file",
+      "status": "open",
+      "accept": "One file per release with the commit, the profile and manifest hashes, KLD and speeds, so the ledger names a release instead of an eval directory.",
+      "docs": ["docs/testing.md", "docs/roadmap.md"]
+    },
+    {
+      "title": "Concurrency and cancellation",
+      "status": "open",
+      "accept": "Scripted concurrent clients and aborts mid-stream, with no stuck leases.",
+      "docs": ["docs/testing.md"]
+    },
+    {
+      "title": "The container image",
+      "status": "open",
+      "accept": "Build, serve and one smoke inside the image.",
+      "docs": ["docs/testing.md", "docs/roadmap.md#p4-support-and-polish"]
+    }
+  ]
+}

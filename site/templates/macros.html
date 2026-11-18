@@ -1,0 +1,44 @@
+{% macro num(key, unit="") -%}
+  {%- set x = v(key) -%}
+  <span class="num">{{ x }}{% if unit %} {{ unit }}{% endif %}</span>{% if x.href %}<a class="src" href="{{ x.href }}" title="{{ x.source_label }}">{{ x.source_label }}</a>{% endif %}
+{%- endmacro %}
+
+{% macro src(key) -%}
+  {%- set x = v(key) -%}
+  {%- if x.href %}<a class="src-only" href="{{ x.href }}" title="{{ x.source_label }}">{{ x.source_label }}</a>{% endif -%}
+{%- endmacro %}
+
+{% macro chart(c) %}
+<figure class="chart" id="{{ c.id }}">
+  <figcaption>
+    <span class="chart-title">{{ c.title }}</span>
+    <span class="chart-caption">{{ c.caption }}</span>
+  </figcaption>
+  {% if c.legend %}
+  <ul class="legend">
+    {% for item in c.legend %}<li><span class="swatch" style="--swatch: {{ item.color }}"></span>{{ item.name }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {{ c.svg | safe }}
+  {% if c.sources %}<p class="chart-source">Runs: {% for s in c.sources %}<a href="{{ s.href }}">{{ s.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  <details class="table-view">
+    <summary>Table view</summary>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>{% for h in c.headers %}<th scope="col">{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in c.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</figure>
+{% endmacro %}
+
+{% macro links(items) -%}
+  {%- for item in items %}<a href="{{ item.href }}">{{ item.label }}</a>{% if not loop.last %} · {% endif %}{% endfor -%}
+{%- endmacro %}
+
+{% macro status(text, cls) -%}<span class="status status-{{ cls }}">{{ text }}</span>{%- endmacro %}
+
+{% macro cell(x) -%}{% if x is none %}<span class="missing">not recorded</span>{% else %}{{ x }}{% endif %}{%- endmacro %}

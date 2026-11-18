@@ -1,0 +1,296 @@
+{
+  "_note": "Claims carry no digits. Every number is a placeholder resolved from site/data by site/build.py; a missing key fails the build.",
+  "findings": [
+    {
+      "id": "sparse-kld",
+      "title": "The sparse build's distance from the full-precision base",
+      "claim": "The {quant} sparse build agrees with the full-precision model on {top1} of next tokens at mean KLD {kld}, over {chunks} chunks of wikitext scored against the frozen base. The gate runs through the decode path in verify windows of {window} tokens.",
+      "caveat": "The score is the whole build. The weight quant's own share is not isolated, and {hc} hc_* tensors are cast to the full-precision format at conversion, so that rounding is inside the score too.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "top1": "sparse.quality.top1",
+        "kld": "sparse.quality.mean_kld",
+        "chunks": "sparse.quality.chunks",
+        "window": "sparse.kv.arms.int8.quality.t",
+        "hc": "sparse.facts.hc_tensors",
+        "quant": "sparse.quant.label"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "id": "sparse-kv",
+      "title": "The {label8} cache is the sparse setting",
+      "claim": "At {kld} mean KLD and {top1} first-choice agreement, the {label8} cache is closest to the full-precision base within the gate's noise, and it has the fastest prefill at both scored depths. The {label16} cache's paired interval holds zero, so this gate cannot rank it ahead; it also cuts the deepest prefill from {pp8} to {pp16} tokens a second.",
+      "caveat": "The gate scores short chunks, so it cannot see cache rounding that builds up deep in a long context; needle retrieval at the deep contexts is the guard. The {flag16} interval is {ci16}.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "kld": "sparse.kv.arms.int8.quality.kld_mean",
+        "top1": "sparse.kv.arms.int8.quality.top1_pct",
+        "label8": "sparse.kv.arms.int8.label",
+        "label16": "sparse.kv.arms.fp16.label",
+        "pp8": "sparse.kv.arms.int8.speed.pp131072",
+        "pp16": "sparse.kv.arms.fp16.speed.pp131072",
+        "flag16": "sparse.kv.arms.fp16.flag",
+        "ci16": "sparse.kv.arms.fp16.ci"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "id": "draft-window",
+      "title": "Draft window {w8}",
+      "claim": "Window {w8} is the engine default and the measured choice: structured decode runs at {s8} tokens a second, against {s5} at window {w5}; window {w12} reaches {s12} and drafts no further than {tpp12} tokens a pass, the same as window {w8} ({tpp8}).",
+      "caveat": "Window {w12} drafts no further than window {w8} and costs another draft step. The fixtures are sampled, so the token counts differ between windows; structured output is the cleanest decode comparison.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "w8": "sparse.draft.arms.8.label",
+        "s8": "sparse.draft.arms.8.speed.tg_struct",
+        "s5": "sparse.draft.arms.5.speed.tg_struct",
+        "w5": "sparse.draft.arms.5.label",
+        "w12": "sparse.draft.arms.12.label",
+        "s12": "sparse.draft.arms.12.speed.tg_struct",
+        "tpp12": "sparse.draft.arms.12.tokens_per_pass",
+        "tpp8": "sparse.draft.arms.8.tokens_per_pass"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-kv-kld/"
+      ]
+    },
+    {
+      "id": "sparse-speed",
+      "title": "Above the Strata floor at both needle depths",
+      "claim": "On the same card and the same pack, at the card's {power} W limit, sparse decode reads {h36} tokens a second at the {d36} needle against Strata {sversion}'s {s36}, and {h137} against {s137} at the {d137} needle. Prompt reads {hp36} against {sp36}, and {hp137} against {sp137}. Warm decode runs from {hwlo} to {hwhi} against {swlo} to {swhi}.",
+      "caveat": "Halocline runs its drafter with the {hkv} cache; Strata {sversion} runs {sdrafter} with the {skv} cache. The Strata column is its quiet-host rerun, and no KLD gate has been run on Strata here, so this is a speed comparison only.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "h36": "compare.sparse.halocline.36k.decode",
+        "d36": "compare.sparse.depth36.label",
+        "s36": "compare.sparse.strata.36k.decode",
+        "h137": "compare.sparse.halocline.137k.decode",
+        "d137": "compare.sparse.depth137.label",
+        "s137": "compare.sparse.strata.137k.decode",
+        "hp36": "compare.sparse.halocline.36k.prompt",
+        "sp36": "compare.sparse.strata.36k.prompt",
+        "hp137": "compare.sparse.halocline.137k.prompt",
+        "sp137": "compare.sparse.strata.137k.prompt",
+        "hwlo": "compare.sparse.halocline.warm_low",
+        "hwhi": "compare.sparse.halocline.warm_high",
+        "swlo": "compare.sparse.strata.warm_low",
+        "swhi": "compare.sparse.strata.warm_high",
+        "hkv": "compare.sparse.halocline.kv",
+        "skv": "compare.sparse.strata.kv",
+        "sversion": "compare.sparse.strata.version",
+        "sdrafter": "compare.sparse.strata.drafter",
+        "power": "machine.gpu.power_w"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-llama-swap/",
+        "evals/2026-11-16/halocline-p0-floors/"
+      ]
+    },
+    {
+      "id": "identity",
+      "title": "The scope removals changed no greedy token",
+      "claim": "{ref} of {new} greedy tokens are identical from the build before the multi-GPU removals to the published build, with placement pinned: the same {slots} expert slots, {vram} in the card's cache and {ram} page-locked in RAM, none on the SSD.",
+      "caveat": "Greedy output only; it says nothing about the sampler under temperature.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "ref": "regress.greedy.ref_tokens",
+        "new": "regress.greedy.new_tokens",
+        "slots": "sparse.placement.expert_slots",
+        "vram": "sparse.placement.vram_gib",
+        "ram": "sparse.placement.ram_gib"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-greedy-identity/"
+      ]
+    },
+    {
+      "id": "sparse-regress",
+      "title": "The dense work did not move the sparse path",
+      "claim": "The sparse non-regression gate on release {relnew} scores the same mean KLD, {kld}, and the same first-choice agreement, {top1}, as the served release {relref}; its scored rows are byte-identical. On the valid pair, at the {power} W limit, decode moves by at most {dmax} across the three fixtures, and high-context prefill moves by {pdelta} on the quiet-host ABBA rerun.",
+      "caveat": "The gate's stored summary still reads {saved}: its first high-context prefill arms were invalid on both builds, stopped by the engine's stall guard while the host was short of memory. The README records the rerun as {rerun}, inside the gate's {band} band; summary.md was not regenerated.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "relnew": "regress.release.new",
+        "relref": "regress.release.ref",
+        "kld": "regress.pair.new.kld",
+        "top1": "regress.pair.new.top1",
+        "dmax": "regress.pair.decode_max_pct",
+        "pdelta": "regress.abba.delta_pct",
+        "saved": "regress.gate2.saved_verdict",
+        "power": "machine.gpu.power_w",
+        "rerun": "regress.gate2.rerun_verdict",
+        "band": "regress.gate2.limit_pct"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-sparse-regress/"
+      ]
+    },
+    {
+      "id": "dense-load",
+      "title": "Both dense quants load and generate",
+      "claim": "{model} {q4} loads {gpu} on the card with {emb} of embedding in page-locked RAM; it prefills {ptok} tokens in {pms} and decodes {dtok} tokens in {dms}. {iq4} loads {igpu} on the card and decodes the same {dtok} tokens in {idms}.",
+      "caveat": "One prompt, greedy, a short run: a load and coherence check, not a speed benchmark.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "model": "machine.models.dense.name",
+        "q4": "dense.packs.q4kxl.label",
+        "gpu": "dense.packs.q4kxl.gpu_gib",
+        "emb": "dense.packs.q4kxl.embedding_gib",
+        "ptok": "dense.packs.q4kxl.prefill_tokens",
+        "pms": "dense.packs.q4kxl.prefill_ms",
+        "dtok": "dense.packs.q4kxl.decode_tokens",
+        "dms": "dense.packs.q4kxl.decode_ms",
+        "iq4": "dense.packs.iq4xs.label",
+        "igpu": "dense.packs.iq4xs.gpu_gib",
+        "idms": "dense.packs.iq4xs.decode_ms"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-dense-load/"
+      ]
+    },
+    {
+      "id": "dense-kld",
+      "title": "Dense parity with llama.cpp on the same weights",
+      "claim": "Halocline scores {hkld} mean KLD and {htop} first-choice agreement on {quant} with the {hkv} cache; llama.cpp scores {lkld} with the {lkv} cache on the same GGUF. The difference sits inside llama.cpp's own error bar of {lerr}.",
+      "caveat": "The base is the same frozen file for both arms, but the cache formats differ. The comparison is distributional, not a task result; KLD near the baseline does not rank models, which is why the task suite is open work.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "hkld": "dense.quality.arms.halo_q4kxl_int8.quality.kld_mean",
+        "htop": "dense.quality.arms.halo_q4kxl_int8.quality.top1_pct",
+        "quant": "dense.packs.q4kxl.label",
+        "hkv": "dense.kv.arms.int8.label",
+        "lkld": "dense.quality.arms.llama_q4kxl_f16.mean_kld",
+        "lkv": "dense.quality.arms.llama_q4kxl_f16.kv",
+        "lerr": "dense.quality.arms.llama_q4kxl_f16.err"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-dense-quality/"
+      ]
+    },
+    {
+      "id": "dense-kv",
+      "title": "The {short} cache: a small measured cost for more context",
+      "claim": "The {short} cache costs {delta} mean KLD over the {int8} cache at the first dense context, paired {ci}, and {points} first-choice points. The planner reaches {cells} context cells with this cache and the drafter in the {int8} format, against {base_cells} for the {int8} main cache with the same drafter.",
+      "caveat": "The gate scores short chunks; whether the gap grows with depth is the open depth gate. The drafter's cache format changes no scored row.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "short": "dense.kv.arms.k8v4.short",
+        "label": "dense.kv.arms.k8v4.label",
+        "delta": "dense.kv.arms.k8v4.delta",
+        "int8": "dense.kv.arms.int8.label",
+        "ci": "dense.kv.arms.k8v4.ci",
+        "points": "dense.kv.arms.k8v4.points",
+        "cells": "dense.context.k8v4.max_mtp",
+        "base_cells": "dense.context.int8.max_mtp"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-d8-kv/"
+      ]
+    },
+    {
+      "id": "dense-262k",
+      "title": "Full context is on a branch, not shipped",
+      "claim": "With the {kv8} cache, {target} cells need {need} and find {free} free on {quant}; the {kv16} cache needs {fp16need}, so neither fits. The {kv4} cache reaches {cells} cells with the drafter ring, at {delta} mean KLD over the {kv8} cache at the first dense context. That code is on a branch; the served profile is {served} tokens.",
+      "caveat": "The context ceilings come from the planner test, not a loaded session; that arm's cost is the {d36} gate, and a full-context load with depth KLD is open work.",
+      "status": "on a branch",
+      "date": "2026-11-17",
+      "values": {
+        "kv8": "dense.context.int8.label",
+        "kv16": "dense.context.fp16.label",
+        "target": "dense.fit.q4kxl.cells",
+        "need": "dense.fit.q4kxl.need_mib",
+        "free": "dense.fit.q4kxl.free_mib",
+        "fp16need": "dense.fit.fp16_need_mib",
+        "quant": "dense.packs.q4kxl.label",
+        "kv4": "dense.kv.arms.q4.label",
+        "cells": "dense.context.q4.max_ring",
+        "delta": "dense.kv.arms.q4.delta",
+        "served": "machine.models.dense.served_context",
+        "d36": "compare.dense.depth36.label"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-d8-kv/",
+        "evals/2026-11-17/halocline-dense-quality/"
+      ]
+    },
+    {
+      "id": "dense-speed",
+      "title": "Dense prefill clears the floor; decode is not yet like for like",
+      "claim": "At the {d36} context, Halocline prefills at {ours} tokens a second at the card's {power} W limit, against NInfer's {floor} on the same card. Halocline's arm is {quant}; NInfer uses its own format. Halocline's own decode is {conv} on the conversation fixture and {prose} on prose; NInfer's smoke decodes at {ndec} at the same context on a different fixture, so the site does not rank decode.",
+      "caveat": "The like-for-like decode run is the roadmap's NInfer item and has not run. The NInfer prompt at this depth is its uncached first run; the later runs hit its prefix cache and are not comparable.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "d36": "compare.dense.depth36.label",
+        "ours": "compare.dense.halocline.pp36k",
+        "floor": "compare.dense.ninfer.pp36k",
+        "conv": "compare.dense.halocline.conv",
+        "prose": "compare.dense.halocline.prose",
+        "ndec": "compare.dense.ninfer.decode36k",
+        "power": "machine.gpu.power_w",
+        "quant": "dense.packs.q4kxl.label"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-d8-kv/",
+        "evals/2026-11-16/halocline-p0-floors/"
+      ]
+    },
+    {
+      "id": "sampling-tools",
+      "title": "Sampling and tool calls hold on the sparse path",
+      "claim": "At the sampling gate's temperature, the first choice, the first ten choices, the log-probability and the first-token TV all sit inside the reference build's own seed-to-seed spread, and the tool-call set agrees on {agree} of {total} cases with the reference.",
+      "caveat": "One labelled set, one sparse release. A broader tool-call set and dense sampling are open work.",
+      "status": "measured",
+      "date": "2026-11-17",
+      "values": {
+        "agree": "regress.tools.new.agree",
+        "total": "regress.tools.new.all_total"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-sparse-regress/"
+      ]
+    },
+    {
+      "id": "gaps",
+      "title": "What this site does not claim",
+      "claim": "None of these exist in the repository: a KLD score for Strata, a KLD score for NInfer, KLD at long context, and a task-level eval. This site therefore makes no quality comparison against either engine and no claim that the caches hold at depth. The runs ledger is assembled from eval directories because no release-gate report file exists; profile and manifest hashes are not recorded by these runs.",
+      "caveat": "Each gap is a row in docs/testing.md with its accept criteria, not a hidden assumption.",
+      "status": "open",
+      "date": "2026-11-17",
+      "values": {},
+      "evals": [],
+      "docs": [
+        "docs/testing.md",
+        "docs/roadmap.md"
+      ]
+    },
+    {
+      "id": "community",
+      "title": "One community row, not a crowd",
+      "claim": "The community preset has one row, from the maintainer's own machine. It demonstrates the preset; it is not evidence from a stranger's card, and no comparison on this site uses it.",
+      "caveat": "The row is in docs/community/benchmarks.json and has no eval directory of its own, so it is not used for any number here.",
+      "status": "open",
+      "date": "2026-11-17",
+      "values": {},
+      "evals": [],
+      "docs": [
+        "docs/community/benchmarks.json",
+        "docs/community.md"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block content %}
+<main id="main" class="model-page">
+  <header class="model-head">
+    <div class="layer-inner">
+      <p class="crumb"><a href="../index.html">The dive</a> · Dense path</p>
+      <h1>{{ v('machine.models.dense.name') }}</h1>
+      <p class="tagline">Every layer on the card, every tensor as stored.</p>
+      <p class="lede">The stand-in for {{ v('machine.models.dense.target') }} until its weights exist. The dense path is the quality path: less machinery between the weights and the logits. It runs; full context is the open job.</p>
+      <ul class="fact-row">
+        <li><span>Layers</span><strong>{{ m.num('dense.facts.layers') }}</strong></li>
+        <li><span>Hidden</span><strong>{{ m.num('dense.facts.hidden') }}</strong></li>
+        <li><span>Vocabulary</span><strong>{{ m.num('dense.facts.vocab') }}</strong></li>
+        <li><span>Native context</span><strong>{{ m.num('dense.facts.native_context') }}</strong></li>
+        <li><span>Mean KLD</span><strong>{{ m.num('dense.quality.arms.halo_q4kxl_int8.quality.kld_mean') }}</strong></li>
+      </ul>
+    </div>
+  </header>
+
+  <section class="layer layer-sunlit">
+    <div class="layer-inner">
+      <div class="split-head"><h2>The load</h2><p>Two Unsloth quants, repacked losslessly, loaded and generating. The embedding stays in its stored type; the one rounding at load is named below.</p></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Pack</th><th scope="col">On the card</th><th scope="col">Embedding</th><th scope="col">Tensors</th><th scope="col">Prefill</th><th scope="col">Decode</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">{{ v('dense.packs.q4kxl.label') }}</th><td>{{ m.num('dense.packs.q4kxl.gpu_gib') }}</td><td>{{ m.num('dense.packs.q4kxl.embedding_gib') }}</td><td>{{ m.num('dense.packs.q4kxl.tensors') }}</td><td>{{ m.num('dense.packs.q4kxl.prefill_tokens') }} tokens in {{ m.num('dense.packs.q4kxl.prefill_ms') }}</td><td>{{ m.num('dense.packs.q4kxl.decode_tokens') }} tokens in {{ m.num('dense.packs.q4kxl.decode_ms') }}</td><td><a class="src" href="{{ repo_dir('evals/2026-11-17/halocline-dense-load/') }}">eval</a></td></tr>
+            <tr><th scope="row">{{ v('dense.packs.iq4xs.label') }}</th><td>{{ m.num('dense.packs.iq4xs.gpu_gib') }}</td><td>{{ m.num('dense.packs.iq4xs.embedding_gib') }}</td><td>{{ m.num('dense.packs.iq4xs.tensors') }}</td><td>{{ m.num('dense.packs.iq4xs.prefill_tokens') }} tokens in {{ m.num('dense.packs.iq4xs.prefill_ms') }}</td><td>{{ m.num('dense.packs.iq4xs.decode_tokens') }} tokens in {{ m.num('dense.packs.iq4xs.decode_ms') }}</td><td><a class="src" href="{{ repo_dir('evals/2026-11-17/halocline-dense-load/') }}">eval</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">One prompt, greedy, a short run. This is a load and coherence check, not a speed benchmark. Both packs verify {{ m.num('dense.load.verify') }} of {{ m.num('dense.load.verify_total') }} tensors lossless against their GGUF.</p>
+
+      <div class="split-head"><h2>Quality</h2><p>The same frozen base (the model's {{ v('machine.formats.bf16') }} file), the same chunk count, Halocline against llama.cpp on the same GGUF. The whiskers are llama.cpp's own error bar.</p></div>
+      {{ m.chart(charts.dense_kld) }}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Arm</th><th scope="col">Mean KLD</th><th scope="col">Error bar</th><th scope="col">First choice</th><th scope="col">PPL</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.dense_quality %}
+            <tr><th scope="row">{{ row.label }}</th><td>{{ row.kld }}</td><td>{{ row.err }}</td><td>{{ row.top1 }}</td><td>{{ row.ppl }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ m.chart(charts.boundary_dense) }}
+      <p class="note">llama.cpp is pinned at commit {{ v('dense.quality.llama_commit') }}. The {{ v('dense.packs.q4kxl.label') }} arm at {{ v('dense.kv.arms.int8.label') }} scores {{ m.num('dense.quality.arms.halo_q4kxl_int8.quality.kld_mean') }} against llama.cpp's {{ m.num('dense.quality.arms.llama_q4kxl_f16.mean_kld') }}: the difference sits inside llama.cpp's error bar. The decode kernel's narrower activation scales cost {{ m.num('dense.quality.mmvq_delta') }}, paired {{ m.num('dense.quality.mmvq_ci') }}.</p>
+
+      <div class="split-head"><h2>The cache and the context ceiling</h2><p>Cache format buys or costs context. The KLD is the {{ v('compare.dense.depth36.label') }} gate; the ceilings come from the planner test, not a loaded session.</p></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Cache</th><th scope="col">Bytes a cell</th><th scope="col">Mean KLD</th><th scope="col">First choice</th><th scope="col">Paired difference</th><th scope="col">Interval</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.kv_dense %}
+            <tr><th scope="row">{{ row.label }}</th><td>{{ row.cell }}</td><td>{{ row.kld }}</td><td>{{ row.top1 }}</td><td>{{ m.cell(row.delta) }}</td><td>{{ m.cell(row.ci) }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Cache</th><th scope="col">Bytes a cell</th><th scope="col">Max cells, drafter at full context</th><th scope="col">With the drafter cache in {{ v('dense.context.int8.label') }}</th><th scope="col">Adding the drafter ring</th><th scope="col">Source</th></tr></thead>
+          <tbody>
+            {% for row in tables.context %}
+            <tr><th scope="row">{{ row.label }}</th><td>{{ row.cell }}</td><td>{{ row.first }}</td><td>{{ m.cell(row.mtp) }}</td><td>{{ m.cell(row.ring) }}</td><td><a class="src" href="{{ row.href }}">doc</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <h3>Full context is on a branch</h3>
+        <p>With the {{ v('dense.context.int8.label') }} cache, {{ m.num('dense.fit.q4kxl.cells') }} cells need {{ m.num('dense.fit.q4kxl.need_mib') }} and find {{ m.num('dense.fit.q4kxl.free_mib') }} free on {{ v('dense.packs.q4kxl.label') }}; the {{ v('dense.context.fp16.label') }} cache needs {{ m.num('dense.fit.fp16_need_mib') }}, so neither fits. The {{ v('dense.kv.arms.q4.label') }} cache reaches {{ m.num('dense.context.q4.max_ring') }} cells with the drafter cache in the {{ v('dense.context.int8.label') }} format and the drafter ring, at {{ m.num('dense.kv.arms.q4.delta') }} mean KLD over the {{ v('dense.kv.arms.int8.label') }} cache. That code is on a branch; the served profile is {{ m.num('machine.models.dense.served_context') }} tokens.</p>
+        <p class="small">The planner numbers are tests, not a loaded session. That arm's cost is the {{ v('compare.dense.depth36.label') }} gate, and a full-context load with depth KLD is open work.</p>
+      </div>
+
+      <div class="split-head"><h2>Speed</h2><p>Prefill, ABBA in one session, one engine on the card at its {{ m.num('machine.gpu.power_w', 'W') }} limit. Decode is printed with its fixture and not ranked against NInfer.</p></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th scope="col">Cache</th><th scope="col">First {{ v('dense.prefill.depth16.label') }} arm</th><th scope="col">Second {{ v('dense.prefill.depth16.label') }} arm</th><th scope="col">Mean {{ v('dense.prefill.depth16.label') }}</th><th scope="col">First {{ v('dense.prefill.depth36.label') }} arm</th><th scope="col">Second {{ v('dense.prefill.depth36.label') }} arm</th><th scope="col">Mean {{ v('dense.prefill.depth36.label') }}</th><th scope="col">Delta</th><th scope="col">Run</th></tr></thead>
+          <tbody>
+            {% for row in tables.prefill %}
+            <tr><th scope="row">{{ row.name }}</th><td>{{ row.pp16a }}</td><td>{{ row.pp16b }}</td><td>{{ row.pp16m }}</td><td>{{ row.pp36a }}</td><td>{{ row.pp36b }}</td><td>{{ row.pp36m }}</td><td>{{ m.cell(row.d16) }} / {{ m.cell(row.d36) }}</td><td><a class="src" href="{{ row.href }}">eval</a></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Halocline's decode at the {{ v('compare.dense.depth36.label') }} context is {{ m.num('compare.dense.halocline.conv') }} on conversation, {{ m.num('compare.dense.halocline.struct') }} on structured output and {{ m.num('compare.dense.halocline.prose') }} on prose. NInfer's floor is a different fixture, so the two are not ranked here. The prefill clears the NInfer floor at the shared depth.</p>
+      {{ m.chart(charts.dense_prefill) }}
+
+      <div class="split-head" id="roundings"><h2>The dense rounding ledger</h2><p>The places the dense path changes a number. A cost the runs do not isolate says so.</p></div>
+      <div class="table-wrap">
+        <table class="data-table ledger">
+          <thead><tr><th scope="col">Path</th><th scope="col">Rounding</th><th scope="col">When</th><th scope="col">Measured cost</th><th scope="col">Status</th><th scope="col">Evidence</th></tr></thead>
+          <tbody>
+            {% for r in roundings if r.part == "dense" %}
+            <tr><td>{{ r.part }}</td><td><strong>{{ r.rounding }}</strong></td><td>{{ r.when }}</td><td>{{ r.cost }}</td><td>{{ m.status(r.status, r.status_class) }}</td><td>{% for l in r.eval_links %}<a class="src" href="{{ l.href }}">eval</a> {% endfor %}{% for l in r.doc_links %}<a class="src" href="{{ l.href }}">doc</a> {% endfor %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="split-head"><h2>Limits</h2><p>What the dense numbers do not cover.</p></div>
+      <ul class="limits">
+        <li>Full context is not shipped. The {{ v('dense.context.int8.label') }} and {{ v('dense.context.fp16.label') }} caches do not fit; the low-bit arm is on a branch and its cost is a short-chunk gate.</li>
+        <li>Depth KLD has not run. The gate scores short chunks, so cache rounding at depth is unmeasured.</li>
+        <li>NInfer's KLD and a like-for-like decode run are open. The prefill comparison is the only same-depth speed reading.</li>
+        <li>The weight quant and the cache are not separated. The whole build reads {{ m.num('dense.quality.arms.halo_q4kxl_int8.quality.kld_mean') }}.</li>
+        <li>One prompt on the load check, one machine for every number.</li>
+      </ul>
+      <p class="back"><a href="../index.html#deep">Back to the ledger</a> · <a href="../index.html#open">Open water</a></p>
+    </div>
+  </section>
+</main>
+{% endblock %}
