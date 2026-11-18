@@ -17,6 +17,7 @@ number without a run behind it.
 | `2026-11-17/halocline-dense-load/` | the dense path's first load (D3): a lossless GGUF repack of Qwen3.8-27B, loaded and generating |
 | `2026-11-17/halocline-dense-quality/` | the dense D4 gate (KLD against BF16), D5 speed, the first llama.cpp arm, the 262K fit probe |
 | `2026-11-17/halocline-d8-kv/` | dense K8V4 against int8 KV: quality, decode, prefill ABBA, the context each format reaches |
+| `2026-11-17/halocline-sparse-regress/` | the sparse non-regression gate for the dense D8 release: greedy identity, KLD and speed (ABBA), sampling distribution, tool calls |
 
 Each directory holds the README that explains the run, the commands, the raw JSON, the logs from the engine and the
 script that drove it. `rows.tsv` files are the per-chunk gate output: one row per scored position, with the base and

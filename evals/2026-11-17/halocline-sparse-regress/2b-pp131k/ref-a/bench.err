@@ -1,0 +1,21 @@
+basalt-bench: starting ~/halocline/releases/d314a21a/bin/basalt (log: evals/2026-11-17/halocline-sparse-regress/run-release-b22ecbb2/2b-pp131k/ref-a/engine.log)
+basalt-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+basalt-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+basalt-bench: loading cuda0 5.1 / 21.5 GiB (23%)
+basalt-bench: loading cuda0 10.0 / 21.5 GiB (46%)
+basalt-bench: loading cuda0 14.8 / 21.5 GiB (68%)
+basalt-bench: loading cuda0 19.7 / 21.5 GiB (91%)
+basalt-bench: loading cuda0 21.3 / 21.3 GiB done (43 s)
+basalt-bench: loading ram 2.3 / 39.4 GiB (5%)
+basalt-bench: loading ram 6.1 / 39.4 GiB (15%)
+basalt-bench: loading ram 9.8 / 39.4 GiB (24%)
+basalt-bench: loading ram 13.6 / 39.4 GiB (34%)
+basalt-bench: loading ram 17.5 / 39.4 GiB (44%)
+basalt-bench: loading ram 21.4 / 39.4 GiB (54%)
+basalt-bench: loading ram 25.2 / 39.4 GiB (63%)
+basalt-bench: loading ram 29.0 / 39.4 GiB (73%)
+basalt-bench: loading ram 33.0 / 39.4 GiB (83%)
+basalt-bench: loading ram 37.1 / 39.4 GiB (94%)
+basalt-bench: loading ram 39.4 / 39.4 GiB done (104 s)
+basalt-bench: engine ready in 150 s
+  run 1 pp131072 133205 tokens, 5878 t/s engine, 5864 t/s wall

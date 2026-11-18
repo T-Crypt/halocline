@@ -1,0 +1,25 @@
+halocline-bench: starting ~/halocline/releases/b22ecbb2/bin/halocline (log: evals/2026-11-17/halocline-sparse-regress/run-release-b22ecbb2/2-kv/new1/engine.log)
+halocline-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+halocline-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+halocline-bench: loading cuda0 5.1 / 21.5 GiB (23%)
+halocline-bench: loading cuda0 10.0 / 21.5 GiB (46%)
+halocline-bench: loading cuda0 14.8 / 21.5 GiB (68%)
+halocline-bench: loading cuda0 19.6 / 21.5 GiB (91%)
+halocline-bench: loading cuda0 21.3 / 21.3 GiB done (43 s)
+halocline-bench: loading ram 2.5 / 39.4 GiB (6%)
+halocline-bench: loading ram 6.4 / 39.4 GiB (16%)
+halocline-bench: loading ram 10.4 / 39.4 GiB (26%)
+halocline-bench: loading ram 14.5 / 39.4 GiB (36%)
+halocline-bench: loading ram 18.6 / 39.4 GiB (47%)
+halocline-bench: loading ram 22.7 / 39.4 GiB (57%)
+halocline-bench: loading ram 26.8 / 39.4 GiB (67%)
+halocline-bench: loading ram 30.9 / 39.4 GiB (78%)
+halocline-bench: loading ram 35.2 / 39.4 GiB (89%)
+halocline-bench: loading ram 39.4 / 39.4 GiB (99%)
+halocline-bench: loading ram 39.4 / 39.4 GiB done (97 s)
+halocline-bench: engine ready in 144 s
+  run 1 conv    135.1 tok/s, 1141 tokens
+  run 1 struct  266.4 tok/s, 7230 tokens
+  run 1 prose   137.0 tok/s, 1161 tokens
+  run 1 pp32768 33323 tokens, 5846 t/s engine, 5791 t/s wall
+halocline-bench: error: pp131072 (run 1): the engine exited during the request (see evals/2026-11-17/halocline-sparse-regress/run-release-b22ecbb2/2-kv/new1/engine.log)

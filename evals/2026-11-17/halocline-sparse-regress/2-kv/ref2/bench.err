@@ -1,0 +1,25 @@
+basalt-bench: starting ~/halocline/releases/d314a21a/bin/basalt (log: evals/2026-11-17/halocline-sparse-regress/run-release-b22ecbb2/2-kv/ref2/engine.log)
+basalt-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+basalt-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+basalt-bench: loading cuda0 5.0 / 21.5 GiB (23%)
+basalt-bench: loading cuda0 9.9 / 21.5 GiB (45%)
+basalt-bench: loading cuda0 14.8 / 21.5 GiB (68%)
+basalt-bench: loading cuda0 19.5 / 21.5 GiB (90%)
+basalt-bench: loading cuda0 21.3 / 21.3 GiB done (44 s)
+basalt-bench: loading ram 2.4 / 39.4 GiB (6%)
+basalt-bench: loading ram 6.3 / 39.4 GiB (16%)
+basalt-bench: loading ram 10.3 / 39.4 GiB (26%)
+basalt-bench: loading ram 14.3 / 39.4 GiB (36%)
+basalt-bench: loading ram 18.4 / 39.4 GiB (46%)
+basalt-bench: loading ram 22.4 / 39.4 GiB (56%)
+basalt-bench: loading ram 26.7 / 39.4 GiB (67%)
+basalt-bench: loading ram 30.7 / 39.4 GiB (77%)
+basalt-bench: loading ram 34.9 / 39.4 GiB (88%)
+basalt-bench: loading ram 39.3 / 39.4 GiB (99%)
+basalt-bench: loading ram 39.4 / 39.4 GiB done (98 s)
+basalt-bench: engine ready in 145 s
+  run 1 conv    135.4 tok/s, 1141 tokens
+  run 1 struct  265.2 tok/s, 7230 tokens
+  run 1 prose   140.5 tok/s, 1200 tokens
+  run 1 pp32768 33323 tokens, 5848 t/s engine, 5779 t/s wall
+basalt-bench: error: pp131072 (run 1): the engine exited during the request (see evals/2026-11-17/halocline-sparse-regress/run-release-b22ecbb2/2-kv/ref2/engine.log)

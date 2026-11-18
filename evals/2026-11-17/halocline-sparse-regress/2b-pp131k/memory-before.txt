@@ -1,0 +1,18 @@
+2026-11-17T19:55:25-07:00
+               total        used        free      shared  buff/cache   available
+Mem:           63991        4637       40943         584       19657       59353
+Swap:           4095        2154        1941
+NAME       TYPE      SIZE USED PRIO
+/dev/zram0 partition   4G 2.1G  100
+    PID   RSS COMMAND
+1458292 447872 claude
+3377548 236496 qs
+1459032 196700 node-MainThread
+3380607 70172 ome
+3380605 69048 llama-swap
+3380601 52328 python3
+   1285 49112 tailscaled
+1458966 48700 python
+1458706 46108 npm exec rea-ag
+1171077 36216 orca-ide
+1175996 36020 kitty

@@ -1,0 +1,21 @@
+halocline-bench: starting ~/halocline/releases/b22ecbb2/bin/halocline (log: evals/2026-11-17/halocline-sparse-regress/run-release-b22ecbb2/2b-pp131k/new-a/engine.log)
+halocline-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+halocline-bench: loading 60.9 GiB: cuda0 0.0 / 4.7 GiB
+halocline-bench: loading cuda0 5.1 / 21.5 GiB (23%)
+halocline-bench: loading cuda0 9.9 / 21.5 GiB (45%)
+halocline-bench: loading cuda0 14.7 / 21.5 GiB (68%)
+halocline-bench: loading cuda0 19.6 / 21.5 GiB (91%)
+halocline-bench: loading cuda0 21.3 / 21.3 GiB done (43 s)
+halocline-bench: loading ram 2.2 / 39.4 GiB (5%)
+halocline-bench: loading ram 6.0 / 39.4 GiB (15%)
+halocline-bench: loading ram 9.7 / 39.4 GiB (24%)
+halocline-bench: loading ram 13.5 / 39.4 GiB (34%)
+halocline-bench: loading ram 17.4 / 39.4 GiB (44%)
+halocline-bench: loading ram 21.2 / 39.4 GiB (53%)
+halocline-bench: loading ram 24.9 / 39.4 GiB (63%)
+halocline-bench: loading ram 28.9 / 39.4 GiB (73%)
+halocline-bench: loading ram 32.7 / 39.4 GiB (82%)
+halocline-bench: loading ram 36.9 / 39.4 GiB (93%)
+halocline-bench: loading ram 39.4 / 39.4 GiB done (104 s)
+halocline-bench: engine ready in 151 s
+  run 1 pp131072 133205 tokens, 5892 t/s engine, 5878 t/s wall

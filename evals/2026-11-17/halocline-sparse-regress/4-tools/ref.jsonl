@@ -1,0 +1,25 @@
+{"meta": {"url": "http://127.0.0.1:36817", "model": "qfn-halocline", "cases": "~/halocline/releases/b22ecbb2/tools/tool_calls/cases.jsonl", "label": "ref", "extra": "{\"chat_template_kwargs\":{\"enable_thinking\":false}}"}}
+{"id": "weather-now", "expect": "call", "called": true, "name": "get_weather", "args_ok": true, "right": true}
+{"id": "weather-unit", "expect": "call", "called": true, "name": "get_weather", "args_ok": true, "right": true}
+{"id": "search-news", "expect": "call", "called": true, "name": "web_search", "args_ok": true, "right": true}
+{"id": "search-price", "expect": "call", "called": true, "name": "web_search", "args_ok": true, "right": true}
+{"id": "calc-big", "expect": "call", "called": true, "name": "calculator", "args_ok": true, "right": true}
+{"id": "calc-expr", "expect": "call", "called": true, "name": "calculator", "args_ok": true, "right": true}
+{"id": "file-read", "expect": "call", "called": true, "name": "read_file", "args_ok": true, "right": true}
+{"id": "file-config", "expect": "call", "called": true, "name": "read_file", "args_ok": true, "right": true}
+{"id": "email-send", "expect": "call", "called": true, "name": "send_email", "args_ok": true, "right": true}
+{"id": "email-thanks", "expect": "call", "called": true, "name": "send_email", "args_ok": true, "right": true}
+{"id": "event-add", "expect": "call", "called": true, "name": "create_event", "args_ok": true, "right": true}
+{"id": "event-meet", "expect": "call", "called": true, "name": "create_event", "args_ok": true, "right": true}
+{"id": "none-poem", "expect": "none", "called": false, "right": true}
+{"id": "none-explain", "expect": "none", "called": false, "right": true}
+{"id": "none-small-math", "expect": "none", "called": false, "right": true}
+{"id": "none-weather-word", "expect": "none", "called": false, "right": true}
+{"id": "none-email-draft", "expect": "none", "called": false, "right": true}
+{"id": "none-file-concept", "expect": "none", "called": false, "right": true}
+{"id": "none-search-known", "expect": "none", "called": false, "right": true}
+{"id": "none-greeting", "expect": "none", "called": false, "right": true}
+{"id": "none-told-not", "expect": "none", "called": false, "right": true}
+{"id": "none-calendar-advice", "expect": "none", "called": false, "right": true}
+{"id": "none-translate", "expect": "none", "called": false, "right": true}
+{"id": "none-code", "expect": "none", "called": false, "right": true}
