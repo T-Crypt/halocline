@@ -274,7 +274,9 @@ __device__ __forceinline__ float ldf(const float* p) { return *p; }
 __device__ __forceinline__ float ldf(const __nv_bfloat16* p) { return __bfloat162float(*p); }
 __device__ __forceinline__ void stf(float* p, float v) { *p = v; }
 __device__ __forceinline__ void stf(__nv_bfloat16* p, float v) { *p = __float2bfloat16_rn(v); }
-template <int HDW, class In = float, class QO = float>
+// Q4 (rotated q4_0 K and V, --kv q4_0) is its own instantiation, never a runtime branch: the instantiations the other
+// formats run are the code they were before the 4-bit cache existed (q4 is the last argument, so theirs keep their offsets).
+template <int HDW, class In = float, class QO = float, bool Q4 = false>
 // (launched through launch_pdl: the earlier kernels' outputs are read after pdl_wait, so they are not __restrict__)
 __global__ void __launch_bounds__(HDW) attn_qk_prepare_kernel(const In* q_full, const In* k, const In* v,
                                                             const float* __restrict__ q_norm,
@@ -319,12 +321,7 @@ __global__ void __launch_bounds__(HDW) attn_qk_prepare_kernel(const In* q_full, 
     if (fa) cell -= far_kv.at;
     const int64_t at = (cell * n_kv + head) * HDW + d;
     const float vv = ldf(v + (t * n_kv + head) * HDW + d);
-    if (!q8.k && !k8v4.k && !q4.k) {
-        (fa ? (__half*) far_kv.k : k_cache)[at] = __float2half_rn(y);
-        (fa ? (__half*) far_kv.v : v_cache)[at] = __float2half_rn(vv);
-        return;
-    }
-    if (q4.k) {
+    if constexpr (Q4) {
         // Q4: K (after its rope) and V are both rotated HERE, one block is one 256-wide row with a thread a dim, then
         // quantized with the shared q4_0 rule (kv_q4_layout.hpp).  H . H = 1, so a query rotated by the same transform
         // gives the unrotated Q K^T, and the attention output comes back rotated (the caller rotates it back once a
@@ -352,6 +349,13 @@ __global__ void __launch_bounds__(HDW) attn_qk_prepare_kernel(const In* q_full, 
         KvQ4Block* vblk = reinterpret_cast<KvQ4Block*>(q4.v + off) + (d >> 5);
         if ((d & 31) == 0) { kblk->d = kb; vblk->d = vb; }
         if ((d & 16) == 0) { kblk->qs[d & 15] = kbyte; vblk->qs[d & 15] = vbyte; }
+        return;
+    } else {
+        (void) q4;
+    }
+    if (!q8.k && !k8v4.k) {
+        (fa ? (__half*) far_kv.k : k_cache)[at] = __float2half_rn(y);
+        (fa ? (__half*) far_kv.v : v_cache)[at] = __float2half_rn(vv);
         return;
     }
     if (k8v4.k) {
@@ -711,7 +715,11 @@ void attn_qk_prepare(const float* q_full, const float* k, const float* v, const 
     const dim3 grid((unsigned) T, (unsigned) (n_head + n_kv));
     const int qs = gated ? 2 * hd : hd;
     const RopeSpec r = rope_tables(rope);
-    if (hd == 256)
+    if (q4.k)   // 256 wide, checked above
+        launch_pdl(attn_qk_prepare_kernel<256, float, float, true>, grid, dim3(256), 0, (cudaStream_t) stream, q_full, k, v, q_norm,
+                   k_norm, eps, r, pos, n_head, n_kv, q_out, (__half*) k_cache, (__half*) v_cache, cell0, qs, cap, cell0_dev, q8,
+                   far_kv, k8v4, q4);
+    else if (hd == 256)
         launch_pdl(attn_qk_prepare_kernel<256>, grid, dim3(256), 0, (cudaStream_t) stream, q_full, k, v, q_norm, k_norm, eps, r,
                    pos, n_head, n_kv, q_out, (__half*) k_cache, (__half*) v_cache, cell0, qs, cap, cell0_dev, q8, far_kv, k8v4, q4);
     else
@@ -736,9 +744,14 @@ void attn_qk_prepare_bf16(const uint16_t* q_full, const uint16_t* k, const uint1
     const __nv_bfloat16* qf = reinterpret_cast<const __nv_bfloat16*>(q_full);
     const __nv_bfloat16* kk = reinterpret_cast<const __nv_bfloat16*>(k);
     const __nv_bfloat16* vv = reinterpret_cast<const __nv_bfloat16*>(v);
-    launch_pdl(attn_qk_prepare_kernel<256, __nv_bfloat16, __nv_bfloat16>, grid, dim3(256), 0, (cudaStream_t) stream, qf, kk, vv,
-               q_norm, k_norm, eps, r, pos, n_head, n_kv, reinterpret_cast<__nv_bfloat16*>(q_out), (__half*) k_cache, (__half*) v_cache, cell0, 512, cap,
-               (const int32_t*) nullptr, q8, far_kv, k8v4, q4);
+    if (q4.k)
+        launch_pdl(attn_qk_prepare_kernel<256, __nv_bfloat16, __nv_bfloat16, true>, grid, dim3(256), 0, (cudaStream_t) stream, qf,
+                   kk, vv, q_norm, k_norm, eps, r, pos, n_head, n_kv, reinterpret_cast<__nv_bfloat16*>(q_out), (__half*) k_cache,
+                   (__half*) v_cache, cell0, 512, cap, (const int32_t*) nullptr, q8, far_kv, k8v4, q4);
+    else
+        launch_pdl(attn_qk_prepare_kernel<256, __nv_bfloat16, __nv_bfloat16>, grid, dim3(256), 0, (cudaStream_t) stream, qf, kk, vv,
+                   q_norm, k_norm, eps, r, pos, n_head, n_kv, reinterpret_cast<__nv_bfloat16*>(q_out), (__half*) k_cache, (__half*) v_cache, cell0, 512, cap,
+                   (const int32_t*) nullptr, q8, far_kv, k8v4, q4);
     check("attn_qk_prepare_bf16");
 }
 

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8093
+  },
+  "models": [
+    {
+      "model": "models/Qwen3.8-27B-UD-Q4_K_XL-vision.halo",
+      "gpu": "0",
+      "spec": 8,
+      "long-context": true,
+      "vision": "cpu"
+    }
+  ]
+}
