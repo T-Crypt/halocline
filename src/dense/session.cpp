@@ -46,7 +46,8 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
         blockbytes = bd.layers.size() * 2 * (size_t) (bd.window + 256) * bd.n_kv * bd.head_dim * 2 +
                       (size_t) kWindow * (g.n_embd * 4 + 16) + 64 * 256;
     }
-    const uint64_t dev_bytes = session_bytes(g, m.o.max_context, mtp, m.o.kv, m.o.kv_resident, m.o.mtp_format, m.o.mtp_window);
+    const uint64_t dev_bytes = session_bytes(g, m.o.max_context, mtp, m.o.kv, m.o.kv_resident, m.o.mtp_format, m.o.mtp_window,
+                                              m.o.draft_vocab_rows);
     if (!st.arena.reserve(dev_bytes + blockbytes)) {
         err = m.o.arch + ": out of device memory for a session of " + std::to_string((long long) m.o.max_context) +
               " cells (" + std::to_string((unsigned long long) (dev_bytes >> 20)) + " MiB); lower --max-context or --parallel";
@@ -156,10 +157,11 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
         st.hid = st.arena.take<float>((size_t) kWindow * g.n_embd);
         st.tail = st.arena.take<float>(g.n_embd);
         st.chain = st.arena.take<float>(2 * (size_t) g.n_embd);
-        st.dlogits = st.arena.take<float>(g.n_vocab);
+        st.dlogits = st.arena.take<float>(m.o.draft_vocab_rows > 0 ? m.o.draft_vocab_rows : g.n_vocab);
         st.lp = st.arena.take<float>((size_t) kWindow * kernels::kLogprobStride);
         st.win_tok = st.arena.take<int32_t>(kWindow);
-        if (!st.win_tok || (m.o.mtp_format == KvFormat::Int8 ? !st.mtp_kq.vs : !st.mtp_vc)) {
+        st.dpick = st.arena.take<int32_t>(1);
+        if (!st.win_tok || !st.dpick || (m.o.mtp_format == KvFormat::Int8 ? !st.mtp_kq.vs : !st.mtp_vc)) {
             err = m.o.arch + ": the drafter's buffers do not fit the session's arena";
             return false;
         }
@@ -191,6 +193,10 @@ bool init_state(Model& m, SessionState& st, std::string& err) {
     }
     if (ng && cudaMemsetAsync(st.gdn, 0, ng * st.gdn_floats * 4, st.stream) != cudaSuccess) {
         err = "clearing the recurrent state failed";
+        return false;
+    }
+    if (st.dpick && cudaMemsetAsync(st.dpick, 0, sizeof(int32_t), st.stream) != cudaSuccess) {
+        err = "clearing the drafter's pick failed";
         return false;
     }
     return cudaStreamSynchronize(st.stream) == cudaSuccess;

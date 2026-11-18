@@ -3,6 +3,8 @@
 
 #include "halo/kernels/gdn_prompt.hpp"
 #include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/head_rows.hpp"
+#include "halo/kernels/iq_kernels.hpp"
 #include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/kernels/logprobs.hpp"
 #include "halo/kernels/nvfp4_planes.hpp"
@@ -15,6 +17,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
 
 namespace halo::dense {
 
@@ -325,16 +328,122 @@ uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, KvF
 }
 
 uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, KvFormat kv, int64_t kv_resident,
-                       KvFormat mtp_format, int64_t mtp_window) {
+                       KvFormat mtp_format, int64_t mtp_window, int64_t draft_rows) {
     uint64_t b = 64 * 256;
     for (int il = 0; il < g.n_layers; ++il) b += session_layer_bytes(g, il, max_context, kv, kv_resident);
     // the drafter's cells: its own layer's format, and with a window only the ring's
     const int64_t cap = mtp ? mtp_ring_cap(max_context, mtp_window) : 0;
+    // the drafter's head row (a --draft-vocab subset is that many rows wide), its picks' rows and the zero pick
+    const uint64_t head_rows = draft_rows > 0 ? (uint64_t) draft_rows : (uint64_t) g.n_vocab;
     const uint64_t drafter =
         mtp ? (uint64_t) (cap > 0 ? cap : max_context) * kv_cell_bytes(g, mtp_format) +
-                  ((uint64_t) (kWindow + 3) * g.n_embd + g.n_vocab + (uint64_t) kWindow * 64) * 4
+                  ((uint64_t) (kWindow + 3) * g.n_embd + head_rows + (uint64_t) kWindow * 64 + 1) * 4
             : 0;
     return b + drafter + (uint64_t) kWindow * g.n_vocab * 4;
+}
+
+uint64_t draft_head_bytes(const Linear& head, int64_t n) {
+    if (n <= 0) return 0;
+    const size_t row = kernels::iq_row_bytes(head.type, head.cols);
+    return row == 0 ? 0 : (uint64_t) n * row;
+}
+
+bool read_draft_vocab(const std::string& path, int64_t n_vocab, std::vector<int32_t>& ids, std::string& err) {
+    ids.clear();
+    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    if (!f) {
+        err = "cannot open " + path;
+        return false;
+    }
+    const std::streamoff size = f.tellg();
+    if (size <= 0 || size % 4 != 0) {
+        err = path + ": " + std::to_string((long long) size) + " bytes is not a list of int32 token ids";
+        return false;
+    }
+    f.seekg(0);
+    std::vector<int32_t> got((size_t) size / 4);
+    if (!f.read(reinterpret_cast<char*>(got.data()), size)) {
+        err = path + ": short read";
+        return false;
+    }
+    if (got.size() > (size_t) n_vocab) {
+        err = path + ": " + std::to_string((long long) got.size()) + " ids for a vocabulary of " + std::to_string((long long) n_vocab);
+        return false;
+    }
+    for (size_t i = 0; i < got.size(); ++i) {
+        const int32_t id = got[i];
+        if (id < 0 || id >= n_vocab) {
+            err = path + ": id " + std::to_string((long long) id) + " at row " + std::to_string((long long) i) +
+                  " is outside [0, " + std::to_string((long long) n_vocab) + ")";
+            return false;
+        }
+        if (i > 0 && id <= got[i - 1]) {
+            err = path + ": row " + std::to_string((long long) i) + " (id " + std::to_string((long long) id) +
+                  ") does not follow id " + std::to_string((long long) got[i - 1]) + ": the list must be strictly ascending";
+            return false;
+        }
+    }
+    ids = std::move(got);
+    return true;
+}
+
+bool gather_draft_head(const Linear& head, const std::vector<int32_t>& ids, void* stream, Linear& out, const int32_t*& map,
+                       std::string& err) {
+    out = Linear{};
+    map = nullptr;
+    if (ids.empty()) {
+        err = "the draft vocabulary names no tokens";
+        return false;
+    }
+    if (head.w == nullptr || head.rows <= 0 || head.cols <= 0) {
+        err = "the pack has no head to gather the draft vocabulary from";
+        return false;
+    }
+    if (head.scale != nullptr || head.row_scales != nullptr) {
+        err = "the head carries a tensor scale, so its rows are not whole blocks a gather can copy";
+        return false;
+    }
+    if (!kernels::native_mmvq_supported(head.type)) {
+        err = "the head is GGUF type " + std::to_string(head.type) +
+              ", which the drafter's one-row product does not read natively";
+        return false;
+    }
+    const size_t row = kernels::iq_row_bytes(head.type, head.cols);
+    if (row == 0) {
+        err = "the head's rows are not whole blocks of its type";
+        return false;
+    }
+    const uint64_t bytes = (uint64_t) row * ids.size();
+    uint8_t* rows = nullptr;
+    int32_t* m = nullptr;
+    if (cudaMalloc((void**) &rows, bytes) != cudaSuccess) {
+        cudaGetLastError();
+        err = "out of device memory for the draft head (" + std::to_string((unsigned long long) (bytes >> 20)) + " MiB)";
+        return false;
+    }
+    if (cudaMalloc((void**) &m, ids.size() * sizeof(int32_t)) != cudaSuccess) {
+        cudaGetLastError();
+        cudaFree(rows);
+        err = "out of device memory for the draft vocabulary's id map";
+        return false;
+    }
+    const bool copied = cudaMemcpyAsync(m, ids.data(), ids.size() * sizeof(int32_t), cudaMemcpyHostToDevice,
+                                        (cudaStream_t) stream) == cudaSuccess;
+    if (!copied) {
+        cudaGetLastError();
+        cudaFree(rows);
+        cudaFree(m);
+        err = "the draft vocabulary's id map upload failed";
+        return false;
+    }
+    kernels::gather_rows((const uint8_t*) head.w, (int64_t) row, m, (int64_t) ids.size(), rows, stream);
+    out = head;
+    out.w = rows;
+    out.rows = (int64_t) ids.size();
+    out.scale = nullptr;
+    out.row_scales = nullptr;
+    map = m;
+    return true;
 }
 
 uint64_t block_session_bytes(const Geometry& g, const BlockDrafter& bd) {
@@ -391,6 +500,7 @@ bool Model::ready_products(std::string& err) {
     for (const Layer& L : w.layers) all.push_back(&L);
     if (o.drafter == Drafter::Mtp) all.push_back(&w.mtp.layer);
     std::vector<const Linear*> ls = {&w.head};
+    if (w.draft_head.rows > 0) ls.push_back(&w.draft_head);   // --draft-vocab: its rows' products are registered too
     if (o.drafter == Drafter::Mtp) ls.push_back(&w.mtp.fc);
     if (o.drafter == Drafter::Block) {
         for (const Linear& l : w.dflash.fc) ls.push_back(&l);
