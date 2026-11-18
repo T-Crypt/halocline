@@ -1,0 +1,4 @@
+halocline-bench: starting the engine for the quality gate
+halocline-bench: engine: qwen35: --max-context 262152 is beyond the model's 262144 (--rope-scaling yarn --rope-scale F extends it)
+halocline-bench: error: the engine exited before READY
+  halo: error: qwen35: --max-context 262152 is beyond the model's 262144 (--rope-scaling yarn --rope-scale F extends it)

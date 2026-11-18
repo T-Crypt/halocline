@@ -1,0 +1,8 @@
+halocline-bench: starting ~/wt/halocline-prompt-l2/bin/halocline (log: ~/homelab/state/evals/2026-11-17/halocline-prompt-l2/int8-head-b/engine.log)
+halocline-bench: loading 16.1 GiB: cuda0 0.0 / 16.1 GiB
+halocline-bench: loading cuda0 16.1 / 16.1 GiB done (3 s)
+halocline-bench: engine ready in 4 s
+  run 1 pp16384 16676 tokens, 3444 t/s engine, 3421 t/s wall
+  run 1 pp36864 37485 tokens, 3253 t/s engine, 3245 t/s wall
+  run 1 pp65536 66617 tokens, 3018 t/s engine, 3014 t/s wall
+halocline-bench: error: pp131072 (run 1): ERR context_overflow prompt=133205 max_new=1 context=133120: prompt (133205 tokens) + max_new (1) exceeds the context (133120)

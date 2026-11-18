@@ -1,0 +1,5 @@
+halocline-bench: starting ~/wt/halocline-prompt-l2/bin/halocline (log: ~/homelab/state/evals/2026-11-17/halocline-prompt-l2/131k-k8v4-kv-a/engine.log)
+halocline-bench: loading 16.1 GiB: cuda0 0.0 / 16.1 GiB
+halocline-bench: loading cuda0 16.1 / 16.1 GiB done (3 s)
+halocline-bench: engine ready in 4 s
+  run 1 pp131072 133205 tokens, 2320 t/s engine, 2318 t/s wall

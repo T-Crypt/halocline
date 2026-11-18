@@ -1,0 +1,1 @@
+ok   /data/models/halocline/kld-bases/depth/qwen38-27b-bf16-depth261119-w1024-c16.kld: depth base, n_ctx 262144, scored from 261119 (1024 rows per chunk), 16 chunks, n_vocab 248320, 8153858072 bytes

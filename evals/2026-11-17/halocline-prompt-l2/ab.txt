@@ -1,0 +1,14 @@
+| KV | depth | head order (A, B) | kv order (A, B) | kv vs head |
+|---|---|---|---|---|
+| int8 | 16,384 | [3430, 3444] | [3438, 3435] | -0.01% |
+| int8 | 36,864 | [3253, 3253] | [3250, 3247] | -0.14% |
+| int8 | 65,536 | [3019, 3018] | [3016, 3015] | -0.10% |
+| k8v4 | 16,384 | [3363, 3366] | [3358, 3361] | -0.15% |
+| k8v4 | 36,864 | [3109, 3110] | [3101, 3103] | -0.24% |
+| k8v4 | 65,536 | [2810, 2812] | [2805, 2807] | -0.18% |
+131,072: every arm stopped at context_overflow (prompt 133,205 > --max-context 133,120): not measured
+| int8 | 131,072 (window 6b, --max-context 135168) | [2613, 2609] | [2612, 2609] | -0.02% |
+| k8v4 | 131,072 (window 6b, --max-context 135168) | [2322, 2318] | [2320, 2317] | -0.06% |
+Verdict (2026-11-18 06:16): KV-head-major prompt order wins nowhere from 16K to 131K (-0.01% to -0.24%); the order
+test passes (bit-identical). Not kept: per CONTRIBUTING "a change that does not win does not merge". Branch prompt-l2
+(9770a55f) stays unmerged as the record.

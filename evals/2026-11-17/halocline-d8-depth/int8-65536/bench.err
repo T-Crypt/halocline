@@ -1,0 +1,5 @@
+halocline-bench: starting the engine for the quality gate
+halocline-bench: loading 16.1 GiB: cuda0 0.0 / 16.1 GiB
+halocline-bench: loading cuda0 16.1 / 16.1 GiB done (0 s)
+halocline-bench: engine ready in 4 s
+  quality 10/16 chunks, 499 s

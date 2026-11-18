@@ -87,3 +87,18 @@ format's scales; K8V4 is 1,024 bytes of K codes, 32 bytes of K scales and 576 by
   +0.00104 over K8V4 at 36K (paired), so each 4-bit half adds about 0.001; decode on par; prefill -15% at 36K (its
   prompt kernel runs 4 warps only). 262,144 cells fit only with both drafter levers (`--mtp-kv int8 --mtp-window 32768`).
   Whether these gaps grow with depth is the depth gate's question (roadmap D8 item 3).
+
+## KV formats at depth (2026-11-18)
+
+The depth gate answers that question for K8V4: its cost does not grow. Each depth's base scores 1,024 rows after a
+prefix of that many tokens, 16 chunks ([`halocline-d8-depth`](../../evals/2026-11-17/halocline-d8-depth/)); compare
+formats within a depth, since each depth scores different text.
+
+| Depth | int8 | K8V4 (paired vs int8) | rotated 4-bit (paired vs int8) |
+|---|---|---|---|
+| 36,864 (the 100-chunk gate, [`halocline-d8-kv`](../../evals/2026-11-17/halocline-d8-kv/)) | 0.00582 | +0.00093 [+0.00074, +0.00113] | +0.00197 [+0.00167, +0.00228] |
+| 65,536 | 0.00418 | +0.00072 [+0.00050, +0.00095] | +0.00185 [+0.00135, +0.00234] |
+| 140,288 | 0.00494 | +0.00066 [+0.00050, +0.00082] | not run |
+| 174,080 | does not fit | 0.00654 alone | not run |
+
+Rotated 4-bit K and V at 261,119 has not run: that protocol needs 262,152 cells, past the model's 262,144.

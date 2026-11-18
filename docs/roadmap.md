@@ -106,6 +106,10 @@ profile to the dense window (the sparse path has one, `src/models/qwen4exp/decod
 (86.5 tok/s at 36K) already equals NInfer's own published prose at 64K (85.9), so the gap may sit mostly on structured
 output; struct is 153.8 tok/s at 351 GB/s.
 
+- **Tried and dropped 2026-11-18: KV-head-major prompt block order** (after llama.cpp #32407, which rotates K/V tile
+  reads under stream-K; Halocline has no stream-K, so the analog was the prompt kernel's block order, branch
+  `prompt-l2` 9770a55f, opt-in and bit-identical by test). ABBA on UD-Q4_K_XL, int8 and K8V4, 16K to 131K: it wins
+  nowhere (-0.01% to -0.24%, run spread about 0.05%). Not merged (`evals/2026-11-17/halocline-prompt-l2`).
 - **S1, token-tiled decode attention.** `decode_mma_kernel` holds 16 (row, head) pairs a block, so with 6 query heads a
   KV head it reads the window's KV `ceil(6T/16)` times (2x at T=4, 4x at T=9). NInfer's small-T kernel keeps all of a
   KV head's window rows in one CTA (`TokenTile * GroupSize <= 48`) and reads each cell once. The only lever whose value
@@ -168,6 +172,11 @@ The work, in order:
    **Measured 2026-11-17:** `--mtp-kv int8` leaves the 100-chunk gate's scored rows byte-identical to fp16 (the verify
    pass decides every token) and decode within 2%, so it is the recommended setting with every format; the ring stays
    a last resort because it gives up parking and the conversation cache.
+   **2026-11-18:** the ring was broken past one lap: `gqa_decode_attn` swept it from chunk 0, so beyond position
+   `cap` the drafter read no cell (NaN logits, "the drafter failed" at depth 140,288). Fixed on branch `mtp-ring-fix`
+   (sweep from the window's first chunk; a ring case in `gqa_attn_parity` reads max abs 0 against an absolute cache).
+   Only the dense drafter passes a ring, so the main decode and the sparse path are unchanged
+   (`evals/2026-11-17/halocline-d8-depth`).
 3. **The quant is UD-Q4_K_XL** (maintainer decision, 2026-11-17: 2.8 times lower KLD than UD-IQ4_XS outweighs context).
    Its context by KV format, with ~4.6 GiB left for KV once the MTP KV is a ring: int8 ~142K, K8V4 ~184K, rotated 4-bit
    K and V ~261K (262K after a small workspace trim). **The deciding measurement:** UD-Q4_K_XL with K8V4 at 184K against
@@ -177,6 +186,12 @@ The work, in order:
    difference says it costs nothing that matters. **Whichever KV
    format wins at depth becomes the dense default, and this item stays open until that profile ships.** Until then the
    served profile is UD-Q4_K_XL, int8 KV, 122,880 tokens (the largest that fits with MTP and vision today).
+   **Measured 2026-11-18** (`evals/2026-11-17/halocline-d8-depth`, 16 chunks x 1,024 rows after the prefix): K8V4
+   over int8 +0.00072 [+0.00050, +0.00095] at 65,536 and +0.00066 [+0.00050, +0.00082] at 140,288, the same cost as
+   at 36K; K8V4 alone at 174,080: 0.00654 mean KLD, 96.62% top-1. Rotated 4-bit K and V at 65,536: +0.00185
+   [+0.00135, +0.00234] over int8, 2.6 times K8V4's increment. Its 261,119 arm did not run: the protocol needs
+   262,152 cells there (the engine keeps 8 cells past the last generated token). Decode and prefill at each format's
+   maximum are still open.
 
 Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
 
