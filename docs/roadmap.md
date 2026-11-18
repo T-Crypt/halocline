@@ -155,7 +155,10 @@ The work, in order:
    kernel had a sign bug for blocks with a positive largest value (`2b6095a4`). The planner reaches 175,629 cells with
    `--mtp-kv int8`. Rotated 4-bit K and V (`--kv q4_0`, 1,152 B a cell) is on branch `d8-q4`: GPU parity passes
    (decode 0.00082, prompt 0.0234 against fp64), planner 241,285 cells with `--mtp-kv int8` and 265,176 adding the 32K
-   ring (262,144 fits with both, 53 MiB to spare); its KLD has not run.
+   ring (262,144 fits with both, 53 MiB to spare). **Its KLD at 36K** (`evals/2026-11-17/halocline-d8-kv`, arm `q4`):
+   0.00779, paired +0.00197 [+0.00167, +0.00228] over int8 and +0.00104 [+0.00082, +0.00125] over K8V4, top-1 96.07%;
+   decode on par; prefill 3,151 / 2,745 at 16K / 36K (-8% / -15%, 4 warps). Not merged into `d8-integration` yet: it
+   changes shared kernels non-bitwise (W7's SASS diff), so it carries the sparse gate before it merges.
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
    **2026-11-17:** both levers landed as opt-in flags, the default unchanged: `--mtp-kv fp16|int8` (the drafter's cache

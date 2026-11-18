@@ -70,9 +70,10 @@ attention output is rotated back once, which is exact: a Hadamard transform comm
 | `fp16` | 4,096 | 71,188 | not scored (the reference format) |
 | `int8` | 2,112 | 130,832; 138,061 with `--mtp-kv int8` | 0.00582, top-1 96.67% |
 | `k8v4` | 1,632 | 164,094; **175,629 with `--mtp-kv int8`**; 187,183 adding the 32K drafter ring | 0.00676, top-1 96.39%: +0.00093 [+0.00074, +0.00113] paired |
+| `q4_0` (branch `d8-q4`) | 1,152 | 220,035; 241,285 with `--mtp-kv int8`; **265,176 adding the 32K ring** (262,144 fits) | 0.00779, top-1 96.07%: +0.00197 [+0.00167, +0.00228] paired |
 
 Context numbers from `tests/kernels/dense_kv_planner_test.cpp` with the planner's own formula and the 7,597 MiB
-UD-Q4_K_XL leaves free with vision packs (`evals/2026-11-17/halocline-dense-quality/fit/`). The 262,144-cell totals at
+UD-Q4_K_XL leaves free with vision packs; the q4_0 row from the same test on `d8-q4` (`evals/2026-11-17/halocline-dense-quality/fit/`). The 262,144-cell totals at
 int8 (11,830 MiB) and fp16 (19,766 MiB) are pinned by the same test. A cell is 4 KV heads of 256 values plus the
 format's scales; K8V4 is 1,024 bytes of K codes, 32 bytes of K scales and 576 bytes of V blocks. KLD from
 [`evals/2026-11-17/halocline-d8-kv`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-kv/).
@@ -82,5 +83,7 @@ format's scales; K8V4 is 1,024 bytes of K codes, 32 bytes of K scales and 576 by
 - **The drafter's cache is free**: `--mtp-kv int8` gives byte-identical scored rows to `--mtp-kv fp16`, because the
   verify pass decides every token. It buys 7,000 to 11,500 cells and is the recommended setting with either format.
 - Speed: decode within 2% of int8; prefill -2.1% at 16K and -4.6% at 36K (8-warp kernel, ABBA).
-- 262,144 cells need 4-bit K too: rotated q4_0 K and V (`--kv q4_0`, 1,152 bytes a cell) is on branch `d8-q4`, with
-  its parity test passing on the GPU and no KLD yet (roadmap D8 item 3).
+- 262,144 cells need 4-bit K too: rotated q4_0 K and V (`--kv q4_0`, 1,152 bytes a cell, branch `d8-q4`) costs
+  +0.00104 over K8V4 at 36K (paired), so each 4-bit half adds about 0.001; decode on par; prefill -15% at 36K (its
+  prompt kernel runs 4 warps only). 262,144 cells fit only with both drafter levers (`--mtp-kv int8 --mtp-window 32768`).
+  Whether these gaps grow with depth is the depth gate's question (roadmap D8 item 3).

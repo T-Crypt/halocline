@@ -8,7 +8,7 @@ The path runs since 2026-11-17 on Unsloth's v3.1 GGUF quants. The
 decided, D2 to D4 are done, D5 is open, D6 has the state round trip done with the build-to-build greedy identity open,
 D7 is open, and D8 is open. D8 is 262,144 tokens of context with MTP and vision on one 24 GB card. The served profile
 is 122,880 tokens at int8 KV; K8V4 KV with the drafter's int8 cache reaches 175,629, and 262,144 needs 4-bit K and V
-(on branch `d8-q4`, not yet scored).
+(branch `d8-q4`: +0.00104 KLD over K8V4 at 36K).
 
 From the [model card and `config.json`](https://huggingface.co/Qwen/Qwen3.8-27B):
 
@@ -62,6 +62,8 @@ The BF16 reference for the quality gate is `qwen38-27b-bf16-base.kld`; the metho
   [`halocline-d8-kv`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-kv). +0.00093 mean KLD
   over int8 at 36K (0.00676 against 0.00582), decode within 2%, prefill -4.6% at 36K, 175,629 tokens of context with
   `--mtp-kv int8`. The drafter's cache format leaves the scored output byte-identical.
+- Rotated 4-bit K and V (D8 item 3, branch `d8-q4`): 0.00779 mean KLD at 36K, +0.00104 over K8V4; 262,144 tokens fit
+  with `--mtp-kv int8 --mtp-window 32768`. Same eval, arm `q4`.
 
 For long context, the planner's setting (175,616 = the 175,629-cell maximum rounded down to 256; not load-probed yet) is:
 
