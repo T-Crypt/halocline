@@ -1,131 +1,196 @@
 # `.halo` model file
 
-> [!WARNING]
-> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
+One file holds what the engine, the server and the vision sidecar load: the source GGUF's tensors and metadata, the
+tokenizer and chat template, and, when the pack carries them, the drafter and the vision projector. Flags, expert
+placement and conversation state are not in it. The container comes from Basalt v0.4.1 (`d3b75742`); this page
+describes what this tree reads and writes.
 
-One file holds everything the engine, the server and the vision sidecar load: weights, tokenizer and chat template, MTP or DSpark
-drafter, 8-bit hyper-connection copies, vision projector, and the GGUF metadata with default sampling. Flags and the expert profile are
-not in it.
+## Layout
 
-- **Layout:** a 64 KiB header (magic `HALOCLMF`, version 2, up to 511 named sections with offset, size and SHA-256),
-  then sections aligned to 2 MiB. A pack written before the rename carries `BASALTMF` (its `hc8` table `BASALTH8`);
-  both magics load and nothing rewrites a pack in place. Authoritative:
-  [model_format.hpp](../include/halo/core/model_format.hpp).
-- **Versions:** the engine reads version 2 only. Version 1 files convert with
-  [tools/migrations/halo_v1_to_v2.py](../tools/migrations/README.md), without a download. What changed:
-  [file format changes](halo-file-changelog.md).
+- **Header.** The first 64 KiB hold a 64-byte `FileHeader` and then one 128-byte `SectionEntry` per section: a name of
+  up to 63 bytes, the offset, the size, a SHA-256 and 16 reserved bytes. The directory lives in the header, so a pack
+  holds at most 511 sections ([model_format.hpp](../include/halo/core/model_format.hpp)).
+- **Magic.** A new pack carries `HALOCLMF`. `BASALTMF`, the magic of every file written before the rename, still loads;
+  no new pack carries it ([model_file.cpp](../src/core/model_file.cpp)).
+- **Version.** The engine reads 2 only. A version 1 file is refused with the migration's name
+  ([migrations](../tools/migrations/README.md)).
+- **Alignment and fill.** Every section starts at a multiple of 2 MiB and the bytes between sections are zero. Inside
+  `gguf`, every tensor starts at a multiple of 4096 ([model_file.py](../tools/model_file.py)).
+- **Checks on open.** The magic, the version, the section count, the file's length against the header's `file_bytes`,
+  and every section's alignment and bounds. Padding and the reserved bytes are not read.
+- **The extension decides nothing.** Nothing in the engine requires one; the programs that tell a pack from a raw GGUF
+  accept `.halo` and `.basalt` ([cuda_parity.cu](../tests/vision/cuda_parity.cu),
+  [ple_reader_test.cpp](../tests/ngram/ple_reader_test.cpp)).
 
-## Build a pack from a GGUF
+## `meta`
 
-```sh
-python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --mmproj MMPROJ.gguf --out MODEL.halo \
-    [--mtp-source DIR [--mtp-dense FILE]] [--draft-vocab FILE] [--compat-bf16] [--name NAME]
-```
+`meta` is a JSON object, parsed by the reader's own parser (`src/core/model_file.cpp`). The keys the converters write:
 
-`--help` describes every input. `--compat-bf16` converts GGUF projections stored as BF16 in another type. A pack built this way
-without the official tuned drafter is slower than the official file.
+| Key | Holds |
+|---|---|
+| `format`, `version` | `"halo"`, `2` |
+| `name` | the pack's name, which the server reports |
+| `arch` | the architecture id, written by the dense converter |
+| `converter` | the tool and, on a dense pack, the route: `{"tool": "tools/convert/convert.py", "path": "gguf_qwen35"}` |
+| `sources` | one record per input: `path`, `size` and `fingerprint_sha256_first_last_64mib_and_size` |
+| `gguf_kv` | the source GGUF's metadata, sampling defaults (`general.sampling.*`) included |
+| `tensors` | the tensor table, below |
+| `license` | the license name, and the quantizer or the license text where the license requires it |
+| `gguf` | `lossless`, `block_count`, and `renamed`: the MTP layer's source names to its `mtp.*` names |
+| `mtp` | the dense pack's drafter record (`layers`, `source`); on a sparse pack the drafter's source hash and format |
+| `vision` | `mmproj` and `mmproj_bytes` |
+| `conversions` | with `--compat-bf16`: each converted tensor's types, method and measured error |
+| `checkpoint`, `sections_from` | a checkpoint pack's config hash and methods, or the base pack a `--sections-from` build copied from |
 
-## DeepSeek pack
+`meta.converter` names the tool and the route, not a revision, a version or a host: nothing in the format records who
+built a pack or from which commit. `meta.sources` describes each input by its size and the SHA-256 of its first and last
+64 MiB, and `meta.gguf_kv` keeps the source's quantize keys (`quantize.imatrix.*` in the pack on disk).
 
-- `dense`: F32 and BF16 tensors. `gguf`: quantized non-expert tensors. `experts`: routed experts per layer.
-- `engram`: the Engram table alone (IQ4_NL rows of 144 bytes, or MXFP4 rows of 136 in the NVFP4 pack), 2 MiB aligned.
-- `vision/mmproj`: present only when built with `--mmproj`; the engine and `halocline-vision --model FILE.halo` read it in place.
-- `dspark/gguf`: DeepSeek's DSpark drafter. Attach it to an existing pack without copying weights:
+`meta.tensors[name]` holds `type`, `type_id`, `shape`, `bytes`, `offset` and, on a dense GGUF pack, `source_sha256`.
+It covers the `gguf` section; a sparse pack's dense pool has its own index in `dense.index`. The reader turns
+`gguf_kv` and `tensors` into one virtual GGUF whose tensor byte ranges sit in the `gguf` section, so an
+adapter reads a pack through the same interface it reads a GGUF with. An entry's offset is relative to the `gguf`
+section unless the entry names another `section`; the reader checks that a tensor fits its section, not that two
+tensors do not overlap. `meta.arch` is informational: the adapter is picked from `general.architecture` in `gguf_kv`
+([registry.cpp](../src/model/registry.cpp)).
 
-```sh
-python3 tools/convert/convert.py --dspark DRAFTER.gguf --into PACK.halo --undo-dir DIR
-```
+## Sections
 
-`--roll-back --into PACK.halo --undo-dir DIR` reverts it.
+| Section | Holds | Dense `qwen35` | Sparse `qwen4exp` |
+|---|---|---|---|
+| `meta` | the JSON above | yes | yes |
+| `tokenizer/<file>` | `vocab.json`, `merges.txt`, `token_type.json`, `tokenizer.json` and, when the source GGUF carries `tokenizer.chat_template`, `chat_template.jinja` ([tokenizer.py](../tools/tokenizer.py)) | yes | yes |
+| `gguf` | the source tensors in their GGUF bytes: every tensor of a dense pack, its drafter's included, and a sparse pack's quantized non-expert rows, whose float forms sit in `dense` | 866 tensors | 1,080 tensors |
+| `dense`, `dense.index` | the dense weight pool and its text index (`# dense index v3`), which also names the rows the pool leaves in `gguf` | no | yes |
+| `experts`, `experts.layout` | the routed experts' blobs and their text layout (`# experts v5` in the pack on disk; v6 for NVFP4 packs, v7 for a layer whose gate and up types differ) | no | yes |
+| `mtp/dense`, `mtp/dense.index`, `mtp/experts`, `mtp/draft_vocab` | the sparse path's drafter files; `mtp/draft_vocab` optional | no | yes, without one in this pack |
+| `hc8` | the 8-bit hyper-connection copies the sparse decoder reads | no | yes, required by that start |
+| `vision/mmproj` | the projector GGUF, whole | yes | only with `--mmproj` |
+| `vision/text_vocab` | a metadata-only GGUF of the text model's tokenizer | yes | only with `--mmproj` |
+| `engram`, `dspark/gguf` | reserved, see below | no | no |
 
-## DeepSeek NVFP4 pack
+`dense`, `dense.index`, `experts`, `experts.layout`, `mtp/*` and `hc8` belong to the sparse path. A dense pack carries
+none of them: its 64 main layers and its MTP layer are all tensors in `gguf`.
 
-From NVIDIA's checkpoint ([nvidia/DeepSeek-V4.1-Flash-1017-NVFP4](https://huggingface.co/nvidia/DeepSeek-V4.1-Flash-1017-NVFP4)),
-with the tokenizer, metadata, vision projector and DSpark drafter of a DeepSeek pack (`--sections-from`). The routed experts move
-bit for bit; the FP8 projections (32 x 32 block scales) become Q8_0 of their exact values, BF16 where the base pack reads BF16;
-the MXFP4 Engram rows are kept; each tensor is checked against the base pack's. `--stream-shards` lets the shards arrive while
-it runs (downloaded in file order by another process) and deletes each once used, so the disk holds the output and a shard or
-two (about 430 GB). The routed experts' shards and those holding the other tensors and the Engram tables are needed; the drafter
-and vision shards are not.
+### Qwen3.8-27B pack
 
-```sh
-python3 tools/convert/convert.py --sections-from DeepSeek-V4.1-Flash-1017-UD-IQ1_M.halo --checkpoint nvidia-ds \
-    --stream-shards --out DeepSeek-V4.1-Flash-1017-NVFP4.halo --name "DeepSeek-V4.1-Flash-1017 NVFP4"
-```
+A dense `qwen35` pack. `Qwen3.8-27B-UD-Q4_K_XL-vision.halo`, read with `tools/model_file.py`:
 
-## Flash-Next NVFP4 pack
+| Section | Bytes |
+|---|---|
+| `tokenizer/chat_template.jinja` | 9,993 |
+| `tokenizer/merges.txt` | 3,353,258 |
+| `tokenizer/token_type.json` | 744,960 |
+| `tokenizer/tokenizer.json` | 531 |
+| `tokenizer/vocab.json` | 5,737,005 |
+| `gguf` | 17,649,160,192 |
+| `vision/mmproj` | 931,146,432 |
+| `vision/text_vocab` | 10,945,408 |
+| `meta` | 8,137,817 |
 
-The official file is NVIDIA's checkpoint ([nvidia/Qwen3.8-Flash-Next-NVFP4](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4),
-revision `fc694b54`) with dense projections as Q6_K. The converter reads the safetensors directly: experts move bit for bit, dense
-tensors are quantized once from BF16.
+The file is 18,622,458,969 bytes. The sections sum to 18,609,235,596 and the 2 MiB alignment of each one accounts for
+the rest. The 866 tensors in `gguf` are stored in the source GGUF's types (F32, Q3_K, Q4_K, Q5_K, Q6_K, Q8_0, IQ4_NL
+and IQ4_XS in this pack), 15 of them under `mtp.*`.
 
-```sh
-hf download nvidia/Qwen3.8-Flash-Next-NVFP4 --revision fc694b54 --local-dir nvidia
+### Qwen3.8-Flash-Next pack
 
-# 6-bit dense (the official file)
-python3 tools/convert/convert.py --sections-from Qwen3.8-FN-UD-Q4_K_XL.halo --checkpoint nvidia \
-    --out Qwen3.8-FN-NVIDIA-NVFP4.halo --name "Qwen3.8-Flash-Next NVIDIA-NVFP4"
+A sparse `qwen4exp` pack. `QFN-UD-IQ4_XS-v3.1-compat-mtp.halo` holds 15 sections: the same `meta` and `tokenizer/*`,
+`gguf`, `dense`, `dense.index`, `experts`, `experts.layout`, `mtp/dense`, `mtp/dense.index`, `mtp/experts` and `hc8`. It
+has no vision section because it was built without a projector, and no `mtp/draft_vocab`.
 
-# 8-bit dense variant
-python3 tools/convert/convert.py --sections-from Qwen3.8-FN-UD-Q4_K_XL.halo --checkpoint nvidia --dense-q8-0 \
-    --out Qwen3.8-FN-NVIDIA-NVFP4-Q8.halo --name "Qwen3.8-Flash-Next NVIDIA-NVFP4"
-```
+## Drafters
 
-`--mtp-dense FILE` (the `mtp/dense` bytes of an official NVFP4, UD-IQ1_M, UD-IQ2_XS or UD-IQ3_XXS pack) swaps in a tuned drafter layer; the converter
-records it in `meta.mtp.dense`. Output is about 122 GiB (123 GiB for the 8-bit variant). The base's vocabulary must be NVIDIA's.
+### The MTP layer
 
-## Qwen3.8-27B pack
+A dense pack stores the source GGUF's drafter layer as `mtp.*` tensors inside `gguf`, not as a section: `mtp.fc.weight`,
+`mtp.pre_fc_norm_embedding.weight`, `mtp.pre_fc_norm_hidden.weight`, `mtp.norm.weight`, the attention and FFN
+projections, and the norms ([gguf_qwen35.py](../tools/convert/gguf_qwen35.py)). The converter renames the last block's
+`blk.<n>.*` and `blk.<n>.nextn.*` tensors; `meta.gguf.renamed` records both names and `meta.mtp` records where they
+came from. The adapter reads them when `--spec` is 2 or more ([adapter.cpp](../src/models/qwen35/adapter.cpp)).
 
-The published pack comes from QUASAR's quantization-aware NVFP4 checkpoint
-([QUASAR-QAT/Qwen3.8-27B-QUASAR-NVFP4](https://huggingface.co/QUASAR-QAT/Qwen3.8-27B-QUASAR-NVFP4), revision `4a22293a`,
-Apache-2.0, every projection NVFP4 in compressed-tensors' form) alone, no base pack: tokenizer, metadata, MTP layer and vision
-tower come from the checkpoint's own files. `--drafter` adds the DFlash 2 block drafter
-([z-lab/Qwen3.8-27B-DFlash2](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2), revision `50307d4c`).
+A sparse pack stores its drafter as sections: `mtp/dense` (the BF16 tensors from
+[mtp_fetch.py](../tools/convert/mtp_fetch.py)), `mtp/dense.index`, `mtp/experts`, and `mtp/draft_vocab` when the head
+may propose a token subset only. Its adapter turns `--spec` on when the first three are present
+([adapter.cpp](../src/models/qwen4exp/adapter.cpp)).
 
-```sh
-hf download QUASAR-QAT/Qwen3.8-27B-QUASAR-NVFP4 --revision 4a22293a --local-dir quasar
-hf download z-lab/Qwen3.8-27B-DFlash2 --revision 50307d4c --local-dir dflash2
-python3 tools/convert/convert.py --checkpoint quasar --drafter dflash2 --out Qwen3.8-27B-QUASAR-NVFP4.halo --name "Qwen3.8-27B QUASAR NVFP4"
-```
+### The DFlash 2 block drafter
 
-- `gguf`: every tensor in llama.cpp's `qwen35` names. GDN, attention and MLP projections move bit for bit as `NVFP4_PLANES`
-  (type 45, below), `1 / weight_global_scale` in FP32 (rounded once) as `<name>.scale`. The GDN a and b projections (NVFP4 in
-  the checkpoint, 48 rows) become BF16 of their values, rounded once to nearest. The MTP layer's and the drafter's BF16
-  projections Q8_0; token embedding BF16 as stored; norms F32 with the offset folded in (exact); GDN value heads in the GGUF
-  order (rows of qkv and z, columns of the out projection, moved whole).
-- The BF16 output head becomes `F8_E4M3` rows (type 44: one byte per value, Halocline's own type id), each row's FP32 scale (its
-  amax / 448) in `output.scale` (F32 [rows]), each value the nearest E4M3 code. `--head nvfp4` rounds it to `NVFP4_PLANES`
-  instead (tensor scale amax / (6 x 448), per 16 values the UE4M3 scale with the least squared error among half to four times
-  amax / 6): 0.72 GB instead of 1.27 GB, nine times the squared error ([precision](precision/qwen38-27b.md)).
-- `vision/mmproj`: the BF16 tower written as llama.cpp's clip GGUF (`qwen3vl_merger`); `vision/text_vocab` beside it.
-- The drafter's feature projection is stored as one block per target layer (`dflash.fc.N`), so the engine projects each
-  layer's rows as the layer ends. 19.7 GiB with the drafter (21,149,505,930 bytes, SHA-256
-  `5ec89e71b4bd461a5abf607825d3cd99e74d2476b8ba087fd690f09a067919ba` for the published file); about a minute on the default
-  16 converter processes. The engine refuses a 27B pack whose MLP and head are NVFP4 in ggml blocks (type 40, before
-  NVFP4_PLANES) and asks for a re-conversion.
+A dense pack built with `--drafter` carries the block drafter as `dflash.*` tensors inside `gguf`: one
+`dflash.fc.<j>.weight` per target layer, `dflash.hidden_norm.weight`, `dflash.norm.weight`, `dflash.blk.<l>.*` for its
+attention, FFN and the two convolutions, and the selector's three tensors. The shape and the target layers are
+`qwen35.dflash.*` keys in `gguf_kv`. The converter writes them ([checkpoint_qwen35.py](../tools/convert/checkpoint_qwen35.py))
+and the qwen35 adapter reads them when they are present ([adapter.cpp](../src/models/qwen35/adapter.cpp)). No pack on
+this machine carries them, so this path is read from the code only.
 
-NVIDIA's checkpoint ([nvidia/Qwen3.8-27B-NVFP4](https://huggingface.co/nvidia/Qwen3.8-27B-NVFP4), revision `482ca0f3`) converts
-with the same command:
+## Vision
 
-```sh
-hf download nvidia/Qwen3.8-27B-NVFP4 --revision 482ca0f3 --local-dir nvidia
-python3 tools/convert/convert.py --checkpoint nvidia --drafter dflash2 --out Qwen3.8-27B-NVFP4.halo --name "Qwen3.8-27B NVFP4"
-```
+`vision/mmproj` is the projector GGUF copied whole. The engine opens the section in the pack, and the server's vision
+config names the pack so the sidecar opens the section itself ([modelfile.py](../serve/engine/modelfile.py)). A start
+with `--vision` reads the same section in the engine. `vision/text_vocab` is a metadata-only GGUF of the text model's
+tokenizer, written beside the projector ([pack_vision.py](../tools/convert/pack_vision.py)); nothing in this tree reads
+it today.
 
-- Its MLP and output head are NVFP4 and move bit for bit as `NVFP4_PLANES` with each matrix's FP32 `weight_scale_2` as
-  `<name>.scale`; its GDN and attention projections are FP8 and keep their E4M3 codes as `F8_E4M3` with each matrix's FP32
-  `weight_scale` as `<name>.scale`. Everything else as above. About 22 GiB with the drafter.
+## Tensor types
+
+Most tensors keep the GGUF type the source stores: F32, BF16, Q8_0, Q4_K to Q6_K and the i-quants. The checkpoint
+converter adds two of Halocline's own.
+
+### `F8_E4M3` (tensor type 44)
+
+One E4M3 code per value, each matrix's FP32 scale a separate F32 [1] tensor `<name>.scale`; the kernels read rows of a
+multiple of 256 values. A BF16 output head becomes rows of E4M3 with one FP32 scale per row in `output.scale` (F32
+[rows]).
 
 ### `NVFP4_PLANES` (tensor type 45)
 
-An NVFP4 matrix of `rows` x `K` (rows a multiple of 128, K of 64) as two planes in one tensor, 36 bytes per 64 values like
-ggml's NVFP4 blocks, the layout the dense products read with TMA (NInfer's and Infernix's `block_scale_k16_m128x4`):
+An NVFP4 matrix of `rows` x `K` (rows a multiple of 128, `K` of 64) as two planes: `rows * K / 2` bytes of E2M1 codes,
+byte `b` of a row holding values `2b` (low nibble) and `2b + 1` (high nibble), then `rows * K / 16` UE4M3 scales, one
+per 16 values, in 512-byte tiles of 128 rows x 4 groups, row-block major. The matrix's FP32 scale is a separate F32 [1]
+tensor `<name>.scale`. [nvfp4_planes.hpp](../include/halo/kernels/nvfp4_planes.hpp) is the engine's copy of the layout.
 
-- **Codes**, `rows * K / 2` bytes from the tensor's start: row-major, byte `b` of a row holds value `2b` in its low nibble and
-  `2b + 1` in its high nibble (E2M1, as NVIDIA's checkpoints store them).
-- **Scales**, `rows * K / 16` UE4M3 bytes right after the codes, one per 16 values: 512-byte tiles of 128 rows x 4 groups,
-  row-block major, so the scale of row `r` and group `g` (`= k / 16`) sits at
-  `((r / 128) * (K / 64) + g / 4) * 512 + (r % 32) * 16 + ((r % 128) / 32) * 4 + g % 4`.
-- The matrix's FP32 scale is a separate F32 [1] tensor `<name>.scale`; a value is `e2m1 * ue4m3 * scale`.
+The dense stack refuses NVFP4 in ggml blocks (type 40) and names the re-conversion it needs
+([meta.hpp](../src/models/qwen35/meta.hpp)).
 
-[nvfp4_planes.hpp](../include/halo/kernels/nvfp4_planes.hpp) is the engine's copy of this layout.
+## Integrity
+
+- **Written.** Both writers put each section's SHA-256 in its directory entry ([model_file.py](../tools/model_file.py)).
+- **Not checked on load.** `ModelFile::open` checks the magic, the version, the section count, truncation and each
+  section's alignment and bounds. It never hashes a section, so a changed byte inside one loads
+  ([model_file.cpp](../src/core/model_file.cpp)).
+- **Checkable.** `ModelFile.verify(name)` recomputes a section's hash from the Python reader
+  ([model_file.py](../tools/model_file.py)); no command runs it over a whole pack. For a dense GGUF pack,
+  `python3 tools/convert/gguf_qwen35.py verify PACK.halo MODEL.gguf` re-reads the source and the pack and compares every
+  tensor's SHA-256 with the other and with `source_sha256` ([gguf_qwen35.py](../tools/convert/gguf_qwen35.py)).
+- **No whole-file checksum.** `file_bytes` catches a truncated file only, and a file longer than its table is accepted.
+  The 40 reserved bytes of the header and the 16 of each entry carry nothing.
+
+## Reserved names
+
+Two names in [model_format.hpp](../include/halo/core/model_format.hpp) have no reader and no producer in this tree.
+They stay in the list as history:
+
+- `engram`, a table in a section of its own. Its loader went with the DeepSeek model in `e8af75c6` (scope: remove
+  DeepSeek-V4.1-Flash and the Windows build branches). A tensor entry can still name a `section` and `SideTableSpec` still
+  has a `Kind::Engram`, but no adapter asks for either ([adapter.hpp](../include/halo/model/adapter.hpp)).
+- `dspark/gguf`, a DSpark drafter GGUF stored whole. The same commit removed its reader.
+  `tools/convert/convert.py --dspark --into` still exists but refuses a pack whose `meta.arch` is not `deepseek41`
+  ([convert.py](../tools/convert/convert.py)), and nothing in this tree writes that architecture.
+
+## Writing a pack
+
+`tools/convert/convert.py` has one route per pack. `--help` lists every flag.
+
+```sh
+# a dense qwen35 GGUF: every tensor copied as stored
+python3 tools/convert/convert.py --gguf MODEL.gguf --mmproj MMPROJ.gguf --out MODEL.halo
+
+# a dense qwen35 NVFP4 checkpoint, with the DFlash 2 drafter if wanted
+python3 tools/convert/convert.py --checkpoint DIR [--drafter DFLASH2] --out MODEL.halo
+
+# a sparse qwen4exp GGUF, with the drafter fetched first
+python3 tools/convert/mtp_fetch.py fetch --out DIR
+python3 tools/convert/convert.py --gguf MODEL-00001-of-0000N.gguf --mmproj MMPROJ.gguf --mtp-source DIR --out MODEL.halo
+```
+
+Without a projector, pass `--no-vision`. `--sections-from BASE.halo` copies the drafter and vision sections of a pack
+byte for byte and regenerates `vision/text_vocab`.

@@ -1,11 +1,27 @@
-> [!WARNING]
-> Basalt's model-file changelog, kept from the snapshot. The format version is unchanged (v2); the magic and the
-> extension changed with the rename (see the 2026-11-17 entry). [model-file](model-file.md) is the reference.
-
 # `.halo` file format changelog
 
 The version is the `u32` after the magic in the file's header. The engine reads one version; the
-[model file](model-file.md) page describes the current one.
+[model file](model-file.md) page describes what this tree reads and writes. Newest first; an entry before 2026-11-18
+records what the tree did at its date.
+
+## 2026-11-18: what this tree reads
+
+- **Read:** version 2, with either magic. Every section entry is checked against the file's bounds and alignment; a
+  section no reader names is carried and ignored.
+- **A dense `qwen35` pack** holds `meta`, `tokenizer/*`, `gguf` and, when it was built with a projector,
+  `vision/mmproj` and `vision/text_vocab`. Its MTP layer is `mtp.*` tensors in `gguf`, and a DFlash 2 block drafter is
+  `dflash.*` tensors there; neither is a section. It has no `dense`, `dense.index`, `experts`, `experts.layout`,
+  `mtp/*` or `hc8` section.
+- **A sparse `qwen4exp` pack** holds `dense`, `dense.index`, `experts`, `experts.layout`, `mtp/dense`,
+  `mtp/dense.index`, `mtp/experts`, the optional `mtp/draft_vocab` and `hc8`, which that start requires, and, with a
+  projector, `vision/mmproj`.
+- **No longer produced or loaded:** `engram` and `dspark/gguf`. `e8af75c6` removed the DeepSeek model, and with it the
+  only readers and producers of both. The names stay in `include/halo/core/model_format.hpp` as history;
+  `tools/convert/convert.py --dspark --into` refuses every pack this tree builds.
+- **Written but not read:** `vision/text_vocab`, a metadata-only GGUF of the text model's tokenizer, is written beside
+  the projector by both dense converters. Nothing in this tree opens it.
+- **Unchanged:** a section's SHA-256 is written and not checked on load; `ModelFile.verify` and the qwen35 converter's
+  `verify` are the checks.
 
 ## 2026-11-17: Halocline's magic, the same version
 
