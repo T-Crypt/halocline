@@ -13,8 +13,9 @@
 //      host's norm + rope + int8 rule within a step, V's blocks are bitwise the host rule over the rotated row;
 //   2. the V rotation inside the write is fwht256_cuda's bits (the same row through the shared kernel);
 //   3. gqa_decode_attn + the output's inverse rotation against the fp64 reference on the cache's dequantized cells, over
-//      every row of the widest and the 8-row window; one row's bits are the same whatever the window width; and the window
-//      kernel (one block a split and KV head) is the 16-row-tile launch bitwise at 1 to 9 rows;
+//      every row of the widest and the 8-row window; one row's bits are the same whatever the window width; and the
+//      engine's kernel (the window of M <= 48 rows in one block, T <= 8) agrees with the 16-row-tile launch and with the
+//      window kernel at 1 to 9 rows to the summation order (it runs the same statements per row);
 //   4. gqa_prompt_attn (4-warp, and split over three key ranges) + the inverse rotation, at rows on and around the tile
 //      and query-block edges, against the same reference;
 //   5. gqa_prompt_attn_bf16's rows are the FP32 launch's on the same (bf16-exact) queries, rounded to bf16 once: bitwise.
@@ -329,6 +330,7 @@ int main() {
         std::vector<double> want((size_t) NH * HD);
         Err ed;
         bool bitwise = true, have = false;
+        double cross = 0.0;   // the same row on the other kernel (T = 9..16 leave the K8V4 kernel for the tiled launch)
         std::vector<float> first((size_t) NH * HD), got((size_t) k::kGqaMaxWindow * NH * HD);
         for (int T = 1; T <= k::kGqaMaxWindow; ++T) {
             const int64_t p0 = last_cell - T + 1;
@@ -340,7 +342,11 @@ int main() {
             ck(cudaMemcpy(got.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "decode out");
             const float* last = &got[(size_t) (T - 1) * NH * HD];
             if (!have) { std::memcpy(first.data(), last, first.size() * 4); have = true; }
-            else if (std::memcmp(first.data(), last, first.size() * 4) != 0) bitwise = false;
+            else if (T <= 8) {   // the K8V4 kernel at every width: the row's own arithmetic, so the same bits
+                if (std::memcmp(first.data(), last, first.size() * 4) != 0) bitwise = false;
+            } else {
+                for (int j = 0; j < NH * HD; ++j) cross = std::max(cross, (double) std::fabs(last[j] - first[j]));
+            }
             if (T == k::kGqaMaxWindow || T == 8)   // every row of one window, each at its own position
                 for (int t = 0; t < T; ++t) {
                     ref_attn(&qw[(size_t) t * NH * HD], kdq, vtrue, p0 + t + 1, want.data());   // the window's own row t
@@ -348,24 +354,42 @@ int main() {
                 }
         }
         std::printf("  K8V4 decode: max abs %.3g rel %.3g vs double over the widest and the 8-row window; the last row bitwise "
-                    "equal across widths 1-%d: %s\n", ed.abs, ed.rel, k::kGqaMaxWindow, bitwise ? "yes" : "NO");
-        report(ed.abs < 2e-3 && bitwise, "gqa_decode_attn over a K8V4 cache matches the fp64 reference");
-        // the window kernel (one block a split and KV head) against the 16-row-tile launch, at every width up to one past
-        // its three m16 groups
-        bool tiled_same = true;
-        std::vector<float> wide((size_t) k::kGqaMaxWindow * NH * HD), tiled(wide.size());
+                    "equal across widths 1-8: %s, within %.1e of it at 9-%d (worst %.2e)\n", ed.abs, ed.rel,
+                    bitwise ? "yes" : "NO", 5e-6, k::kGqaMaxWindow, cross);
+        report(ed.abs < 2e-3 && bitwise && cross < 5e-6, "gqa_decode_attn over a K8V4 cache matches the fp64 reference");
+        // the engine's kernel (one block a split and KV head, T <= 8) against the 16-row-tile launch and against the window
+        // kernel: the same rows, since a row runs the same statements inside the same 16-row group
+        bool tiled_bitw = true, win_bitw = true;
+        double tiled_diff = 0.0, win_diff = 0.0;
+        std::vector<float> wide((size_t) k::kGqaMaxWindow * NH * HD), tiled(wide.size()), win(wide.size());
         for (int T = 1; T <= 9; ++T) {
             const int64_t p0 = last_cell - T + 1;
             const float* qw = &q[(size_t) (k::kGqaMaxWindow - T) * NH * HD];
+            const size_t n = (size_t) T * NH * HD;
             k::gqa_decode_attn(qw, nullptr, nullptr, NH, NKV, p0, T, d_scr, max_cells, d_out, nullptr, nullptr, k::KvInt8{},
                                nullptr, nullptr, k::KvFar{}, cache);
-            ck(cudaMemcpy(wide.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "decode out");
+            ck(cudaMemcpy(wide.data(), d_out, n * 4, cudaMemcpyDeviceToHost), "decode out");
             k::test::gqa_decode_attn_tiled(qw, nullptr, nullptr, NH, NKV, p0, T, d_scr, max_cells, d_out, nullptr, nullptr,
                                             k::KvInt8{}, nullptr, nullptr, k::KvFar{}, cache);
-            ck(cudaMemcpy(tiled.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "decode out");
-            if (std::memcmp(wide.data(), tiled.data(), (size_t) T * NH * HD * 4) != 0) tiled_same = false;
+            ck(cudaMemcpy(tiled.data(), d_out, n * 4, cudaMemcpyDeviceToHost), "decode out");
+            if (std::memcmp(wide.data(), tiled.data(), n * 4) != 0) {
+                tiled_bitw = false;
+                for (size_t j = 0; j < n; ++j) tiled_diff = std::max(tiled_diff, (double) std::fabs(wide[j] - tiled[j]));
+            }
+            if (T > 8) continue;   // the window kernel serves M <= 48 rows only
+            k::test::gqa_decode_attn_window(qw, nullptr, nullptr, NH, NKV, p0, T, d_scr, max_cells, d_out, nullptr, nullptr,
+                                            k::KvInt8{}, nullptr, nullptr, k::KvFar{}, cache);
+            ck(cudaMemcpy(win.data(), d_out, n * 4, cudaMemcpyDeviceToHost), "decode out");
+            if (std::memcmp(wide.data(), win.data(), n * 4) != 0) {
+                win_bitw = false;
+                for (size_t j = 0; j < n; ++j) win_diff = std::max(win_diff, (double) std::fabs(wide[j] - win[j]));
+            }
         }
-        report(tiled_same, "K8V4 decode: windows of 1-9 rows bitwise the 16-row-tile launch");
+        std::printf("  K8V4 decode: 1-9 rows against the 16-row-tile launch: bitwise %s, max abs %.2e; 1-8 rows against the "
+                    "window kernel: bitwise %s, max abs %.2e\n", tiled_bitw ? "yes" : "NO", tiled_diff, win_bitw ? "yes" : "NO",
+                    win_diff);
+        report(tiled_diff < 5e-6 && win_diff < 5e-6,
+               "K8V4 decode: the K8V4 kernel's rows are the 16-row-tile launch's and the window kernel's to the summation order");
     }
 
     // ---- [4] prompt chunks at the end of the cache, plain and with split scratch, at two sizes so the planner takes both

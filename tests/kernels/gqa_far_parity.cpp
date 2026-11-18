@@ -223,13 +223,14 @@ int main(int argc, char** argv) {
             bool ok_t = true;
             for (int T = 1; T <= 9; ++T) {
                 const int64_t p0 = L - T;
-                halo::kernels::gqa_decode_attn(d_q, c.nk, c.nv, NH, NKV, p0, T, d_scr, L, d_o2, nullptr, nullptr, c.n8, nullptr,
-                                                 nullptr, c.far_kv);
+                halo::kernels::test::gqa_decode_attn_window(d_q, c.nk, c.nv, NH, NKV, p0, T, d_scr, L, d_o2, nullptr, nullptr, c.n8,
+                                                            nullptr, nullptr, c.far_kv);
                 halo::kernels::test::gqa_decode_attn_tiled(d_q, c.nk, c.nv, NH, NKV, p0, T, d_scr, L, d_o1, nullptr, nullptr, c.n8,
                                                           nullptr, nullptr, c.far_kv);
                 ok_t = ok_t && same((size_t) T * NH * HD);
             }
-            std::snprintf(what, sizeof what, "%s gqa_decode_attn, far cells in host memory: 1-9 rows bitwise the 16-row-tile launch", kv);
+            std::snprintf(what, sizeof what, "%s gqa_decode_attn, far cells in host memory: the window kernel at 1-9 rows bitwise "
+                                               "the 16-row-tile launch", kv);
             report(what, ok_t);
         }
         {   // a device first cell (a captured window), and a window that ends before the split
