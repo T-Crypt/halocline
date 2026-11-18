@@ -712,6 +712,10 @@ halo_gpu_test(NAME gqa_attn_parity COMMAND gqa_attn_parity)
 set_tests_properties(gqa_attn_parity PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
 # the K8V4 cache (K int8, V rotated q4_0) against a double-precision CPU reference: the write, the rotation, decode
 # and prompt attention, and the BF16 prompt form (GPU)
+# decode attention timing, window kernel against the 16-row tiles (a tool: run by hand under a GPU lease, not a ctest)
+add_executable(gqa_decode_bench tests/kernels/gqa_decode_bench.cpp)
+target_link_libraries(gqa_decode_bench PRIVATE kernels ${_gpu_runtime_target})
+
 add_executable(gqa_k8v4_parity tests/kernels/gqa_k8v4_parity.cpp)
 target_link_libraries(gqa_k8v4_parity PRIVATE kernels ${_gpu_runtime_target})
 halo_gpu_test(NAME gqa_k8v4_parity COMMAND gqa_k8v4_parity)
