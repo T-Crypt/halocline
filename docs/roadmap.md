@@ -124,6 +124,18 @@ output; struct is 153.8 tok/s at 351 GB/s.
   2602.06036; needs a trained drafter), acceptance-targeted drafter training (arXiv 2602.23881). Measured as not worth
   it: the GDN decode recurrence (FP32 state on both engines, about 1.5% of a window) and a fused top-k sampler.
 
+**Per-stage profile of the dense window (2026-11-18).** The dense path has the sparse path's instrument now: `--profile`
+on the qwen35 path (a diagnostic flag, off by default) runs each decode window as launched (no graph replay) and stamps
+its stages with CUDA events on the window's stream, with PDL off, so a stage's ms holds the launch gap before its own
+first kernel. It sums a stage over the layers, aggregates per window width T (1..16) as windows, mean ms per window and
+each stage's mean ms and share, and prints the table through `halo::log::info` (tag `halo dense profile`) every 200
+windows and when the session ends; each line closes with the stages' sum against the window's wall and the gap between
+them, so the launch gaps and host-side accept are visible. The stages: per attention layer its norm and q/k/v, `attn_qk_prepare` (the cache
+write), `gqa_decode_attn` and the output projection; per GDN layer its projections, `dec_gdn_rec` and its output; the
+FFN's gate/up and down; the LM head; sampling; and the MTP drafter's draft (`mtp_window`) and history (settle). Run it as
+`bin/halocline serve PACK ... --profile`, or `halocline-bench ... -- --profile`; its numbers are not for A/B (uncaptured,
+PDL off) and the batch window of several sessions is not stamped.
+
 ### D6: identity and state (state round trip done 2026-11-17 on the real pack; build-to-build identity open)
 
 Greedy identity across the last two builds, and `qwen35_checkpoint_round_trip` with the real pack. Accept: 900 of 900
