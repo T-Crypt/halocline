@@ -100,6 +100,26 @@ Same fixtures and protocol as the sparse path, one repetition per arm, power lim
 112 tok/s short decode, 118 at 36K, 93 at 137K; prompt 3,215 at 36K. Accept: the dense profile passes the floors with
 the KV choice from D4.
 
+**Speed levers against NInfer (2026-11-17 lever map, ranked; each needs the like-for-like run first).** Before any
+lever: run the P0 floor fixture (`lsw.py smoke --long`) through both engines on the same tokens, and add a per-stage
+profile to the dense window (the sparse path has one, `src/models/qwen4exp/decode/verify/profile.cpp`). Our prose
+(86.5 tok/s at 36K) already equals NInfer's own published prose at 64K (85.9), so the gap may sit mostly on structured
+output; struct is 153.8 tok/s at 351 GB/s.
+
+- **S1, token-tiled decode attention.** `decode_mma_kernel` holds 16 (row, head) pairs a block, so with 6 query heads a
+  KV head it reads the window's KV `ceil(6T/16)` times (2x at T=4, 4x at T=9). NInfer's small-T kernel keeps all of a
+  KV head's window rows in one CTA (`TokenTile * GroupSize <= 48`) and reads each cell once. The only lever whose value
+  grows with depth (one redundant KV read is about 6 ms of a 30 ms window at 137K). Gate: bitwise against the current
+  kernel at T = 1..9, then 36K / 137K / the format's maximum.
+- **S2, one weight pass for the whole verify window at GEMV rate.** `kMmvqMaxRows = 5` (`src/dense/forward.cpp:59`):
+  wider windows drop to MMQ, so struct (mean 7.5 rows) streams 351 GB/s against 758 GB/s for a T=1 window. Port
+  llama.cpp #31533 (few-row MMQ, see Q4) first, then measure MMVQ with fp32 activation scales to 8 rows (also Q2).
+- **S3, draft depth from the cost model.** Choose the window from `ms_per_window`, mean rows and acceptance (prose
+  2.40 tokens at 27.7 ms, struct 7.43 at 48.3 ms); NInfer serves 3 drafts. One day, no kernel, no quality path.
+- Later: rotated 4-bit KV (D8 item 3; a depth lever, never A/B it at short context), a block drafter (DFlash, arXiv
+  2602.06036; needs a trained drafter), acceptance-targeted drafter training (arXiv 2602.23881). Measured as not worth
+  it: the GDN decode recurrence (FP32 state on both engines, about 1.5% of a window) and a fused top-k sampler.
+
 ### D6: identity and state (state round trip done 2026-11-17 on the real pack; build-to-build identity open)
 
 Greedy identity across the last two builds, and `qwen35_checkpoint_round_trip` with the real pack. Accept: 900 of 900
