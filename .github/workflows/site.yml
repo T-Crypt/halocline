@@ -25,12 +25,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - name: Install the template engine
-        run: python3 -m pip install --user jinja2==3.1.6
+        # a venv: the runner's system python refuses `pip install --user` (PEP 668, externally managed)
+        run: python3 -m venv .venv && .venv/bin/pip install jinja2==3.1.6
       - name: Test the site
-        run: python3 -m unittest discover -s site/tests
+        run: .venv/bin/python -m unittest discover -s site/tests
       - name: Build the site
-        run: python3 site/build.py
+        run: .venv/bin/python site/build.py
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
