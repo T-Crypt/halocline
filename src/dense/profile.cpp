@@ -116,7 +116,10 @@ void WindowProfile::close(int pool, cudaEvent_t end) {
             }
             stage_ms[(int) p.kind[(size_t) k]] += (double) ms;
         }
-        if (cudaEventElapsedTime(&ms, p.ev[0], end) != cudaSuccess) (void) cudaGetLastError();
+        if (cudaEventElapsedTime(&ms, p.ev[0], end) != cudaSuccess) {
+            (void) cudaGetLastError();
+            ms = 0.0f;
+        }
         table_.add(width_, (double) ms, stage_ms);
         ++since_print_;
     }
