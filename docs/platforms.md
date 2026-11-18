@@ -6,7 +6,7 @@ build refuses any `CMAKE_CUDA_ARCHITECTURES` except 89.
 | | Linux |
 | --- | --- |
 | OS | x86-64, AVX2 (AVX-512 used when present) |
-| Compiler, build | GCC 13+, CMake 3.24+, Ninja |
+| Compiler, build | GCC with C++20 support (16.2.1 on the reference machine), CMake 3.24+, Ninja |
 | CUDA, Python | 13.0 or newer, 3.10+ |
 | Driver | 615 branch or newer (615.78.08 and CUDA 13.4 on the reference machine) |
 
