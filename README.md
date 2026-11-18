@@ -27,8 +27,38 @@
 | Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
 | Context | 262,144, int8 KV | **175,616 served with K8V4 KV** since 2026-11-18 (depth gate: +0.00066 KLD over int8 at 140K, [`halocline-d8-depth`](evals/2026-11-17/halocline-d8-depth/)); before that 122,880 (int8 KV); 175,629 with K8V4 KV, +0.00093 KLD at 36K ([`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/)); 262,144 with rotated 4-bit K and V, +0.00197 KLD (on a branch, [D8](docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job)) |
 | Vision | | packs carry the projector; serving untested |
-| Status | **runs**, served through llama-swap | **runs**, gated; 262K and the NInfer comparison open |
+| Status | **runs**, served through llama-swap | **runs**, gated; about 10 times closer to BF16 than NInfer, 10% behind it on prose decode ([below](#dense-against-ninfer)) |
 | Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/) |
+
+## Dense against NInfer
+
+NInfer serves the same Qwen3.8-27B on the same card from its own requantized weights. I measure the two engines with
+the same prompts, through the same llama-swap, one engine on the card at a time.
+
+**Quality.** NInfer exposes no logits, so the comparison scores the same tokens on both and takes the gap to BF16 on
+each target token (dNLL; lower is closer). At 65,536 tokens of context Halocline sits at +0.0018 and NInfer at +0.0199;
+at 140,288, +0.0020 against +0.0201. Most of NInfer's distance comes from its weight conversion: with an 8-bit KV cache
+it still reads +0.0172. Halocline copies Unsloth's tensors as stored.
+[`ninfer-depth-ppl`](evals/2026-11-18/ninfer-depth-ppl/)
+
+**Speed.** Thinking off on both, so neither engine splits its reply into a thinking pass and an answer; greedy, 1,200
+tokens, streamed, decode rate as the client sees it, order Halocline, NInfer, NInfer, Halocline (2026-11-18, release
+75726a0f, K8V4 KV):
+
+| workload | Halocline t/s | NInfer t/s | Halocline vs NInfer |
+|---|---|---|---|
+| short prose | 83.4 | 92.8 | -10% |
+| short JSON | 154.1 | 154.9 | -0.5% |
+| 36K prose | 77.5 | 85.5 | -9% |
+| 36K JSON | 148.6 | 137.0 | +8% |
+| 137K prose | 64.0 | 70.7 | -10% |
+| 137K JSON | 126.5 | 116.3 | +9% |
+
+[`halocline-vs-ninfer-nothink`](evals/2026-11-18/halocline-vs-ninfer-nothink/). Halocline loses prose by about a tenth at
+every depth and wins JSON at depth. Speculative decoding sets the pace: Halocline's drafter lands 56% of its guesses
+on prose and 85% on JSON, and its full 248,320-row head costs 1.1 ms of every 1.6 ms draft step. NInfer drafts with a
+frequency-ranked head (FR-Spec, arXiv 2502.14856). The same method is on branch `draft-head` as `--draft-vocab`; the
+verify pass keeps scoring every row, so it changes speed and leaves the output alone.
 
 Both paths share the build, the pack format, the server and the gates: the same BF16 KLD method, greedy identity, the
 GPU suite. The sparse path trades quality for a model 4.6 times larger; the dense path keeps every weight on the card
@@ -301,8 +331,9 @@ The ordered list, with status, accept criteria and blockers, is in [`docs/roadma
 is missing is in [`docs/testing.md`](docs/testing.md). The short list:
 
 1. **Dense path at 262K (Qwen3.8-27B).** K8V4 and 4-bit KV in the dense attention kernels, the MTP drafter's KV as a
-   ring of its window, then KLD at depth picks UD-IQ4_XS + K8V4 or UD-Q4_K_XL + 4-bit KV. Then the measured comparison
-   against NInfer, like for like through llama-swap.
+   ring of its window, then KLD at depth picks UD-IQ4_XS + K8V4 or UD-Q4_K_XL + 4-bit KV. The like-for-like comparison
+   against NInfer ran on 2026-11-18 ([above](#dense-against-ninfer)): the prose decode gap is the next job, through
+   the drafter (the frequency-ranked draft head first).
 2. **Task-level eval.** SWE-bench Lite, one scaffold, the same flags for every arm.
 3. **Gaps in the current gates.** Strata KLD, sampling distribution, KLD at 64K to 200K of context, a broader tool-call
    set.
