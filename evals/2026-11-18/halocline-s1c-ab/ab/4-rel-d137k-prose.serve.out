@@ -1,0 +1,29 @@
+[server] legend   pp=prompt read  tg=generation  c=cached  acc=drafts accepted  dl=tokens per window  hit=expert cache  pcie=routed experts over PCIe
+[server] Qwen3.8-27B UD-Q4_K_XL  ctx=175616 kv=k8v4 mtp-kv=int8 spec=8 temp=1.0 top_p=0.95 top_k=20 vision=cpu
+[server] ready    http://127.0.0.1:8095/v1  openai+anthropic  stats http://127.0.0.1:8095/
+[server] loaded   16.1GiB 5.1s  cuda0=16.1GiB
+[server] weights  loaded, ctx=175616 images=on
+[server] video    on, FFmpeg 9 (libavformat 63.1.102) from /usr/lib/libavformat.so.63
+[server] thinking budget 688 tokens, output cap 1200 (answer-room auto)
+[server] s1 read  pp=20480/137404 3337t/s 6s
+[server] s1 read  pp=36864/137404 3131t/s 12s
+[server] s1 read  pp=53248/137404 2952t/s 18s
+[server] s1 read  pp=65536/137404 2831t/s 23s
+[server] s1 read  pp=77824/137404 2721t/s 29s
+[server] s1 read  pp=90112/137404 2619t/s 34s
+[server] s1 read  pp=102400/137404 2524t/s 41s
+[server] s1 read  pp=114688/137404 2436t/s 47s
+[server] s1 read  pp=126976/137404 2354t/s 54s
+[server] s1 read  pp=137403/137404 2287t/s 60s
+[server] live | s1 tg=71/1200 73.2t/s | total 73t/s
+[server] live | s1 tg=195/1200 65.0t/s | total 65t/s
+[server] live | s1 tg=306/1200 60.8t/s | total 61t/s
+[server] live | s1 tg=417/1200 59.0t/s | total 59t/s
+[server] live | s1 tg=519/1200 56.9t/s | total 57t/s
+[server] live | s1 tg=638/1200 57.0t/s | total 57t/s
+[server] thinking budget reached (688 tokens), wrapping up
+[server] live | s1 tg=801/1200 60.1t/s | total 60t/s
+[server] live | s1 tg=1047/1200 68.1t/s | total 68t/s
+[server] s1 done  pp=137404/0c 0.1s 2184483t/s  tg=1200 102.7t/s acc=92%  ttft=60.1s  end=length
+[server] stopping (Ctrl+C again to force)
+[server] stopped

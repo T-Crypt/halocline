@@ -169,6 +169,19 @@ costs 1.6-2.0 ms, of which the full 248,320-row head is 1.1 ms. NInfer's `--lm-h
 verify on the full head, so the output distribution is unchanged). GEMV at T = 6 steps up (MMQ past `kMmvqMaxRows`),
 but mean T is 2.7-3.9, so S2 is third.
 
+*Shipped 2026-11-18 (main 75726a0f, served from release 75726a0f):* S1 as W17's staged K8V4 decode kernel (one block a
+KV head with every row of the window up to 8 rows, 8-12 warps, the next chunk's raw bytes staged with `cp.async`). One
+K8V4 layer at 137K: 0.342 / 0.427 / 0.478 ms at T = 1 / 3 / 8 against the tiles' 0.473 / 0.926 / 1.390 (655 GB/s at
+T = 1). GPU suite 124/124; depth KLD at 65,536 and 140,288 row-for-row the K8V4 reference (`evals/2026-11-18/
+halocline-decode-kld`). Greedy decode, 1,200 tokens, ABBA against release b22ecbb2 (`evals/2026-11-18/
+halocline-s1c-ab`): short 198.2 -> 199.0, 36K prose 150.6 -> 158.8, 36K struct 170.1 -> 182.1, 137K prose 102.8 ->
+145.2, 137K struct 115.0 -> 153.5 t/s. At depth the two builds emit different text: the draft-width policy is driven by
+measured round times, so a faster kernel takes wider windows, and past 5 rows the GEMV is MMQ (other rounding). The
+gains are end to end for that reason; the quality gate is the depth KLD above. Served smoke on 75726a0f: 36K needle
+102.9, 137K needle 88.0 t/s (77.9 before). Tried on the way and not shipped: W14's window kernel (bitwise, slower: it
+was latency-bound) and W16's staged hybrid (bitwise, +7% / +18% at 137K), both in `halocline-s1c-ab/README.md`'s
+lineage and the homelab evals.
+
 ### D6: identity and state (state round trip done 2026-11-17 on the real pack; build-to-build identity open)
 
 Greedy identity across the last two builds, and `qwen35_checkpoint_round_trip` with the real pack. Accept: 900 of 900
