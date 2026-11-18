@@ -29,11 +29,12 @@ WindowProfile::WindowProfile(int n_layers) {
     }
     if (ok) return;
     // not one mark is made: the caller keeps the session on its captured path
-    for (Pool& p : pools_)
-        for (cudaEvent_t& e : p.ev) {
+    for (Pool& p : pools_) {
+        for (cudaEvent_t& e : p.ev)
             if (e != nullptr) cudaEventDestroy(e);
-            e = nullptr;
-        }
+        p.ev.clear();
+        p.kind.clear();
+    }
     if (tail_ != nullptr) cudaEventDestroy(tail_);
     tail_ = nullptr;
     halo::log::warn("halo dense profile", "the CUDA events for the window stamps could not be made; --profile is off");
