@@ -17,7 +17,7 @@ from typing import NamedTuple
 
 INFO, WARN, ERR = "info", "warn", "err"
 _NAMES = {"warning": WARN, "error": ERR}
-ENGINE = re.compile(r"(?P<tag>halo(?:-[a-z]+)?(?: [\w-]+)*):(?: (?P<lvl>warning|error):)? (?P<text>.*)", re.S)
+ENGINE = re.compile(r"(?P<tag>halo(?:cline)?(?:-[a-z]+)?(?: [\w-]+)*):(?: (?P<lvl>warning|error):)? (?P<text>.*)", re.S)
 LEGACY = re.compile(r"halo (?P<lvl>warning|error): (?P<text>.*)", re.S)
 SERVER = re.compile(r"\[server\] (?:(?P<lvl>warning|error)(?:: | {2,}))?")
 TRACEBACK = "Traceback (most recent call last):"
