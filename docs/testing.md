@@ -9,9 +9,9 @@ What runs today, what each gate proves, and what is still missing. The method pa
 |---|---|---|---|
 | Build | the tree compiles for sm_89 with no warnings | `cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES=89 && ninja -C build` | 728 targets, clean |
 | SASS per object and per function | device code the change does not target is byte-identical | `tools/sass_gate.py`, hashes in `gates/` | 101 objects, 2,724 functions |
-| CPU suite | host logic, formats, tokenizers, planning | `ctest -L cpu -j 16` | 86 of 86 |
-| GPU suite | kernels and their parity tests against CPU or double references | `ctest -L gpu -j 1` under a GPU lease | 122 of 122; with `HALO_QWEN35_PACK` set the 27B round trip runs too |
-| Python server suite | request parsing, streaming, tools, config, images | `python -m unittest discover -s serve/tests -t .` | 1,079 OK, 3 skips |
+| CPU suite | host logic, formats, tokenizers, planning | `ctest -L cpu -j 16` | 86 of 86 (2026-11-18: 93 cpu tests registered, all pass via `tools/verify.sh`) |
+| GPU suite | kernels and their parity tests against CPU or double references | `ctest -L gpu -j 1` under a GPU lease | 122 of 122; with `HALO_QWEN35_PACK` set the 27B round trip runs too (2026-11-18: 124 registered) |
+| Python server suite | request parsing, streaming, tools, config, images | `python -m unittest discover -s serve/tests -t .` | 1,079 OK, 3 skips (2026-11-18: 1,086 OK, 4 skips) |
 | No-GPU checks, one command | the structure checks, the Python suites, the label rule and the CPU suite, as a reviewer runs them | `tools/verify.sh [BUILD_DIR]` (see below) | all pass, 2026-11-18 |
 | KLD gate, sparse | output distribution against the frozen BF16 base | `halocline-bench --quality 100 --kld-base ...` | mean 0.08195, top-1 90.45% |
 | KLD gate, dense | the same, against `qwen38-27b-bf16-base.kld` | the same | UD-Q4_K_XL 0.00582 / 96.67%; UD-IQ4_XS 0.01618 / 94.31% (int8 KV) |
