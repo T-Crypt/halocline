@@ -16,6 +16,7 @@ import time
 
 from serve.engine.errors import EngineDied, EngineStartError, EngineStuck, GpuBusy
 from serve.live import LiveRequests
+from serve.service import REQUESTS_SHOWN
 
 WAITING, GRANTED, FAILED, LEFT = "waiting", "granted", "failed", "left"
 
@@ -89,9 +90,10 @@ class Router:
             return {"from": s["from"], "to": s["svc"].model, "phase": s["phase"],
                     "elapsed_s": round(time.time() - s["since"], 1), "waiting": len(self.queue)}
 
-    def metrics(self, svc) -> dict:
-        """GET /metrics for `svc`, with the requests waiting for any model's turn and every model's row."""
-        m = svc.metrics()
+    def metrics(self, svc, limit: int | None = REQUESTS_SHOWN) -> dict:
+        """GET /metrics for `svc`, with the requests waiting for any model's turn and every model's row. `limit`: the
+        finished requests to list; None lists every one kept."""
+        m = svc.metrics(limit)
         now = time.time()
         with self.cv:
             waiting = [{"api": None, "model": t.svc.model, "prompt_tokens": None, "waited_s": round(now - t.at, 1)}

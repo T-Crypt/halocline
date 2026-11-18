@@ -39,3 +39,13 @@ class PageContract(unittest.TestCase):
         totals = APP_JS.split("function drawTotals")[1].split("\n}\n")[0]
         self.assertEqual(self.reads("n", totals) - set(self.m["totals"]), set())
         self.assertEqual(self.reads("t", totals) - set(self.m["totals"]), set())
+
+    def test_the_engine_tab_names_no_field_the_engine_cannot_send(self):
+        # the union of what the dense and the sparse INFO lines can carry, plus what the server adds
+        info = {"model", "path", "max_context", "spill", "expert_total", "kv", "kv_resident", "elastic_kv_ceiling",
+                "spec", "mtp_max", "lookup", "drafter", "mtp_kv", "mtp_window", "mtp_ring", "expert_slots",
+                "expert_cache_mib", "expert_slots_primary", "expert_cache_primary_mib", "arena_mib", "pcie_frac",
+                "conversation_cache_mib", "conversation_cache_slots", "conversation_cache_min_free_mib",
+                "conversation_cache_min_tokens", "gpu_weight_bytes", "host_weight_bytes", "host_embedding_bytes",
+                "host_vision_bytes", "batch_slots", "vram_elastic", "engine", "version", "quant", "gpus", "context"}
+        self.assertEqual(self.reads("eng") - info, set())

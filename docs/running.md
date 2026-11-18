@@ -73,6 +73,20 @@ Three quiet figures sit in it, each from `/metrics`:
 The log panel shows the engine's long cache lines short (`cache: restored 187k tokens in 912 ms`); the log and `/api/logs`
 keep the raw line.
 
+Added 2026-11-17: an **Engine** tab, a **Monitor** page, and times on every request. The tab reads `/metrics` and shows the
+pack (name, path, quant, `max_context`), the KV format with its resident cells and elastic ceiling, the drafter (MTP or
+block, verify window, cache format, window and ring) or `None`, the experts on the card, in the RAM arena and on the SSD
+with the last request's hit, PCIe and SSD shares (a dense model shows its weights on the card and in RAM instead), the
+conversation cache's budget and figures, and the machine's clocks, PCIe traffic, disk writes and driver. A stat the
+loaded model does not have is left out, not shown as 0. The Speed footer names the engine's shape (`KV INT8 · MTP 6 ·
+14.0k experts`). The Requests table gains time to first token and the wait before its turn; the endpoint moves to the
+monitor's request detail. `/monitor`, linked from the header, is the request inspector: every kept request (the newest
+12, or all 500 with `?requests=all`) with its prompt and output tokens, prefill and decode rates, wait, load, first
+token, draft offers and acceptance, tokens per window, expert shares and the DONE timings. The server keeps no prompt or
+answer text, so there is no content pane. `/metrics` also carries `engine.path`, `live.tok_s_mean`, `live.max_tokens`,
+`requests_kept`, each GPU's `clock_sm_mhz` and `clock_mem_mhz`, `hardware.disk_write_mb`, and per request `queue_s`,
+`load_s` and `timings`.
+
 ## Conversations on disk: `--conversation-cache-disk-mib`
 
 Off at 0. With a budget, conversations of at least 8,192 tokens are written to `conversations` in the model's cache folder when they leave

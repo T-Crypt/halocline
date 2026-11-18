@@ -75,17 +75,20 @@ class Http(unittest.TestCase):
     def test_the_contract(self):
         code, m = self.call("/metrics")
         self.assertEqual(code, 200)
-        self.assertEqual(set(m), {"engine", "live", "requests", "best", "totals", "conversation", "hardware", "hardware_static",
-                                 "history", "models", "swap"})
+        self.assertEqual(set(m), {"engine", "live", "requests", "requests_kept", "best", "totals", "conversation", "hardware",
+                                 "hardware_static", "history", "models", "swap"})
         self.assertEqual(m["best"], {})
         self.assertEqual((m["engine"]["model"], m["engine"]["max_context"]), (self.svc.model, 16384))
         self.assertEqual((m["engine"]["version"], m["engine"]["kv"], m["engine"]["expert_slots"]), ("1.2.3", "fp8", 100))
-        self.assertEqual(set(m["live"]), {"state", "load", "queued", "slots", "queue", "prompt_tokens", "generated", "elapsed_s",
-                                          "tok_s", "phase", "prefill_tok_s_mean"})
+        self.assertIsNone(m["engine"]["path"])                       # a mock engine reads no model file
+        self.assertEqual(m["requests_kept"], 0)
+        self.assertEqual(set(m["live"]), {"state", "load", "queued", "slots", "queue", "prompt_tokens", "generated", "max_tokens",
+                                          "elapsed_s", "tok_s", "tok_s_mean", "phase", "prefill_tok_s_mean"})
         self.assertEqual(m["live"]["queue"], [])
         self.assertEqual((m["live"]["state"], m["live"]["queued"]), ("idle", 0))
+        self.assertIsNone(m["live"]["tok_s_mean"])
         self.assertEqual(m["requests"], [])
-        self.assertEqual(set(m["hardware"]), {"gpus", "cpu", "ram_used", "ram_total", "disk_read_mb"})
+        self.assertEqual(set(m["hardware"]), {"gpus", "cpu", "ram_used", "ram_total", "disk_read_mb", "disk_write_mb"})
         self.assertIsInstance(m["hardware"]["gpus"], list)
         self.assertEqual(set(m["hardware_static"]), {"gpus", "cpu_name", "cores", "threads", "driver", "cuda"})
         self.assertEqual(set(m["history"]), {"tok_s", "prefill_tok_s_mean", "slot_tok_s", "gpus"})
@@ -136,12 +139,19 @@ class Http(unittest.TestCase):
         self.assertEqual([r["path"] for r in rows], paths[::-1])
         self.assertEqual(set(rows[0]), {"id", "path", "slot", "time", "duration_s", "finish", "prompt_tokens", "reused",
                                         "output_tokens", "decode_tok_s", "prompt_ms", "hit_rate",
-                                        "pcie_share", "ssd_share", "drafts_offered", "drafts_accepted", "ttft_s", "draft_len"})
+                                        "pcie_share", "ssd_share", "drafts_offered", "drafts_accepted", "ttft_s", "draft_len",
+                                        "queue_s", "load_s", "timings"})
         self.assertEqual((rows[0]["reused"], rows[0]["hit_rate"], rows[0]["drafts_accepted"]), (3, 0.9, 2))
         self.assertEqual(rows[0]["slot"], 0)
         self.assertGreaterEqual(rows[0]["ttft_s"], 0)
         self.assertIsNone(rows[0]["draft_len"])                     # the mock engine reports no windows
         self.assertEqual(rows[0]["finish"], "stop")
+        self.assertIsNotNone(rows[0]["queue_s"])                    # the wait before its turn
+        self.assertIsNotNone(rows[0]["load_s"])
+        # a request's DONE figures in llama.cpp's names, for the inspector
+        self.assertEqual((rows[0]["timings"]["prompt_n"], rows[0]["timings"]["predicted_n"]),
+                         (rows[0]["prompt_tokens"] - 3, rows[0]["output_tokens"]))
+        self.assertEqual(rows[0]["timings"]["predicted_per_second"], 50.0)
 
     def test_only_the_newest_are_listed(self):
         for _ in range(REQUESTS_SHOWN + 3):
@@ -149,6 +159,44 @@ class Http(unittest.TestCase):
         rows = self.call("/metrics")[1]["requests"]
         self.assertEqual(len(rows), 12)
         self.assertEqual(rows[0]["id"], f"r_{REQUESTS_SHOWN + 3:04d}")
+
+    def test_requests_all_lists_every_one_kept(self):
+        for _ in range(REQUESTS_SHOWN + 3):
+            self.ask("/v1/chat/completions")
+        m = self.call("/metrics?requests=all")[1]
+        self.assertEqual((len(m["requests"]), m["requests_kept"]), (REQUESTS_SHOWN + 3, REQUESTS_SHOWN + 3))
+        self.assertEqual(m["requests"][0]["id"], f"r_{REQUESTS_SHOWN + 3:04d}")
+        self.assertEqual(len(self.call("/metrics")[1]["requests"]), REQUESTS_SHOWN)   # the default is unchanged
+
+    def test_a_queued_request_records_the_wait_before_its_turn(self):
+        self.engine.delay = 0.03
+        body = {"model": "halo", "max_tokens": 64, "messages": [{"role": "user", "content": "hi"}]}
+        first = threading.Thread(target=self.call, args=("/v1/chat/completions", body))
+        first.start()
+        end = time.time() + 5
+        while self.call("/metrics")[1]["live"]["state"] == "idle":
+            self.assertLess(time.time(), end)
+            time.sleep(0.005)
+        second = threading.Thread(target=self.call, args=("/v1/chat/completions", body))
+        second.start()
+        while not self.call("/metrics")[1]["live"]["queue"]:
+            self.assertLess(time.time(), end)
+            time.sleep(0.005)
+        for t in (first, second):
+            t.join(20)
+        rows = self.call("/metrics")[1]["requests"]
+        self.assertEqual(len(rows), 2)
+        self.assertLess(rows[1]["queue_s"], 0.02)                    # it went at once
+        self.assertGreater(rows[0]["queue_s"], 0.02)                 # it waited for the fifo
+        self.assertGreaterEqual(rows[0]["load_s"], 0.0)
+
+    def test_the_pcie_fraction_itself_is_a_number(self):
+        self.engine.info = {"pcie_frac": "0.85", "expert_slots": 10}
+        self.assertEqual(self.call("/metrics")[1]["engine"]["pcie_frac"], 0.85)
+        self.engine.info = {"pcie_frac": "-1.00"}
+        self.assertEqual(self.call("/metrics")[1]["engine"]["pcie_frac"], -1.0)
+        self.engine.info = {"pcie_frac": "n/a"}
+        self.assertNotIn("pcie_frac", self.call("/metrics")[1]["engine"])
 
     def test_best_keeps_the_fastest_big_enough_request(self):
         rows = [{"id": "r_0001", "time": 1.0, "output_tokens": 300, "decode_tok_s": 100.0, "prompt_tokens": 9000,
@@ -197,6 +245,18 @@ class Http(unittest.TestCase):
     def test_the_removed_endpoints_are_gone(self):
         for path in ("/api/requests", "/api-monitor", "/settings", "/config", "/mcp"):
             self.assertEqual(self.call(path)[0], 404, path)
+
+    def test_the_monitor_page_and_its_assets_are_served(self):
+        for path in ("/monitor", "/monitor.html"):
+            with urllib.request.urlopen(self.base + path) as r:
+                self.assertTrue(r.headers["Content-Type"].startswith("text/html"), path)
+                self.assertIn(b'id="list"', r.read())
+        with urllib.request.urlopen(self.base + "/web/monitor.js") as r:
+            self.assertTrue(r.headers["Content-Type"].startswith("text/javascript"))
+            self.assertIn(b"/metrics?requests=all", r.read())
+        with urllib.request.urlopen(self.base + "/web/monitor.css") as r:
+            self.assertTrue(r.headers["Content-Type"].startswith("text/css"))
+        self.assertIn(b'href="monitor"', urllib.request.urlopen(self.base + "/").read())
 
     # --- /api/logs
     def test_logs(self):
@@ -254,7 +314,8 @@ class FakeGpu:
             raise OSError("gone")
         return {"util": 10 + self.index, "mem_used": 100 * (self.index + 1), "mem_total": 1000, "temp": 40 + self.index,
                 "power": 50.5 + self.index, "power_limit": 400.0 + 200 * self.index, "pcie_gen": 5, "pcie_gen_max": 5,
-                "pcie_width": 16, "pcie_rx_mb": 1.5, "pcie_tx_mb": 0.5, "unlisted": 1}
+                "pcie_width": 16, "pcie_rx_mb": 1.5, "pcie_tx_mb": 0.5, "clock_sm_mhz": 2500 + self.index,
+                "clock_mem_mhz": 10501, "unlisted": 1}
 
 
 class SamplerLifetime(unittest.TestCase):
@@ -313,7 +374,29 @@ class PerGpu(unittest.TestCase):
         self.assertEqual((snap["static"]["driver"], snap["static"]["cuda"]), ("610.57.04", "13.3"))
         self.assertEqual(set(snap["static"]), {"gpus", "cpu_name", "cores", "threads", "driver", "cuda"})
         self.assertEqual(set(snap["history"]), {"tok_s", "prefill_tok_s_mean", "slot_tok_s", "gpus"})
-        self.assertEqual(set(snap["now"]), {"gpus", "cpu", "ram_used", "ram_total", "disk_read_mb"})
+        self.assertEqual(set(snap["now"]), {"gpus", "cpu", "ram_used", "ram_total", "disk_read_mb", "disk_write_mb"})
+
+    def test_the_clocks_come_from_the_card(self):
+        s = self.telemetry([0, 1]).sample()
+        self.assertEqual([(g["clock_sm_mhz"], g["clock_mem_mhz"]) for g in s["gpus"]], [(2500, 10501), (2501, 10501)])
+        self.assertIn("clock_sm_mhz", GPU_KEYS)
+
+    def test_disk_writes_are_reported_beside_reads(self):
+        class Ps:
+            read_bytes = write_bytes = 0
+
+            def disk_io_counters(self):
+                return type("Io", (), {"read_bytes": self.read_bytes, "write_bytes": self.write_bytes})()
+
+        ps = Ps()
+        tel = Telemetry.__new__(Telemetry)                 # _disk alone: no sampling thread to race with
+        tel.ps, tel._disk_prev = ps, None
+        self.assertEqual(tel._disk(), (None, None))        # the first read only starts the clock
+        ps.read_bytes, ps.write_bytes = 2**20, 3 * 2**20
+        tel._disk_prev = (time.time() - 1.0, 0, 0)         # one second of both
+        read, write = tel._disk()
+        self.assertAlmostEqual(read, 1.0, places=1)
+        self.assertAlmostEqual(write, 3.0, places=1)
 
     def test_history_keeps_the_speeds_slots_and_cards(self):
         tel = self.sampler(extra=lambda: {"tok_s": 12.3456, "prefill_tok_s_mean": None, "tok_s_mean": 9,

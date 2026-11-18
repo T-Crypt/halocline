@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Halocline · Monitor</title>
+<link rel="icon" type="image/svg+xml" href="/web/mark.svg">
+<link rel="preload" href="/fonts/geist-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/geist-mono-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/web/app.css">
+<link rel="stylesheet" href="/web/monitor.css">
+<script defer src="/web/monitor.js"></script>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand"><img src="/web/mark.svg" alt=""><span class="wordmark">Halocline</span></div>
+  <span class="model" id="model"></span>
+  <a class="plink" href="/">Dashboard</a>
+  <span class="grow"></span>
+  <span class="sp">
+    <span class="lab"><span class="state" id="state" data-s="offline">Connecting</span></span>
+  </span>
+  <span class="where" id="host"></span>
+  <span class="where" id="keyed" hidden>API key</span>
+</header>
+
+<form class="auth" id="auth" hidden>
+  <label for="key">API key</label>
+  <input id="key" type="password" autocomplete="off" placeholder="Required by this server">
+  <button>Connect</button>
+</form>
+
+<main class="mon">
+  <section class="card" aria-label="What the engine is doing now">
+    <div class="hd"><b>Now</b><span id="live-note">Last 2 s</span></div>
+    <div class="live" id="live"></div>
+  </section>
+
+  <section class="card mon-req" aria-label="Every request the server kept">
+    <div class="hd"><b>Requests</b><span id="req-count"></span></div>
+    <div class="filters">
+      <input id="q" type="search" placeholder="Filter by id, endpoint or finish" aria-label="Filter requests" autocomplete="off">
+      <select id="finish" aria-label="Request status">
+        <option value="">All endings</option>
+        <option value="stop">Done</option>
+        <option value="length">Max tokens</option>
+        <option value="cancel">Cancelled</option>
+        <option value="disconnect">Disconnected</option>
+        <option value="error">Error</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="all"> every request kept</label>
+      <span class="grow"></span>
+      <span class="note" id="kept"></span>
+    </div>
+    <div class="ws">
+      <div class="list" id="list" role="listbox" aria-label="Requests"></div>
+      <div class="detail" id="detail"></div>
+    </div>
+    <div class="tot" id="totals"></div>
+  </section>
+</main>
+
+</body>
+</html>

@@ -204,6 +204,111 @@ function drawWeights(eng) {
     + (bad ? `<div class="sb-note"><span><b>${warn}</b> · slower decode</span></div>` : ""));
 }
 
+/* ---- Engine: the model, pack, caches, drafter and experts, all from /metrics.engine ---- */
+const mib = n => num(n) ? `${fmt(n)}<small>MiB</small>` : null;
+const cells = n => num(n) ? `${fmt(n)}<small>cells</small>` : null;
+const pctf = f => num(f) ? `${(f * 100).toFixed(1)}%` : null;
+// the INFO line names the drafter on the dense path; the sparse path names only its verify window
+function drafterOf(eng) {
+  if (eng.drafter) return eng.drafter;
+  return num(eng.spec) && eng.spec > 0 && !num(eng.host_weight_bytes) ? "mtp" : "none";
+}
+const row = (k, v) => v == null || v === "" ? "" : `<dt>${k}</dt><dd>${v}</dd>`;
+function facts(rows) {
+  const kept = rows.filter(r => r);
+  return kept.length ? `<dl>${kept.join("")}</dl>` : `<div class="empty">Not reported by this engine.</div>`;
+}
+function enginePane(eng, live, hw, hst, conv, reqs) {
+  const dense = num(eng.host_weight_bytes), kind = drafterOf(eng), last = reqs[0] || {};
+  const sparse = !dense && (num(eng.expert_slots) || num(eng.expert_cache_mib) || num(eng.arena_mib) || !!eng.spill);
+  const kvKnown = !!eng.kv || num(eng.kv_resident) || num(eng.elastic_kv_ceiling);
+  const drafterKnown = !!eng.drafter || num(eng.spec) || num(eng.mtp_max) || num(eng.mtp_window) ||
+                       num(eng.mtp_ring) || num(eng.lookup);
+  const convKnown = num(conv.parked) || num(conv.bytes) || num(eng.conversation_cache_mib) ||
+                    num(eng.conversation_cache_slots);
+  const g = (hw.gpus || [])[0] || {}, gs = (hst.gpus || [])[0] || {};
+  const sec = (title, rows) => `<section><h3>${title}</h3>${facts(rows)}</section>`;
+  const onCard = num(eng.expert_slots) ? `${fmt(eng.expert_slots)}${num(eng.expert_cache_mib) ? ` · ${mib(eng.expert_cache_mib)}` : ""}` : null;
+  const primary = num(eng.expert_slots_primary) && eng.expert_slots_primary !== eng.expert_slots
+    ? `${fmt(eng.expert_slots_primary)}${num(eng.expert_cache_primary_mib) ? ` · ${mib(eng.expert_cache_primary_mib)}` : ""}` : null;
+  const spill = eng.spill ? `${fmt(eng.spill.experts)} · ${gib(eng.spill.bytes)} GiB` : null;
+  const hit = num(last.hit_rate) ? `${pctf(last.hit_rate)}${num(last.pcie_share) ? ` · PCIe ${pctf(last.pcie_share)}` : ""}${num(last.ssd_share) ? ` · SSD ${pctf(last.ssd_share)}` : ""}` : null;
+  const convRows = [
+    row("Parked", num(conv.parked) ? `${fmt(conv.parked)} chat${conv.parked === 1 ? "" : "s"}` : null),
+    row("Held", num(conv.bytes) ? `${gib(conv.bytes)}<small>GiB</small>` : null),
+    row("Evictions", num(conv.evictions) ? fmt(conv.evictions) : null),
+    row("Last restore", num(conv.restored) ? `${kt(conv.restored)} tokens${num(conv.restored_ms) ? ` in ${Math.round(conv.restored_ms)} ms` : ""}` : null),
+    row("Budget", mib(eng.conversation_cache_mib)),
+    row("Slots", num(eng.conversation_cache_slots) ? fmt(eng.conversation_cache_slots) : null),
+    row("RAM floor", num(eng.conversation_cache_min_free_mib) ? mib(eng.conversation_cache_min_free_mib) : null),
+    row("Token floor", num(eng.conversation_cache_min_tokens) ? fmt(eng.conversation_cache_min_tokens) : null)];
+  const machine = [
+    row("CPU", hst.cpu_name ? esc(shortCpu(hst.cpu_name)) : null),
+    row("Cores", num(hst.cores) || num(hst.threads) ? `${num(hst.cores) ? hst.cores : "-"} / ${num(hst.threads) ? hst.threads : "-"}` : null),
+    row("RAM", num(hw.ram_total) ? `${gib(hw.ram_used)} / ${gib(hw.ram_total)}<small>GiB</small>` : null),
+    row("GPU", gs.name ? esc(shortGpu(gs.name)) : null),
+    row("Clocks", num(g.clock_sm_mhz) ? `${fmt(g.clock_sm_mhz)} / ${num(g.clock_mem_mhz) ? fmt(g.clock_mem_mhz) : "-"}<small>MHz</small>` : null),
+    row("PCIe", link(g) || null),
+    row("PCIe traffic", num(g.pcie_rx_mb) || num(g.pcie_tx_mb) ? `in ${num(g.pcie_rx_mb) ? g.pcie_rx_mb.toFixed(1) : "-"} · out ${num(g.pcie_tx_mb) ? g.pcie_tx_mb.toFixed(1) : "-"}<small>MB/s</small>` : null),
+    row("Disk", num(hw.disk_read_mb) ? `read ${hw.disk_read_mb.toFixed(1)} · write ${num(hw.disk_write_mb) ? hw.disk_write_mb.toFixed(1) : "-"}<small>MB/s</small>` : null),
+    row("Power", num(g.power) ? `${r0(g.power)}${num(g.power_limit) ? ` / ${r0(g.power_limit)}` : ""}<small>W</small>` : null),
+    row("Temperature", num(g.temp) ? `${r0(g.temp)}<small>°C</small>` : null),
+    row("Driver", hst.driver ? `${esc(hst.driver)}${hst.cuda ? ` · CUDA ${esc(hst.cuda)}` : ""}` : null)];
+  return `<div class="fx">`
+    + sec("Model", [
+        row("Name", esc(eng.model || "-")),
+        row("Pack", eng.path ? `<span class="p">${esc(eng.path)}</span>` : null),
+        row("Quant", eng.quant ? esc(eng.quant) : null),
+        row("Context", num(eng.max_context) ? `${lim(eng.max_context)}<small>tokens</small>` : null),
+        row("Slots", num((live.slots || {}).total) ? fmt(live.slots.total) : null),
+        row("Built", eng.engine || eng.version ? esc(eng.engine || eng.version) : null),
+        row("GPU bus", eng.gpus ? `<span class="p">${esc(eng.gpus)}</span>` : null),
+        row("State", `${esc(live.state || "idle")}${live.state === "loading" && num((live.load || {}).percent) ? ` · ${live.load.percent}%` : ""}`),
+        dense ? row("Weights on the card", num(eng.gpu_weight_bytes) ? `${gib(eng.gpu_weight_bytes)}<small>GiB</small>` : null) : "",
+        dense ? row("Weights in RAM", num(eng.host_weight_bytes) && eng.host_weight_bytes > 0 ? `${gib(eng.host_weight_bytes)}<small>GiB</small>` : "None") : "",
+        dense ? row("Embedding in RAM", num(eng.host_embedding_bytes) ? `${gib(eng.host_embedding_bytes)}<small>GiB</small>` : null) : "",
+        dense && num(eng.host_vision_bytes) && eng.host_vision_bytes > 0 ? row("Vision in RAM", `${gib(eng.host_vision_bytes)}<small>GiB</small>`) : ""])
+    + (kvKnown ? sec("KV cache", [
+        row("Format", eng.kv ? esc(String(eng.kv).toUpperCase()) : null),
+        row("Resident", num(eng.kv_resident) ? cells(eng.kv_resident) : null),
+        row("Elastic ceiling", num(eng.elastic_kv_ceiling) ? cells(eng.elastic_kv_ceiling) : null),
+        row("Parked", num(conv.parked) ? `${fmt(conv.parked)}<small>chats</small>` : null),
+        row("Parked bytes", num(conv.bytes) ? `${gib(conv.bytes)}<small>GiB</small>` : null)]) : "")
+    + (drafterKnown ? sec("Drafter", [
+        row("Kind", kind === "none" ? "None" : esc(kind.toUpperCase())),
+        row("Verify window", num(eng.spec) && eng.spec > 0 ? `${fmt(eng.spec)}<small>tokens</small>` : null),
+        row("MTP cache", eng.mtp_kv ? esc(String(eng.mtp_kv).toUpperCase()) : null),
+        row("MTP window", num(eng.mtp_window) ? cells(eng.mtp_window) : null),
+        row("MTP ring", num(eng.mtp_ring) ? cells(eng.mtp_ring) : null),
+        row("MTP max", num(eng.mtp_max) && eng.mtp_max > 0 ? `${fmt(eng.mtp_max)}<small>tokens</small>` : null),
+        row("Suffix lookup", num(eng.lookup) && eng.lookup > 0 ? `${fmt(eng.lookup)}<small>tokens</small>` : null)]) : "")
+    + (sparse ? sec("Experts", [
+        row("Routed", num(eng.expert_total) ? fmt(eng.expert_total) : null),
+        row("On the card", onCard),
+        row("Main card", primary),
+        row("RAM arena", num(eng.arena_mib) ? mib(eng.arena_mib) : null),
+        row("On the SSD", spill || (eng.expert_total != null ? "None" : null)),
+        row("PCIe share", num(eng.pcie_frac) && eng.pcie_frac >= 0 ? pctf(eng.pcie_frac) : null),
+        row("Last request", hit)]) : "")
+    + (convKnown ? sec("Conversation cache", convRows) : "")
+    + sec("Machine", machine)
+    + `</div>`;
+}
+// the one line under the Speed figures: the engine's shape, with the details in its tooltip
+function engineChip(eng) {
+  const kind = drafterOf(eng), bits = [];
+  if (eng.kv) bits.push(`KV ${String(eng.kv).toUpperCase()}`);
+  if (kind !== "none") bits.push(kind === "mtp" ? `MTP${num(eng.spec) && eng.spec > 0 ? ` ${eng.spec}` : ""}` : kind.toUpperCase());
+  if (num(eng.expert_slots)) bits.push(`${kt(eng.expert_slots)} experts`);
+  if (!bits.length) return "";
+  const tip = [num(eng.max_context) ? `${lim(eng.max_context)} token context` : "",
+    eng.kv ? `KV ${eng.kv}${num(eng.kv_resident) ? `, ${fmt(eng.kv_resident)} resident cells` : ""}` : "",
+    kind === "none" ? "no drafter" : `${kind === "mtp" ? "MTP drafter" : "Block drafter"}${num(eng.spec) && eng.spec > 0 ? `, window ${eng.spec}` : ""}${num(eng.mtp_ring) ? `, ring ${fmt(eng.mtp_ring)}` : ""}`,
+    num(eng.expert_slots) ? `${fmt(eng.expert_slots)} experts in VRAM${num(eng.expert_total) ? ` of ${fmt(eng.expert_total)} routed` : ""}` : "",
+    num(eng.arena_mib) ? `${fmt(eng.arena_mib)} MiB expert arena in RAM` : ""].filter(Boolean).join("\n");
+  return `<span class="cc" title="${esc(tip)}">${esc(bits.join(" · "))}</span>`;
+}
+
 /* ---- Speed ---- */
 const SC = ["#FF7A3D", "#FFB547", "#F3D3B5", "#D9582A", "#FFD08A", "#C98A6B", "#FF9A66", "#B8401A"], SD = ["", "7 3", "1.5 3", "8 3 1.5 3"];
 const off = new Set();       // decode lines switched off: "t" (total) and slot numbers
@@ -305,17 +410,17 @@ function slotRows(rows, series) {
 function requestsPane(live, reqs, multi) {
   const rows = [];
   if (!multi && (live.state === "reading" || live.state === "generating"))
-    rows.push({ t: Date.now() / 1000 - (live.elapsed_s || 0), id: "Running", path: "", out: live.generated, tps: live.tok_s, dur: live.elapsed_s, live: true });
-  reqs.forEach(r => rows.push({ t: r.time, id: r.id, slot: r.slot, path: r.path, out: r.output_tokens, tps: r.decode_tok_s, dur: r.duration_s, finish: r.finish }));
+    rows.push({ t: Date.now() / 1000 - (live.elapsed_s || 0), id: "Running", out: live.generated, tps: live.tok_s, dur: live.elapsed_s, live: true });
+  reqs.forEach(r => rows.push({ t: r.time, id: r.id, slot: r.slot, out: r.output_tokens, tps: r.decode_tok_s, dur: r.duration_s, finish: r.finish, ttft: r.ttft_s, wait: r.queue_s }));
   if (!rows.length) return `<div class="empty">No requests yet.</div>`;
-  const ep = p => String(p || "-").replace("/v1/", "").replace("chat/completions", "chat");
-  return `<table><thead><tr><th>Time</th><th>ID</th>${multi ? "<th>Slot</th>" : ""}<th>Endpoint</th><th class="r">Output</th><th class="r">Rate</th><th class="r">Duration</th></tr></thead><tbody>`
+  return `<table><thead><tr><th>Time</th><th>ID</th>${multi ? "<th>Slot</th>" : ""}<th class="r">Output</th><th class="r">Rate</th><th class="r" title="Time to the first token">TTFT</th><th class="r" title="Time from arrival to its turn in the server; a batch slot's wait for an engine slot is part of TTFT">Wait</th><th class="r">Duration</th></tr></thead><tbody>`
     + rows.map(r => {
       // a request that did not simply stop is marked on its id, with the reason
       const odd = r.finish && r.finish !== "stop" ? (r.finish === "error" ? "err" : "warn") : "";
       return `<tr${r.live ? ` class="live"` : ""}><td>${clock(r.t * 1000)}</td><td class="${odd}">${esc(r.id)}${odd ? ` · ${esc(r.finish)}` : ""}</td>`
         + (multi ? `<td class="dim">${num(r.slot) ? `s${r.slot + 1}` : "-"}</td>` : "")
-        + `<td>${r.live ? "-" : esc(ep(r.path))}</td><td class="r">${num(r.out) ? fmt(r.out) : "-"}</td><td class="r">${num(r.tps) ? r.tps.toFixed(1) : "-"}</td>`
+        + `<td class="r">${num(r.out) ? fmt(r.out) : "-"}</td><td class="r">${num(r.tps) ? r.tps.toFixed(1) : "-"}</td>`
+        + `<td class="r">${num(r.ttft) ? `${r.ttft.toFixed(1)} s` : "-"}</td><td class="r">${num(r.wait) ? `${r.wait.toFixed(1)} s` : "-"}</td>`
         + `<td class="r">${num(r.dur) ? `${r.dur.toFixed(1)} s` : "-"}</td></tr>`;
     }).join("") + `</tbody></table>`;
 }
@@ -359,9 +464,10 @@ function contextPane(s, reqs, eng) {
     + `<div class="cx-scale"><span>0</span><span>${kc(n / 2)}</span><span>${kc(n)}</span></div>`
     + ctxHistory(reqs) + `</div>`;
 }
-function drawMain(live, hist, reqs, slots, total) {
+function drawMain(live, hist, reqs, slots, total, M) {
   const multi = total > 1, n = live.queued || 0;
-  const T = (multi ? [["slots", "Slots"]] : reqs.length || (slots[0] && slots[0].ctx_used > 0) ? [["ctx", "Context"]] : []).concat([["req", "Requests"], ["queue", `Queue (${n})`]]);
+  const T = (multi ? [["slots", "Slots"]] : reqs.length || (slots[0] && slots[0].ctx_used > 0) ? [["ctx", "Context"]] : [])
+    .concat([["req", "Requests"], ["queue", `Queue (${n})`], ["eng", "Engine"]]);
   const cur = T.some(t => t[0] === tab) ? tab : T[0][0];
   html($("#tabs"), T.map(t => `<button type="button" role="tab" data-t="${t[0]}" aria-selected="${t[0] === cur}">${t[1]}</button>`).join(""));
   let h;
@@ -369,6 +475,8 @@ function drawMain(live, hist, reqs, slots, total) {
     const series = slots.map((_, k) => tail((hist.slot_tok_s || [])[k]));
     h = slotRows(slots, series);
   } else if (cur === "ctx") h = contextPane(slots[0] || {}, reqs, M.engine || {});
+  else if (cur === "eng") h = enginePane(M.engine || {}, live, M.hardware || {}, M.hardware_static || {},
+                                         M.conversation || {}, reqs);
   else h = cur === "req" ? requestsPane(live, reqs, multi) : queuePane(live);
   html($("#pane"), h);
 }
@@ -454,11 +562,11 @@ function draw() {
   $("#pbar").hidden = !weights; $("#pbar").firstElementChild.style.width = `${pct || 0}%`;
   text($("#model"), eng.model || "");
   drawModels(models, eng.model);
-  chip = cacheChip(M.conversation, live);
+  chip = engineChip(eng) + cacheChip(M.conversation, live);
   drawTotals(M.totals);
   drawSide(M.hardware || {}, M.hardware_static || {}, hist, eng, reqs[0]);
   drawHero(live, hist, reqs, M.best || {}, slots, total);
-  drawMain(live, hist, reqs, slots, total);
+  drawMain(live, hist, reqs, slots, total, M);
 }
 
 /* ---- logs ---- */

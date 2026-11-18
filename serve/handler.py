@@ -30,7 +30,7 @@ from serve.prompt import primed
 from serve.security import host_allowed, host_names_for, key_matches, origin_allowed, peer_of, remote_reason
 from serve.live import AnswerNowRefused
 from serve.router import Router
-from serve.service import LOG_FIRST_LINES, LOG_MAX_LINES, QUEUE_BEAT_S, Service, _debug_req
+from serve.service import LOG_FIRST_LINES, LOG_MAX_LINES, QUEUE_BEAT_S, REQUESTS_SHOWN, Service, _debug_req
 from serve.api.structured import anthropic_format, check_format
 from serve.util.text import stop_strings
 
@@ -333,17 +333,27 @@ def make_handler(target: Service | Router):
                 return
             if path == "/metrics":
                 if self._authorized():
-                    name = parse_qs(urlsplit(self.path).query).get("model", [None])[0]
+                    query = parse_qs(urlsplit(self.path).query)
+                    name = query.get("model", [None])[0]
+                    # "?requests=all": every kept finished request, for the monitor page's inspector
+                    limit = None if query.get("requests") == ["all"] else REQUESTS_SHOWN
                     shown = router.shown() if name is None else router.service_for(name)
                     if shown is None:
                         self._json(404, {"error": {"message": "model not found"}})
                     else:
-                        self._json(200, router.metrics(shown))
+                        self._json(200, router.metrics(shown, limit))
             elif path == "/api/logs":
                 if self._authorized():
                     self._logs()
             elif path == "":
                 body = (ROOT / "serve" / "web" / "index.html").read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            elif path in ("/monitor", "/monitor.html"):
+                body = (ROOT / "serve" / "web" / "monitor.html").read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
@@ -490,6 +500,7 @@ def make_handler(target: Service | Router):
                     return
                 self.svc.request_ctx.path = path
                 self.svc.request_ctx.model = self.svc.model  # always the served name, never the requested one
+                self.svc.request_ctx.arrived = time.time()    # /metrics' per-request wait counts from here
                 with document_sources(self._image_access()):   # a document by URL or path follows the image rules
                     if path == "/v1/responses":
                         self._responses(req)

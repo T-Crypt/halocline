@@ -117,6 +117,9 @@ class _Nvml:
         out["pcie_gen"] = self._uint("nvmlDeviceGetCurrPcieLinkGeneration")        # drops at idle
         out["pcie_gen_max"] = self._uint("nvmlDeviceGetMaxPcieLinkGeneration")
         out["pcie_width"] = self._uint("nvmlDeviceGetCurrPcieLinkWidth")
+        # the clocks the card is running at: NVML_CLOCK_SM 0, NVML_CLOCK_MEM 2
+        out["clock_sm_mhz"] = self._uint("nvmlDeviceGetClockInfo", ctypes.c_uint(0))
+        out["clock_mem_mhz"] = self._uint("nvmlDeviceGetClockInfo", ctypes.c_uint(2))
         rx = self._uint("nvmlDeviceGetPcieThroughput", ctypes.c_uint(1))                 # NVML_PCIE_UTIL_RX_BYTES, KB/s
         tx = self._uint("nvmlDeviceGetPcieThroughput", ctypes.c_uint(0))
         out["pcie_rx_mb"] = rx / 1024.0 if rx is not None else None
@@ -171,7 +174,7 @@ class _CpuRamFallback:
 
 # ------------------------------------------------------------------------------------------------ the sampler
 GPU_KEYS = ("util", "mem_used", "mem_total", "temp", "power", "power_limit", "pcie_gen", "pcie_gen_max", "pcie_width",
-            "pcie_rx_mb", "pcie_tx_mb")
+            "pcie_rx_mb", "pcie_tx_mb", "clock_sm_mhz", "clock_mem_mhz")
 SERIES = ("tok_s", "prefill_tok_s_mean")      # series kept as history
 GPU_SERIES = ("util", "power", "temp")         # per-card series kept as history
 
@@ -187,7 +190,8 @@ class Telemetry:
         driver_version(), cuda_version()."""
         self.extra = extra
         self.lock = threading.Lock()
-        self.now: dict = {"gpus": [], "cpu": None, "ram_used": None, "ram_total": None, "disk_read_mb": None}
+        self.now: dict = {"gpus": [], "cpu": None, "ram_used": None, "ram_total": None, "disk_read_mb": None,
+                          "disk_write_mb": None}
         self.hist = {k: collections.deque(maxlen=HISTORY) for k in SERIES}
         self.slot_hist = collections.deque(maxlen=HISTORY)     # per sample: each slot's tok/s
         self.gpus = [(i, g) for i, g in ((i, gpu_factory(i)) for i in dict.fromkeys(gpu_indices or [0])) if g.ok()]
@@ -219,18 +223,19 @@ class Telemetry:
         return self._stopped.is_set()
 
     def _disk(self):
-        """Disk read MB/s since the last call; None without psutil or on the first call."""
+        """Disk read and write MB/s since the last call; (None, None) without psutil or on the first call."""
         if not self.ps:
-            return None
+            return None, None
         try:
             c = self.ps.disk_io_counters()
         except (OSError, RuntimeError):
-            return None
+            return None, None
         t = time.time()
-        prev, self._disk_prev = self._disk_prev, (t, c.read_bytes)
+        prev, self._disk_prev = self._disk_prev, (t, c.read_bytes, c.write_bytes)
         if prev is None or t <= prev[0]:
-            return None
-        return (c.read_bytes - prev[1]) / (t - prev[0]) / 2**20
+            return None, None
+        span = t - prev[0]
+        return (c.read_bytes - prev[1]) / span / 2**20, (c.write_bytes - prev[2]) / span / 2**20
 
     def sample(self):
         s = {"gpus": []}
@@ -251,7 +256,7 @@ class Telemetry:
         else:
             s["cpu"] = self.fallback.cpu()
             s["ram_used"], s["ram_total"] = self.fallback.ram()
-        s["disk_read_mb"] = self._disk()
+        s["disk_read_mb"], s["disk_write_mb"] = self._disk()
         if self.extra:
             try:
                 s.update(self.extra())

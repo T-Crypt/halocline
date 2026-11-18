@@ -654,8 +654,9 @@ class Service:
             rows.append(row)
         return rows, queue
 
-    def metrics(self) -> dict:
-        """GET /metrics: engine facts, live state, recent requests, hardware and speed history."""
+    def metrics(self, limit: int | None = REQUESTS_SHOWN) -> dict:
+        """GET /metrics: engine facts, live state, recent requests, hardware and speed history. `limit`: the finished
+        requests to list, newest first; None lists every one kept."""
         with self.status_lock:
             s = dict(self.status)
             if self.live_reqs:                          # parallel: the newest request
@@ -681,22 +682,31 @@ class Service:
         live = {"state": state, "load": self.load_progress(), "queued": slots["queue_depth"], "slots": slots, "queue": self.slot_table()[1],
                 "prompt_tokens": s.get("prompt_tokens") if busy else None,
                 "generated": s.get("generated") if busy else None,
+                "max_tokens": s.get("max_tokens") if busy else None,
                 "elapsed_s": round(time.time() - s["started"], 1) if busy and s.get("started") else None,
                 "tok_s": round(self._tok_s(), 1) if state == "generating" else None,
+                "tok_s_mean": round(self._tok_s_mean(), 1) if state == "generating" else None,
                 "phase": s.get("phase") if busy else None,
                 "prefill_tok_s_mean": getattr(self.engine, "prefill_tok_s_mean", None) if busy else None}
         info = dict(getattr(self.engine, "info", {}) or {})
         experts_total = info.get("spill_total")          # every routed (layer, expert) pair, on the SSD or not
         spill = spill_of(info)
         # a start under way reads 0; the last READY's context stands in until the new one arrives
-        engine = {"model": self.model, "max_context": self.engine.max_context or getattr(self.engine, "known_ctx", 0), **info,
+        engine = {"model": self.model, "path": getattr(self.engine, "model_path", None) or None,
+                  "max_context": self.engine.max_context or getattr(self.engine, "known_ctx", 0), **info,
                   "spill": spill, "expert_total": experts_total if isinstance(experts_total, int) else None}
+        if isinstance(engine.get("pcie_frac"), str):     # INFO carries it as a decimal word; the JSON carries a number
+            try:
+                engine["pcie_frac"] = float(engine["pcie_frac"])
+            except ValueError:
+                engine.pop("pcie_frac", None)
         tel = self.telemetry.snapshot() if getattr(self, "telemetry", None) else \
             {"now": {"gpus": []}, "history": {}, "static": {"gpus": []}}
         with self.status_lock:
             self._drop_stale_best()
             best = {k: dict(v) for k, v in self.best.items()}
-        return {"engine": engine, "live": live, "requests": hist[::-1][:REQUESTS_SHOWN], "best": best,
+        rows = hist[::-1] if limit is None else hist[::-1][:limit]
+        return {"engine": engine, "live": live, "requests": rows, "requests_kept": len(hist), "best": best,
                 "totals": totals, "conversation": dict(getattr(self.engine, "conversation", None) or {}),
                 "hardware": tel["now"], "hardware_static": tel["static"], "history": tel["history"]}
 
@@ -1151,6 +1161,10 @@ class Service:
         # identity token: only a DONE line replaces engine.last, so a request without one records no stale figures
         engine_last0 = getattr(self.engine, "last", None)
         path = getattr(self.request_ctx, "path", None)   # the API path serving this request
+        # when the request reached the server (the handler stamps it before the turn): the wait for its turn is
+        # measured from here. A caller with no stamp (a test driving run directly) starts counting now.
+        queued_at = getattr(self.request_ctx, "arrived", None) or time.time()
+        turn_at = None                                  # when the request's turn came
         # parallel requests keep their own status and rate window; otherwise self.status / self.rate
         par = bool(getattr(self.engine, "batch", 0))
         st = {} if par else self.status
@@ -1192,6 +1206,7 @@ class Service:
                     return
             with turn:
                 try:
+                    turn_at = time.time()               # its turn: from here the wait is the load and the work
                     with self.status_lock:
                         self.status["queued"] -= 1
                         self.waiting.pop(id(wait_key), None)
@@ -1458,6 +1473,11 @@ class Service:
                             ttft = ft - st["started"] if ft and st.get("started") else None
                             windows, window_tokens = st.get("windows") or 0, st.get("window_tokens") or 0
                             dl = window_tokens / windows if windows else None
+                            # the wait before its turn and the load after it; None where the server cannot see it
+                            queue_s = round(turn_at - queued_at, 3) if turn_at is not None else None
+                            load_s = round(started - turn_at, 3) if turn_at is not None else None
+                            fresh = getattr(self.engine, "last", None)
+                            timings = request_timings(seen, n, last) if fresh is not None and fresh is not before else None
                             self.history.append({
                                 "id": f"r_{self.requests_done:04d}", "path": path, "slot": self._slot_of(st),
                                 "time": started, "duration_s": round(time.time() - started, 1), "finish": finish,
@@ -1469,11 +1489,10 @@ class Service:
                                 "drafts_offered": last.get("drafts_offered"),
                                 "drafts_accepted": last.get("drafts_accepted"),
                                 "ttft_s": round(ttft, 2) if ttft is not None else None,
-                                "draft_len": round(dl, 2) if dl is not None else None})
+                                "draft_len": round(dl, 2) if dl is not None else None,
+                                "queue_s": queue_s, "load_s": load_s, "timings": timings})
                             self._note_best(self.history[-1])
-                            fresh = getattr(self.engine, "last", None)
                             if fresh is not None and fresh is not before:      # a DONE line arrived for this request
-                                timings = request_timings(seen, n, last)
                                 self.last_timings = dict(timings, at=int(time.time())) if timings else None
                             self.last_request_at = time.time()
                             now = time.time()
