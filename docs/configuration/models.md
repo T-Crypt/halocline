@@ -1,19 +1,17 @@
 # Models and the router
 
-> [!WARNING]
-> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../../SPECS.md) and [RESEARCH.md](../../RESEARCH.md) are current. This page is due for a rewrite.
-
-Several models share one server. A request's `model` field picks one, and one is loaded at a time. A swap ends one engine process
-and starts the next.
+Several models share one server. A request's `model` field picks one, and one is loaded at a time. A swap ends one
+engine process and starts the next.
 
 ```json
 {
   "version": 2,
   "engine": { "conversation-cache-disk-mib": 32768, "idle-sleep": 300, "vram-reserve-mib": 500 },
   "models": [
-    { "alias": "Flash-Next", "model": "flash-next.halo", "gpu": "auto", "kv": "int8", "max-context": 262144, "parallel": 4,
+    { "alias": "Flash-Next", "model": "flash-next.halo", "gpu": "0", "kv": "int8", "max-context": 262144, "parallel": 4,
       "slot-full-context": true, "vision": "dynamic" },
-    { "alias": "DeepSeek", "model": "deepseek.halo", "gpu": "auto", "max-context": 1048576, "vision": "dynamic" }
+    { "alias": "Qwen3.8-27B", "model": "qwen38-27b.halo", "gpu": "0", "kv": "k8v4", "mtp-kv": "int8",
+      "max-context": 175616, "vision": "cpu" }
   ],
   "server": { "host": "127.0.0.1", "port": 8080 }
 }
@@ -24,9 +22,10 @@ and starts the next.
 - `server`: shared by the whole server: `host`, `port`, `allowed-host`, `cors-origin`, `image-url-host`, `image-dir`,
   `image-remote-only`, `max-payload-mib`, `lazy`, `open`, `debug`, `request-lines`.
 - An entry takes engine flags and these server options: `gpu`, `vision`, `parallel`, `slot-full-context`, `idle-sleep`,
-  `idle-unload`, `min-free-vram-mib`, `fit-max-tokens`, `grammar`, `video-max-tokens`, the reasoning settings and the sampling
-  defaults.
-- `version` is `2`. A file in the old shape (no `models`) is refused.
+  `idle-unload`, `min-free-vram-mib`, `fit-max-tokens`, `grammar`, `video-max-tokens`, the reasoning settings and the
+  sampling defaults.
+- `version` is `2`. A file in the old shape (no `models`, or a version below 2) is refused with the command that
+  converts it (`tools/migrations/config_v1_to_v2.py`). An unknown key is refused too.
 - The command line wins for every model.
 
 ## Checks at start
@@ -39,21 +38,24 @@ Each entry is checked before anything loads, by the engine's own rules:
 | Value the model refuses (`max-context` past its maximum) | stops the start | stops the start |
 | Unknown name | stops the start | stops the start |
 
-`kv` takes each model's own values (`fp8` or `fp16` for DeepSeek); another value stops the start. Two aliases that are the same, or two entries sharing a cache
-directory, stop the start too.
+`kv` takes each model's own values (`fp16`, `int8`, `q4_0` or `k8v4` for Flash-Next; `fp16`, `int8` or `k8v4` for
+Qwen3.8-27B); another value stops the start. Two aliases that are the same, or two entries sharing a cache directory,
+stop the start too.
 
 ## Requests and turns
 
-A request's `model` is the alias or the file's name on every API. Any other name is a 404. `/v1/models` shows `loaded`, `loading`,
-`unloaded` or `failed`.
+A request's `model` is the alias or the file's name on every API. Any other name is a 404. `/v1/models` shows `loaded`,
+`loading`, `unloaded` or `failed`.
 
-Clients wait through a swap; they do not get a 503 for it. A streamed response sends keep-alive comments every 10 s while it waits.
+Clients wait through a swap; they do not get a 503 for it. A streamed response sends keep-alive comments every 10 s
+while it waits.
 
-- A request for the loaded model runs at once while nothing waits. Once a request for another model waits, later arrivals queue behind it.
-- The head of the queue picks the next model; its swap starts when the running requests finish. The model takes every request queued
-  for it at that moment, in one batch.
-- A failed load answers its batch with a 503 naming the model, and the queue goes on. A load tries twice. With one model, a failed start
-  load ends the server.
+- A request for the loaded model runs at once while nothing waits. Once a request for another model waits, later
+  arrivals queue behind it.
+- The head of the queue picks the next model; its swap starts when the running requests finish. The model takes every
+  request queued for it at that moment, in one batch.
+- A failed load answers its batch with a 503 naming the model, and the queue goes on. A swap's load tries twice. With
+  one model, a failed start load ends the server.
 
 ## What a swap keeps
 
@@ -62,8 +64,9 @@ Clients wait through a swap; they do not get a 503 for it. A streamed response s
 | Conversations on disk | kept in each model's folder |
 | Conversations in RAM and slots | written to disk at exit when `conversation-cache-disk-mib` is on; otherwise lost |
 | Sleeping engine | wakes on the next request for it |
-| `POST /v1/vram` | the machine's; applies to each model that can resize its tier |
+| `POST /v1/vram` | the machine's; applies to each model that can resize its tier (needs `--vram-elastic`) |
 | Metrics | per model (`GET /metrics?model=NAME`) |
 
-`POST /v1/load` with `{"model": NAME}` swaps ahead of a request. `/health` and `/metrics` show the swap's progress. The console prints
-`[server] swap: Flash-Next -> DeepSeek, 2 waiting`.
+`POST /v1/load` with `{"model": NAME}` swaps ahead of a request, and `POST /v1/unload` ends the loaded model's engine.
+`/health` and `/metrics` show the swap's progress. The console prints
+`[server] swap Flash-Next -> Qwen3.8-27B (2 waiting)`, then `[server] swap: Qwen3.8-27B ready in 12.4 s`.
