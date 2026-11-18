@@ -162,10 +162,6 @@ void rebase_ptrs(unsigned long long* ptr, const int32_t* n, uint8_t* base, int64
 void add_streams_broadcast(const float* h, const float* e, float* R, int64_t n_embd, int hc, int n_tok, void* stream);
 /// Every routed expert is resident (slot = expert id): slot[i] = ids[i], dst[i] = i, *count = n.
 void ident_hits(const int32_t* ids, int n, int32_t* slot, int32_t* dst, int32_t* count, void* stream);
-/// dst row i = src row ids[i] (row_bytes each, multiple of 16), for n rows.
-void gather_rows(const uint8_t* src, int64_t row_bytes, const int32_t* ids, int64_t n, uint8_t* dst, void* stream);
-/// ids[t] = table[ids[t]] for n entries (a subset index back to a token id).
-void map_ids(int32_t* ids, const int32_t* table, int n, void* stream);
 /// probs[t] = softmax(logits[t])[ids[t]] for n_rows rows of n_vocab (the probability of each row's argmax).
 void row_top_prob(const float* logits, int n_rows, int n_vocab, const int32_t* ids, float* probs, void* stream);
 /// Row 0 of R, inj and mixed <- row *row_dev of each (rows R_stride, inj_stride, mixed_stride floats apart); nothing

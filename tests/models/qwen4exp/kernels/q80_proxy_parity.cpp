@@ -13,6 +13,7 @@
 #include "halo/models/qwen4exp/kernels/q80_proxy.hpp"
 #include "halo/models/qwen4exp/kernels/q80_vhead.hpp"
 #include "halo/kernels/sampler.hpp"
+#include "halo/kernels/head_rows.hpp"
 #include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 
 #include <cuda_fp16.h>
