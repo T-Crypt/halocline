@@ -13,7 +13,7 @@ One setting picks the card: `gpu`. It means the same in the server (`--gpu`, or 
 | --- | --- |
 | not set | GPU 0; one warning at start names the other visible sm_89 cards |
 | `"0"`, `"1"`, ... | exactly that card |
-| `"auto"` | the sm_89 card with the most memory bandwidth, then the most VRAM, then the lowest number; a card that is not sm_89 is skipped with one line naming it |
+| `"auto"` | the sm_89 card with the most memory bandwidth, then the most VRAM, then the lowest number; a card that is not sm_89 is skipped with one line naming it, and every other sm_89 card is named as not used (2026-11-18: before that fix `auto` returned all of them and the one-card check refused it) |
 
 Cards are numbered as `nvidia-smi` numbers them. When `CUDA_VISIBLE_DEVICES` is set, the numbers count within its list
 (`CUDA_VISIBLE_DEVICES=1,0` makes `gpu 0` the card `nvidia-smi` calls 1), and its entries are read as `nvidia-smi`

@@ -46,7 +46,7 @@ void usage() {
                  "                       logits on stderr\n"
                  "  --gpu N|auto         the GPU to use, as nvidia-smi numbers it (within CUDA_VISIBLE_DEVICES when set):\n"
                  "                       Halocline runs on exactly one card, so give one number; a list of two or more\n"
-                 "                       is refused.  auto = the single sm_89 card.  Default: GPU 0 alone\n"
+                 "                       is refused.  auto = the fastest sm_89 card.  Default: GPU 0 alone \n"
                  "  --gpu-plan           print the --gpu choice as one JSON line and exit (no model needed)\n"
                  "  --mtp-window N       the drafter attends to the last N cells (default 32768; 0 = every cell)\n"
                  "                       The dense stack: 0 (default) or N; its cache then keeps N + 15 cells (at least\n"
