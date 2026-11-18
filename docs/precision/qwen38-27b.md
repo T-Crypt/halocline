@@ -70,7 +70,7 @@ attention output is rotated back once, which is exact: a Hadamard transform comm
 | `fp16` | 4,096 | 71,188 | not scored (the reference format) |
 | `int8` | 2,112 | 130,832; 138,061 with `--mtp-kv int8` | 0.00582, top-1 96.67% |
 | `k8v4` | 1,632 | 164,094; **175,629 with `--mtp-kv int8`**; 187,183 adding the 32K drafter ring | 0.00676, top-1 96.39%: +0.00093 [+0.00074, +0.00113] paired |
-| `q4_0` (branch `d8-q4`) | 1,152 | 220,035; 241,285 with `--mtp-kv int8`; **265,176 adding the 32K ring** (262,144 fits) | 0.00779, top-1 96.07%: +0.00197 [+0.00167, +0.00228] paired |
+| `q4_0` | 1,152 | 220,035; 241,285 with `--mtp-kv int8`; **265,176 adding the 32K ring** (262,144 fits) | 0.00779, top-1 96.07%: +0.00197 [+0.00167, +0.00228] paired |
 
 Context numbers from `tests/kernels/dense_kv_planner_test.cpp` with the planner's own formula and the 7,597 MiB
 UD-Q4_K_XL leaves free with vision packs; the q4_0 row from the same test on `d8-q4` (`evals/2026-11-17/halocline-dense-quality/fit/`). The 262,144-cell totals at

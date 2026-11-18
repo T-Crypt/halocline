@@ -84,6 +84,13 @@ int64_t max_cells_drafter(const d::Geometry& g, d::KvFormat kv, d::KvFormat mtp,
     return lo;
 }
 
+// one context's whole plan in MiB: the model's shared scratch and one session's cells and state (what the adapter tests
+// against the card's free bytes)
+uint64_t plan_mib(const d::Geometry& g, int64_t cells, d::KvFormat kv, d::KvFormat mtp, int64_t window) {
+    return (d::shared_bytes(g, cells, kv) +
+            d::session_bytes(g, cells, /*mtp=*/true, kv, /*kv_resident=*/0, mtp, window)) / kMib;
+}
+
 }  // namespace
 
 int main() {
@@ -91,12 +98,13 @@ int main() {
     std::printf("dense KV planner: %d attention layers of %d KV heads %d wide\n", g.attn_layers(), g.n_kv, g.head_dim);
     // one cell of one attention layer: K and V of every KV head, the scales each format stores beside the codes
     const uint64_t fp16 = d::kv_cell_bytes(g, d::KvFormat::Fp16), int8 = d::kv_cell_bytes(g, d::KvFormat::Int8),
-                   k8v4 = d::kv_cell_bytes(g, d::KvFormat::K8V4);
-    std::printf("  a cell: fp16 %llu B, int8 %llu B, K8V4 %llu B\n", (unsigned long long) fp16, (unsigned long long) int8,
-                (unsigned long long) k8v4);
+                   k8v4 = d::kv_cell_bytes(g, d::KvFormat::K8V4), q4 = d::kv_cell_bytes(g, d::KvFormat::Q4);
+    std::printf("  a cell: fp16 %llu B, int8 %llu B, K8V4 %llu B, Q4 %llu B\n", (unsigned long long) fp16,
+                (unsigned long long) int8, (unsigned long long) k8v4, (unsigned long long) q4);
     expect(fp16 == 4096, "fp16: 4 KV heads x 256 values x 2 x 2");
     expect(int8 == 2112, "int8: codes and 4 fp16 scales per 64 values, K and V");
     expect(k8v4 == 1632, "K8V4: int8 K (1,056) plus 8 fp16-scaled q4_0 blocks a KV head (576)");
+    expect(q4 == 1152, "Q4: 8 fp16-scaled q4_0 blocks a KV head (576) for K and the same for V");
 
     // ---- the recorded planner outputs at 262,144 cells must not move (the formats' exact bytes live in one function)
     const int64_t ctx = 262144;
@@ -150,15 +158,19 @@ int main() {
                                     {"fp16 ring 32768", d::KvFormat::Fp16, 32768},
                                     {"int8 ring 32768", d::KvFormat::Int8, 32768}};
     std::printf("  max cells on UD-Q4_K_XL by the drafter's cache (the main cache's format across)\n");
-    std::printf("    %-16s %12s %12s\n", "drafter", "K8V4", "int8");
-    int64_t k8v4_by_setup[4], int8_by_setup[4];
+    std::printf("    %-16s %12s %12s %12s\n", "drafter", "Q4", "K8V4", "int8");
+    int64_t q4_by_setup[4], k8v4_by_setup[4], int8_by_setup[4];
     for (int i = 0; i < 4; ++i) {
+        q4_by_setup[i] = max_cells_drafter(g, d::KvFormat::Q4, setups[i].fmt, setups[i].window);
         k8v4_by_setup[i] = max_cells_drafter(g, d::KvFormat::K8V4, setups[i].fmt, setups[i].window);
         int8_by_setup[i] = max_cells_drafter(g, d::KvFormat::Int8, setups[i].fmt, setups[i].window);
-        std::printf("    %-16s %12lld %12lld\n", setups[i].name, (long long) k8v4_by_setup[i], (long long) int8_by_setup[i]);
+        std::printf("    %-16s %12lld %12lld %12lld\n", setups[i].name, (long long) q4_by_setup[i],
+                    (long long) k8v4_by_setup[i], (long long) int8_by_setup[i]);
     }
     for (int i = 0; i < 4; ++i) {
+        expect(q4_by_setup[i] >= k8v4_by_setup[i], "Q4's cells are K8V4's or more");
         expect(k8v4_by_setup[i] >= int8_by_setup[i], "K8V4's cells are int8's or more");
+        expect(i < 2 || q4_by_setup[i] >= q4_by_setup[i - 2], "a ring does not shrink Q4's maximum");
         expect(i < 2 || k8v4_by_setup[i] >= k8v4_by_setup[i - 2], "a ring does not shrink K8V4's maximum");
         expect(i < 2 || int8_by_setup[i] >= int8_by_setup[i - 2], "a ring does not shrink int8's maximum");
     }
@@ -168,6 +180,25 @@ int main() {
            "the 32,783-cell ring plans the 32,768-cell model's maximum, within its extra cells");
     expect(k8v4_by_setup[0] == k8v4_full_max, "the fp16 drafter at full context is the existing no-ring maximum");
     expect(int8_by_setup[0] == int8_full, "the int8 cache with the fp16 drafter is the existing no-ring int8 maximum");
+
+    // ---- D8's decision, at the full context: rotated 4-bit K and V is the format that reaches 262,144 cells; the
+    // drafter's own cache decides whether the plan fits. `room` is what the plan leaves of the card's 7,597 MiB, after
+    // the 512 MiB reserve the adapter adds on top of shared_bytes' own.
+    const uint64_t q4_kv = (uint64_t) ctx * g.attn_layers() * q4;
+    std::printf("  Q4 at 262,144 cells: KV %llu MiB (the roadmap's ~4.6 GiB); 261,120 of its cells are 184,320 K8V4's bytes\n",
+                (unsigned long long) (q4_kv / kMib));
+    expect(q4_kv <= (uint64_t) (4.6 * (double) kGib), "262,144 4-bit cells fit the ~4.6 GiB the roadmap leaves for KV");
+    std::printf("  262,144 cells, the plan MiB by the drafter's cache (7,597 free, the reserve on top):\n");
+    long long q4_room[4];
+    for (int i = 0; i < 4; ++i) {
+        const uint64_t plan = plan_mib(g, ctx, d::KvFormat::Q4, setups[i].fmt, setups[i].window);
+        q4_room[i] = (long long) kFreeMib - (long long) (plan + reserve_mib);
+        std::printf("    %-16s plan %6llu MiB: %s %lld MiB\n", setups[i].name, (unsigned long long) plan,
+                    q4_room[i] < 0 ? "short by" : "to spare", q4_room[i] < 0 ? -q4_room[i] : q4_room[i]);
+    }
+    expect(q4_room[0] < 0 && q4_room[1] < 0, "262,144 4-bit cells do not fit with the drafter's KV at full context");
+    expect(q4_room[3] > 0, "they fit with the drafter's int8 ring");
+    expect(q4_by_setup[2] < ctx && q4_by_setup[3] >= ctx, "the Q4 maximum crosses 262,144 with the drafter's int8 ring");
 
     std::printf("dense_kv_planner: %s\n", g_fail ? "FAIL" : "PASS");
     return g_fail ? 1 : 0;

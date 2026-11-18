@@ -126,6 +126,85 @@ int main() {
         expect(bad == 0, "a 16-dim piece of a row reads the codes of its own dims");
     }
 
+    // ---- the rotation the dense 4-bit caches apply: the 256-point transform with the 1/16 at the load (the stages and
+    // order of fwht256_cuda, and of the in-block copy at the cache write) is orthonormal and its own inverse. Rotating
+    // a query and a key therefore leaves their dot product alone, and rotating a V row is undone by the same call on
+    // the attention output. The dense kernels rotate K after its rope and V at the cache write, and Q before attention.
+    {
+        const auto fwht = [](float* x) {
+            for (int s = 1; s < 256; s *= 2)
+                for (int i = 0; i < 256; i += 2 * s)
+                    for (int j = 0; j < s; ++j) {
+                        const float u = x[i + j], w = x[i + j + s];
+                        x[i + j] = u + w;
+                        x[i + j + s] = u - w;
+                    }
+            for (int i = 0; i < 256; ++i) x[i] *= 1.0f / 16.0f;
+        };
+        std::mt19937 r(20261117u);
+        std::normal_distribution<float> n(0.0f, 1.0f);
+        double worst_norm = 0.0, worst_inv = 0.0, worst_dot = 0.0, worst_rt = 0.0;
+        for (int round = 0; round < 100; ++round) {
+            float a[256], b[256], a0[256], b0[256];
+            for (int i = 0; i < 256; ++i) a[i] = a0[i] = n(r), b[i] = b0[i] = n(r);
+            fwht(a);
+            fwht(b);
+            double dot = 0.0, dot0 = 0.0, na = 0.0, nb = 0.0, na0 = 0.0;
+            for (int i = 0; i < 256; ++i) {
+                dot += (double) a[i] * b[i];
+                dot0 += (double) a0[i] * b0[i];
+                na += (double) a[i] * a[i];
+                na0 += (double) a0[i] * a0[i];
+                nb += (double) b0[i] * b0[i];
+            }
+            worst_norm = std::max(worst_norm, std::fabs(std::sqrt(na) - std::sqrt(na0)) / std::sqrt(na0));
+            worst_dot = std::max(worst_dot, std::fabs(dot - dot0) / (std::sqrt(na0) * std::sqrt(nb)));
+            fwht(a);
+            fwht(b);   // H . H = 1
+            for (int i = 0; i < 256; ++i)
+                worst_inv = std::max(worst_inv, (double) std::fabs(a[i] - a0[i]));
+        }
+        expect(worst_norm <= 1e-4, "the rotation keeps a row's length: the stages and the 1/16 are orthonormal");
+        expect(worst_inv <= 1e-4, "the rotation is its own inverse, so the output un-rotation restores the row");
+        expect(worst_dot <= 1e-4, "a rotated query and key keep their dot product: Q K^T is invariant under it");
+        std::printf("  rotation: |Hx| vs |x| %.2g, H(Hx) vs x %.2g, (Hq).(Hk) vs q.k %.2g (relative)\n", worst_norm, worst_inv,
+                    worst_dot);
+
+        // the round trip the 4-bit caches make of K and V: rotate, quantize to q4_0 blocks, un-rotate. The error is the
+        // format's own, spread over the row rather than concentrated in the blocks an outlier sits in.
+        for (int round = 0; round < 100; ++round) {
+            float row[256], rot[256];
+            for (int i = 0; i < 256; ++i) row[i] = rot[i] = n(r);
+            fwht(rot);
+            float rt[256];
+            for (int b = 0; b < 8; ++b) {
+                const k::KvQ4Block blk = k::kv_q4_quantize_host(&rot[b * 32]);
+                for (int j = 0; j < 32; ++j) rt[b * 32 + j] = k::kv_q4_dequant(element_code(blk, j), f16(blk.d));
+            }
+            fwht(rt);   // H (H V) = V: what the attention output's un-rotation gives
+            double e2 = 0.0, x2 = 0.0;
+            for (int i = 0; i < 256; ++i) e2 += (double) (rt[i] - row[i]) * (rt[i] - row[i]), x2 += (double) row[i] * row[i];
+            worst_rt = std::max(worst_rt, std::sqrt(e2 / x2));
+        }
+        std::printf("  rotate, q4_0, un-rotate: relative L2 error %.3g over 100 random rows\n", worst_rt);
+        expect(worst_rt <= 0.3, "a rotated-and-back 4-bit row is within the format's rounding of the row");
+        {
+            // one 64-valued dim and 255 zeros: unrotated, its block's step is the outlier over 8; rotated, every block's
+            // step is the outlier over 128, which is why the caches rotate before 4 bits
+            float row[256] = {0.0f}, rot[256];
+            row[7] = 64.0f;
+            for (int i = 0; i < 256; ++i) rot[i] = row[i];
+            fwht(rot);
+            float d_plain = 0.0f, d_rot = 0.0f;
+            for (int b = 0; b < 8; ++b) {
+                d_plain = std::max(d_plain, std::fabs(f16(k::kv_q4_quantize_host(&row[b * 32]).d)));
+                d_rot = std::max(d_rot, std::fabs(f16(k::kv_q4_quantize_host(&rot[b * 32]).d)));
+            }
+            std::printf("  one 64-valued dim: the largest block step is %.3g unrotated, %.3g rotated\n", d_plain, d_rot);
+            expect(d_rot * 8.0f <= d_plain, "the rotation spreads one outlier over every block, so no block's step is its eighth");
+        }
+    }
+
     // ---- the reconstruction bound over random rows, printed for the report
     {
         double worst = 0.0, worst_rel = 0.0;

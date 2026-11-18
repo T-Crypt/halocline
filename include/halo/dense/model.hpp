@@ -112,15 +112,19 @@ enum class Drafter { None, Mtp, Block };
 
 /// How an attention layer stores K and V.  Fp16 is the unrounded reference; Int8 keeps int8 codes with an fp16 scale
 /// per 64 values; K8V4 keeps K in that int8 form and V in rotated q4_0 blocks (kv_q4_layout.hpp), which is a third of
-/// fp16's bytes per cell.  Each format is gated in the attention kernels; the fp16 and int8 arithmetic is not shared
-/// with the others.
-enum class KvFormat { Fp16, Int8, K8V4 };
+/// fp16's bytes per cell; Q4 keeps both in those rotated blocks, 1,152 B a cell against K8V4's 1,632.  Each format is
+/// gated in the attention kernels; the fp16 and int8 arithmetic is not shared with the others.
+enum class KvFormat { Fp16, Int8, K8V4, Q4 };
 
-/// The number a conversation cache stores a format as: 1 fp16, 2 int8, 3 K8V4, for the main cache and the drafter alike.
-inline int kv_format_id(KvFormat fmt) { return fmt == KvFormat::Int8 ? 2 : fmt == KvFormat::K8V4 ? 3 : 1; }
+/// The number a conversation cache stores a format as: 1 fp16, 2 int8, 3 K8V4, 4 Q4, for the main cache and the drafter
+/// alike.
+inline int kv_format_id(KvFormat fmt) {
+    return fmt == KvFormat::Int8 ? 2 : fmt == KvFormat::K8V4 ? 3 : fmt == KvFormat::Q4 ? 4 : 1;
+}
 
 /// --mtp-kv's value: Fp16 (the default, also for an empty value) or Int8, the drafter's two formats. Anything else is
-/// refused, K8V4 included: its V blocks have a reader in the main cache's attention only, never in the drafter's.
+/// refused, K8V4 and Q4 included: their V blocks have a reader in the main cache's attention only, never in the
+/// drafter's.
 inline bool mtp_kv_format(const std::string& v, KvFormat& out) {
     if (v.empty() || v == "fp16") out = KvFormat::Fp16;
     else if (v == "int8") out = KvFormat::Int8;
@@ -183,8 +187,9 @@ inline bool mtp_image_matches(const Options& o, int format, int64_t cells, int64
 inline std::string mtp_option_error(bool mtp_kv_given, const std::string& mtp_kv, int64_t mtp_window, Drafter drafter) {
     KvFormat fmt = KvFormat::Fp16;
     if (mtp_kv_given && !mtp_kv_format(mtp_kv, fmt))
-        return mtp_kv == "k8v4" ? "--mtp-kv k8v4: the drafter keeps fp16 or int8; k8v4 is the main cache's format"
-                                : "--mtp-kv " + mtp_kv + ": fp16 (the default) or int8";
+        return mtp_kv == "k8v4" || mtp_kv == "q4_0"
+                   ? "--mtp-kv " + mtp_kv + ": the drafter keeps fp16 or int8; " + mtp_kv + " is the main cache's format"
+                   : "--mtp-kv " + mtp_kv + ": fp16 (the default) or int8";
     if (mtp_window < 0 || mtp_window > ((int64_t) 1 << 40))
         return "--mtp-window " + std::to_string((long long) mtp_window) + ": 0 (every cell) or the cells the drafter reads";
     if ((mtp_kv_given || mtp_window > 0) && drafter != Drafter::Mtp)

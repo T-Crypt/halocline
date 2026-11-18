@@ -307,8 +307,8 @@ kernels::DecRecArgs gdn_args(Model& m, const Layer& L) {
 
 template <class Stages>
 void win_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64_t pos, cudaStream_t s, Stages& stages,
-              kernels::KvInt8 q8 = {}, kernels::KvFar far_kv = {}, kernels::KvK8V4 k8v4 = {}, int64_t cap = 0,
-              int64_t window = 0) {
+              kernels::KvInt8 q8 = {}, kernels::KvFar far_kv = {}, kernels::KvK8V4 k8v4 = {}, kernels::KvQ4 q4 = {},
+              int64_t cap = 0, int64_t window = 0) {
     const Geometry& g = m.g;
     WindowScratch& b = m.ws;
     const int H = g.n_embd;
@@ -316,16 +316,18 @@ void win_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64
     prod_group(m, b.xn, xq, L.q.type, {{&L.q, b.qfull}, {&L.k, b.k}, {&L.v, b.v}}, T, s);
     stages.mark(Stage::AttnPre, s);
     kernels::attn_qk_prepare(b.qfull, b.k, b.v, L.q_norm, L.k_norm, g.eps, g.rope, b.pos, T, g.n_head, g.n_kv, b.qo, kc, vc,
-                             pos, s, 256, true, cap, b.pos0, q8, far_kv, k8v4);
+                             pos, s, 256, true, cap, b.pos0, q8, far_kv, k8v4, q4);
     stages.mark(Stage::AttnQk, s);
-    // A 4-bit cache holds V rotated (attn_qk_prepare rotates it at the write), so each head's output comes back as H
-    // times the true mix and is rotated back here before the gate: H is its own inverse.  The merge's gated rows are
-    // then the wrong side of the rotation, so this path reads the fp32 rows and gates them after.
+    // A 4-bit cache holds K and V rotated (attn_qk_prepare rotates V, and K after its rope), so the queries are rotated
+    // here, by the same transform, before attention: H . H = 1, so a logit is the unrotated dot product.  Each head's
+    // output then comes back as H times the true mix and is rotated back after attention: H is its own inverse.  The
+    // merge's gated rows are then the wrong side of the rotation, so this path reads the fp32 rows and gates after.
     const bool gated = on_wg(L.o.type);   // the merge gates and readies the rows for o
-    const bool rot = k8v4.k != nullptr;
+    const bool rot = k8v4.k != nullptr || q4.k != nullptr;
+    if (q4.k) kernels::fwht256_inplace_cuda(b.qo, (int64_t) T * g.n_head, s);
     kernels::gqa_decode_attn(b.qo, kc, vc, g.n_head, g.n_kv, pos, T, b.attn, m.o.max_context, gated && !rot ? nullptr : b.ao, s,
                              b.pos0, q8, gated && !rot ? b.qfull : nullptr, gated && !rot ? (uint16_t*) b.xq : nullptr, far_kv,
-                             k8v4, window, cap);
+                             k8v4, q4, window, cap);
     stages.mark(Stage::AttnCore, s);
     if (rot) {
         kernels::fwht256_inplace_cuda(b.ao, (int64_t) T * g.n_head, s);
@@ -463,13 +465,14 @@ kernels::KvFar stage_far(Model& m, const kernels::KvFar& far_kv, int64_t pos, in
 // prompt attention has no windowed form, and a windowed drafter's prompt rows are read by nothing (mtp_chunk).
 void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64_t pos, cudaStream_t s,
                 kernels::KvInt8 q8 = {}, bool cells_only = false, kernels::KvFar far_kv = {}, kernels::KvK8V4 k8v4 = {},
-                int64_t cap = 0) {
+                kernels::KvQ4 q4 = {}, int64_t cap = 0) {
     const Geometry& g = m.g;
     ChunkScratch& b = m.cs;
     const int H = g.n_embd, AQ = g.n_head * g.head_dim;
     const bool f8 = all_f8({&L.q, &L.k, &L.v, &L.o}), nvfp4 = all_nvfp4({&L.q, &L.k, &L.v, &L.o});
-    // a 4-bit cache holds V rotated (attn_qk_prepare rotates it at the write), so the output comes back rotated
-    const bool rot = k8v4.k != nullptr;
+    // a 4-bit cache holds K and V rotated (attn_qk_prepare rotates V, and K after its rope), so the output comes back
+    // rotated and the queries are rotated before the attention call below
+    const bool rot = k8v4.k != nullptr || q4.k != nullptr;
     if (f8 || nvfp4) {
         // the norm in the quantizer, the q, k and v products BF16 out (F8: one product), the gate's rows straight to E4M3 for
         // an F8 o, else to BF16 rows with each row's amax, read once by o's FP4 quantizer
@@ -487,7 +490,7 @@ void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int
                 product(L.v, b.v);
             }
             kernels::attn_qk_prepare_bf16(nullptr, bf(b.k), bf(b.v), nullptr, L.k_norm, g.eps, g.rope, b.pos, T, 0, g.n_kv, nullptr,
-                                          pos, s, q8, kc, vc, far_kv, k8v4, cap);
+                                          pos, s, q8, kc, vc, far_kv, k8v4, q4, cap);
             return;
         }
         if (f8) {
@@ -499,14 +502,23 @@ void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int
             product(L.v, b.v);
         }
         kernels::attn_qk_prepare_bf16(bf(b.qfull), bf(b.k), bf(b.v), L.q_norm, L.k_norm, g.eps, g.rope, b.pos, T, g.n_head, g.n_kv,
-                                      bf(b.qo), pos, s, q8, kc, vc, far_kv, k8v4);
+                                      bf(b.qo), pos, s, q8, kc, vc, far_kv, k8v4, q4);
         const kernels::KvFar read = stage_far(m, far_kv, pos, T, s);
         const size_t split = kernels::gqa_prompt_split_floats(kChunk, g.n_head, kAttnSplits);
         uint8_t* e4 = (uint8_t*) b.xq;
         float* e4s = prefill::fp8::act_scales(b.xq, T, AQ);
         float* gated = b.ag;   // where the gate's BF16 rows land, read by o's FP4 quantizer
-        if (q8.k || k8v4.k) {   // BF16 queries and output rows
-            kernels::gqa_prompt_attn_bf16(bf(b.qo), g.n_head, g.n_kv, pos, T, bf(b.ao), s, q8, b.attn_split, split, read, k8v4);
+        if (q4.k) {   // Q4: the BF16 queries as FP32 rows (one rounding), rotated like K, and the output rotated back
+            kernels::to_f32(bf(b.qo), b.ag, (int64_t) T * AQ, s);
+            kernels::fwht256_inplace_cuda(b.ag, (int64_t) T * g.n_head, s);
+            kernels::gqa_prompt_attn(b.ag, nullptr, nullptr, g.n_head, g.n_kv, pos, T, b.ao, s, {}, b.attn_split, split,
+                                     {}, k8v4, q4);
+            kernels::fwht256_inplace_cuda(b.ao, (int64_t) T * g.n_head, s);
+            gated = (float*) b.xq;   // b.ag holds the queries; the gate's rows land in b.xq instead
+            if (f8) kernels::attn_gate_e4m3(b.ao, bf(b.qfull), T, g.n_head, e4, e4s, s);
+            else kernels::attn_gate_bf16(b.ao, bf(b.qfull), T, g.n_head, bf(gated), b.hmax, s);
+        } else if (q8.k || k8v4.k) {   // BF16 queries and output rows
+            kernels::gqa_prompt_attn_bf16(bf(b.qo), g.n_head, g.n_kv, pos, T, bf(b.ao), s, q8, b.attn_split, split, read, k8v4, q4);
             if (rot) {   // the output back (H is its own inverse) as fp32 in b.ag, then the gate reads it
                 kernels::to_f32(bf(b.ao), b.ag, (int64_t) T * AQ, s);
                 kernels::fwht256_inplace_cuda(b.ag, (int64_t) T * g.n_head, s);
@@ -519,7 +531,7 @@ void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int
             else kernels::attn_gate_bf16(attn_rows, bf(b.qfull), T, g.n_head, bf(gated), b.hmax, s);
         } else {      // an fp16 cache's prompt kernel reads FP32 queries (the gate's BF16 rows reuse their buffer)
             kernels::to_f32(bf(b.qo), b.ag, (int64_t) T * AQ, s);
-            kernels::gqa_prompt_attn(b.ag, kc, vc, g.n_head, g.n_kv, pos, T, b.ao, s, q8, b.attn_split, split, read, k8v4);
+            kernels::gqa_prompt_attn(b.ag, kc, vc, g.n_head, g.n_kv, pos, T, b.ao, s, q8, b.attn_split, split, read, k8v4, q4);
             if (f8) kernels::attn_gate_e4m3(b.ao, bf(b.qfull), T, g.n_head, e4, e4s, s);
             else kernels::attn_gate_bf16(b.ao, bf(b.qfull), T, g.n_head, bf(b.ag), b.hmax, s);
         }
@@ -533,7 +545,7 @@ void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int
         gemm(m, L.k, b.k, T, s);
         gemm(m, L.v, b.v, T, s);
         kernels::attn_qk_prepare(nullptr, b.k, b.v, nullptr, L.k_norm, g.eps, g.rope, b.pos, T, 0, g.n_kv, nullptr, kc, vc, pos, s,
-                                 256, true, cap, nullptr, q8, far_kv, k8v4);
+                                 256, true, cap, nullptr, q8, far_kv, k8v4, q4);
         return;
     }
     chunk_act(m, b.xn, L.q.type, H, T, s);
@@ -542,9 +554,11 @@ void chunk_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int
     gemm(m, L.k, b.k, T, s);
     gemm(m, L.v, b.v, T, s);
     kernels::attn_qk_prepare(b.qfull, b.k, b.v, L.q_norm, L.k_norm, g.eps, g.rope, b.pos, T, g.n_head, g.n_kv, b.qo, kc, vc,
-                             pos, s, 256, true, 0, nullptr, q8, far_kv, k8v4);
+                             pos, s, 256, true, 0, nullptr, q8, far_kv, k8v4, q4);
+    if (q4.k) kernels::fwht256_inplace_cuda(b.qo, (int64_t) T * g.n_head, s);   // Q rotated like K, before attention
     kernels::gqa_prompt_attn(b.qo, kc, vc, g.n_head, g.n_kv, pos, T, b.ao, s, q8, b.attn_split,
-                             kernels::gqa_prompt_split_floats(kChunk, g.n_head, kAttnSplits), stage_far(m, far_kv, pos, T, s), k8v4);
+                             kernels::gqa_prompt_split_floats(kChunk, g.n_head, kAttnSplits), stage_far(m, far_kv, pos, T, s), k8v4,
+                             q4);
     if (rot) kernels::fwht256_inplace_cuda(b.ao, (int64_t) T * g.n_head, s);
     kernels::attn_gate(b.ao, b.qfull, b.ag, T, g.n_head, s);
     chunk_residual(m, L.o, b.ag, AQ, T, s);
@@ -712,7 +726,7 @@ void window_body(Model& m, SessionState& st, int T, int64_t pos, Stages& stages)
         } else {
             const int ai = m.attn_index[(size_t) il];
             win_attn(m, L, st.kc[(size_t) ai], st.vc[(size_t) ai], T, pos, s, stages, st.kq[(size_t) ai],
-                     st.far_kv[(size_t) ai], st.k8v4[(size_t) ai]);
+                     st.far_kv[(size_t) ai], st.k8v4[(size_t) ai], st.q4[(size_t) ai]);
         }
         win_ffn(m, L, T, s, stages);
     }, s);
@@ -793,7 +807,7 @@ void batch_attn(Model& m, const Layer& L, int ai, const BatchSeg* segs, int S, i
         kernels::attn_qk_prepare(b.qfull + (size_t) row * 2 * AQ, b.k + (size_t) row * KV, b.v + (size_t) row * KV, L.q_norm,
                                  L.k_norm, g.eps, g.rope, b.pos + (size_t) row * 3, T, g.n_head, g.n_kv,
                                  b.qo + (size_t) row * AQ, st.kc[(size_t) ai], st.vc[(size_t) ai], segs[k].pos, s, 256, true, 0, p0,
-                                 st.kq[(size_t) ai], st.far_kv[(size_t) ai], st.k8v4[(size_t) ai]);
+                                 st.kq[(size_t) ai], st.far_kv[(size_t) ai], st.k8v4[(size_t) ai], st.q4[(size_t) ai]);
         as[k].T = T;
         as[k].k_cache = st.kc[(size_t) ai];
         as[k].v_cache = st.vc[(size_t) ai];
@@ -802,10 +816,14 @@ void batch_attn(Model& m, const Layer& L, int ai, const BatchSeg* segs, int S, i
         as[k].q8 = st.kq[(size_t) ai];
         as[k].far_kv = st.far_kv[(size_t) ai];
         as[k].k8v4 = st.k8v4[(size_t) ai];
+        as[k].q4 = st.q4[(size_t) ai];
         row += T;
     }
-    // every session of a model has the model's KV format, so one flag covers the launch
-    const bool gated = on_wg(L.o.type), rot = m.o.kv == KvFormat::K8V4;
+    // every session of a model has the model's KV format, so one flag covers the launch; a rotated cache's queries are
+    // rotated together, once over the packed rows (the segments' rows are adjacent [n_head][256] runs)
+    const bool gated = on_wg(L.o.type);
+    const bool q4f = m.o.kv == KvFormat::Q4, rot = m.o.kv == KvFormat::K8V4 || q4f;
+    if (q4f) kernels::fwht256_inplace_cuda(b.qo, (int64_t) rows * g.n_head, s);
     kernels::gqa_decode_attn_segs(b.qo, g.n_head, g.n_kv, as, S, b.attn, m.o.max_context, gated && !rot ? nullptr : b.ao, s,
                                   gated && !rot ? b.qfull : nullptr, gated && !rot ? (uint16_t*) b.xq : nullptr);
     if (rot) {
@@ -1000,7 +1018,7 @@ void chunk_layers(Model& m, SessionState& st, int T, int64_t pos, int l0, int l1
         } else {
             const int ai = m.attn_index[(size_t) il];
             chunk_attn(m, L, st.kc[(size_t) ai], st.vc[(size_t) ai], T, pos, s, st.kq[(size_t) ai], unread,
-                       st.far_kv[(size_t) ai], st.k8v4[(size_t) ai]);
+                       st.far_kv[(size_t) ai], st.k8v4[(size_t) ai], st.q4[(size_t) ai]);
             if (!unread) prefetch_from(il + 1);
         }
         if (unread) break;
@@ -1230,7 +1248,7 @@ bool mtp_chunk(Model& m, SessionState& st, const float* hid, const int32_t* tok,
     kernels::to_bf16(b.tmp, residual(b), (int64_t) n * H, s);   // the chunk path's residual is BF16
     // Only the cache's cells outlive this call, so a ring writes those alone: the rows a windowed drafter's prompt chunk
     // would attend over are read by nothing, and a ring has no cells at their own positions to read.
-    chunk_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, st.mtp_kq, st.mtp_cap > 0, {}, {}, st.mtp_cap);
+    chunk_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, st.mtp_kq, st.mtp_cap > 0, {}, {}, {}, st.mtp_cap);
     return cuda_ok("drafter history", err);
 }
 
@@ -1252,7 +1270,7 @@ bool mtp_window(Model& m, SessionState& st, const float* hid, const int32_t* tok
     prod(m, d.fc, wact(m, b.cat, d.fc.type, 2 * H, n, s), b.tmp, n, s);
     kernels::to_bf16(b.tmp, b.x, (int64_t) n * H, s);
     NoStages stages;   // a draft's own stages are the call's: draft_begin times the whole mtp_window
-    win_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, stages, st.mtp_kq, {}, {}, st.mtp_cap, m.o.mtp_window);
+    win_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, stages, st.mtp_kq, {}, {}, {}, st.mtp_cap, m.o.mtp_window);
     if (out) {
         win_ffn(m, d.layer, n, s, stages);
         // the head's rows (scaled), of which the last is read

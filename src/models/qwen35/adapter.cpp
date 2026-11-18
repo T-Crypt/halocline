@@ -78,6 +78,7 @@ bool kv_format(const std::string& kv, dense::KvFormat& out) {
     if (kv.empty() || kv == "fp16") out = dense::KvFormat::Fp16;
     else if (kv == "int8") out = dense::KvFormat::Int8;
     else if (kv == "k8v4") out = dense::KvFormat::K8V4;
+    else if (kv == "q4_0") out = dense::KvFormat::Q4;
     else return false;
     return true;
 }
@@ -599,12 +600,13 @@ public:
     std::optional<int> finish_flags(program::CommonOptions& o) const override {
         dense::KvFormat fmt = dense::KvFormat::Fp16;
         if (!kv_format(o.kv, fmt)) {
-            halo::log::error("halo qwen35", "--kv %s: fp16 (the default), int8 or k8v4", o.kv.c_str());
+            halo::log::error("halo qwen35", "--kv %s: fp16 (the default), int8, k8v4 or q4_0", o.kv.c_str());
             return 2;
         }
-        // K8V4 has no streamed form: a cell's V blocks are not a byte range that maps one-to-one onto fp16's rows
-        if (fmt == dense::KvFormat::K8V4 && o.kv_resident > 0 && o.kv_resident < o.max_context) {
-            halo::log::error("halo qwen35", "--kv k8v4 does not support --kv-resident streaming");
+        // neither 4-bit form has a streamed layout: a cell's blocks are not a byte range that maps one-to-one onto
+        // fp16's rows
+        if ((fmt == dense::KvFormat::K8V4 || fmt == dense::KvFormat::Q4) && o.kv_resident > 0 && o.kv_resident < o.max_context) {
+            halo::log::error("halo qwen35", "--kv %s does not support --kv-resident streaming", o.kv.c_str());
             return 2;
         }
         if (const auto code = model::check_rope_flags(o.rope, "halo qwen35")) return code;

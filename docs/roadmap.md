@@ -269,6 +269,12 @@ The work, in order:
    The trap: K8V4 has no streamed form, so a run that passes `--kv-resident` without `--kv` would be refused; resolve
    that (streaming falls back to int8, or the refusal names `--kv int8`) and run the GPU suite before the change lands.
 
+   **2026-11-17 (W7):** the rotated 4-bit plan at 262,144 cells is 7,094 MiB with the drafter's KV as the 32K ring of
+   item 2 (9 MiB short of the card's 7,597 MiB and the 512 MiB reserve) and 7,032 MiB with `--mtp-kv int8` too (53 MiB
+   to spare): 262,144 fits once both drafter levers are on, without the workspace trim this item's "261K" line assumed.
+   With the drafter at full context the same plan is 7,990 MiB (905 MiB over) or 7,494 (409 MiB over) at `--mtp-kv int8`.
+   The numbers are the planner's own, `tests/kernels/dense_kv_planner_test.cpp`; nothing was measured on the card.
+
 Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
 
 ### Dense quality levers (each A/B'd on the 100-chunk gate with a paired interval; keep what wins)
