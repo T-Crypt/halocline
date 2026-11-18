@@ -124,6 +124,20 @@ output; struct is 153.8 tok/s at 351 GB/s.
   tiled kernel's statements inside the tiled kernel's 16-row group, so its output is bitwise that kernel's (the parity
   tests hold T = 1..9 against the tiled launch on fp16, int8, K8V4, the far cache, a ring and a batch window's
   segments). Windows past 48 rows (M > 48) keep the tiled launch. The GPU A/B at 36K and 137K is pending.
+
+  *Built 2026-11-18 (W17, branch `s1c-decode-kernel`, no GPU run yet):* `decode_k8v4_kernel` takes the served K8V4 cache
+  at M <= 48 rows. One block still holds every row of a window for one KV head (R = ceil(M / 16) m16 groups), but it now
+  has 8 warps at R <= 2 and 12 at R = 3 (four a group), stages each chunk's raw K/V bytes (13,056 B: K's codes and
+  per-64 scales, V's q4 blocks) into shared memory with `cp.async` a chunk ahead of the dequant that reads them, and runs
+  the phases in parallel across groups: a group's four 8-cell n-tiles for S = Q K^T, a row a warp for the online softmax,
+  a dim slice of its group's O for P V. Shared bytes a block are 59,136 at R = 1, 71,424 at R = 2 and 83,712 at R = 3
+  (one block an SM at every R), registers 80 / 124 / 158 with no spills. Every per-row statement is the tiled kernel's
+  inside the tiled kernel's 16-row group and every fp16 K and V value is `dec_load_kv`'s, so a row's bits should be the
+  tiled kernel's: the K8V4 parity test compares the new kernel's rows against the tiled launch and the window kernel
+  (printing whether they are bitwise, gating at 5e-6), while the fp16 and int8 window-vs-tile checks stay bitwise. The
+  engine selects it for a K8V4 cache with M <= 48; fp16 and int8 decode at M <= 48 are the tiled launch again, as they
+  were before W14, and both older decode kernels are reachable from `tests/kernels/gqa_decode_ref.hpp` and
+  `gqa_decode_bench` only. ms and GB/s a layer at 36K and 137K are pending.
 - **S2, one weight pass for the whole verify window at GEMV rate.** `kMmvqMaxRows = 5` (`src/dense/forward.cpp:59`):
   wider windows drop to MMQ, so struct (mean 7.5 rows) streams 351 GB/s against 758 GB/s for a T=1 window. Port
   llama.cpp #31533 (few-row MMQ, see Q4) first, then measure MMVQ with fp32 activation scales to 8 rows (also Q2).
