@@ -2,6 +2,7 @@
 #pragma once
 
 #include "halo/dense/model.hpp"
+#include "halo/dense/profile.hpp"
 #include "halo/kernels/window_gemm.hpp"
 #include "halo/prefill/moe_mmq.hpp"
 
@@ -20,7 +21,10 @@ class CudaEncoder;
 
 namespace halo::dense {
 
+class WindowProfile;
+
 constexpr int kWindow = 16;       // rows one session's decode window holds
+static_assert(kProfileWidths == kWindow, "the profile's table covers every decode window width");
 constexpr int kBatch = 16;        // rows a batch window (several sessions' windows) holds
 constexpr int kNarrow = 8;        // the narrower MMQ tile for windows of up to 8 rows
 constexpr int kDraftQ = 20;       // candidates a block drafter's position keeps at most (its selector's top_k)
@@ -159,6 +163,8 @@ struct SessionState {
     cudaStream_t stream = nullptr;
     cudaStream_t side = nullptr;                  // the GDN commit, beside the block drafter
     cudaEvent_t fork = nullptr, join = nullptr;   // the commit's start (after the window) and end
+    /// --profile's window table (null without the flag): the session's stamps go here, and its windows run uncaptured
+    WindowProfile* prof = nullptr;
     Arena arena;
     float* gdn = nullptr;                        // per GDN layer: state [S][h_v][S], then conv history [C][3]
     // the other state buffer: a one-row window writes its state after the row there (alt_ready), and keeping the row

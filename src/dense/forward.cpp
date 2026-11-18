@@ -1,6 +1,8 @@
 // src/dense/forward.cpp - the layer loop of a decode window and of a prompt chunk, and the drafter's passes.
 #include "internal.hpp"
 
+#include "profile_cuda.hpp"
+
 #include "halo/kernels/gdn_prompt.hpp"
 #include "halo/kernels/gqa_attn.hpp"
 #include "halo/kernels/iq_kernels.hpp"
@@ -33,6 +35,13 @@ bool cuda_ok(const char* what, std::string& err) {
 }
 
 namespace wg = kernels::wgemm;
+
+// The stages type of a window that is not profiled: every mark compiles to nothing, so the captured window's kernel
+// sequence is exactly the one without --profile, with no branch and no event inside the graph.
+struct NoStages {
+    static constexpr bool kOn = false;
+    void mark(Stage, cudaStream_t) const {}
+};
 
 // A decode window's products: F8 and NVFP4-plane matrices on window_gemm, whose rows' arithmetic never depends on the
 // window's rows (up to kBatch) and which applies the tensor scale; others (the drafters' Q8_0) on MMQ with the tile of
@@ -296,7 +305,8 @@ kernels::DecRecArgs gdn_args(Model& m, const Layer& L) {
     return a;
 }
 
-void win_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64_t pos, cudaStream_t s,
+template <class Stages>
+void win_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64_t pos, cudaStream_t s, Stages& stages,
               kernels::KvInt8 q8 = {}, kernels::KvFar far_kv = {}, kernels::KvK8V4 k8v4 = {}, int64_t cap = 0,
               int64_t window = 0) {
     const Geometry& g = m.g;
@@ -304,8 +314,10 @@ void win_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64
     const int H = g.n_embd;
     const void* xq = wnorm(m, b.x, L.attn_norm, b.xn, L.q.type, H, T, g.eps, s);
     prod_group(m, b.xn, xq, L.q.type, {{&L.q, b.qfull}, {&L.k, b.k}, {&L.v, b.v}}, T, s);
+    stages.mark(Stage::AttnPre, s);
     kernels::attn_qk_prepare(b.qfull, b.k, b.v, L.q_norm, L.k_norm, g.eps, g.rope, b.pos, T, g.n_head, g.n_kv, b.qo, kc, vc,
                              pos, s, 256, true, cap, b.pos0, q8, far_kv, k8v4);
+    stages.mark(Stage::AttnQk, s);
     // A 4-bit cache holds V rotated (attn_qk_prepare rotates it at the write), so each head's output comes back as H
     // times the true mix and is rotated back here before the gate: H is its own inverse.  The merge's gated rows are
     // then the wrong side of the rotation, so this path reads the fp32 rows and gates them after.
@@ -314,20 +326,24 @@ void win_attn(Model& m, const Layer& L, uint16_t* kc, uint16_t* vc, int T, int64
     kernels::gqa_decode_attn(b.qo, kc, vc, g.n_head, g.n_kv, pos, T, b.attn, m.o.max_context, gated && !rot ? nullptr : b.ao, s,
                              b.pos0, q8, gated && !rot ? b.qfull : nullptr, gated && !rot ? (uint16_t*) b.xq : nullptr, far_kv,
                              k8v4, window, cap);
+    stages.mark(Stage::AttnCore, s);
     if (rot) {
         kernels::fwht256_inplace_cuda(b.ao, (int64_t) T * g.n_head, s);
         if (gated) kernels::attn_gate_bf16(b.ao, (const uint16_t*) b.qfull, T, g.n_head, (uint16_t*) b.xq, nullptr, s);
     }
     win_attn_out(m, L, T, s);
+    stages.mark(Stage::AttnOut, s);
 }
 
-void win_gdn(Model& m, SessionState& st, const Layer& L, int gi, int T, cudaStream_t s) {
+template <class Stages>
+void win_gdn(Model& m, SessionState& st, const Layer& L, int gi, int T, cudaStream_t s, Stages& stages) {
     const Geometry& g = m.g;
     WindowScratch& b = m.ws;
     const int H = g.n_embd, C = g.conv_channels();
     const void* xq = wnorm(m, b.x, L.attn_norm, b.xn, L.qkv.type, H, T, g.eps, s);
     float* qkv = st.rec_qkv + (size_t) gi * kWindow * C;
     prod_group(m, b.xn, xq, L.qkv.type, {{&L.qkv, qkv}, {&L.z, b.z}}, T, s);
+    stages.mark(Stage::GdnPre, s);
     kernels::DecRecArgs a = gdn_args(m, L);
     a.state = st.gdn + (size_t) gi * st.gdn_floats;
     a.qkv = qkv;
@@ -337,21 +353,28 @@ void win_gdn(Model& m, SessionState& st, const Layer& L, int gi, int T, cudaStre
     if (on_wg(L.out.type)) a.y16 = (uint16_t*) b.xq;   // the out product's rows
     if (T == 1 && st.gdn_alt) a.state_out = st.gdn_alt + (size_t) gi * st.gdn_floats;   // the state after the row
     kernels::dec_gdn_rec(a, T, s);
+    stages.mark(Stage::GdnRec, s);
     prod_add(m, L.out, on_wg(L.out.type) ? b.xq : wact(m, b.y, L.out.type, g.value_width(), T, s), b.x, T, s);
+    stages.mark(Stage::GdnOut, s);
 }
 
-void win_ffn(Model& m, const Layer& L, int T, cudaStream_t s) {
+template <class Stages>
+void win_ffn(Model& m, const Layer& L, int T, cudaStream_t s, Stages& stages) {
     const Geometry& g = m.g;
     WindowScratch& b = m.ws;
     const int H = g.n_embd;
     const void* xq = wnorm(m, b.x, L.ffn_norm, b.xn, L.gate.type, H, T, g.eps, s);
     if (on_wg(L.down.type)) {   // h straight into the down product's bf16 rows
         prod_swiglu(m, L.gate, L.up, b.xn, xq, nullptr, T, s, b.hq);
+        stages.mark(Stage::FfnUp, s);
         prod_add(m, L.down, b.hq, b.x, T, s);
+        stages.mark(Stage::FfnDown, s);
         return;
     }
     prod_swiglu(m, L.gate, L.up, b.xn, xq, b.h, T, s);
+    stages.mark(Stage::FfnUp, s);
     prod_add(m, L.down, wact(m, b.h, L.down.type, g.n_ff, T, s), b.x, T, s);
+    stages.mark(Stage::FfnDown, s);
 }
 
 // ---- prompt chunk layers: the residual rows are m.cs.x
@@ -670,27 +693,31 @@ void window_layers(Model& m, int rows, float* dacc, LayerFn layer, cudaStream_t 
 }
 
 // The window's work on the device, all of it from device inputs (tokens, positions, rows, first cell), so it can be
-// captured once per row count and replayed at any position.
-void window_body(Model& m, SessionState& st, int T, int64_t pos) {
+// captured once per row count and replayed at any position.  With a profile (`Stages` = WindowProfile) the window runs
+// as launched instead, its stages stamped, and the body runs without PDL: a stage's ms then holds its launch gap.
+template <class Stages>
+void window_body(Model& m, SessionState& st, int T, int64_t pos, Stages& stages) {
     const Geometry& g = m.g;
     const Weights& w = m.w;
     WindowScratch& b = m.ws;
     const cudaStream_t s = st.stream;
     const int H = g.n_embd;
-    kernels::PdlScope pdl(true);   // the window gemm and its packs start early: their weights are read meanwhile
+    kernels::PdlScope pdl(!Stages::kOn);   // the window gemm and its packs start early: their weights are read meanwhile
     embed_rows(m, b.tok, T, s);
+    stages.mark(Stage::Embed, s);
     window_layers(m, T, st.dacc, [&](int il) {
         const Layer& L = w.layers[(size_t) il];
         if (L.kind == Mixer::Gdn) {
-            win_gdn(m, st, L, m.gdn_index[(size_t) il], T, s);
+            win_gdn(m, st, L, m.gdn_index[(size_t) il], T, s, stages);
         } else {
             const int ai = m.attn_index[(size_t) il];
-            win_attn(m, L, st.kc[(size_t) ai], st.vc[(size_t) ai], T, pos, s, st.kq[(size_t) ai], st.far_kv[(size_t) ai],
-                     st.k8v4[(size_t) ai]);
+            win_attn(m, L, st.kc[(size_t) ai], st.vc[(size_t) ai], T, pos, s, stages, st.kq[(size_t) ai],
+                     st.far_kv[(size_t) ai], st.k8v4[(size_t) ai]);
         }
-        win_ffn(m, L, T, s);
+        win_ffn(m, L, T, s, stages);
     }, s);
     prod(m, w.head, wnorm(m, b.x, w.out_norm, b.xn, w.head.type, H, T, g.eps, s), st.logits, T, s);
+    stages.mark(Stage::Head, s);
     if (st.hid) cudaMemcpyAsync(st.hid, b.xn, (size_t) T * H * sizeof(float), cudaMemcpyDeviceToDevice, s);   // the drafter's
 }
 
@@ -699,7 +726,8 @@ void window_body(Model& m, SessionState& st, int T, int64_t pos) {
 namespace {
 
 // The window: its inputs uploaded, then its graph for T rows (the first window of T rows runs as launched, then is
-// captured for the next ones).
+// captured for the next ones).  With a profile there is no capture: every window runs as launched, so each one's
+// stage stamps are its own.
 bool launch_window(Model& m, SessionState& st, const int32_t* tokens, int T, int64_t pos, const int32_t* pos3, std::string& err) {
     WindowScratch& b = m.ws;
     const cudaStream_t s = st.stream;
@@ -710,17 +738,23 @@ bool launch_window(Model& m, SessionState& st, const int32_t* tokens, int T, int
     cudaMemcpyAsync(b.pos, pos3, (size_t) T * 3 * sizeof(int32_t), cudaMemcpyHostToDevice, s);
     // a one-row window writes the other state buffer (st.alt_ready); the graph is the one of the buffer in use
     st.alt_ready = T == 1 && st.gdn_alt != nullptr;
+    if (st.prof != nullptr) {
+        st.prof->mark(Stage::None, s);   // the uploads end here: the body's first stamp is the embedding's
+        window_body(m, st, T, pos, *st.prof);
+        return cuda_ok("dense window", err);
+    }
     cudaGraphExec_t& wg = st.wg[st.gdn != st.gdn_first ? 1 : 0][T];
     if (wg) {
         if (cudaGraphLaunch(wg, s) != cudaSuccess) return cuda_ok("dense window graph", err) && false;
         return cuda_ok("dense window", err);
     }
     // The first window of T rows runs as launched, then is captured for the next ones.
-    window_body(m, st, T, pos);
+    NoStages stages;
+    window_body(m, st, T, pos, stages);
     if (!cuda_ok("dense window", err)) return false;
     cudaGraph_t graph = nullptr;
     if (cudaStreamBeginCapture(s, cudaStreamCaptureModeRelaxed) != cudaSuccess) return cuda_ok("dense window capture", err);
-    window_body(m, st, T, pos);
+    window_body(m, st, T, pos, stages);
     if (cudaStreamEndCapture(s, &graph) != cudaSuccess || cudaGraphInstantiate(&wg, graph, 0) != cudaSuccess) {
         if (graph) cudaGraphDestroy(graph);
         wg = nullptr;
@@ -826,6 +860,7 @@ void batch_body(Model& m, const BatchSeg* segs, int S, int rows, int max_n) {
     WindowScratch& b = m.ws;
     const cudaStream_t s = segs[0].st->stream;
     const int H = g.n_embd;
+    NoStages stages;   // a batch window's stages are not stamped: --profile covers one session's own window
     {
         kernels::PdlScope pdl(true);
         embed_rows(m, b.tok, rows, s);
@@ -834,7 +869,7 @@ void batch_body(Model& m, const BatchSeg* segs, int S, int rows, int max_n) {
             const Layer& L = w.layers[(size_t) il];
             if (L.kind == Mixer::Gdn) batch_gdn(m, L, m.gdn_index[(size_t) il], segs, S, rows, max_n, s);
             else batch_attn(m, L, m.attn_index[(size_t) il], segs, S, rows, s);
-            win_ffn(m, L, rows, s);
+            win_ffn(m, L, rows, s, stages);
         }, s);
         prod(m, w.head, wnorm(m, b.x, w.out_norm, b.xn, w.head.type, H, rows, g.eps, s), b.hl, rows, s);
     }
@@ -1216,9 +1251,10 @@ bool mtp_window(Model& m, SessionState& st, const float* hid, const int32_t* tok
     mtp_input(m, b.tmp, hid, b.cat, n, s);
     prod(m, d.fc, wact(m, b.cat, d.fc.type, 2 * H, n, s), b.tmp, n, s);
     kernels::to_bf16(b.tmp, b.x, (int64_t) n * H, s);
-    win_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, st.mtp_kq, {}, {}, st.mtp_cap, m.o.mtp_window);
+    NoStages stages;   // a draft's own stages are the call's: draft_begin times the whole mtp_window
+    win_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, stages, st.mtp_kq, {}, {}, st.mtp_cap, m.o.mtp_window);
     if (out) {
-        win_ffn(m, d.layer, n, s);
+        win_ffn(m, d.layer, n, s, stages);
         // the head's rows (scaled), of which the last is read
         prod(m, m.w.head, wnorm(m, b.x, d.norm, b.xn, m.w.head.type, H, n, g.eps, s), b.hl, n, s);
         cudaMemcpyAsync(out, b.xn, (size_t) n * H * sizeof(float), cudaMemcpyDeviceToDevice, s);

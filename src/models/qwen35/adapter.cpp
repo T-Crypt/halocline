@@ -584,6 +584,7 @@ public:
         else if (a == "--mtp-window") o.mtp_window = std::atoll(args.next("--mtp-window"));
         else if (a == "--suffix-draft") o.suffix_draft = std::max(0, std::atoi(args.next("--suffix-draft")));
         else if (a == "--draft-log") halo::core::diagnostics().draft_log = args.next("--draft-log");
+        else if (a == "--profile") halo::core::diagnostics().profile = true;
         else return false;
         return true;
     }

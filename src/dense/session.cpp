@@ -1,7 +1,10 @@
 // src/dense/session.cpp - a conversation of the dense stack as a model::ModelSession.
 #include "internal.hpp"
 
+#include "profile_cuda.hpp"
+
 #include "halo/core/conversation_cache.hpp"
+#include "halo/core/diag.hpp"
 #include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/kernels/logprobs.hpp"
 #include "halo/kernels/sampler.hpp"
@@ -199,6 +202,7 @@ class Session final : public model::ModelSession {
 public:
     explicit Session(Model& m) : m_(m), g_(m.g) {}
     ~Session() override {
+        if (prof_) prof_->finish(st_.stream);
         free_state(st_);
         if (done_) cudaEventDestroy(done_);
         if (h_picks_) cudaFreeHost(h_picks_);
@@ -208,6 +212,14 @@ public:
         drafter_ = m_.o.drafter == Drafter::Mtp;
         block_ = m_.o.drafter == Drafter::Block;
         if (!init_state(m_, st_, err)) return false;
+        // --profile: one window table per session, and the session's windows run as launched (src/dense/forward.cpp)
+        if (halo::core::diagnostics().profile) {
+            auto p = std::make_unique<WindowProfile>(g_.n_layers);
+            if (p->ok()) {
+                prof_ = std::move(p);
+                st_.prof = prof_.get();
+            }
+        }
         if (cudaHostAlloc((void**) &h_picks_, kWindow * sizeof(int32_t), cudaHostAllocPortable) != cudaSuccess) {
             err = "out of page-locked memory";
             return false;
@@ -253,6 +265,7 @@ public:
         n = std::clamp(n, 1, max_window() - 1);
         if (pos + n > m_.o.max_context) n = (int) std::max<int64_t>(1, m_.o.max_context - pos);
         std::string err;
+        stamp(Stage::None);   // settle's host work ends here: the draft's chain is stamped alone
         cudaMemcpyAsync(st_.win_tok, &anchor, sizeof(int32_t), cudaMemcpyHostToDevice, st_.stream);
         const float* hid = st_.tail;
         const int32_t* tok = st_.win_tok;
@@ -260,6 +273,7 @@ public:
             float* out = st_.chain + (size_t) (k & 1) * g_.n_embd;
             float* lp = st_.lp + (size_t) k * kernels::kLogprobStride;
             if (!mtp_window(m_, st_, hid, tok, 1, pos - 1 + k, out, lp, err)) return fail(err);
+            stamp(Stage::MtpDraft);
             hid = out;
             tok = reinterpret_cast<const int32_t*>(lp + 2);
         }
@@ -336,6 +350,7 @@ public:
     Result decode_window(const model::DecodeRequest& r) override {
         if (r.n_tokens < 1 || r.n_tokens > kWindow) return fail(m_.o.arch + ": a decode window of " + std::to_string(r.n_tokens) + " rows");
         if (r.pos + r.n_tokens > m_.o.max_context) return fail(m_.o.arch + ": the window passes the context");
+        if (prof_) prof_->begin(r.n_tokens, st_.stream);   // the previous window's wall ends here
         if (Result s = settle(r.pos); !s.ok()) return s;
         const int T = r.n_tokens;
         int32_t pos3[kWindow * 3];
@@ -345,6 +360,7 @@ public:
         if (drafter_) cudaMemcpyAsync(st_.win_tok, r.tokens, (size_t) T * sizeof(int32_t), cudaMemcpyHostToDevice, st_.stream);
         if (!forward_window(m_, st_, r.tokens, T, r.pos, pos3, err)) return fail(err);
         draw(T);
+        stamp(Stage::Sample);
         pend_pos_ = r.pos;
         pend_T_ = T;
         if (r.logits) cudaMemcpyAsync(r.logits, st_.logits + (size_t) (T - 1) * g_.n_vocab, (size_t) g_.n_vocab * 4,
@@ -731,6 +747,10 @@ public:
     int64_t disk_min_tokens() const override { return 4096; }
 
 private:
+    /// A --profile stamp on the session's stream: without the flag there is no profile and the call is a null check.
+    void stamp(Stage s) {
+        if (prof_) prof_->mark(s, st_.stream);
+    }
     // The last window's accepted rows go into the recurrent state once the next call says where it starts.
     void join_commit() {
         if (!commit_pending_) return;
@@ -784,9 +804,15 @@ private:
         if (drafter_ && n > 0) {
             // the drafter's history: the waiting row with the window's first token, then each kept row with the next
             std::string err;
-            if (st_.tail_cell == pend_pos_ - 1 && !mtp_window(m_, st_, st_.tail, st_.win_tok, 1, pend_pos_ - 1, nullptr, nullptr, err))
-                return fail(err);
-            if (n > 1 && !mtp_window(m_, st_, st_.hid, st_.win_tok + 1, (int) n - 1, pend_pos_, nullptr, nullptr, err)) return fail(err);
+            stamp(Stage::None);   // the commit's launch and the rest of settle's host work are gap, not history
+            if (st_.tail_cell == pend_pos_ - 1) {
+                if (!mtp_window(m_, st_, st_.tail, st_.win_tok, 1, pend_pos_ - 1, nullptr, nullptr, err)) return fail(err);
+                stamp(Stage::MtpHist);
+            }
+            if (n > 1) {
+                if (!mtp_window(m_, st_, st_.hid, st_.win_tok + 1, (int) n - 1, pend_pos_, nullptr, nullptr, err)) return fail(err);
+                stamp(Stage::MtpHist);
+            }
             cudaMemcpyAsync(st_.tail, st_.hid + (size_t) (n - 1) * g_.n_embd, (size_t) g_.n_embd * sizeof(float),
                             cudaMemcpyDeviceToDevice, st_.stream);
             st_.tail_cell = pend_pos_ + n - 1;
@@ -875,6 +901,7 @@ private:
     Model& m_;
     const Geometry& g_;
     SessionState st_;
+    std::unique_ptr<WindowProfile> prof_;   // --profile's window table (null without the flag)
     int32_t* h_picks_ = nullptr;
     bool drafter_ = false, block_ = false;
     int n_draft_ = 0;
