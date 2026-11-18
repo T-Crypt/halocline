@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Halocline: quality is everything</title>
+<meta name="description" content="Halocline: an inference engine for one NVIDIA Ada GPU and the Qwen4 family. Sparse and dense paths, measured quality, on one 24 GB card.">
+<link rel="canonical" href="https://t-crypt.github.io/halocline/">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#03111a">
+<script>if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) document.documentElement.classList.add("anim")</script>
+<link rel="icon" href="assets/halocline-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/site.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Halocline">
+<meta property="og:title" content="Halocline: quality is everything">
+<meta property="og:description" content="An inference engine for one NVIDIA Ada GPU and the Qwen4 family. Sparse and dense paths, measured quality, on one 24 GB card.">
+<meta property="og:image" content="assets/halocline-social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Halocline: quality is everything">
+<meta name="twitter:image" content="assets/halocline-social-preview.png">
+</head>
+<body>
+
+<section class="hero">
+  <img class="hero-art" src="assets/halocline-hero.svg" alt="">
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="./"><img src="assets/halocline-mark.svg" alt="Halocline mark">Halocline</a>
+      <nav>
+        <a href="#paths">Two paths</a>
+        <a href="#quality">Quality</a>
+        <a href="#models">Models</a>
+        <a href="community/">Community</a>
+        <a href="https://github.com/T-Crypt/halocline">GitHub</a>
+      </nav>
+    </div>
+    <div class="hero-body">
+      <div>
+        <div class="badges">
+          <span class="badge">status: pre-alpha</span>
+          <span class="badge">target: sm_89 only</span>
+          <span class="badge">models: Qwen4 family</span>
+          <span class="badge">licence: MIT</span>
+        </div>
+        <h1>Quality is <em>everything.</em></h1>
+        <p class="lede">One engine, two paths: sparse and dense. Qwen mixture-of-experts and dense models on one NVIDIA Ada GPU, a 24 GB RTX 4090. Each result names the run directory that produced it.</p>
+        <div class="cta">
+          <a class="btn primary" href="#quickstart">Quick start</a>
+          <a class="btn" href="#paths">Two paths</a>
+          <a class="btn" href="https://github.com/T-Crypt/halocline">Source</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="halocline">
+  <div class="wrap">
+    <span class="eyebrow">The boundary</span>
+    <h2>A halocline is the layer in deep water where salinity changes so sharply that the water above and below barely mix.</h2>
+    <p class="copy">This repository works on one such boundary: the distance between what Qwen3.8-Flash-Next says at BF16 and what it says from 4-bit weights, an int8 KV cache and a draft layer, on a single 24 GB card. The boundary is measured, not asserted. Every number on this site names the run that produced it.</p>
+  </div>
+</section>
+
+<section id="paths">
+  <div class="wrap">
+    <span class="eyebrow">Two paths</span>
+    <h2>Sparse or dense, same engine.</h2>
+    <div class="wgrid">
+      <div class="wcol">
+        <h3>Sparse</h3>
+        <p>Qwen3.8-Flash-Next: 125B total, 6B active, 512 experts. Experts that miss the card live in page-locked RAM. Trades quality for a model 4.6 times larger than the dense path.</p>
+        <ul>
+          <li>Weights: Unsloth UD-IQ4_XS v3.1, repacked</li>
+          <li>Mean KLD to BF16, top-1: 0.08195, 90.45%</li>
+          <li>Prefill: 5,322 t/s at 16K</li>
+          <li>Decode, MTP drafter: 212 t/s over three fixtures</li>
+          <li>Context: 262,144, int8 KV</li>
+          <li>Status: runs, served through llama-swap</li>
+        </ul>
+      </div>
+      <div class="wcol">
+        <h3>Dense</h3>
+        <p>Qwen3.8-27B: 64 layers, no experts. Every layer on the card; the token embedding in page-locked RAM. Keeps every weight on the card and lands within llama.cpp's error bar on the same quant.</p>
+        <ul>
+          <li>Weights: Unsloth UD-Q4_K_XL or UD-IQ4_XS v3.1, every tensor copied as stored</li>
+          <li>Mean KLD to BF16, top-1: 0.00582, 96.67% (UD-Q4_K_XL); 0.01618, 94.31% (UD-IQ4_XS)</li>
+          <li>Prefill: 3,383 t/s at 36K (UD-IQ4_XS)</li>
+          <li>Decode: 113 t/s conversation, 98 prose (UD-IQ4_XS)</li>
+          <li>Context: 122,880 served (int8 KV); 262,144 with rotated 4-bit K and V</li>
+          <li>Status: runs, gated; 262K and the comparison open</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quality">
+  <div class="wrap">
+    <span class="eyebrow">Quality</span>
+    <h2>Measured, not asserted.</h2>
+    <p class="copy">Both paths share the build, the pack format, the server and the gates: the same BF16 KLD method, greedy identity, the GPU suite. The sparse path trades quality for a model 4.6 times larger; the dense path keeps every weight on the card and lands within llama.cpp's error bar on the same quant.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Metric</th><th>Sparse</th><th>Dense (Q4_K_XL)</th><th>Dense (IQ4_XS)</th></tr></thead>
+        <tbody>
+          <tr><td>Mean KLD to BF16</td><td class="num">0.08195</td><td class="num">0.00582</td><td class="num">0.01618</td></tr>
+          <tr><td>Top-1 agreement</td><td class="num">90.45%</td><td class="num">96.67%</td><td class="num">94.31%</td></tr>
+          <tr><td>vs llama.cpp, same GGUF</td><td class="num">-</td><td class="num">0.00573 (f16 KV)</td><td class="num">0.01638 (q8_0 KV)</td></tr>
+          <tr><td>Prefill</td><td class="num">5,322 t/s @16K</td><td class="num">-</td><td class="num">3,383 t/s @36K</td></tr>
+          <tr><td>Decode</td><td class="num">212 t/s</td><td class="num">-</td><td class="num">113 conv / 98 prose</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="claim">The dense path lands within llama.cpp's error bar on the same quant, <b>on one card</b>.</p>
+  </div>
+</section>
+
+<section id="models">
+  <div class="wrap">
+    <span class="eyebrow">Models</span>
+    <h2>One card, two models.</h2>
+    <div class="models">
+      <div>
+        <span class="mname">Sparse</span>
+        <div class="big">212<small>t/s decode</small></div>
+        <p>Qwen3.8-Flash-Next. 512 experts, 10 routed plus 1 shared, QSA sparse attention, gated residual, n-gram embedding, MTP drafter. Runs.</p>
+        <div class="meta">125B total / 6B active. 262,144 context, int8 KV. Eval: halocline-kv-kld.</div>
+      </div>
+      <div>
+        <span class="mname">Dense</span>
+        <div class="big">113<small>t/s conv</small></div>
+        <p>Qwen3.8-27B, standing in for Qwen4-27B until its weights exist. Gated DeltaNet and gated attention, SwiGLU, MTP drafter. Gated.</p>
+        <div class="meta">64 layers, no experts, no router. 122,880 served (int8 KV). Eval: halocline-dense-quality.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="important">
+  <div class="wrap">
+    <span class="eyebrow">Scope</span>
+    <h2>One card. One family. Measured again on yours.</h2>
+    <p class="copy">Halocline is for sm_89 (Ada) only, and it is tuned for one machine. The build refuses any compute capability except 8.9. It runs the Qwen4 family only. Its speeds and settings come from that one machine, so to reproduce them you need the same parts. On another Ada card it builds, and every number has to be measured again.</p>
+    <p class="copy">Do not run the shipped flags on another host unchanged. The expert tier, the CPU share, the page-locked RAM and the n-gram table's disk reads all size to the parts.</p>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <span class="eyebrow">Quick start</span>
+    <h2>Build, then serve.</h2>
+    <div class="term">
+      <span class="path">~/halocline</span>
+      <pre><span class="p">$</span> cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+<span class="p">$</span> cmake --build build -j
+<span class="p">$</span> python -m pip install -r requirements.txt
+<span class="p">$</span> python -m serve.server --config halo_config.json</pre>
+    </div>
+    <p class="copy" style="margin-top:24px">Needs Linux x86-64, an NVIDIA Ada GPU with CUDA 13, CMake 3.24+, Python 3.10+, and enough system RAM for what does not fit in VRAM. Weights come from Unsloth's Qwen3.8-Flash-Next GGUF, converted by this repository; see the README for the conversion commands.</p>
+  </div>
+</section>
+
+<section id="community">
+  <div class="wrap">
+    <span class="eyebrow">Community</span>
+    <h2>Runs from real machines.</h2>
+    <p class="copy">Submit yours with <code>halocline-bench --community</code>. Every row is taken with the same preset so the rows compare.</p>
+    <p><a href="community/">See every run &rarr;</a></p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Halocline. MIT licence.</span>
+    <nav>
+      <a href="https://github.com/T-Crypt/halocline">GitHub</a>
+      <a href="community/">Community</a>
+      <a href="https://github.com/T-Crypt/halocline/tree/main/docs">Docs</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+// reveal on scroll
+const io = new IntersectionObserver((entries) => {
+  for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+}, { threshold: .12 });
+document.querySelectorAll('.rv').forEach(el => io.observe(el));
+</script>
+</body>
+</html>

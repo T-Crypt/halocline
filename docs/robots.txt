@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://t-crypt.github.io/halocline/sitemap.xml

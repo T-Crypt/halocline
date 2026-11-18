@@ -1,0 +1,10 @@
+# Halocline
+
+> Quality is everything.
+
+Halocline is an inference engine for one NVIDIA Ada GPU (sm_89) and the Qwen4 family. Sparse (Qwen3.8-Flash-Next) and dense (Qwen3.8-27B) paths on a single 24 GB RTX 4090.
+
+## Links
+- Source: https://github.com/T-Crypt/halocline
+- Docs: https://github.com/T-Crypt/halocline/tree/main/docs
+- Community runs: https://t-crypt.github.io/halocline/community/

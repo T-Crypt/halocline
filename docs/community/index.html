@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Community runs | Halocline</title>
+<meta name="description" content="Community benchmark runs for Halocline.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#03111a">
+<link rel="icon" href="../assets/halocline-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<section class="hero" style="min-height: 40vh;">
+  <img class="hero-art" src="../assets/halocline-hero.svg" alt="">
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="../"><img src="../assets/halocline-mark.svg" alt="">Halocline</a>
+      <nav><a href="../">Home</a><a href="https://github.com/T-Crypt/halocline">GitHub</a></nav>
+    </div>
+    <div class="hero-body">
+      <div>
+        <span class="eyebrow">Community</span>
+        <h1>Runs from real machines.</h1>
+        <p class="lede">Every row taken with the same preset so the rows compare. Submit yours with <code>halocline-bench --community</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <div class="tablewrap">
+      <table id="runs">
+        <thead><tr>
+          <th>Submitter</th><th>Card</th><th>Model</th><th>Quant / KV</th>
+          <th class="num">Prefill 16K</th><th class="num">Decode</th><th class="num">Conv</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p style="margin-top:24px;color:var(--fg-3);font-size:14px">Grouped by the main GPU. Full data in benchmarks.json.</p>
+  </div>
+</section>
+<footer>
+  <div class="wrap">
+    <span>Halocline. MIT licence.</span>
+    <nav><a href="../">Home</a><a href="https://github.com/T-Crypt/halocline">GitHub</a></nav>
+  </div>
+</footer>
+<script>
+fetch('benchmarks.json').then(r=>r.json()).then(d=>{
+  const tb=document.querySelector('#runs tbody');
+  for(const r of d.runs){
+    const g=r.gpus[0];
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${r.submitter}</td><td>${g.name} (${g.vram_gib}G)</td><td>${r.model}</td><td>${r.quant} / ${r.kv}</td><td class="num">${r.prefill_16k_tps}</td><td class="num">${r.decode_tps}</td><td class="num">${r.decode_conv_tps}</td>`;
+    tb.appendChild(tr);
+  }
+}).catch(e=>{ document.querySelector('#runs tbody').innerHTML='<tr><td colspan="7">Could not load benchmarks.json</td></tr>'; });
+</script>
+</body>
+</html>

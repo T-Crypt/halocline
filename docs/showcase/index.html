@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Showcase | Halocline</title>
+<meta name="description" content="Halocline showcase and comparisons.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#03111a">
+<link rel="icon" href="../assets/halocline-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<section class="hero" style="min-height: 40vh;">
+  <img class="hero-art" src="../assets/halocline-hero.svg" alt="">
+  <div class="wrap">
+    <div class="top">
+      <a class="brand" href="../"><img src="../assets/halocline-mark.svg" alt="">Halocline</a>
+      <nav><a href="../">Home</a><a href="https://github.com/T-Crypt/halocline">GitHub</a></nav>
+    </div>
+    <div class="hero-body">
+      <div>
+        <span class="eyebrow">Showcase</span>
+        <h1>What we measured.</h1>
+        <p class="lede">Numbers and demos from Halocline running fully local on one Ada card.</p>
+      </div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="wrap">
+    <span class="eyebrow">Comparison</span>
+    <h2>Seven engines, one RTX 4090.</h2>
+    <p class="copy">Decode, prefill and time to first token for Halocline and six other engines on Qwen3.8-Flash-Next. Full methodology in the repository's evals/ directory; each number names its run.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Engine</th><th class="num">Decode t/s</th><th class="num">Prefill 16K</th></tr></thead>
+        <tbody>
+          <tr><td>Halocline (sparse)</td><td class="num">212.1</td><td class="num">5322.4</td></tr>
+          <tr><td>llama.cpp (reference)</td><td class="num">-</td><td class="num">-</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:24px;color:var(--fg-3);font-size:14px">Comparison rows are filled in as runs land. See docs/ for the full eval set.</p>
+  </div>
+</section>
+<footer>
+  <div class="wrap">
+    <span>Halocline. MIT licence.</span>
+    <nav><a href="../">Home</a><a href="https://github.com/T-Crypt/halocline">GitHub</a></nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 24" width="1200" height="24" role="presentation" aria-hidden="true">
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".15" stop-color="#fff"/>
+      <stop offset=".85" stop-color="#fff"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e9fffb" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#e9fffb"/>
+      <stop offset="1" stop-color="#e9fffb" stop-opacity="0"/>
+    </linearGradient>
+    <path id="w" d="M0 12 C100 8 200 16 300 12 S500 8 600 12 S800 16 900 12 S1100 8 1200 12"/>
+  </defs>
+  <style>
+    .d { animation: d 18s linear infinite; }
+    .s { animation: s 5.5s cubic-bezier(.45,0,.2,1) infinite; }
+    @keyframes d { to { transform: translateX(-1200px); } }
+    @keyframes s { from { transform: translateX(-240px); } to { transform: translateX(1300px); } }
+    @media (prefers-reduced-motion: reduce) { .d, .s { animation: none; } .s { opacity: 0; } }
+  </style>
+  <mask id="m"><rect width="1200" height="24" fill="url(#fade)"/></mask>
+  <g mask="url(#m)">
+    <g class="d" fill="none" stroke="#57ecdc" stroke-width="1.5"><use href="#w"/><use href="#w" x="1200"/></g>
+    <rect class="s" y="10" width="200" height="4" rx="2" fill="url(#spark)"/>
+  </g>
+</svg>
