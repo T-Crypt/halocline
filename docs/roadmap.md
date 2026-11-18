@@ -198,7 +198,7 @@ lineage and the homelab evals.
 load the engine gathers those rows of the head tensor as stored, so a draft head row is the full head's row byte for
 byte and needs no requantization (D1). The ranking's corpus is the depth bases' 40 MB wikitext-103 train cut plus the
 tree's sources (7.4 MB), tokenized by the pack's own tokenizer, with the pack's 33 control ids always in; the N most
-frequent ids, ties to the lower id. 131,072 rows are 525.0 MiB, 65,536 are 262.1 MiB, and the session's drafter logits
+frequent ids, ties to the lower id. 131,072 rows are 525.0 MiB, 65,536 are 262.5 MiB, and the session's drafter logits
 row shrinks from 248,320 floats to the subset's (`session_bytes` counts both). The verify rule is what makes this
 lossless: on the MTP path acceptance is the target's own pick against the draft token on every row
 (`src/program/serve/session_engine.cpp`, `src/program/generate/adapter.cpp`), and the draft's probabilities never enter
