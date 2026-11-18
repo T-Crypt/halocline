@@ -172,9 +172,10 @@ GpuChoice choose_gpus(const GpuSpec& spec, const std::vector<GpuCard>& visible, 
             const GpuCard& b = visible[(size_t) best];
             if (a.mem_gbps > b.mem_gbps || (a.mem_gbps == b.mem_gbps && a.vram > b.vram)) best = i;
         }
+        // Halocline runs on one card (575a92c0): auto picks it, and names any other sm_89 card it leaves unused
         c.cards.push_back(best);
         for (int i : ok)
-            if (i != best) c.cards.push_back(i);
+            if (i != best) c.notes.push_back("gpu auto: " + gpu_label(visible, i) + " not used, Halocline runs on one card");
         return c;
     }
     if (spec.kind == GpuSpec::Kind::Unset) {
@@ -193,7 +194,7 @@ GpuChoice choose_gpus(const GpuSpec& spec, const std::vector<GpuCard>& visible, 
                 names += (names.empty() ? "" : ", ") + gpu_label(visible, i);
                 list += "," + std::to_string(i);
             }
-            c.warning = names + " unused; use gpu " + list + " or gpu auto";
+            c.warning = names + " unused; Halocline runs on one card: pick another with gpu N, or the fastest with gpu auto";
         }
         return c;
     }
