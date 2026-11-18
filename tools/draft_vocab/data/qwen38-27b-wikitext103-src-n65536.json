@@ -1,0 +1,96 @@
+{
+ "format": "int32 little-endian, strictly ascending token ids (tools/draft_vocab)",
+ "n": 65536,
+ "file_bytes": 262144,
+ "date": "2026-11-18T17:21:55Z",
+ "pack": "/data/models/halocline/packs/Qwen3.8-27B-UD-Q4_K_XL.halo",
+ "pack_name": "Qwen3.8-27B UD-Q4_K_XL",
+ "pack_sources": [
+  {
+   "path": "Qwen3.8-27B-UD-Q4_K_XL.gguf",
+   "size": 17659407264,
+   "fingerprint_sha256_first_last_64mib_and_size": "71d00b4592748791cce1c83d1e9f45241dfee315a5412790ff50b0aa7a1a9fb4"
+  }
+ ],
+ "tokenizer": {
+  "vocab": 248320,
+  "pre": "qwen35",
+  "special_ids": [
+   248044,
+   248045,
+   248046,
+   248047,
+   248048,
+   248049,
+   248050,
+   248051,
+   248052,
+   248053,
+   248054,
+   248055,
+   248056,
+   248057,
+   248058,
+   248059,
+   248060,
+   248061,
+   248062,
+   248063,
+   248064,
+   248065,
+   248066,
+   248067,
+   248068,
+   248069,
+   248070,
+   248071,
+   248072,
+   248073,
+   248074,
+   248075,
+   248076
+  ]
+ },
+ "corpora": [
+  {
+   "path": "/data/models/halocline/kld-bases/depth/wikitext103-train-40MB.txt",
+   "kind": "file",
+   "files": 1,
+   "bytes": 39999909,
+   "sha256": "5794949c5f8a3959f19ad21834ab6b76ae76da855b6041ba221e88215a82c171",
+   "file_sha256": "b308aaeace2255d95149a24f5fb51671ba69c791e09cf908db849d5dedc28f3f"
+  },
+  {
+   "path": "src",
+   "kind": "dir",
+   "files": 406,
+   "bytes": 5634699,
+   "sha256": "25264572a5615865de064d06d8ef093098c8c7c7f0ee5f2ff52e2eae1093b56a"
+  },
+  {
+   "path": "include",
+   "kind": "dir",
+   "files": 196,
+   "bytes": 1182130,
+   "sha256": "15c0ef6de668c2b0e326feda4b18d76428e39dac8e1fd8b82ed9a2e66e2f6b45"
+  },
+  {
+   "path": "tools",
+   "kind": "dir",
+   "files": 64,
+   "bytes": 617871,
+   "sha256": "c92bbdaed65f363a18cf66fa0995f106942533cbc32ce59107f66ec19966690f"
+  }
+ ],
+ "sha256_rule": "sha256 of each file's bytes with one 0x0a after it, in path order (file_sha256: that file's own)",
+ "exclude": [
+  "tools/draft_vocab"
+ ],
+ "corpus_tokens": 11704557,
+ "covered_tokens": 11704557,
+ "covered_fraction": 1.0,
+ "commit": "8e7c7fa1e4deddd5e27d447fa091fab8325f2aad",
+ "note": "the sources counted are the working tree the command ran in (this commit, plus whatever was unstaged)",
+ "tool": "tools/draft_vocab/make_draft_vocab.py",
+ "command": "make_draft_vocab.py --pack /data/models/halocline/packs/Qwen3.8-27B-UD-Q4_K_XL.halo --corpus /data/models/halocline/kld-bases/depth/wikitext103-train-40MB.txt --corpus src --corpus include --corpus tools --exclude tools/draft_vocab --n 65536 --out tools/draft_vocab/data/qwen38-27b-wikitext103-src-n65536.bin --provenance tools/draft_vocab/data/qwen38-27b-wikitext103-src-n65536.json"
+}
