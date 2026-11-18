@@ -4,11 +4,15 @@
 //
 // Checks: each kernel's max absolute and relative error to the reference (the int8 prompt kernel's narrow, split and
 // 8-warp launches); a decode row's output is bitwise the same
-// whatever the window width or the row's place in it; the prompt kernel's rows agree with decode's within fp16 rounding.
+// whatever the window width or the row's place in it; the window kernel (one block a split and KV head) is the 16-row-tile
+// launch bitwise at 1 to 9 rows, on every cache form, on a ring and over a batch window's segments; the prompt kernel's
+// rows agree with decode's within fp16 rounding.
 // Exit 77 without a GPU.  Prints one line per check and a microbench line for the decode and prompt kernels.
 #include "halo/kernels/dense_ops.hpp"
 #include "halo/kernels/f16_bits.hpp"
 #include "halo/kernels/gqa_attn.hpp"
+
+#include "gqa_decode_ref.hpp"
 
 #include <cuda_runtime.h>
 
@@ -208,6 +212,23 @@ int main(int argc, char** argv) {
     std::printf("gqa_decode_attn: max abs %.3g rel %.3g vs double; the last row bitwise equal across widths 1-%d: %s\n", ed.abs,
                 ed.rel, TW, bitwise ? "yes" : "NO");
     if (ed.abs > 1e-3 || !bitwise) ++fails;   // fp16 q, K, V and p on the tensor cores
+    // the window kernel (one block a split and KV head holding every row of the window) is the 16-row-tile launch's
+    // rows, bit for bit, at every width from one row to one past its three m16 groups
+    {
+        bool same = true;
+        std::vector<float> wide((size_t) TW * NH * HD), tiled(wide.size());
+        for (int T = 1; T <= 9; ++T) {
+            const int r0 = TP - T;
+            const float* qw = d_q + (size_t) r0 * NH * HD;
+            halo::kernels::gqa_decode_attn(qw, d_kc, d_vc, NH, NKV, p0 + r0, T, d_scr, max_cells, d_out, nullptr);
+            ck(cudaMemcpy(wide.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+            halo::kernels::test::gqa_decode_attn_tiled(qw, d_kc, d_vc, NH, NKV, p0 + r0, T, d_scr, max_cells, d_out, nullptr);
+            ck(cudaMemcpy(tiled.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+            if (std::memcmp(wide.data(), tiled.data(), (size_t) T * NH * HD * 4) != 0) same = false;
+        }
+        std::printf("gqa_decode_attn: windows of 1-9 rows bitwise the 16-row-tile launch: %s\n", same ? "yes" : "NO");
+        if (!same) ++fails;
+    }
     {
         // a captured window reads its first cell on the device and loops its blocks over the chunks in use: bitwise the
         // host-position launch, past the grid's first round of chunks
@@ -249,6 +270,13 @@ int main(int argc, char** argv) {
             std::printf("gqa_decode_attn_segs: windows of %d and %d rows in one launch bitwise their own launches: %s\n", TA, TB,
                         same_seg ? "yes" : "NO");
             if (!same_seg) ++fails;
+            // the same launch on the 16-row-tile kernel: a segment with fewer groups than the launch's R is its own rows
+            std::vector<float> segt(seg.size());
+            halo::kernels::test::gqa_decode_attn_segs_tiled(d_q, NH, NKV, sg, 2, d_s2, cap2, d_out, nullptr);
+            ck(cudaMemcpy(segt.data(), d_out, segt.size() * 4, cudaMemcpyDeviceToHost), "copy");
+            const bool same_tiled = std::memcmp(seg.data(), segt.data(), seg.size() * 4) == 0;
+            std::printf("gqa_decode_attn_segs: the same two windows bitwise the 16-row-tile launch: %s\n", same_tiled ? "yes" : "NO");
+            if (!same_tiled) ++fails;
             ck(cudaMemcpy(d_at, at2, sizeof at2, cudaMemcpyHostToDevice), "copy");
         }
         // its cost at a short context in a large capacity, against the host launch's grid of the chunks in use
@@ -293,9 +321,9 @@ int main(int argc, char** argv) {
         ck(cudaMemcpy(d_va, va.data(), va.size() * 2, cudaMemcpyHostToDevice), "copy");
         const size_t cell = (size_t) NKV * HD;
         std::vector<uint16_t> kr((size_t) CAP * cell), vr(kr.size());
-        std::vector<float> ga((size_t) halo::kernels::kGqaMaxWindow * NH * HD), gr(ga.size());
+        std::vector<float> ga((size_t) halo::kernels::kGqaMaxWindow * NH * HD), gr(ga.size()), gt(ga.size());
         Err er;
-        bool finite = true;
+        bool finite = true, tiled_same = true;
         int tried = 0;
         for (int T : {1, 7, 16}) {
             for (int64_t pos0 = 3 * CAP + 5; pos0 < 3 * CAP + 5 + 2 * halo::kernels::kGqaCellChunk; pos0 += 3) {
@@ -312,6 +340,10 @@ int main(int argc, char** argv) {
                 halo::kernels::gqa_decode_attn(d_q, d_kr, d_vr, NH, NKV, pos0, T, d_s3, L3, d_out, nullptr, nullptr, {}, nullptr,
                                                nullptr, {}, {}, W, CAP);
                 ck(cudaMemcpy(gr.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+                halo::kernels::test::gqa_decode_attn_tiled(d_q, d_kr, d_vr, NH, NKV, pos0, T, d_s3, L3, d_out, nullptr, nullptr, {},
+                                                           nullptr, nullptr, {}, {}, W, CAP);
+                ck(cudaMemcpy(gt.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+                if (std::memcmp(gr.data(), gt.data(), (size_t) T * NH * HD * 4) != 0) tiled_same = false;
                 for (size_t j = 0; j < (size_t) T * NH * HD; ++j) {
                     if (!std::isfinite(gr[j])) finite = false;
                     er.add(gr[j], ga[j]);
@@ -320,9 +352,9 @@ int main(int argc, char** argv) {
             }
         }
         std::printf("gqa_decode_attn: a ring of %lld cells near position %lld (%d windows of 1/7/16 rows) vs the absolute "
-                    "cache: max abs %.3g, all finite: %s\n",
-                    (long long) CAP, (long long) (3 * CAP), tried, er.abs, finite ? "yes" : "NO");
-        if (!finite || er.abs > 1e-3) ++fails;
+                    "cache: max abs %.3g, all finite: %s, bitwise the 16-row-tile launch: %s\n",
+                    (long long) CAP, (long long) (3 * CAP), tried, er.abs, finite ? "yes" : "NO", tiled_same ? "yes" : "NO");
+        if (!finite || er.abs > 1e-3 || !tiled_same) ++fails;
         cudaFree(d_ka); cudaFree(d_va); cudaFree(d_kr); cudaFree(d_vr); cudaFree(d_s3);
     }
     // prompt chunk
@@ -390,6 +422,22 @@ int main(int argc, char** argv) {
         std::printf("int8 cache: decode max abs %.3g rel %.3g vs double on the dequantized cells\n", e8.abs, e8.rel);
         // decode reads code x scale in fp32, the reference its fp16 rounding
         if (e8.abs > 1e-3) ++fails;
+        {   // the same widths on the int8 cache: the window kernel is the 16-row-tile launch's rows, bit for bit
+            bool same = true;
+            std::vector<float> wide((size_t) halo::kernels::kGqaMaxWindow * NH * HD), tiled(wide.size());
+            for (int T = 1; T <= 9; ++T) {
+                const int r0 = TP - T;
+                const float* qw = d_q + (size_t) r0 * NH * HD;
+                halo::kernels::gqa_decode_attn(qw, nullptr, nullptr, NH, NKV, p0 + r0, T, d_scr, max_cells, d_out, nullptr, nullptr, q8);
+                ck(cudaMemcpy(wide.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+                halo::kernels::test::gqa_decode_attn_tiled(qw, nullptr, nullptr, NH, NKV, p0 + r0, T, d_scr, max_cells, d_out, nullptr,
+                                                           nullptr, q8);
+                ck(cudaMemcpy(tiled.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+                if (std::memcmp(wide.data(), tiled.data(), (size_t) T * NH * HD * 4) != 0) same = false;
+            }
+            std::printf("int8 cache: windows of 1-9 rows bitwise the 16-row-tile launch: %s\n", same ? "yes" : "NO");
+            if (!same) ++fails;
+        }
 
         // prompt chunks at the end of the L cells: 300 rows (narrow: 4-warp blocks), the same with split scratch (the
         // cells split over more blocks and merged), and 2048 rows (8-warp blocks), each at rows on and around the block

@@ -13,7 +13,8 @@
 //      host's norm + rope + int8 rule within a step, V's blocks are bitwise the host rule over the rotated row;
 //   2. the V rotation inside the write is fwht256_cuda's bits (the same row through the shared kernel);
 //   3. gqa_decode_attn + the output's inverse rotation against the fp64 reference on the cache's dequantized cells, over
-//      every row of one window; and one row's bits are the same whatever the window width;
+//      every row of the widest and the 8-row window; one row's bits are the same whatever the window width; and the window
+//      kernel (one block a split and KV head) is the 16-row-tile launch bitwise at 1 to 9 rows;
 //   4. gqa_prompt_attn (4-warp, and split over three key ranges) + the inverse rotation, at rows on and around the tile
 //      and query-block edges, against the same reference;
 //   5. gqa_prompt_attn_bf16's rows are the FP32 launch's on the same (bf16-exact) queries, rounded to bf16 once: bitwise.
@@ -23,6 +24,8 @@
 #include "halo/kernels/f16_bits.hpp"
 #include "halo/kernels/gqa_attn.hpp"
 #include "halo/kernels/kv_q4_layout.hpp"
+
+#include "gqa_decode_ref.hpp"
 
 #include <cuda_runtime.h>
 
@@ -338,15 +341,31 @@ int main() {
             const float* last = &got[(size_t) (T - 1) * NH * HD];
             if (!have) { std::memcpy(first.data(), last, first.size() * 4); have = true; }
             else if (std::memcmp(first.data(), last, first.size() * 4) != 0) bitwise = false;
-            if (T == k::kGqaMaxWindow)   // every row of one window, each at its own position
+            if (T == k::kGqaMaxWindow || T == 8)   // every row of one window, each at its own position
                 for (int t = 0; t < T; ++t) {
                     ref_attn(&q[(size_t) t * NH * HD], kdq, vtrue, p0 + t + 1, want.data());
                     for (int j = 0; j < NH * HD; ++j) ed.add(got[(size_t) t * NH * HD + j], want[(size_t) j]);
                 }
         }
-        std::printf("  K8V4 decode: max abs %.3g rel %.3g vs double over %d rows; the last row bitwise equal across widths "
-                    "1-%d: %s\n", ed.abs, ed.rel, k::kGqaMaxWindow, k::kGqaMaxWindow, bitwise ? "yes" : "NO");
+        std::printf("  K8V4 decode: max abs %.3g rel %.3g vs double over the widest and the 8-row window; the last row bitwise "
+                    "equal across widths 1-%d: %s\n", ed.abs, ed.rel, k::kGqaMaxWindow, bitwise ? "yes" : "NO");
         report(ed.abs < 2e-3 && bitwise, "gqa_decode_attn over a K8V4 cache matches the fp64 reference");
+        // the window kernel (one block a split and KV head) against the 16-row-tile launch, at every width up to one past
+        // its three m16 groups
+        bool tiled_same = true;
+        std::vector<float> wide((size_t) k::kGqaMaxWindow * NH * HD), tiled(wide.size());
+        for (int T = 1; T <= 9; ++T) {
+            const int64_t p0 = last_cell - T + 1;
+            const float* qw = &q[(size_t) (k::kGqaMaxWindow - T) * NH * HD];
+            k::gqa_decode_attn(qw, nullptr, nullptr, NH, NKV, p0, T, d_scr, max_cells, d_out, nullptr, nullptr, k::KvInt8{},
+                               nullptr, nullptr, k::KvFar{}, cache);
+            ck(cudaMemcpy(wide.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "decode out");
+            k::test::gqa_decode_attn_tiled(qw, nullptr, nullptr, NH, NKV, p0, T, d_scr, max_cells, d_out, nullptr, nullptr,
+                                            k::KvInt8{}, nullptr, nullptr, k::KvFar{}, cache);
+            ck(cudaMemcpy(tiled.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "decode out");
+            if (std::memcmp(wide.data(), tiled.data(), (size_t) T * NH * HD * 4) != 0) tiled_same = false;
+        }
+        report(tiled_same, "K8V4 decode: windows of 1-9 rows bitwise the 16-row-tile launch");
     }
 
     // ---- [4] prompt chunks at the end of the cache, plain and with split scratch, at two sizes so the planner takes both

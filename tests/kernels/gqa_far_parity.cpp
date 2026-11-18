@@ -4,8 +4,9 @@
 // inside a decode chunk and a prompt key tile:
 //
 //   - attn_qk_prepare and attn_qk_prepare_bf16 write each cell where it lives: the two buffers hold the one-buffer bytes;
-//   - gqa_decode_attn (windows of 1 to 16 rows, host and device first cell) and gqa_decode_attn_segs, gqa_prompt_attn and
-//     gqa_prompt_attn_bf16 (fp16 and int8, narrow, split and 8-warp launches) are bitwise their one-buffer launches.
+//   - gqa_decode_attn (windows of 1 to 16 rows, host and device first cell, and 1 to 9 rows against the 16-row-tile
+//     launch) and gqa_decode_attn_segs, gqa_prompt_attn and gqa_prompt_attn_bf16 (fp16 and int8, narrow, split and
+//     8-warp launches) are bitwise their one-buffer launches.
 //
 // `--bench`: a decode row and an 8-row window over 128K cells with none, half and all of them in host memory (the bus
 // reads they cost).  Exit 77 without a GPU.
@@ -13,6 +14,8 @@
 #include "halo/kernels/dense_ops.hpp"
 #include "halo/kernels/f16_bits.hpp"
 #include "halo/kernels/gqa_attn.hpp"
+
+#include "gqa_decode_ref.hpp"
 
 #include <cuda_runtime.h>
 
@@ -216,6 +219,19 @@ int main(int argc, char** argv) {
         }
         std::snprintf(what, sizeof what, "%s gqa_decode_attn, windows of 1-16 rows, far cells in host memory", kv);
         report(what, ok);
+        {   // the window kernel (one block a split and KV head) against the 16-row-tile launch, far cells in host memory
+            bool ok_t = true;
+            for (int T = 1; T <= 9; ++T) {
+                const int64_t p0 = L - T;
+                halo::kernels::gqa_decode_attn(d_q, c.nk, c.nv, NH, NKV, p0, T, d_scr, L, d_o2, nullptr, nullptr, c.n8, nullptr,
+                                                 nullptr, c.far_kv);
+                halo::kernels::test::gqa_decode_attn_tiled(d_q, c.nk, c.nv, NH, NKV, p0, T, d_scr, L, d_o1, nullptr, nullptr, c.n8,
+                                                          nullptr, nullptr, c.far_kv);
+                ok_t = ok_t && same((size_t) T * NH * HD);
+            }
+            std::snprintf(what, sizeof what, "%s gqa_decode_attn, far cells in host memory: 1-9 rows bitwise the 16-row-tile launch", kv);
+            report(what, ok_t);
+        }
         {   // a device first cell (a captured window), and a window that ends before the split
             const int32_t a2[2] = {(int32_t) (L - 8), 0};
             ck(cudaMemcpy(d_at, a2, sizeof a2, cudaMemcpyHostToDevice), "copy");
