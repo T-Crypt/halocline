@@ -559,9 +559,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="the mock engine's answer (default: a short greeting); given more than once, requests get "
                          "them in turn and the last one repeats")
     ap.add_argument("--port", type=int, default=8080, help="the TCP port to listen on (default 8080)")
-    ap.add_argument("--gpu", help="the GPUs to use, as nvidia-smi numbers them: exactly these, the first is the main "
-                                  "card and the engine gives the rest their roles (\"0,1\"); auto = every Blackwell "
-                                  "card, the fastest as main (default: GPU 0 alone)")
+    ap.add_argument("--gpu", help="the GPU to use, as nvidia-smi numbers it: Halocline runs on exactly one card, so "
+                                  "give one number (a list of two or more is refused); auto = the single sm_89 card "
+                                  "(default: GPU 0 alone)")
     ap.add_argument("--tokenizer", default=str(ROOT / "pack/full/tokenizer"),
                     help="tokenizer directory for the mock engine (a byte tokenizer if absent)")
     ap.add_argument("--open", action="store_true", help="open the local page in the browser once the model is ready")
