@@ -583,6 +583,7 @@ public:
         else if (a == "--kv-resident") o.kv_resident = std::atoll(args.next("--kv-resident"));
         else if (a == "--mtp-kv") o.mtp_kv = args.next("--mtp-kv");
         else if (a == "--mtp-window") o.mtp_window = std::atoll(args.next("--mtp-window"));
+        else if (a == "--long-context") o.long_context = true;
         else if (a == "--suffix-draft") o.suffix_draft = std::max(0, std::atoi(args.next("--suffix-draft")));
         else if (a == "--draft-log") halo::core::diagnostics().draft_log = args.next("--draft-log");
         else if (a == "--profile") halo::core::diagnostics().profile = true;
@@ -598,6 +599,19 @@ public:
     }
 
     std::optional<int> finish_flags(program::CommonOptions& o) const override {
+        // --long-context: the 262K profile. The cache is the one choice it makes outright (a different --kv is refused,
+        // not silently replaced); the context and the drafter's ring are defaults that a given flag keeps.
+        if (o.long_context) {
+            if (!o.kv.empty() && o.kv != "q4_0") {
+                halo::log::error("halo qwen35", "--long-context is the rotated 4-bit cache (--kv q4_0): drop --kv %s, or "
+                                 "drop --long-context to keep it", o.kv.c_str());
+                return 2;
+            }
+            o.kv = "q4_0";
+            if (!o.max_context_given) o.max_context = kLongContext;
+            // the engine's own report of a flag that costs quality: the start warns, --serve reports it (INFO lossy=)
+            o.lossy.push_back({"--long-context", "--long-context stores K and V as rotated 4-bit blocks"});
+        }
         dense::KvFormat fmt = dense::KvFormat::Fp16;
         if (!kv_format(o.kv, fmt)) {
             halo::log::error("halo qwen35", "--kv %s: fp16 (the default), int8, k8v4 or q4_0", o.kv.c_str());
@@ -622,6 +636,19 @@ public:
         if (!o.spec_given) o.spec = has_drafter(o.model) ? kDefaultSpec : 0;
         // the drafter's own cache flags, against the drafter this run will load
         const dense::Drafter kind = o.spec >= 2 ? drafter_kind(o.model) : dense::Drafter::None;
+        if (o.long_context) {
+            // with a drafter, its cache is the int8 ring over the last 32K cells: 262,144 fits only so (53 MiB to spare
+            // on UD-Q4_K_XL with --vision cpu, W22); without one there is nothing to set
+            if (kind != dense::Drafter::None) {
+                if (o.mtp_kv.empty()) o.mtp_kv = "int8";
+                if (o.mtp_window == 0) o.mtp_window = kLongContextDraftWindow;
+            }
+            halo::log::info("halo qwen35", "--long-context: --kv q4_0 --max-context %lld%s%s%s (rotated 4-bit K and V; the "
+                            "default formats score closer to BF16, docs/precision/qwen38-27b.md)",
+                            (long long) o.max_context, kind != dense::Drafter::None ? " --mtp-kv " : "",
+                            kind != dense::Drafter::None ? o.mtp_kv.c_str() : "",
+                            kind != dense::Drafter::None ? (" --mtp-window " + std::to_string((long long) o.mtp_window)).c_str() : "");
+        }
         if (const std::string why = dense::mtp_option_error(!o.mtp_kv.empty(), o.mtp_kv, o.mtp_window, kind); !why.empty()) {
             halo::log::error("halo qwen35", "%s", why.c_str());
             return 2;
@@ -635,6 +662,8 @@ public:
 
 private:
     static constexpr int kDefaultSpec = 8;   // the sweep that picked 8: evals/2026-11-17/halocline-kv-kld
+    static constexpr int64_t kLongContext = 262144;            // --long-context: the model's native context
+    static constexpr int64_t kLongContextDraftWindow = 32768;  // and the drafter's ring (W22's fit)
     static bool has_drafter(const std::string& path) { return drafter_kind(path) != dense::Drafter::None; }
     static dense::Drafter drafter_kind(const std::string& path) {
         core::ModelFile file;

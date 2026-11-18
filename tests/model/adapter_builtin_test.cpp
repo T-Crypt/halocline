@@ -7,6 +7,7 @@
 #include "halo/program/options.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -71,6 +72,46 @@ int main() {
         check(all.size() == 3 && all[0].flag == "--relaxed-drafting" && all[1].effect == "--route-prior 1.5 changes expert routing" &&
                   all[2].effect == "--route-tail-skip 9 drops low-ranked missed experts",
               "qwen4exp: every lossy flag, bare ones at their defaults, in the warning order");
+    }
+    // qwen35 --long-context: the 262K profile (rotated 4-bit K and V), a lossy flag; given flags win, a different --kv
+    // is refused. No model file here, so no drafter: the drafter's ring defaults are not set.
+    if (const model::ModelAdapter* q = model::find_adapter("qwen35")) {
+        const auto finish = [&](std::vector<std::string> words, int& rc) {
+            auto o = q->make_options();
+            words.insert(words.begin(), "halo");
+            std::vector<char*> argv;
+            for (auto& w : words) argv.push_back(w.data());
+            for (int i = 1; i < (int) argv.size(); ++i) {
+                int code = 0;
+                model::FlagArgs args((int) argv.size(), argv.data(), i);
+                if (!q->parse_flag(argv[i], args, *o, code)) {
+                    if (std::string(argv[i]) == "--max-context") {   // a common flag: the program's parser sets it
+                        o->max_context = std::atoll(args.next("--max-context"));
+                        o->max_context_given = true;
+                    } else {
+                        rc = -1;
+                        return o;
+                    }
+                }
+            }
+            const auto r = q->finish_flags(*o);
+            rc = r ? *r : 0;
+            return o;
+        };
+        int rc = 0;
+        auto plain = finish({}, rc);
+        check(rc == 0 && plain->kv.empty() && plain->max_context == program::kDefaultContext && plain->lossy.empty(),
+              "qwen35 without --long-context keeps its default cache and context and is not lossy");
+        auto lc = finish({"--long-context"}, rc);
+        check(rc == 0 && lc->kv == "q4_0" && lc->max_context == 262144 && lc->lossy.size() == 1 &&
+                  lc->lossy[0].flag == "--long-context",
+              "qwen35 --long-context: --kv q4_0, 262,144 cells, reported lossy");
+        auto mc = finish({"--long-context", "--max-context", "200000"}, rc);
+        check(rc == 0 && mc->kv == "q4_0" && mc->max_context == 200000, "qwen35 --long-context keeps a given --max-context");
+        auto same = finish({"--kv", "q4_0", "--long-context"}, rc);
+        check(rc == 0 && same->kv == "q4_0", "qwen35 --long-context with --kv q4_0 is the same choice");
+        (void) finish({"--long-context", "--kv", "k8v4"}, rc);
+        check(rc == 2, "qwen35 --long-context refuses a different --kv");
     }
     return failures ? 1 : 0;
 }

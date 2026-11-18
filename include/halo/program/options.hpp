@@ -22,6 +22,7 @@ struct CommonOptions {
     std::vector<int64_t> tokens;      // the prompt, PRE-TOKENIZED
     int64_t max_new = 16;
     int64_t max_context = kDefaultContext;
+    bool max_context_given = false;   ///< --max-context on the command line (a preset such as --long-context keeps it)
     bool greedy = true;
     uint64_t seed = 0;
     int top_k = 20;
@@ -50,6 +51,9 @@ struct CommonOptions {
     std::string mtp_kv;
     /// --mtp-window N: cells of context the dense drafter reads, its cache a ring of N + 15 (0: every cell, the default)
     int64_t mtp_window = 0;
+    /// --long-context (dense): the 262,144-cell profile, rotated 4-bit K and V with the drafter's int8 ring, for a task
+    /// that needs the context and accepts the measured KLD cost (docs/precision/qwen38-27b.md); flags given win
+    bool long_context = false;
     /// The engine's expert profile for the model (--expert-profile, else data/profiles/<key>.prof, cli::profile_key),
     /// or the --expert-profile-save file a start places from; empty means none.  A profile decides residency by routing
     /// frequency instead of by first use.
