@@ -478,8 +478,10 @@ def build_machine() -> Dataset:
         if "125B parameters with 6B active" in line:
             ds.add("models.sparse.params_b", 125, f"{readme} line {n}", "int")
             ds.add("models.sparse.active_b", 6, f"{readme} line {n}", "int")
-        if "122,880 served" in line:
-            ds.add("models.dense.served_context", 122880, f"{readme} line {n}", "tokens")
+        m = re.search(r"\*\*([\d,]+) served with (\S+) KV\*\*", line)
+        if m:   # the dense Context cell names the served profile (2026-11-18: K8V4)
+            ds.add("models.dense.served_context", int(m.group(1).replace(",", "")), f"{readme} line {n}", "tokens")
+            ds.add("models.dense.served_kv", m.group(2), f"{readme} line {n}")
 
     # commands: the README's own blocks, not retyped
     for key, needle in [
@@ -790,6 +792,24 @@ def build_dense() -> Dataset:
             src = f"{kdir}/paired.md line {p['line']}"
             ds.add(f"{prefix}.delta_vs_k8v4", p["delta"], src, "kld_delta")
             ds.add(f"{prefix}.ci_vs_k8v4", [p["lo"], p["hi"]], src, "kld_ci")
+
+    # KV formats at depth (D8 item 3, the depth gate of 2026-11-18): paired against int8 within each depth
+    ddir = "evals/2026-11-17/halocline-d8-depth"
+    dpaired = parse_paired(f"{ddir}/paired-depth.txt")
+    for arm in ("int8-65536", "k8v4-65536", "q4-65536", "int8-140288-ring", "k8v4-140288", "k8v4-174080"):
+        rel = f"{ddir}/{arm}/bench.json"
+        b = bench(rel)
+        prefix = "depth." + arm.replace("-ring", "").replace("-", "_")
+        m = re.search(r"depth(\d+)-w", b["quality"].get("engine_args", ""))
+        ds.add(f"{prefix}.depth", int(m.group(1)), f"{rel}#quality.engine_args", "tokens")
+        bench_prefix(ds, prefix, rel, b)
+        if arm in dpaired:
+            p = dpaired[arm]
+            src = f"{ddir}/paired-depth.txt line {p['line']}"
+            ds.add(f"{prefix}.delta", p["delta"], src, "kld_delta")
+            ds.add(f"{prefix}.ci", [p["lo"], p["hi"]], src, "kld_ci")
+            if p.get("points") is not None:
+                ds.add(f"{prefix}.points", p["points"], src, "points")
 
     # prefill ABBA
     vals = {}

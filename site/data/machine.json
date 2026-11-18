@@ -37,7 +37,8 @@
         "name": "Qwen3.8-27B",
         "arch": "Qwen3.8-27B",
         "target": "Qwen4-27B",
-        "served_context": 122880
+        "served_context": 175616,
+        "served_kv": "K8V4"
       }
     },
     "project": {
@@ -58,7 +59,7 @@
         "line": 199
       },
       "serve_dense": {
-        "text": "bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8093 --spec 8 --max-context 122880 --kv int8",
+        "text": "bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8093 --spec 8 --max-context 175616 --kv k8v4 --mtp-kv int8",
         "line": 219
       },
       "quality": {
@@ -131,6 +132,7 @@
     "models.dense.arch": "SPECS.md line 42",
     "models.dense.name": "SPECS.md line 42",
     "models.dense.served_context": "README.md line 28",
+    "models.dense.served_kv": "README.md line 28",
     "models.dense.target": "README.md line 21",
     "models.sparse.active_b": "README.md line 67",
     "models.sparse.arch": "SPECS.md line 41",
@@ -182,6 +184,7 @@
     "models.dense.arch": "text",
     "models.dense.name": "text",
     "models.dense.served_context": "tokens",
+    "models.dense.served_kv": "text",
     "models.dense.target": "text",
     "models.sparse.active_b": "int",
     "models.sparse.arch": "text",

@@ -15,9 +15,9 @@
     },
     {
       "title": "KLD at long context",
-      "status": "open",
-      "accept": "Scored windows placed at the deep contexts, per cache format, against the same frozen base.",
-      "docs": ["docs/testing.md", "docs/roadmap.md#p0-close-the-cheap-gaps-in-the-published-build"]
+      "status": "dense measured, sparse open",
+      "accept": "Scored windows placed at the deep contexts, per cache format, against the same frozen base. The dense path has its table (the depth finding); the sparse path's has not run.",
+      "docs": ["docs/testing.md", "docs/roadmap.md#p0-close-the-cheap-gaps-in-the-published-build", "evals/2026-11-17/halocline-d8-depth/"]
     },
     {
       "title": "Strata KLD",

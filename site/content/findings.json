@@ -184,7 +184,7 @@
       "id": "dense-kv",
       "title": "The {short} cache: a small measured cost for more context",
       "claim": "The {short} cache costs {delta} mean KLD over the {int8} cache at the first dense context, paired {ci}, and {points} first-choice points. The planner reaches {cells} context cells with this cache and the drafter in the {int8} format, against {base_cells} for the {int8} main cache with the same drafter.",
-      "caveat": "The gate scores short chunks; whether the gap grows with depth is the open depth gate. The drafter's cache format changes no scored row.",
+      "caveat": "The gate scores short chunks; the depth finding below measures the gap at depth. The drafter's cache format changes no scored row.",
       "status": "measured",
       "date": "2026-11-17",
       "values": {
@@ -199,6 +199,32 @@
       },
       "evals": [
         "evals/2026-11-17/halocline-d8-kv/"
+      ]
+    },
+    {
+      "id": "dense-depth",
+      "title": "At depth the {short} cache costs what it cost at the start",
+      "claim": "With a prefix of {d65} tokens the {short} cache costs {k65} mean KLD over the {int8} cache, paired {k65ci}; with {d140} tokens it costs {k140}, paired {k140ci}. The gap does not grow with depth. The {kv4} cache costs {q65} at {d65}, paired {q65ci}. Since the maintainer's decision the {served_kv} cache is the served dense profile, at {served} tokens.",
+      "caveat": "Each depth scores different text, so formats compare within a depth only. The {kv4} cache's full-context arm has not run: that protocol needs more cells than the model's native context.",
+      "status": "measured",
+      "date": "2026-11-18",
+      "values": {
+        "short": "dense.kv.arms.k8v4.short",
+        "int8": "dense.kv.arms.int8.label",
+        "kv4": "dense.kv.arms.q4.label",
+        "d65": "dense.depth.k8v4_65536.depth",
+        "k65": "dense.depth.k8v4_65536.delta",
+        "k65ci": "dense.depth.k8v4_65536.ci",
+        "d140": "dense.depth.k8v4_140288.depth",
+        "k140": "dense.depth.k8v4_140288.delta",
+        "k140ci": "dense.depth.k8v4_140288.ci",
+        "q65": "dense.depth.q4_65536.delta",
+        "q65ci": "dense.depth.q4_65536.ci",
+        "served_kv": "machine.models.dense.served_kv",
+        "served": "machine.models.dense.served_context"
+      },
+      "evals": [
+        "evals/2026-11-17/halocline-d8-depth/"
       ]
     },
     {
