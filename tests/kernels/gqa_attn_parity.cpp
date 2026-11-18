@@ -277,6 +277,54 @@ int main(int argc, char** argv) {
         }
         cudaFree(d_k2); cudaFree(d_v2); cudaFree(d_s2); cudaFree(d_at);
     }
+    {
+        // A ring (the windowed drafter's cache, cell p at p % cap) laps in: the same window read from the ring and from an
+        // absolute cache agree, and every output is finite. While the ring's sweep started at chunk 0, a window past
+        // position cap read no cell at all (sum 0, NaN out): the drafter failure at depth 140,288. The window's first
+        // cell lands at every offset of its chunk across the positions tried (the extra chunk's case).
+        constexpr int64_t W = 1000, CAP = W + halo::kernels::kGqaMaxWindow - 1, L3 = 5 * CAP;
+        std::vector<uint16_t> ka((size_t) L3 * NKV * HD), va(ka.size());
+        for (auto& x : ka) x = halo::kernels::f16_from_f32(nd(rng));
+        for (auto& x : va) x = halo::kernels::f16_from_f32(nd(rng));
+        uint16_t *d_ka = dev<uint16_t>(ka.size()), *d_va = dev<uint16_t>(va.size());
+        uint16_t *d_kr = dev<uint16_t>((size_t) CAP * NKV * HD), *d_vr = dev<uint16_t>((size_t) CAP * NKV * HD);
+        float* d_s3 = dev<float>(halo::kernels::gqa_decode_scratch_floats(L3, halo::kernels::kGqaMaxWindow, NH));
+        ck(cudaMemcpy(d_ka, ka.data(), ka.size() * 2, cudaMemcpyHostToDevice), "copy");
+        ck(cudaMemcpy(d_va, va.data(), va.size() * 2, cudaMemcpyHostToDevice), "copy");
+        const size_t cell = (size_t) NKV * HD;
+        std::vector<uint16_t> kr((size_t) CAP * cell), vr(kr.size());
+        std::vector<float> ga((size_t) halo::kernels::kGqaMaxWindow * NH * HD), gr(ga.size());
+        Err er;
+        bool finite = true;
+        int tried = 0;
+        for (int T : {1, 7, 16}) {
+            for (int64_t pos0 = 3 * CAP + 5; pos0 < 3 * CAP + 5 + 2 * halo::kernels::kGqaCellChunk; pos0 += 3) {
+                // the ring as a session leaves it: every position up to the window's last, written in order
+                for (int64_t p = 0; p < pos0 + T; ++p) {
+                    std::memcpy(&kr[(size_t) (p % CAP) * cell], &ka[(size_t) p * cell], cell * 2);
+                    std::memcpy(&vr[(size_t) (p % CAP) * cell], &va[(size_t) p * cell], cell * 2);
+                }
+                ck(cudaMemcpy(d_kr, kr.data(), kr.size() * 2, cudaMemcpyHostToDevice), "copy");
+                ck(cudaMemcpy(d_vr, vr.data(), vr.size() * 2, cudaMemcpyHostToDevice), "copy");
+                halo::kernels::gqa_decode_attn(d_q, d_ka, d_va, NH, NKV, pos0, T, d_s3, L3, d_out, nullptr, nullptr, {}, nullptr,
+                                               nullptr, {}, {}, W, 0);
+                ck(cudaMemcpy(ga.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+                halo::kernels::gqa_decode_attn(d_q, d_kr, d_vr, NH, NKV, pos0, T, d_s3, L3, d_out, nullptr, nullptr, {}, nullptr,
+                                               nullptr, {}, {}, W, CAP);
+                ck(cudaMemcpy(gr.data(), d_out, (size_t) T * NH * HD * 4, cudaMemcpyDeviceToHost), "copy");
+                for (size_t j = 0; j < (size_t) T * NH * HD; ++j) {
+                    if (!std::isfinite(gr[j])) finite = false;
+                    er.add(gr[j], ga[j]);
+                }
+                ++tried;
+            }
+        }
+        std::printf("gqa_decode_attn: a ring of %lld cells near position %lld (%d windows of 1/7/16 rows) vs the absolute "
+                    "cache: max abs %.3g, all finite: %s\n",
+                    (long long) CAP, (long long) (3 * CAP), tried, er.abs, finite ? "yes" : "NO");
+        if (!finite || er.abs > 1e-3) ++fails;
+        cudaFree(d_ka); cudaFree(d_va); cudaFree(d_kr); cudaFree(d_vr); cudaFree(d_s3);
+    }
     // prompt chunk
     halo::kernels::gqa_prompt_attn(d_q, d_kc, d_vc, NH, NKV, p0, TP, d_out, nullptr);
     std::vector<float> pr(q.size());

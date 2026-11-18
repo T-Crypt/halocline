@@ -1334,7 +1334,16 @@ void gqa_decode_attn(const float* q, const uint16_t* k_cache, const uint16_t* v_
     r.cap = cap > 0 ? cap : max_cells;
     r.window = window;
     r.pos_dev = pos_dev;
-    const int n_chunks = (int) ((r.cap + CHUNK - 1) / CHUNK);
+    // A ring holds positions [pos0 - window + 1, pos0 + T) only, so its sweep starts at the window's first chunk, as
+    // gqa_window_attn's does: from chunk 0 a ring of `cap` cells reaches position cap and no further, and past it every
+    // row read nothing (sum 0, its output NaN). One chunk more than the ring's covers the window's offset in its first
+    // chunk (window + T - 1 <= cap, plus at most CHUNK - 1 cells before lo). The base comes from the host's pos0: a ring's
+    // caller (the drafter's window, mtp_window) uploads pos0 on every call and is never captured in a graph.
+    int n_chunks = (int) ((r.cap + CHUNK - 1) / CHUNK);
+    if (cap > 0) {
+        r.base = (int) (std::max<int64_t>(0, pos0 - window + 1) / CHUNK);
+        n_chunks += 1;
+    }
     launch_window<256>(q, k_cache, v_cache, n_head, n_kv, r, T, scratch, n_chunks, out, (cudaStream_t) stream, q8, gate_q, gated16,
                        far_kv, k8v4);
 }
