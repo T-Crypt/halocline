@@ -343,7 +343,7 @@ int main() {
             else if (std::memcmp(first.data(), last, first.size() * 4) != 0) bitwise = false;
             if (T == k::kGqaMaxWindow || T == 8)   // every row of one window, each at its own position
                 for (int t = 0; t < T; ++t) {
-                    ref_attn(&q[(size_t) t * NH * HD], kdq, vtrue, p0 + t + 1, want.data());
+                    ref_attn(&qw[(size_t) t * NH * HD], kdq, vtrue, p0 + t + 1, want.data());   // the window's own row t
                     for (int j = 0; j < NH * HD; ++j) ed.add(got[(size_t) t * NH * HD + j], want[(size_t) j]);
                 }
         }
