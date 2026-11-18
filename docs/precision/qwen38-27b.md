@@ -1,9 +1,9 @@
 # Qwen3.8-27B precision
 
 > [!NOTE]
-> Status 2026-11-17: no dense run has been measured. This page holds the reference and the gate that will score it; the
-> numbers appear when the pack loads. Basalt's NVFP4 numbers are not reproduced here because Halocline does not use that
-> pack.
+> Status 2026-11-18: measured. The KV formats below are scored against the BF16 reference at 36,864 tokens and at
+> depth (65,536 to 174,080); the dense default is the 262,144-token profile (`--long-context`). Basalt's NVFP4 numbers
+> are not reproduced here because Halocline does not use that pack.
 
 ## The reference
 

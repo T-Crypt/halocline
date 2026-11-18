@@ -310,7 +310,7 @@ size does to the expert pool, and what a row records.
 | [`SPECS.md`](SPECS.md) | the reference machine |
 | [`RESEARCH.md`](RESEARCH.md) | the recipe and the sources, applied or read |
 | [`LIFTS.md`](LIFTS.md) | the base snapshot's hashes and what came from where |
-| `docs/` | user docs carried over from Basalt, each marked for a rewrite |
+| `docs/` | user docs; the pages still carried over from Basalt are the next to rewrite (open work 6) |
 
 ## Sources
 

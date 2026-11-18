@@ -40,7 +40,7 @@ struct ConversationKv;
 /// past it so a window launched ahead has drafts.
 constexpr int kMtpChainMax = 16;
 
-/// The drafter's files: the `mtp/...` sections of a .basalt.
+/// The drafter's files: the `mtp/...` sections of a pack (.halo).
 struct MtpFiles {
     FileRange dense, index, experts, draft_vocab;   ///< dense, dense.index, experts, draft_vocab (optional)
     static MtpFiles from(const ModelSources& s) {
