@@ -694,6 +694,7 @@ class Service:
         # a start under way reads 0; the last READY's context stands in until the new one arrives
         engine = {"model": self.model, "path": getattr(self.engine, "model_path", None) or None,
                   "max_context": self.engine.max_context or getattr(self.engine, "known_ctx", 0), **info,
+                  "vision": self.vision is not None, "video": bool(self.vision is not None and self.video_on()),
                   "spill": spill, "expert_total": experts_total if isinstance(experts_total, int) else None}
         if isinstance(engine.get("pcie_frac"), str):     # INFO carries it as a decimal word; the JSON carries a number
             try:

@@ -263,6 +263,8 @@ function enginePane(eng, live, hw, hst, conv, reqs) {
         row("Slots", num((live.slots || {}).total) ? fmt(live.slots.total) : null),
         row("Built", eng.engine || eng.version ? esc(eng.engine || eng.version) : null),
         row("GPU bus", eng.gpus ? `<span class="p">${esc(eng.gpus)}</span>` : null),
+        row("Images", eng.vision ? "On" : "Off"),
+        row("Video", eng.video ? "On" : eng.vision ? "Off" : null),
         row("State", `${esc(live.state || "idle")}${live.state === "loading" && num((live.load || {}).percent) ? ` · ${live.load.percent}%` : ""}`),
         dense ? row("Weights on the card", num(eng.gpu_weight_bytes) ? `${gib(eng.gpu_weight_bytes)}<small>GiB</small>` : null) : "",
         dense ? row("Weights in RAM", num(eng.host_weight_bytes) && eng.host_weight_bytes > 0 ? `${gib(eng.host_weight_bytes)}<small>GiB</small>` : "None") : "",

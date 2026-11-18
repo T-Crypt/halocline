@@ -81,6 +81,7 @@ class Http(unittest.TestCase):
         self.assertEqual((m["engine"]["model"], m["engine"]["max_context"]), (self.svc.model, 16384))
         self.assertEqual((m["engine"]["version"], m["engine"]["kv"], m["engine"]["expert_slots"]), ("1.2.3", "fp8", 100))
         self.assertIsNone(m["engine"]["path"])                       # a mock engine reads no model file
+        self.assertEqual((m["engine"]["vision"], m["engine"]["video"]), (False, False))
         self.assertEqual(m["requests_kept"], 0)
         self.assertEqual(set(m["live"]), {"state", "load", "queued", "slots", "queue", "prompt_tokens", "generated", "max_tokens",
                                           "elapsed_s", "tok_s", "tok_s_mean", "phase", "prefill_tok_s_mean"})

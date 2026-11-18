@@ -47,5 +47,6 @@ class PageContract(unittest.TestCase):
                 "expert_cache_mib", "expert_slots_primary", "expert_cache_primary_mib", "arena_mib", "pcie_frac",
                 "conversation_cache_mib", "conversation_cache_slots", "conversation_cache_min_free_mib",
                 "conversation_cache_min_tokens", "gpu_weight_bytes", "host_weight_bytes", "host_embedding_bytes",
-                "host_vision_bytes", "batch_slots", "vram_elastic", "engine", "version", "quant", "gpus", "context"}
+                "host_vision_bytes", "batch_slots", "vram_elastic", "engine", "version", "quant", "gpus", "context",
+                "vision", "video"}
         self.assertEqual(self.reads("eng") - info, set())
