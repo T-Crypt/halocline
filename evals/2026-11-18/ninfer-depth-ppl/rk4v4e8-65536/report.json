@@ -1,0 +1,699 @@
+{
+  "artifact": {
+    "architecture": "Qwen3_5ForCausalLM",
+    "formats": [
+      "bf16",
+      "fp32",
+      "q4_g64_fp16",
+      "q5_g64_fp16",
+      "q8_g32_fp16"
+    ],
+    "name": "qwen3.8-27b",
+    "path": "/mnt/models/ninfer-v3-artifacts/qwen3_8_27b.v3.ninfer",
+    "prefill_signature": "cf336425f495069a4a56f254679b3ebfb82a8ba86d5b3cca4d36b38bf422ec16"
+  },
+  "corpus": {
+    "id": "halocline-depth65536-w1024-c16",
+    "mode": "full",
+    "source": "evals/2026-11-18/ninfer-depth-ppl/d65536/manifest.json",
+    "stream_count": 16
+  },
+  "domains": [
+    {
+      "domain": "depth",
+      "mean_nll": 1.9673126990209502,
+      "perplexity": 7.1514325910520045,
+      "scored_tokens": 1081344,
+      "total_nll": 2127341.7832101104
+    }
+  ],
+  "execution": {
+    "context_tokens": 66561,
+    "device": 0,
+    "kv_dtype": "rk4v4-e8",
+    "prefill_chunk_tokens": 1024,
+    "purpose": "causal_scoring",
+    "score_tile_tokens": 1024,
+    "stride_tokens": 1024
+  },
+  "metric": {
+    "log_base": "natural",
+    "name": "fixed-window truncated-context causal perplexity"
+  },
+  "overall": {
+    "mean_nll": 1.9673126990209502,
+    "perplexity": 7.1514325910520045,
+    "scored_tokens": 1081344,
+    "total_nll": 2127341.7832101104
+  },
+  "schema_version": 2,
+  "streams": [
+    {
+      "domain": "depth",
+      "id": "chunk00",
+      "input_tokens": 67585,
+      "mean_nll": 1.7644994785734505,
+      "path": "data/chunk00.txt",
+      "perplexity": 5.838649257554282,
+      "scored_tokens": 67584,
+      "seconds": 49.559657595,
+      "total_nll": 119251.93275990807,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.7610432461217016,
+          "perplexity": 5.818504361291517,
+          "scored_tokens": 66560,
+          "seconds": 26.202476809,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 117215.03846186046
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.989154587937121,
+          "perplexity": 7.3093517353687885,
+          "scored_tokens": 1024,
+          "seconds": 23.357097235,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2036.894298047612
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk01",
+      "input_tokens": 67585,
+      "mean_nll": 2.0440853214042534,
+      "path": "data/chunk01.txt",
+      "perplexity": 7.7220920742963015,
+      "scored_tokens": 67584,
+      "seconds": 48.361377448,
+      "total_nll": 138147.46236178506,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 2.04060487950983,
+          "perplexity": 7.695262498002277,
+          "scored_tokens": 66560,
+          "seconds": 24.989770864,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 135822.66078017428
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 2.270314044541786,
+          "perplexity": 9.682441054426718,
+          "scored_tokens": 1024,
+          "seconds": 23.371504819,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2324.801581610789
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk02",
+      "input_tokens": 67585,
+      "mean_nll": 1.964937595643413,
+      "path": "data/chunk02.txt",
+      "perplexity": 7.1344673544214166,
+      "scored_tokens": 67584,
+      "seconds": 48.436685998,
+      "total_nll": 132798.34246396442,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.9579609329880485,
+          "perplexity": 7.084865810275484,
+          "scored_tokens": 66560,
+          "seconds": 25.016996995,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 130321.8796996845
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 2.4184206682420957,
+          "perplexity": 11.228112389950834,
+          "scored_tokens": 1024,
+          "seconds": 23.419591188,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2476.462764279906
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk03",
+      "input_tokens": 67585,
+      "mean_nll": 1.857806063986672,
+      "path": "data/chunk03.txt",
+      "perplexity": 6.409658952549865,
+      "scored_tokens": 67584,
+      "seconds": 48.479481952,
+      "total_nll": 125557.96502847524,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.8594087862790243,
+          "perplexity": 6.419940092544843,
+          "scored_tokens": 66560,
+          "seconds": 25.043660828,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 123762.24881473185
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.753629114983779,
+          "perplexity": 5.7755247321137935,
+          "scored_tokens": 1024,
+          "seconds": 23.435720685,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1795.7162137433897
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk04",
+      "input_tokens": 67585,
+      "mean_nll": 1.9923469471599047,
+      "path": "data/chunk04.txt",
+      "perplexity": 7.332723096835995,
+      "scored_tokens": 67584,
+      "seconds": 48.499555639,
+      "total_nll": 134650.776076855,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.9959704455144844,
+          "perplexity": 7.359341403482856,
+          "scored_tokens": 66560,
+          "seconds": 25.065436154,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 132851.7928534441
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.7568195541122085,
+          "perplexity": 5.793980617741118,
+          "scored_tokens": 1024,
+          "seconds": 23.434020943,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1798.9832234109015
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk05",
+      "input_tokens": 67585,
+      "mean_nll": 2.2218422575993695,
+      "path": "data/chunk05.txt",
+      "perplexity": 9.224308775179248,
+      "scored_tokens": 67584,
+      "seconds": 48.537373059,
+      "total_nll": 150160.98713759577,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 2.2255318818267735,
+          "perplexity": 9.258405872373917,
+          "scored_tokens": 66560,
+          "seconds": 25.080689104,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 148131.40205439006
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.98201668281809,
+          "perplexity": 7.257364038553278,
+          "scored_tokens": 1024,
+          "seconds": 23.456589346,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2029.5850832057242
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk06",
+      "input_tokens": 67585,
+      "mean_nll": 1.8981188577897767,
+      "path": "data/chunk06.txt",
+      "perplexity": 6.6733291462905315,
+      "scored_tokens": 67584,
+      "seconds": 48.548032305,
+      "total_nll": 128282.46488486427,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.899584322765715,
+          "perplexity": 6.683115845708459,
+          "scored_tokens": 66560,
+          "seconds": 25.086408074,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 126436.332523286
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.802863634353785,
+          "perplexity": 6.066996271184264,
+          "scored_tokens": 1024,
+          "seconds": 23.461497949,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1846.1323615782758
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk07",
+      "input_tokens": 67585,
+      "mean_nll": 2.090667166576029,
+      "path": "data/chunk07.txt",
+      "perplexity": 8.090310949216242,
+      "scored_tokens": 67584,
+      "seconds": 48.571212357,
+      "total_nll": 141295.64978587432,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 2.086732757227922,
+          "perplexity": 8.058542889443892,
+          "scored_tokens": 66560,
+          "seconds": 25.099307993,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 138892.9323210905
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 2.3464037742029467,
+          "perplexity": 10.447928971277808,
+          "scored_tokens": 1024,
+          "seconds": 23.471786931,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2402.7174647838174
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk08",
+      "input_tokens": 67585,
+      "mean_nll": 1.9552604176043467,
+      "path": "data/chunk08.txt",
+      "perplexity": 7.065758832119514,
+      "scored_tokens": 67584,
+      "seconds": 48.594858143,
+      "total_nll": 132144.32006337217,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.9516931091330905,
+          "perplexity": 7.040597995696709,
+          "scored_tokens": 66560,
+          "seconds": 25.107894175,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 129904.6933438985
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 2.187135468236021,
+          "perplexity": 8.909654537069335,
+          "scored_tokens": 1024,
+          "seconds": 23.486862373,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2239.6267194736856
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk09",
+      "input_tokens": 67585,
+      "mean_nll": 2.0030586880108947,
+      "path": "data/chunk09.txt",
+      "perplexity": 7.411691515924297,
+      "scored_tokens": 67584,
+      "seconds": 48.605005596,
+      "total_nll": 135374.7183705283,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 2.0060003229271213,
+          "perplexity": 7.4335261054263215,
+          "scored_tokens": 66560,
+          "seconds": 25.118100822,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 133519.3814940292
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.8118524184561564,
+          "perplexity": 6.121777028166004,
+          "scored_tokens": 1024,
+          "seconds": 23.486747114,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1855.3368764991042
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk10",
+      "input_tokens": 67585,
+      "mean_nll": 1.8310000746113333,
+      "path": "data/chunk10.txt",
+      "perplexity": 6.240124128749776,
+      "scored_tokens": 67584,
+      "seconds": 48.597866031,
+      "total_nll": 123746.30904253235,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.8288310032465183,
+          "perplexity": 6.2266035230695795,
+          "scored_tokens": 66560,
+          "seconds": 25.114554276,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 121726.99157608826
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.9719897133243045,
+          "perplexity": 7.184958282526088,
+          "scored_tokens": 1024,
+          "seconds": 23.483190776,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2019.3174664440878
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk11",
+      "input_tokens": 67585,
+      "mean_nll": 1.943257062938604,
+      "path": "data/chunk11.txt",
+      "perplexity": 6.981453011441106,
+      "scored_tokens": 67584,
+      "seconds": 48.615562143,
+      "total_nll": 131333.0853416426,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.9467121412671156,
+          "perplexity": 7.00561619725482,
+          "scored_tokens": 66560,
+          "seconds": 25.124333756,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 129573.16012273921
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.7186769715853543,
+          "perplexity": 5.577144859871658,
+          "scored_tokens": 1024,
+          "seconds": 23.491128362,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1759.9252189034028
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk12",
+      "input_tokens": 67585,
+      "mean_nll": 2.0561265020438677,
+      "path": "data/chunk12.txt",
+      "perplexity": 7.815637246781509,
+      "scored_tokens": 67584,
+      "seconds": 48.636100381,
+      "total_nll": 138961.25351413275,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 2.051143854103102,
+          "perplexity": 7.7767915355673525,
+          "scored_tokens": 66560,
+          "seconds": 25.131251399,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 136524.13492910247
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 2.37999861819363,
+          "perplexity": 10.804887933657971,
+          "scored_tokens": 1024,
+          "seconds": 23.504724347,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 2437.1185850302772
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk13",
+      "input_tokens": 67585,
+      "mean_nll": 1.9312818063922506,
+      "path": "data/chunk13.txt",
+      "perplexity": 6.898346922095303,
+      "scored_tokens": 67584,
+      "seconds": 48.635299464,
+      "total_nll": 130523.74960321386,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.9382179201143883,
+          "perplexity": 6.94636096377355,
+          "scored_tokens": 66560,
+          "seconds": 25.138884342,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 129007.78476281368
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.4804344144532953,
+          "perplexity": 4.394854454584505,
+          "scored_tokens": 1024,
+          "seconds": 23.496278388,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1515.9648404001744
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk14",
+      "input_tokens": 67585,
+      "mean_nll": 1.9724801203720683,
+      "path": "data/chunk14.txt",
+      "perplexity": 7.188482700834881,
+      "scored_tokens": 67584,
+      "seconds": 48.630741373,
+      "total_nll": 133308.09645522587,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.9745157856289477,
+          "perplexity": 7.203130949725874,
+          "scored_tokens": 66560,
+          "seconds": 25.123119177,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 131423.77069146276
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.8401618786749117,
+          "perplexity": 6.297557618800799,
+          "scored_tokens": 1024,
+          "seconds": 23.50750939,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1884.3257637631095
+        }
+      ]
+    },
+    {
+      "domain": "depth",
+      "id": "chunk15",
+      "input_tokens": 67585,
+      "mean_nll": 1.9502348236289684,
+      "path": "data/chunk15.txt",
+      "perplexity": 7.030338276317448,
+      "scored_tokens": 67584,
+      "seconds": 48.62198925,
+      "total_nll": 131804.6703201402,
+      "unscored_tokens": 1,
+      "windows": [
+        {
+          "first_target": 1,
+          "index": 0,
+          "input_begin": 0,
+          "input_end": 66561,
+          "mean_nll": 1.9519967470307888,
+          "perplexity": 7.042736112660905,
+          "scored_tokens": 66560,
+          "seconds": 25.123864561,
+          "target_begin": 1,
+          "target_end": 66561,
+          "total_nll": 129924.90348236931
+        },
+        {
+          "first_target": 65537,
+          "index": 1,
+          "input_begin": 1024,
+          "input_end": 67585,
+          "mean_nll": 1.8357098025106444,
+          "perplexity": 6.269582732003853,
+          "scored_tokens": 1024,
+          "seconds": 23.49801015,
+          "target_begin": 66561,
+          "target_end": 67585,
+          "total_nll": 1879.7668377708999
+        }
+      ]
+    }
+  ],
+  "timing": {
+    "load_seconds": 9.152953361,
+    "read_and_tokenize_seconds": 0.223331885,
+    "score_seconds": 777.931345704,
+    "scored_tokens_per_second": 1390.024975817657,
+    "total_seconds": 787.395904823
+  }
+}

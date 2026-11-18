@@ -38,7 +38,7 @@ Status:
 | Sparse path (Flash-Next) | runs, gated, served through llama-swap |
 | Dense path (27B) | D2-D4 and D6 done on UD-IQ4_XS and UD-Q4_K_XL, vision packs built; 262K does not fit with the KV formats the dense path has (D8) |
 | Dense vs llama.cpp | parity on KLD for the same GGUF; better than llama.cpp at the same 8-bit KV precision (D4) |
-| Dense vs NInfer | prefill above its floor; decode near it; KLD and the like-for-like smoke not measured (D7) |
+| Dense vs NInfer | prefill 2.4% under its floor at 36K, 6.5% over at 137K; decode 13-16% under (D5); 10x closer to BF16 on target-token dNLL at 65K and 140K (D7, 2026-11-18; NInfer has no logits for KLD) |
 | Qwen4-Flash / Qwen4-27B | target only; weights are not public |
 | Task-level eval | not started |
 | Sampling, long-context KLD, Strata KLD | not measured |
@@ -240,6 +240,13 @@ Rules for the comparison:
 - Quality beyond KLD uses the task suite in P2 on the same prompts, because KLD near the baseline does not rank models.
 - Accept: a table with all three arms and intervals, and a statement of which arm wins on KLD, on the task set, and on
   speed. If Halocline does not win, that is the result and the README says so.
+
+**NInfer quality, measured 2026-11-18** (`evals/2026-11-18/ninfer-depth-ppl`). NInfer exposes no logits, so this is
+target-token dNLL (mean NLL of the observed token minus BF16's, paired per chunk), not KLD, on the depth bases' own
+rows (16 x 1,024 at 65,536 and 140,288, the same tokens round-tripped). Served against served: Halocline K8V4 +0.0018
+and +0.0020; NInfer `rk4v4-e8` +0.0199 [+0.0157, +0.0241] and +0.0201 [+0.0145, +0.0257], paired +0.018 against
+Halocline at both depths. NInfer with int8 KV is still +0.0172 at 65K: most of its loss is its weight conversion, not
+its 4-bit cache. Halocline wins this axis by about 10 times; speed is the open one (D5).
 
 ## P0: close the cheap gaps in the published build
 

@@ -1,0 +1,56 @@
+starting engine
+loading weights | 15.9 GiB
+weights ready | 15.9 GiB | 8.8s | 1.80 GiB/s
+engine ready | qwen3.8-27b | total 9.2s | weights 15.9 GiB | CUDA sync spin
+preparing corpus
+corpus ready | 16 streams | 1,081,360 input tokens | 1,081,344 scored tokens | 32 windows | 223 ms
+scoring | 16 streams | 1,081,344 tokens | 32 windows
+scoring | 66,560/1,081,344 tokens | 1/32 windows | PPL 5.8185 | 2.54k tok/s | elapsed 26.2s | ETA 6m 39.5s
+scoring | 67,584/1,081,344 tokens | 2/32 windows | PPL 5.8386 | 1.36k tok/s | elapsed 49.6s | ETA 12m 23.4s
+[1/16] chunk00 | 67,584 scored tokens | PPL 5.83865 | 49.6s
+scoring | 134,144/1,081,344 tokens | 3/32 windows | PPL 6.6959 | 1.80k tok/s | elapsed 1m 14.5s | ETA 8m 46.4s
+scoring | 135,168/1,081,344 tokens | 4/32 windows | PPL 6.7147 | 1.38k tok/s | elapsed 1m 37.9s | ETA 11m 25.4s
+[2/16] chunk01 | 67,584 scored tokens | PPL 7.72209 | 48.4s
+scoring | 201,728/1,081,344 tokens | 5/32 windows | PPL 6.8346 | 1.64k tok/s | elapsed 2m 2.9s | ETA 8m 56.1s
+scoring | 202,752/1,081,344 tokens | 6/32 windows | PPL 6.8518 | 1.39k tok/s | elapsed 2m 26.4s | ETA 10m 34.2s
+[3/16] chunk02 | 67,584 scored tokens | PPL 7.13447 | 48.4s
+scoring | 269,312/1,081,344 tokens | 7/32 windows | PPL 6.7424 | 1.57k tok/s | elapsed 2m 51.4s | ETA 8m 36.8s
+scoring | 270,336/1,081,344 tokens | 8/32 windows | PPL 6.7385 | 1.39k tok/s | elapsed 3m 14.8s | ETA 9m 44.5s
+[4/16] chunk03 | 67,584 scored tokens | PPL 6.40966 | 48.5s
+scoring | 336,896/1,081,344 tokens | 9/32 windows | PPL 6.8568 | 1.53k tok/s | elapsed 3m 39.9s | ETA 8m 5.9s
+scoring | 337,920/1,081,344 tokens | 10/32 windows | PPL 6.8533 | 1.39k tok/s | elapsed 4m 3.3s | ETA 8m 55.3s
+[5/16] chunk04 | 67,584 scored tokens | PPL 7.33272 | 48.5s
+scoring | 404,480/1,081,344 tokens | 11/32 windows | PPL 7.2011 | 1.51k tok/s | elapsed 4m 28.4s | ETA 7m 29.2s
+scoring | 405,504/1,081,344 tokens | 12/32 windows | PPL 7.2012 | 1.39k tok/s | elapsed 4m 51.9s | ETA 8m 6.5s
+[6/16] chunk05 | 67,584 scored tokens | PPL 9.22431 | 48.5s
+scoring | 472,064/1,081,344 tokens | 13/32 windows | PPL 7.1258 | 1.49k tok/s | elapsed 5m 17.0s | ETA 6m 49.1s
+scoring | 473,088/1,081,344 tokens | 14/32 windows | PPL 7.1233 | 1.39k tok/s | elapsed 5m 40.4s | ETA 7m 17.7s
+[7/16] chunk06 | 67,584 scored tokens | PPL 6.67333 | 48.5s
+scoring | 539,648/1,081,344 tokens | 15/32 windows | PPL 7.2325 | 1.48k tok/s | elapsed 6m 5.5s | ETA 6m 6.9s
+scoring | 540,672/1,081,344 tokens | 16/32 windows | PPL 7.2376 | 1.39k tok/s | elapsed 6m 29.0s | ETA 6m 29.0s
+[8/16] chunk07 | 67,584 scored tokens | PPL 8.09031 | 48.6s
+scoring | 607,232/1,081,344 tokens | 17/32 windows | PPL 7.2157 | 1.47k tok/s | elapsed 6m 54.1s | ETA 5m 23.3s
+scoring | 608,256/1,081,344 tokens | 18/32 windows | PPL 7.2183 | 1.39k tok/s | elapsed 7m 17.6s | ETA 5m 40.3s
+[9/16] chunk08 | 67,584 scored tokens | PPL 7.06576 | 48.6s
+scoring | 674,816/1,081,344 tokens | 19/32 windows | PPL 7.2392 | 1.46k tok/s | elapsed 7m 42.7s | ETA 4m 38.7s
+scoring | 675,840/1,081,344 tokens | 20/32 windows | PPL 7.2374 | 1.39k tok/s | elapsed 8m 6.2s | ETA 4m 51.7s
+[10/16] chunk09 | 67,584 scored tokens | PPL 7.41169 | 48.6s
+scoring | 742,400/1,081,344 tokens | 21/32 windows | PPL 7.1404 | 1.45k tok/s | elapsed 8m 31.3s | ETA 3m 53.4s
+scoring | 743,424/1,081,344 tokens | 22/32 windows | PPL 7.1405 | 1.39k tok/s | elapsed 8m 54.8s | ETA 4m 3.1s
+[11/16] chunk10 | 67,584 scored tokens | PPL 6.24012 | 48.6s
+scoring | 809,984/1,081,344 tokens | 23/32 windows | PPL 7.1293 | 1.45k tok/s | elapsed 9m 19.9s | ETA 3m 7.6s
+scoring | 811,008/1,081,344 tokens | 24/32 windows | PPL 7.1271 | 1.39k tok/s | elapsed 9m 43.4s | ETA 3m 14.5s
+[12/16] chunk11 | 67,584 scored tokens | PPL 6.98145 | 48.6s
+scoring | 877,568/1,081,344 tokens | 25/32 windows | PPL 7.1744 | 1.44k tok/s | elapsed 10m 8.5s | ETA 2m 21.3s
+scoring | 878,592/1,081,344 tokens | 26/32 windows | PPL 7.1779 | 1.39k tok/s | elapsed 10m 32.0s | ETA 2m 25.9s
+[13/16] chunk12 | 67,584 scored tokens | PPL 7.81564 | 48.6s
+scoring | 945,152/1,081,344 tokens | 27/32 windows | PPL 7.1613 | 1.44k tok/s | elapsed 10m 57.2s | ETA 1m 34.7s
+scoring | 946,176/1,081,344 tokens | 28/32 windows | PPL 7.1575 | 1.39k tok/s | elapsed 11m 20.7s | ETA 1m 37.2s
+[14/16] chunk13 | 67,584 scored tokens | PPL 6.89835 | 48.6s
+scoring | 1,012,736/1,081,344 tokens | 29/32 windows | PPL 7.1605 | 1.43k tok/s | elapsed 11m 45.8s | ETA 47.8s
+scoring | 1,013,760/1,081,344 tokens | 30/32 windows | PPL 7.1596 | 1.39k tok/s | elapsed 12m 9.3s | ETA 48.6s
+[15/16] chunk14 | 67,584 scored tokens | PPL 7.18848 | 48.6s
+scoring | 1,080,320/1,081,344 tokens | 31/32 windows | PPL 7.1523 | 1.43k tok/s | elapsed 12m 34.4s | ETA 715 ms
+scoring | 1,081,344/1,081,344 tokens | 32/32 windows | PPL 7.1514 | 1.39k tok/s | elapsed 12m 57.9s | ETA 0 us
+[16/16] chunk15 | 67,584 scored tokens | PPL 7.03034 | 48.6s
+scoring complete | 1,081,344 tokens | 32 windows | PPL 7.15143 | 12m 57.9s | 1.39k tok/s

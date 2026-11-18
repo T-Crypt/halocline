@@ -1,0 +1,108 @@
+{
+  "corpus_id": "halocline-depth140288-w1024-c16",
+  "streams": [
+    {
+      "id": "chunk00",
+      "domain": "depth",
+      "path": "data/chunk00.txt"
+    },
+    {
+      "id": "chunk01",
+      "domain": "depth",
+      "path": "data/chunk01.txt"
+    },
+    {
+      "id": "chunk02",
+      "domain": "depth",
+      "path": "data/chunk02.txt"
+    },
+    {
+      "id": "chunk03",
+      "domain": "depth",
+      "path": "data/chunk03.txt"
+    },
+    {
+      "id": "chunk04",
+      "domain": "depth",
+      "path": "data/chunk04.txt"
+    },
+    {
+      "id": "chunk05",
+      "domain": "depth",
+      "path": "data/chunk05.txt"
+    },
+    {
+      "id": "chunk06",
+      "domain": "depth",
+      "path": "data/chunk06.txt"
+    },
+    {
+      "id": "chunk07",
+      "domain": "depth",
+      "path": "data/chunk07.txt"
+    },
+    {
+      "id": "chunk08",
+      "domain": "depth",
+      "path": "data/chunk08.txt"
+    },
+    {
+      "id": "chunk09",
+      "domain": "depth",
+      "path": "data/chunk09.txt"
+    },
+    {
+      "id": "chunk10",
+      "domain": "depth",
+      "path": "data/chunk10.txt"
+    },
+    {
+      "id": "chunk11",
+      "domain": "depth",
+      "path": "data/chunk11.txt"
+    },
+    {
+      "id": "chunk12",
+      "domain": "depth",
+      "path": "data/chunk12.txt"
+    },
+    {
+      "id": "chunk13",
+      "domain": "depth",
+      "path": "data/chunk13.txt"
+    },
+    {
+      "id": "chunk14",
+      "domain": "depth",
+      "path": "data/chunk14.txt"
+    },
+    {
+      "id": "chunk15",
+      "domain": "depth",
+      "path": "data/chunk15.txt"
+    }
+  ],
+  "modes": {
+    "quick": [
+      "chunk00"
+    ],
+    "full": [
+      "chunk00",
+      "chunk01",
+      "chunk02",
+      "chunk03",
+      "chunk04",
+      "chunk05",
+      "chunk06",
+      "chunk07",
+      "chunk08",
+      "chunk09",
+      "chunk10",
+      "chunk11",
+      "chunk12",
+      "chunk13",
+      "chunk14",
+      "chunk15"
+    ]
+  }
+}

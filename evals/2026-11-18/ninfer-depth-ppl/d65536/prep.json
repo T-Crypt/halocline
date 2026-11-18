@@ -1,0 +1,122 @@
+{
+  "base": "/data/models/halocline/kld-bases/depth/qwen38-27b-bf16-depth65536-w1024-c16.kld",
+  "n_ctx": 66561,
+  "first": 65536,
+  "n_chunk": 16,
+  "context": 66561,
+  "stride": 1024,
+  "chunks": [
+    {
+      "chunk": 0,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 1,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 2,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 3,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 4,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 5,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 6,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 7,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 8,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 9,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 10,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 11,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 12,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 13,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 14,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    },
+    {
+      "chunk": 15,
+      "filler_tokens": 1024,
+      "chunk_tokens": 66561,
+      "roundtrip": true,
+      "with_filler": true
+    }
+  ]
+}

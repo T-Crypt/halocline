@@ -1,0 +1,6 @@
+starting engine
+loading weights | 15.9 GiB
+weights ready | 15.9 GiB | 8.9s | 1.80 GiB/s
+engine ready | qwen3.8-27b | total 9.3s | weights 15.9 GiB | CUDA sync spin
+preparing corpus
+error: corpus manifest must contain streams and modes

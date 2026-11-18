@@ -1,0 +1,10 @@
+Perplexity result
+artifact: qwen3.8-27b
+kv: rk4v4-e8, corpus: halocline-depth140288-w1024-c16 / full, context/stride: 141313/1024
+
+domain                            tokens        mean_nll             ppl
+depth                            2277376        1.861945        6.436241
+overall                          2277376        1.861945        6.436241
+
+score rate: 1046.4 tok/s
+report: "evals/2026-11-18/ninfer-depth-ppl/rk4v4e8-140288/report.json"
