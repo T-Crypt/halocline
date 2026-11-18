@@ -1,25 +1,23 @@
 # Running the server
 
-> [!WARNING]
-> Carried over from Basalt's user docs with the names changed. Parts of this page describe code Halocline removed (multi-GPU, sm_120/Blackwell, Windows, DeepSeek) or packs it does not use (NVFP4). Halocline runs on one sm_89 card with Unsloth GGUF packs; [SPECS.md](../SPECS.md) and [RESEARCH.md](../RESEARCH.md) are current. This page is due for a rewrite.
-
 Settings: [configuration](configuration/index.md). Diagnostic flags: `bin/halocline --help`. Several models: [models and the router](configuration/models.md).
 
 ## Start-up
 
-The page is up at once and the model loads behind it. The header reads `Loading` with the percent over a progress bar while weights load; choosing a model in the picker loads it. `/health` and `/metrics`
-show the load. A failed start-up load ends the server. Requests wait during a load and get a 503 if it fails.
+The page is up at once and the model loads behind it. The header reads `Loading` with the percent over a progress bar
+while weights load; the stats page's Load button for a model loads it. `/health` and `/metrics` show the load. A failed
+start-up load ends the server. Requests wait during a load and get a 503 if it fails.
 
 ## Concurrent requests: `--parallel N`
 
 `--parallel N` (1 to 8) serves N requests at once in batch slots. Further requests wait in arrival order. `--max-context` is shared:
-each slot holds `max-context / N` tokens (`--parallel 4 --max-context 262144` gives four slots of 65,536). A request longer than its slot
-is refused with a 400 that names the length. `--slot-full-context` gives every slot the whole `--max-context`, at N times the KV cache.
+each slot holds `max-context / N` tokens (`--parallel 4 --max-context 262144` gives four slots of 65,536; a slot never gets
+under 256). A request longer than its slot is refused with a 400 that names the length. `--slot-full-context` gives every
+slot the whole `--max-context`, at N times the KV cache.
 
-Each slot keeps two checkpoints (end of the system prompt, last turn), so requests that share a long system prompt read it once.
-
-The engine tokenizes every prompt and matches it against what each slot holds. A reply the client sends back unchanged continues the
-slot's own tokens even when the model wrote it in other pieces than the tokenizer cuts the same bytes into (not with images).
+A prompt is read on its own thread beside the decoding slots. A waiting request whose prompt is under half the running
+read's length takes precedence: the read gives way at its next chunk boundary, at most twice, and continues in its
+reserved slot.
 
 ### Session affinity
 
@@ -29,11 +27,6 @@ there. The session is the first of these headers that is set, then the request b
 the least recently used. When the session's slot is busy, the request takes that normal pick and the session's slot becomes the new
 one. Claude Code sends one `x-claude-code-session-id` for a session and its parallel subagents, so their overlapping requests spread
 over slots.
-
-### Prompts beside decoding slots
-
-A prompt of up to 16,384 tokens is read at once, and the slots wait a few seconds. A longer one is read beside them, on its own thread,
-while the slots keep decoding. A short request that arrives meanwhile goes first at the end of the current chunk.
 
 ## The console log
 
@@ -48,11 +41,12 @@ Each request ends with one `done` line:
 - `pp=<prompt tokens>/<cached>c`: the rate counts newly read tokens only.
 - `acc`: drafts accepted over drafts offered. `dl`: tokens per window. Both are absent when the request did not draft.
 - `end`: `stop`, `length`, `cancelled`, `disconnect` or `error`.
-- `hit`: expert cache hit rate. `pcie`: share of routed experts read over PCIe.
+- `hit`: expert cache hit rate. `pcie`: share of routed experts read over PCIe. `ssd`: the share read from the SSD file,
+  when some experts stay in it.
 
 The engine's own `halo ...` lines go to `~/.cache/halo/<id>/engine.log`, one folder per model file (`<id>` is 16 hex digits
-taken from the file); `[server] engine log: PATH` names it when the engine fails to start. The folder also holds the conversation
-cache. Nothing is unpacked from the model file: the server reads the tokenizer from its sections, and the engine and `halocline-vision`
+taken from the file's meta section); `[server] engine log: PATH` names it when the engine fails to start. The folder also holds the
+conversation cache. Nothing is unpacked from the model file: the server reads the tokenizer from its sections, and the engine and `halocline-vision`
 read the vision projector inside it.
 
 ## The stats page
@@ -64,8 +58,7 @@ Three quiet figures sit in it, each from `/metrics`:
 
 - `N chats cached · X GiB` at the right of the Speed footer: the conversations parked in RAM (`conversation`: `parked`,
   `bytes`, `evictions`, and the last restore's `restored` tokens and `restored_ms`, in the tooltip). The server reads them
-  from the engine's `conversation cache:` lines and clears them when the engine unloads, sleeps or restarts. A model that
-  prints no line when it parks (DeepSeek) shows them after its first restore, without evictions.
+  from the engine's `CONV` lines; a new engine process starts empty.
 - `N requests served · M tokens written` under the Slots table (`totals`: requests, prompt, reused and written tokens, prompt
   and decode time since the server started; the rest in the tooltip).
 - The header word reads `Thinking`, `Answering` or `Tool call` (`live.phase`) while exactly one request runs.
@@ -73,10 +66,10 @@ Three quiet figures sit in it, each from `/metrics`:
 The log panel shows the engine's long cache lines short (`cache: restored 187k tokens in 912 ms`); the log and `/api/logs`
 keep the raw line.
 
-Added 2026-11-17: an **Engine** tab, a **Monitor** page, and times on every request. The tab reads `/metrics` and shows the
-pack (name, path, quant, `max_context`), the KV format with its resident cells and elastic ceiling, the drafter (MTP or
+The stats page has an Engine tab and a Monitor page (2026-11-17), and a time on every request. The Engine tab reads `/metrics` and shows
+the pack (name, path, quant, `max_context`), the KV format with its resident cells and elastic ceiling, the drafter (MTP or
 block, verify window, cache format, window and ring) or `None`, the experts on the card, in the RAM arena and on the SSD
-with the last request's hit, PCIe and SSD shares (a dense model shows its weights on the card and in RAM instead), the
+with the last request's hit and the PCIe share (a dense model shows its weights on the card and in RAM instead), the
 conversation cache's budget and figures, and the machine's clocks, PCIe traffic, disk writes and driver. A stat the
 loaded model does not have is left out, not shown as 0. The Speed footer names the engine's shape (`KV INT8 · MTP 6 ·
 14.0k experts`). The Requests table gains time to first token and the wait before its turn; the endpoint moves to the
@@ -89,58 +82,60 @@ answer text, so there is no content pane. `/metrics` also carries `engine.path`,
 
 ## Conversations on disk: `--conversation-cache-disk-mib`
 
-Off at 0. With a budget, conversations of at least 8,192 tokens are written to `conversations` in the model's cache folder when they leave
-RAM, a session, or at exit. Only the system prompt's and the last three turns' states are stored. Files are bound to the model and settings
-they were made with, and checked by hash; a bad file is deleted. The folder is capped by the budget (least recently used first), and a
-write always leaves 4 GiB of the volume free. After a restart, a prompt that starts with a stored conversation reads it back.
+Off at 0. With a budget, conversations of at least 8,192 tokens (4,096 on the dense path) are written to `conversations` in the model's cache folder when they leave
+RAM or the session, or at exit. The image holds the conversation's KV state, its pictures and its checkpoints; `--prompt-cache`
+sets how many checkpoints a conversation keeps. Each file is named for the model and every setting that changes the state's
+bytes, and a read checks the headers and every block's hash: a mismatch drops the conversation. The folder keeps to its budget
+(least recently used first). After a restart, a prompt that starts with a stored conversation reads it back.
 
 ## Sleep: `--idle-sleep`
 
 After the given seconds without requests, the engine frees its VRAM (the driver moves the GPU state to host memory). The process and its
-RAM copy of the experts stay (a dense model has no cache to give back first: the driver moves all its GPU state, both cards' on two cards). The next request wakes it in seconds. Linux only. The server stays awake when the GPU state would not fit in
+RAM copy of the experts stay; a dense model has no expert cache to give back first, so the driver moves all of its GPU state. The next
+request wakes it in a few seconds. Linux only. The server stays awake when the GPU state would not fit in
 free RAM with 8 GiB to spare. `--idle-unload` ends the process instead.
 
 ## Memory floors
 
 Halocline refuses settings that would leave the machine without memory, and never shrinks what you asked for:
 
-- `--vram-reserve-mib` below 256 is refused on Windows and WSL2 (128 on Linux): less free VRAM makes the driver page GPU memory.
+- `--vram-reserve-mib` below the floor is refused: 128 MiB on Linux, 256 MiB on WSL2, where the driver pages GPU memory.
 - `--ram-reserve-mib` (default 2048) is the RAM left free for the rest of the system. The engine allocates its host buffers
   first, or holds their RAM when it page-locks them later; the expert tiers then take the free RAM less the reserve and less
-  the driver's tracking of the pages they pin (`RAM floor ...` in the start log). Flash-Next's copy and top-up also leave 2 GiB beside the reserve
-  for the host memory the engine takes after they read the free RAM (CUDA graphs, the first request), so the free RAM settles
-  above the guard, not on it. When some experts stay in the file, the
-  tiers also leave the OS file cache they are read through a floor: one prompt chunk's file reads and two layers' share of
+  the driver's tracking of the pages they pin (`RAM floor ...` in the start log). The plan leaves 2 GiB beside the reserve
+  for the host memory the engine takes after it has read the free RAM (CUDA graphs, the first request), so the free RAM
+  settles above the guard, not on it. When some experts stay in the file, the
+  tiers also leave a floor to the OS file cache they are read through: one prompt chunk's file reads and two layers' share of
   those experts, at least 4 GiB. Programs left idle beside a small reserve may be swapped out.
 - While serving, the RAM guard holds the reserve: below it, it parks conversations to disk or drops them. A request waits up to 30 s
   for RAM to return. A running request stops with an error only when RAM is critical (under 1 GiB free, or below the reserve under
   memory pressure). `--ram-reserve-mib 0` turns the guard off.
-- Experts on the SSD give one warning, the same for every model: `N experts on SSD (X GiB) · free X GiB RAM`. The console
-  repeats it and the stats page turns its Experts block amber.
-- The disk tier keeps its floor a GiB above the reserve.
+- Experts left in the file show in the start log's `INFO spill_experts=... spill_bytes=...` line and in the stats page's
+  Experts block (`N experts on SSD (X GiB)`), which turns amber.
+- The disk tier's RAM floor is the reserve plus a GiB.
 - `--resident-budget-gib` that would leave less than the floor is refused with the largest safe value.
 
 ## Vision: `--vision`
 
-`--vision off | dynamic | cpu | <GPU number>` (config: `"vision"` in `server`). The encoder is Halocline's own, and all modes give bitwise
-identical embeddings. All of them read the projector in place from the model file's `vision/mmproj` section. The text can still
-differ between modes: the sidecar's VRAM cost shrinks the expert cache, and which experts run on the GPU or the CPU shifts the
-last bits of the logits, so a greedy answer can fork after some tokens (`dynamic` does the same with a different cache size).
+`--vision off | dynamic | cpu | <GPU number>` (config: `"vision"` in a model entry). The encoder is Halocline's own, and it
+reads the projector in place from the model file's `vision/mmproj` section.
 
-| Mode | Encoder runs | VRAM cost | Fresh-image TTFT (IQ3_S, 400 W): 1k / 3k / 4k image tokens |
-| --- | --- | --- | --- |
-| `off` | none | none | |
-| GPU number | sidecar `bin/halocline-vision` on that card | about 2.2 GiB of its expert cache | 0.77 s / 1.4 s / 1.8 s |
-| `dynamic` | inside the engine, on the main GPU | none at rest (0.85 GiB pinned RAM) | 0.77 s / 1.45 s / 1.8 s |
-| `cpu` | sidecar on the CPU | none | about 6 s / 40 s / 70 s |
+| Mode | Encoder runs | VRAM cost |
+| --- | --- | --- |
+| `off` | none | none |
+| GPU number | sidecar `bin/halocline-vision` on that card | about 2.2 GiB while it runs |
+| `dynamic` | inside the engine, on the main card | none at rest (the encoder waits in host RAM) |
+| `cpu` | sidecar on the CPU | none, and slow |
 
-`dynamic` borrows the cache's last slots per image and refills them afterwards (about 70 ms), so the cache is identical after. Which
-images a request may name: [image sources](configuration/image-sources.md). An image may not sit in a system prompt.
+Neither Halocline pack has a measured image run in this repo: the README marks image serving for the sparse pack as untested,
+and the dense served profile runs `--vision cpu` with a pack that carries the projector
+([Qwen3.8-27B](models/qwen38-27b.md)). Which images a request may name: [image sources](configuration/image-sources.md). An
+image may not sit in a system prompt.
 
 ## Video
 
-With image input on, Qwen3.8-Flash-Next and Qwen3.8-27B read video (DeepSeek does not). A user message names a video as it names an image, from
-the same [sources](configuration/image-sources.md):
+With image input on, a user message names a video as it names an image, from the same
+[sources](configuration/image-sources.md):
 
 | API | Part |
 | --- | --- |
@@ -150,18 +145,12 @@ the same [sources](configuration/image-sources.md):
 
 Frames are sampled as the model's own processor samples them: 2 a second, 4 to 768, evenly spaced. A part may set `fps` (up to 60)
 and `max_frames` (4 to 768). All frames are scaled to one size so the whole video fits `video-max-tokens` (default 8192 image
-tokens), and each pair of frames is read as one picture with its time in the prompt. Audio and rotation metadata are not read: a
-phone's portrait clip arrives sideways.
+tokens), and each pair of frames is read as one picture with its time in the prompt. Only the video stream is read: audio is
+ignored and rotation metadata is not applied, so a phone's portrait clip arrives sideways. A video may be 1 GiB and 10 minutes.
 
 Decoding uses FFmpeg 6, 7, 8 or 9 from the machine ([platforms](platforms.md#ffmpeg-for-video)). At start the server prints
-`video  on, FFmpeg 8 (...)`, or `video  off` with the reason, and then a video is refused with that reason. A video may be 1 GiB.
+`[server] video on, FFmpeg 8 (...)`, or `off` with the reason, and then a video is refused with that reason.
 
-Qwen3.8-Flash-Next's frames decode on the encoder's GPU with NVDEC (H.264, HEVC, AV1, VP9 and the older codecs FFmpeg's NVDEC takes); a stream NVDEC
-refuses decodes on the CPU, with the same pixels. Qwen3.8-27B's frames always decode on the CPU. With `dynamic` the expert cache lends NVDEC the memory for the decode when no
-reply is running (tens of ms to lend and refill); beside a running reply the video decodes on the CPU, and the reply keeps going
-until the frames are encoded. Another question about the same video, in the same chat or a new one, starts from the video
-already read.
-
-NVFP4 pack, `dynamic`, 400 W + 180 W, cold, time to the first token: a 30 s 1280x720 clip (8,202 prompt tokens) 2.7 s; a minute of
-3840x2160 HEVC 5.2 s (decode 2.6 s, encode 0.3 s, prompt read 1.9 s); of 1920x1080 H.264 4.3 s. A new question on the same 30 s
-clip: 0.4 s.
+Frames decode with NVDEC when the encoder runs on a card (`--vision <GPU number>`) and FFmpeg's build and the card allow it;
+`--vision cpu` and `--vision dynamic` decode on the CPU. The encoder caches a video by its bytes and sampling, so a second
+question about the same video reuses its embeddings.
