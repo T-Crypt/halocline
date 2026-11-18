@@ -75,13 +75,13 @@
         "result": "101 objects, 2,724 functions"
       },
       "cpu": {
-        "result": "86 of 86"
+        "result": "86 of 86 (2026-11-18: 93 cpu tests registered, all pass via tools/verify.sh)"
       },
       "gpu": {
-        "result": "122 of 122; with HALO_QWEN35_PACK set the 27B round trip runs too"
+        "result": "122 of 122; with HALO_QWEN35_PACK set the 27B round trip runs too (2026-11-18: 124 registered)"
       },
       "python": {
-        "result": "1,079 OK, 3 skips"
+        "result": "1,079 OK, 3 skips (2026-11-18: 1,086 OK, 4 skips)"
       }
     },
     "formats": {
