@@ -25,7 +25,7 @@
 | Against llama.cpp, same GGUF | | at parity: 0.00573 (f16 KV) and 0.01638 (q8_0 KV) |
 | Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS) |
 | Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
-| Context | 262,144, int8 KV | 122,880 served (int8 KV); 175,629 with K8V4 KV, +0.00093 KLD at 36K ([`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/)); 262,144 with rotated 4-bit K and V, +0.00197 KLD (on a branch, [D8](docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job)) |
+| Context | 262,144, int8 KV | **175,616 served with K8V4 KV** since 2026-11-18 (depth gate: +0.00066 KLD over int8 at 140K, [`halocline-d8-depth`](evals/2026-11-17/halocline-d8-depth/)); before that 122,880 (int8 KV); 175,629 with K8V4 KV, +0.00093 KLD at 36K ([`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/)); 262,144 with rotated 4-bit K and V, +0.00197 KLD (on a branch, [D8](docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job)) |
 | Vision | | packs carry the projector; serving untested |
 | Status | **runs**, served through llama-swap | **runs**, gated; 262K and the NInfer comparison open |
 | Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/) |
@@ -217,7 +217,7 @@ result should land close to that. A clear gap points at the conversion or a bug:
 **6. Serve.** `halocline serve` is a standalone server and needs nothing else:
 
 ```sh
-bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8093 --spec 8 --max-context 122880 --kv int8
+bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8093 --spec 8 --max-context 175616 --kv k8v4 --mtp-kv int8
 ```
 
 OpenAI and Anthropic clients talk to `http://127.0.0.1:8093/v1`, and the same address in a browser shows the stats page.

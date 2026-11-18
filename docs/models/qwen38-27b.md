@@ -74,6 +74,13 @@ bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8
 
 It is not the served default until a load probe at that size and the depth gate (KLD at 65K to 174K tokens) have passed.
 
+**2026-11-18: this is the served profile** (maintainer decision). The depth gate passed (K8V4 over int8 +0.00072 at
+65,536 and +0.00066 at 140,288; 0.00654 mean KLD at 174,080, [`halocline-d8-depth`](../../evals/2026-11-17/halocline-d8-depth/)),
+and the load at 175,616 with MTP and vision served the full smoke through llama-swap: warm decode 113.3 to 145.9 t/s,
+sampling, a tool call, the 36K needle (prompt 3,137 t/s, decode 102.2) and the 137K needle (prompt 2,295 t/s, decode
+77.9). The int8 profile at 122,880 read 95.3 to 100.3 t/s decode and about 3,250 t/s prompt on the same 36K needle.
+Decode at 36K and 137K is still below the NInfer floors (118 and 93 t/s; roadmap D5).
+
 ## Why dense
 
 - No router and no expert swaps, so there is less machinery that can move a token.

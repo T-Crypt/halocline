@@ -192,6 +192,9 @@ The work, in order:
    [+0.00135, +0.00234] over int8, 2.6 times K8V4's increment. Its 261,119 arm did not run: the protocol needs
    262,152 cells there (the engine keeps 8 cells past the last generated token). Decode and prefill at each format's
    maximum are still open.
+   **Decided 2026-11-18 (maintainer): K8V4 is the dense default.** Served profile UD-Q4_K_XL, `--kv k8v4 --mtp-kv int8`,
+   175,616 tokens, MTP and vision; its llama-swap smoke passes, the 137K needle included. The engine's own default for an
+   unset `--kv` is still fp16. 262K stays open (rotated 4-bit, or a smaller drafter cache).
 
 Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
 
