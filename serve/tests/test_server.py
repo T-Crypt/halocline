@@ -1159,6 +1159,52 @@ class GpuChoice(unittest.TestCase):
             self.assertEqual(v.spawn[0], ["x", "--model", "t"] + want)
             shutil.rmtree(v.dir, ignore_errors=True)
 
+    def test_vision_directory_honours_tmpdir(self):
+        from serve.engine.vision import Vision
+        with tempfile.TemporaryDirectory() as tmp:
+            # tempfile caches gettempdir(): the patched environment only counts with the cache cleared
+            with mock.patch.object(Vision, "_start"), mock.patch.dict(os.environ, {"TMPDIR": tmp}), \
+                    mock.patch.object(tempfile, "tempdir", None):
+                v = Vision({"vision_bin": "x", "model": "t"})
+            self.assertEqual(Path(v.dir).parent, Path(tmp))
+            shutil.rmtree(v.dir, ignore_errors=True)
+
+    def test_vision_directory_is_removed_on_a_failed_start(self):
+        from serve.engine.vision import Vision
+        made = []
+        real = tempfile.mkdtemp
+
+        def recording(prefix):
+            d = real(prefix)
+            made.append(d)
+            return d
+
+        with mock.patch.object(Vision, "_start", side_effect=RuntimeError("the vision encoder did not start")), \
+                mock.patch("tempfile.mkdtemp", recording):
+            with self.assertRaises(RuntimeError):
+                Vision({"vision_bin": "x", "model": "t"})
+        self.assertEqual(len(made), 1)
+        self.assertFalse(Path(made[0]).exists())
+
+    def test_vision_directory_is_removed_on_stop_not_on_unload(self):
+        from serve.engine.vision import Vision
+        with mock.patch.object(Vision, "_start"):
+            v = Vision({"vision_bin": "x", "model": "t"})
+        d = v.dir
+        (d / "kept.sve").write_bytes(b"x")
+        v.unload()                                       # an unload keeps the cache on disk
+        self.assertTrue(d.exists())
+        v.close(final=True)                              # the server stop removes it
+        self.assertFalse(d.exists())
+
+    def test_engine_vision_directory_is_removed_on_close(self):
+        from serve.engine.vision import EngineVision
+        v = EngineVision({})
+        d = v.dir
+        self.assertTrue(d.exists())
+        v.close(final=True)
+        self.assertFalse(d.exists())
+
     def test_engine_vision_sends_one_enc_for_the_uncached_images(self):
         from serve.engine.vision import EngineVision
         sent = []

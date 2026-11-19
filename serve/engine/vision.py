@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -102,7 +103,11 @@ class Vision:
         self.ready_s = 0.0                              # last start's time to READY
         self.proc = None
         if start:
-            self._start()
+            try:
+                self._start()
+            except BaseException:                       # a half-started encoder is dead; its directory goes with it
+                shutil.rmtree(self.dir, ignore_errors=True)
+                raise
         else:
             self.stopped = True
         self.lock = threading.Lock()
@@ -399,15 +404,18 @@ class Vision:
             self.cache_bytes -= size
             self.videos.pop(k, None)
 
-    def close(self):
-        if self.proc is None:
-            return
-        try:
-            self.proc.stdin.write("QUIT\n")
-            self.proc.stdin.flush()
-            self.proc.wait(timeout=10)
-        except Exception:
-            self.proc.kill()
+    def close(self, final: bool = False):
+        """Stop the encoder.  `final` (the server is stopping) also removes the scratch directory; a plain close
+        keeps it, because the encoded-image cache lives there and the next load restarts this object."""
+        if self.proc is not None:
+            try:
+                self.proc.stdin.write("QUIT\n")
+                self.proc.stdin.flush()
+                self.proc.wait(timeout=10)
+            except Exception:
+                self.proc.kill()
+        if final:
+            shutil.rmtree(self.dir, ignore_errors=True)
 
 
 class EngineVision(Vision):
@@ -446,8 +454,9 @@ class EngineVision(Vision):
     def restart(self):
         pass
 
-    def close(self):
-        pass
+    def close(self, final: bool = False):
+        """The server is stopping: the engine ends itself, and the scratch directory goes with it."""
+        shutil.rmtree(self.dir, ignore_errors=True)
 
     def _encode_pinned(self, images: list[bytes], pins: list[str]) -> list[tuple[Path, int, int]]:
         """Every image not cached yet goes to the engine in one ENC, so it borrows its slots once."""

@@ -449,7 +449,9 @@ def main() -> int:
             print("[server] stopping (Ctrl+C again to force)", flush=True)
         closers = [router.stop, httpd.shutdown]
         for s in services:
-            closers += [getattr(s.engine, "close", None), s.vision.close if s.vision else None]
+            closers.append(getattr(s.engine, "close", None))
+            if s.vision is not None:
+                closers.append(lambda v=s.vision: v.close(final=True))   # final: the scratch directory goes too
         for close in filter(None, closers):
             try:
                 close()
