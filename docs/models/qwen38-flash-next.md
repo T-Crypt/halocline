@@ -1,6 +1,6 @@
 # Qwen3.8-Flash-Next (sparse)
 
-The sparse path, and the only model that runs today. Qwen3.8-Flash-Next is a 125B-parameter mixture-of-experts model
+The sparse path. Qwen3.8-Flash-Next is a 125B-parameter mixture-of-experts model
 with 6B activated per token, plus a 51B n-gram embedding table and a 4B MTP layer
 ([card](https://huggingface.co/Qwen/Qwen3.8-Flash-Next),
 [report](https://arxiv.org/abs/2608.30320)).
@@ -49,7 +49,13 @@ SSD. About 4 GiB of system RAM stays free with the model loaded.
   [`halocline-greedy-identity-final`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-greedy-identity-final).
 - The roundings and the gate: [precision](../precision/qwen38-flash-next.md).
 
+## Vision
+
+The pack is built in two forms. `QFN-UD-IQ4_XS-v3.1-compat-mtp.halo` is the reference pack, built `--no-vision`.
+`QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo` adds `vision/mmproj` and `vision/text_vocab` from the same GGUF's projector
+and serves images on the CPU encoder (`--vision cpu`, [the vision run](../running.md#vision---vision)).
+
 ## Not in use
 
-The reference pack is built `--no-vision`, so images and video are off. Multi-GPU, the peer expert tier, NVFP4 packs and
-the sm_120 kernels were removed with the sm_89 scope; Basalt's changelog records them.
+Multi-GPU, the peer expert tier, NVFP4 packs and the sm_120 kernels were removed with the sm_89 scope; Basalt's
+changelog records them.

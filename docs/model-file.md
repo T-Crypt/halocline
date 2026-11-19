@@ -96,7 +96,8 @@ and IQ4_XS in this pack), 15 of them under `mtp.*`.
 
 A sparse `qwen4exp` pack. `QFN-UD-IQ4_XS-v3.1-compat-mtp.halo` holds 15 sections: the same `meta` and `tokenizer/*`,
 `gguf`, `dense`, `dense.index`, `experts`, `experts.layout`, `mtp/dense`, `mtp/dense.index`, `mtp/experts` and `hc8`. It
-has no vision section because it was built without a projector, and no `mtp/draft_vocab`.
+has no vision section because it was built without a projector, and no `mtp/draft_vocab`. The vision variant,
+`QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo`, adds `vision/mmproj` and `vision/text_vocab` (17 sections).
 
 ## Drafters
 
