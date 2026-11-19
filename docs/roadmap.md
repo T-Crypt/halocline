@@ -216,6 +216,11 @@ at 65,536, +0.00116 at 140,288, +0.00108 at 174,080; a needle at 252,483 tokens 
 against 88.0) because a Q4 cache still decodes on the 16-row tiled kernel; W22's q4-K instantiation of S1's staged kernel
 is the lossless fix. Default per standing order 8.
 
+*W22, shipped 2026-11-18:* the staged kernel's Q4 instantiation (`decode_k8v4_kernel<..., Q4>`), bitwise to the tiled Q4
+kernel at 1-16 rows, depth KLD +0.00000 at 65,536 and 140,288, K8V4's kernels instruction-identical. Thinking off at
+262,144: 36K prose 68.7 -> 74.0, struct 130.7 -> 147.0; 137K prose 52.8 -> 63.5, struct 88.0 -> 129.4 t/s; short even
+(`evals/2026-11-18/halocline-w22`).
+
 Measured with the engine's own planner, vision packs, `--spec 8` (`evals/2026-11-17/halocline-dense-quality`):
 262,144 cells need 11,830 MiB at int8 KV (8,448 of it the KV, 1,024 the MTP drafter's fp16 KV, the rest state and
 workspace). Free after the weights: 10,589 MiB on UD-IQ4_XS, 7,597 on UD-Q4_K_XL. **Neither quant fits 262K today.**

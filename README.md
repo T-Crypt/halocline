@@ -43,8 +43,8 @@ it still reads +0.0172. Halocline copies Unsloth's tensors as stored.
 
 **Speed.** Thinking off on both, so neither engine splits its reply into a thinking pass and an answer; greedy, 1,200
 tokens, streamed, decode rate as the client sees it, order Halocline, NInfer, NInfer, Halocline (2026-11-18, release
-75726a0f, K8V4 KV at 175,616; the 262K default decodes slower at depth until its attention kernel gets S1's staged form,
-see the profile's eval):
+75726a0f, K8V4 KV at 175,616; the 262K default with W22's kernel reads 81.5 / 74.0 / 63.5 t/s on prose and 152 / 147 /
+129 on JSON at short / 36K / 137K, [`halocline-w22`](evals/2026-11-18/halocline-w22/)):
 
 | workload | Halocline t/s | NInfer t/s | Halocline vs NInfer |
 |---|---|---|---|

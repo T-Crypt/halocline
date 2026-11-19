@@ -1,0 +1,90 @@
+  K8V4 write, K half vs the int8 cache's write: 0 of 1228800 codes (0.00%) and 0 of 19200 scales differ
+attn_qk_prepare's K8V4 K half is the int8 cache's write bitwise: PASS
+  K8V4 write, V blocks vs the host rotate + q4_0 rule: 1 bytes of 691200 differ
+    first V byte at 213757: cell 408, kv head 0, block 3, offset 7
+  K8V4 write, V blocks: 0 of 38400 scales differ; 1 codes one step off (ties), 0 further, of 1228800
+attn_qk_prepare's K8V4 V blocks are the host rotate + q4_0 rule (scales bitwise, codes to a rounding tie): PASS
+  K8V4 write, K vs the host norm + rope + int8 rule: worst code 1 step(s) off, 0 codes over one, 0 scales over 1e-3 (worst 0)
+attn_qk_prepare's K8V4 K is the host norm + rope + int8 rule within a step: PASS
+  fwht256_cuda vs the host transform: max abs 0
+the shared rotation is the reference's transform: PASS
+  K8V4 decode: max abs 0.000688 rel 0.0643 vs double over the widest and the 8-row window; the last row bitwise equal across widths 1-8: yes, within 5.0e-06 of it at 9-16 (worst 0.00e+00)
+gqa_decode_attn over a K8V4 cache matches the fp64 reference: PASS
+  K8V4 decode: 1-9 rows against the 16-row-tile launch: bitwise yes, max abs 0.00e+00; 1-8 rows against the window kernel: bitwise yes, max abs 0.00e+00
+K8V4 decode: the K8V4 kernel's rows are the 16-row-tile launch's and the window kernel's to the summation order: PASS
+    row    0 (cell 937): max abs 0.0106
+    row    1 (cell 938): max abs 0.0127
+    row   55 (cell 992): max abs 0.0120
+    row   63 (cell 1000): max abs 0.0095
+    row   64 (cell 1001): max abs 0.0091
+    row   65 (cell 1002): max abs 0.0106
+    row  127 (cell 1064): max abs 0.0135
+    row  128 (cell 1065): max abs 0.0099
+    row  255 (cell 1192): max abs 0.0192
+    row  298 (cell 1235): max abs 0.0159
+    row  299 (cell 1236): max abs 0.0184
+  K8V4 prompt 300 rows, 4 warps x 1 split: max abs 0.0192 rel 0.891 vs double on the dequantized cells
+gqa_prompt_attn over a K8V4 cache is within its rounding of the fp64 reference: PASS
+  K8V4 prompt 300 rows, 4 warps x 1 split: max abs 0.0192 rel 0.891 vs double on the dequantized cells
+gqa_prompt_attn over a K8V4 cache is within its rounding of the fp64 reference: PASS
+    row    0 (cell 37): max abs 0.0096
+    row    1 (cell 38): max abs 0.0338
+    row   55 (cell 92): max abs 0.0181
+    row   63 (cell 100): max abs 0.0341
+    row   64 (cell 101): max abs 0.0209
+    row   65 (cell 102): max abs 0.0217
+    row  127 (cell 164): max abs 0.0217
+    row  128 (cell 165): max abs 0.0222
+    row  255 (cell 292): max abs 0.0167
+    row  511 (cell 548): max abs 0.0168
+    row  512 (cell 549): max abs 0.0159
+    row  767 (cell 804): max abs 0.0146
+    row 1023 (cell 1060): max abs 0.0168
+    row 1198 (cell 1235): max abs 0.0123
+    row 1199 (cell 1236): max abs 0.0123
+  K8V4 prompt 1200 rows, 8 warps x 1 split: max abs 0.0341 rel 1.57 vs double on the dequantized cells
+gqa_prompt_attn over a K8V4 cache is within its rounding of the fp64 reference: PASS
+  K8V4 prompt 1200 rows, 8 warps x 1 split: max abs 0.0341 rel 1.57 vs double on the dequantized cells
+gqa_prompt_attn over a K8V4 cache is within its rounding of the fp64 reference: PASS
+  bench: prompt 1200 rows over 1237 cells: K8V4 173.2 us, int8 119.9 us (K8V4 / int8 = 1.44)
+the 8-warp K8V4 prompt shape ran and was checked: PASS
+    shapes: 20 of 300 rows differ, first row 12, max abs 2.38e-07
+  K8V4 prompt: the 8-warp launch's last 300 rows vs a 4-warp launch over them: DIFFER
+the 8-warp K8V4 prompt rows are the 4-warp rows to float rounding (1e-6): PASS
+    row    0 (  38 keys): K8V4 0.0096  int8 0.0092
+    row    1 (  39 keys): K8V4 0.0338  int8 0.0349
+    row    2 (  40 keys): K8V4 0.0145  int8 0.0140
+    row    3 (  41 keys): K8V4 0.0190  int8 0.0188
+    row    8 (  46 keys): K8V4 0.0206  int8 0.0191
+    row   15 (  53 keys): K8V4 0.0152  int8 0.0162
+    row   31 (  69 keys): K8V4 0.0266  int8 0.0267
+    row   55 (  93 keys): K8V4 0.0181  int8 0.0200
+    row   63 ( 101 keys): K8V4 0.0341  int8 0.0359
+    row   64 ( 102 keys): K8V4 0.0209  int8 0.0228
+    row   65 ( 103 keys): K8V4 0.0217  int8 0.0208
+    row  127 ( 165 keys): K8V4 0.0217  int8 0.0201
+    row  128 ( 166 keys): K8V4 0.0222  int8 0.0217
+    row  255 ( 293 keys): K8V4 0.0167  int8 0.0172
+    row  511 ( 549 keys): K8V4 0.0168  int8 0.0132
+    row  512 ( 550 keys): K8V4 0.0159  int8 0.0195
+    row  767 ( 805 keys): K8V4 0.0146  int8 0.0141
+    row 1023 (1061 keys): K8V4 0.0168  int8 0.0163
+    row 1198 (1236 keys): K8V4 0.0123  int8 0.0129
+    row 1199 (1237 keys): K8V4 0.0123  int8 0.0133
+  K8V4 vs int8 prompt error on the same rows: worst K8V4 0.0341, worst int8 0.0359, worst row ratio 1.28
+the K8V4 prompt error is the int8 prompt kernel's on the same rows (ratio <= 1.5): PASS
+  K8V4 prompt BF16 rows vs the FP32 launch's rounded: 0 of 1843200 rows differ (worst 0 in bf16 bits)
+the BF16 form of the K8V4 prompt kernel is the FP32 launch rounded once, bitwise: PASS
+  Q4 write, V blocks: 0 of 38400 scales differ; 1 codes one step off (ties), 0 further, of 1228800
+attn_qk_prepare's Q4 write of V is the host rotate + q4_0 rule (scales bitwise, codes to a rounding tie): PASS
+  Q4 write: K's stored rows within 0.401 of the host's rotated normed row (largest block step 0.644)
+attn_qk_prepare's Q4 write of K is the rotation of the normed row, within a step: PASS
+  Q4 decode: max abs 0.000821 rel 0.04 vs double over the widest window; the last row bitwise equal across widths: yes
+gqa_decode_attn over a Q4 cache matches the fp64 reference with Q and K rotated: PASS
+  Q4 decode, the engine's launch vs the 16-row tiles at 1-16 rows: bitwise yes
+the staged Q4 decode kernel (W22) gives the tiled Q4 kernel's rows bit for bit: PASS
+  Q4 prompt 300 rows: max abs 0.0234 rel 0.945 vs double on the dequantized cells
+gqa_prompt_attn over a Q4 cache is within its rounding of the fp64 reference: PASS
+  Q4 prompt split over 3 key ranges: max abs 0.0234 rel 0.945 vs double on the dequantized cells
+gqa_prompt_attn over a Q4 cache is within its rounding of the fp64 reference: PASS
+gqa_k8v4_parity: PASS
