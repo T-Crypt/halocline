@@ -782,6 +782,58 @@ int main() {
             }
             cudaFree(d_qp); cudaFree(d_op); cudaFree(d_split);
         }
+        // ---- W42: the 8-warp Q4 prompt shape. The T = 1200 chunk plans 8 warps; each warp still sweeps the key tiles in
+        // the same order and its 16 rows run the same statements, so its rows are the 4-warp launch's bit for bit (the
+        // check below), and the fp64 reference bounds the re-quantized P V rounding like the 300-row arm.
+        {
+            const int T = 1200;
+            const int64_t pp = c4 + L - T;
+            std::vector<float> qp((size_t) T * NH * HD), qpr((size_t) T * NH * HD);
+            for (auto& x : qp) x = 2.0f * nd(rng);
+            qpr = qp;
+            for (int i = 0; i < T * NH; ++i) fwht_host(&qpr[(size_t) i * HD]);
+            float *d_qp = dev<float>(qp.size()), *d_op = dev<float>(qp.size());
+            ck(cudaMemcpy(d_qp, qpr.data(), qpr.size() * 4, cudaMemcpyHostToDevice), "qpr8");
+            int warps = 0, splits = 0;
+            k::gqa_prompt_plan_query(NH, T, pp + T, 0, &warps, &splits);
+            k::gqa_prompt_attn(d_qp, nullptr, nullptr, NH, NKV, pp, T, d_op, nullptr, k::KvInt8{}, nullptr, 0, k::KvFar{},
+                               k::KvK8V4{}, cache4);
+            k::fwht256_inplace_cuda(d_op, (int64_t) T * NH, nullptr);
+            ck(cudaDeviceSynchronize(), "prompt q4 8w");
+            std::vector<float> out8((size_t) T * NH * HD);
+            ck(cudaMemcpy(out8.data(), d_op, out8.size() * 4, cudaMemcpyDeviceToHost), "prompt out 8w");
+            Err ep;
+            for (const int r : {0, 1, 63, 64, 65, 127, 128, 255, 511, 767, 1023, T - 2, T - 1}) {
+                if (r >= T) continue;
+                ref_attn(&qpr[(size_t) r * NH * HD], kdq4, vdq4, pp + r + 1, want.data());
+                for (int j = 0; j < NH * HD; ++j) ep.add(out8[(size_t) r * NH * HD + j], want[(size_t) j]);
+            }
+            std::printf("  Q4 prompt %d rows, %d warps: max abs %.3g rel %.3g vs double on the dequantized cells\n", T,
+                        warps, ep.abs, ep.rel);
+            report(warps == 8 && ep.abs < 4e-2,
+                   "gqa_prompt_attn over a Q4 cache at 8 warps is within its rounding of the fp64 reference");
+            // the 8-warp launch's last 300 rows are the 4-warp launch's over the same queries at the same positions
+            const int T4 = 300;
+            const int64_t pp4 = c4 + L - T4;
+            float *d_q4 = dev<float>((size_t) T4 * NH * HD), *d_o4 = dev<float>((size_t) T4 * NH * HD);
+            ck(cudaMemcpy(d_q4, &qpr[(size_t) (T - T4) * NH * HD], (size_t) T4 * NH * HD * 4, cudaMemcpyHostToDevice),
+               "q300q4");
+            int w4 = 0, s4 = 0;
+            k::gqa_prompt_plan_query(NH, T4, pp4 + T4, 0, &w4, &s4);
+            k::gqa_prompt_attn(d_q4, nullptr, nullptr, NH, NKV, pp4, T4, d_o4, nullptr, k::KvInt8{}, nullptr, 0, k::KvFar{},
+                               k::KvK8V4{}, cache4);
+            k::fwht256_inplace_cuda(d_o4, (int64_t) T4 * NH, nullptr);
+            std::vector<float> out4((size_t) T4 * NH * HD);
+            ck(cudaMemcpy(out4.data(), d_o4, out4.size() * 4, cudaMemcpyDeviceToHost), "out300q4");
+            const bool same = std::memcmp(out4.data(), &out8[(size_t) (T - T4) * NH * HD], out4.size() * 4) == 0;
+            std::printf("  Q4 prompt: the 8-warp launch's last %d rows vs a %d-warp launch over them: %s\n", T4, w4,
+                        same ? "bitwise" : "DIFFER");
+            report(w4 == 4 && same, "the 8-warp Q4 prompt rows are the 4-warp rows bit for bit");
+            cudaFree(d_q4);
+            cudaFree(d_o4);
+            cudaFree(d_qp);
+            cudaFree(d_op);
+        }
         cudaFree(d_k4); cudaFree(d_v4); cudaFree(d_qr);
     }
 
