@@ -54,9 +54,9 @@ Status:
 | Area | State |
 |---|---|
 | Sparse path (Flash-Next) | runs, gated, served through llama-swap |
-| Dense path (27B) | D2-D4 and D6 done on UD-IQ4_XS and UD-Q4_K_XL, vision packs built; 262K does not fit with the KV formats the dense path has (D8) |
+| Dense path (27B) | D2-D4 and D6 done on UD-IQ4_XS and UD-Q4_K_XL, vision packs built; 262,144 tokens served by default with rotated 4-bit K and V (`--long-context`, D8, 2026-11-18) |
 | Dense vs llama.cpp | parity on KLD for the same GGUF; better than llama.cpp at the same 8-bit KV precision (D4) |
-| Dense vs NInfer | prefill 2.4% under its floor at 36K, 6.5% over at 137K; decode 13-16% under (D5); 10x closer to BF16 on target-token dNLL at 65K and 140K (D7, 2026-11-18; NInfer has no logits for KLD) |
+| Dense vs NInfer | 10x closer to BF16 on target-token dNLL at 65K and 140K (D7; NInfer has no logits for KLD). Decode with thinking off on both, K8V4: prose 9-10% under at short, 36K and 137K, JSON level at short and 8-9% over at depth (2026-11-18, `evals/2026-11-18/halocline-vs-ninfer-nothink`). The switch bar (order 6) is not met |
 | Qwen4-Flash / Qwen4-27B | target only; weights are not public |
 | Task-level eval | not started |
 | Sampling, long-context KLD, Strata KLD | not measured |
@@ -205,7 +205,16 @@ lineage and the homelab evals.
 Greedy identity across the last two builds, and `qwen35_checkpoint_round_trip` with the real pack. Accept: 900 of 900
 tokens and a state round trip that reproduces bytes.
 
-### D8: 262K context, MTP and vision on one card (open, the next engine job)
+### D8: 262K context, MTP and vision on one card (shipped 2026-11-18 as `--long-context`)
+
+*Shipped 2026-11-18 (main dba5d2f9, served from release ea5868de):* d8-q4's rotated q4_0 K and V merged onto S1, with
+`--long-context` setting `--kv q4_0 --max-context 262144 --mtp-kv int8 --mtp-window 32768`. The Q4 cache write and
+attention read are their own compiled instantiations, so the fp16, int8 and K8V4 kernels are instruction-identical to
+75726a0f and K8V4's depth KLD is unchanged (+0.00000 at 65,536 and 140,288). Rotated 4-bit against K8V4, paired: +0.00112
+at 65,536, +0.00116 at 140,288, +0.00108 at 174,080; a needle at 252,483 tokens found
+(`evals/2026-11-18/halocline-long-context`). Decode is slower at depth (36K needle 84.9 against 102.9 t/s, 137K 62.3
+against 88.0) because a Q4 cache still decodes on the 16-row tiled kernel; W22's q4-K instantiation of S1's staged kernel
+is the lossless fix. Default per standing order 8.
 
 Measured with the engine's own planner, vision packs, `--spec 8` (`evals/2026-11-17/halocline-dense-quality`):
 262,144 cells need 11,830 MiB at int8 KV (8,448 of it the KV, 1,024 the MTP drafter's fp16 KV, the rest state and
