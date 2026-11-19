@@ -3,6 +3,7 @@ import collections
 import ctypes
 import json
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -13,6 +14,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from serve import ROOT
 from serve.util import telemetry
 from serve.frontend import ChatTemplate
 from serve.util.logbuf import LogBuffer
@@ -254,10 +256,19 @@ class Http(unittest.TestCase):
                 self.assertIn(b'id="list"', r.read())
         with urllib.request.urlopen(self.base + "/web/monitor.js") as r:
             self.assertTrue(r.headers["Content-Type"].startswith("text/javascript"))
-            self.assertIn(b"/metrics?requests=all", r.read())
+            self.assertIn(b'"metrics?requests=all"', r.read())
         with urllib.request.urlopen(self.base + "/web/monitor.css") as r:
             self.assertTrue(r.headers["Content-Type"].startswith("text/css"))
         self.assertIn(b'href="monitor"', urllib.request.urlopen(self.base + "/").read())
+
+    def test_the_pages_use_relative_paths_so_a_path_prefix_proxy_works(self):
+        # Behind a proxy that mounts the server under a prefix (llama-swap's /upstream/<model>/), a root-absolute
+        # path ("/web/monitor.js", "/metrics") goes to the proxy's root instead: the monitor page loaded with no
+        # script, and /metrics answered with llama-swap's own metrics. Every page and script asks relative.
+        absolute = re.compile(r"""(?:href|src)="/|(?:fetch|get)\(\s*["'`]/|url\(/""")
+        for name in ("index.html", "monitor.html", "app.js", "monitor.js", "app.css", "monitor.css"):
+            hit = absolute.search((ROOT / "serve/web" / name).read_text(encoding="utf-8"))
+            self.assertIsNone(hit, f"{name}: {hit and hit.group(0)}")
 
     # --- /api/logs
     def test_logs(self):

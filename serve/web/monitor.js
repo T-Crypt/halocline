@@ -156,7 +156,7 @@ let timer = null;
 async function poll() {
   clearTimeout(timer);
   try {
-    const m = await get(all ? "/metrics?requests=all" : "/metrics");
+    const m = await get(all ? "metrics?requests=all" : "metrics");
     M = m; $("#auth").hidden = true;
     if (selected && !(M.requests || []).some(r => r.id === selected)) selected = null;
     draw();
@@ -171,5 +171,5 @@ $("#auth").onsubmit = e => {
   e.preventDefault(); apiKey = $("#key").value.trim(); sessionStorage.setItem("halo.key", apiKey); poll();
 };
 $("#host").textContent = location.host;
-fetch("/health").then(r => r.json()).then(h => { $("#keyed").hidden = !h.api_key; }).catch(() => {});
+fetch("health").then(r => r.json()).then(h => { $("#keyed").hidden = !h.api_key; }).catch(() => {});
 poll();
