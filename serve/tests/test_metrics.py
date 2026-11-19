@@ -270,6 +270,21 @@ class Http(unittest.TestCase):
             hit = absolute.search((ROOT / "serve/web" / name).read_text(encoding="utf-8"))
             self.assertIsNone(hit, f"{name}: {hit and hit.group(0)}")
 
+    def test_the_monitor_with_a_trailing_slash_redirects_to_the_page_relative(self):
+        # At /monitor/ the browser would resolve web/monitor.js as /monitor/web/monitor.js (404): the page redirects to
+        # itself without the slash, by a relative Location so a proxy prefix survives
+        import http.client
+        host, port = self.base.split("//")[1].split(":")
+        for path, location in (("/monitor/", "../monitor"), ("/monitor.html/?x=1", "../monitor.html?x=1")):
+            c = http.client.HTTPConnection(host, int(port), timeout=10)
+            c.request("GET", path)
+            r = c.getresponse()
+            self.assertEqual((r.status, r.getheader("Location")), (301, location), path)
+            c.close()
+        with urllib.request.urlopen(self.base + "/monitor/") as r:            # followed: the page itself
+            self.assertEqual((r.status, r.url.endswith("/monitor")), (200, True))
+            self.assertIn(b"monitor.js", r.read())
+
     # --- /api/logs
     def test_logs(self):
         self.assertEqual(self.call("/api/logs")[1], {"lines": [], "last": 0})

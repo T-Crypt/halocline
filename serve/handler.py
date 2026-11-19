@@ -352,6 +352,14 @@ def make_handler(target: Service | Router):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+            elif path in ("/monitor", "/monitor.html") and self.path.split("?")[0].endswith("/"):
+                # /monitor/ would resolve the page's relative paths under /monitor/ and 404 them: send the browser to
+                # the page itself, relative, so a proxy prefix (llama-swap's /upstream/<model>/) is kept
+                query = self.path.partition("?")[2]
+                self.send_response(301)
+                self.send_header("Location", "../" + path.rsplit("/", 1)[1] + ("?" + query if query else ""))
+                self.send_header("Content-Length", "0")
+                self.end_headers()
             elif path in ("/monitor", "/monitor.html"):
                 body = (ROOT / "serve" / "web" / "monitor.html").read_bytes()
                 self.send_response(200)
