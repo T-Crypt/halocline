@@ -45,16 +45,21 @@ d::Geometry qwen3827b() {
     return g;
 }
 
-// what the engine charges a session and the model's scratch: the adapter's own formula (qwen35/adapter.cpp), MiB
+// what the engine charges a session and the model's scratch: the adapter's own formula (qwen35/adapter.cpp), MiB.
+// The UD-Q4_K_XL pack's matrices are all GGUF quants (its tensors: Q6_K, Q4_K, Q5_K, IQ4_XS, IQ4_NL, Q3_K, Q8_0 and
+// F32; no F8, no NVFP4 planes), so the scratch the window gemm and the FP4 chunk path would take is not planned, and
+// the served drafter is the MTP (the chunk keeps its history rows).
 uint64_t need_mib(const d::Geometry& g, int64_t cells, d::KvFormat kv) {
-    return (d::shared_bytes(g, cells, kv) + d::session_bytes(g, cells, /*mtp=*/true, kv)) / kMib;
+    return (d::shared_bytes(g, cells, kv, 0, {false, false}, d::Drafter::Mtp) +
+            d::session_bytes(g, cells, /*mtp=*/true, kv)) / kMib;
 }
 
 // the same with the MTP drafter's KV as a 32K-cell ring (D8 item 2) instead of full context: its own layer stays fp16
 uint64_t need_mib_drafter_ring(const d::Geometry& g, int64_t cells, d::KvFormat kv, int64_t ring = 32768) {
     const uint64_t full = d::session_bytes(g, cells, /*mtp=*/true, kv);
     const uint64_t drafter = (uint64_t) cells * d::kv_cell_bytes(g, d::KvFormat::Fp16);   // the drafter's own layer, fp16
-    return (d::shared_bytes(g, cells, kv) + full - drafter + (uint64_t) ring * d::kv_cell_bytes(g, d::KvFormat::Fp16)) / kMib;
+    return (d::shared_bytes(g, cells, kv, 0, {false, false}, d::Drafter::Mtp) + full - drafter +
+            (uint64_t) ring * d::kv_cell_bytes(g, d::KvFormat::Fp16)) / kMib;
 }
 
 // the most cells the UD-Q4_K_XL plan takes: the adapter's own test (the need plus a 512 MiB reserve against the free
@@ -76,7 +81,7 @@ int64_t max_cells_drafter(const d::Geometry& g, d::KvFormat kv, d::KvFormat mtp,
     int64_t lo = 1024, hi = 400000;
     while (lo < hi) {
         const int64_t mid = (lo + hi + 1) / 2;
-        const uint64_t need = (d::shared_bytes(g, mid, kv) +
+        const uint64_t need = (d::shared_bytes(g, mid, kv, 0, {false, false}, d::Drafter::Mtp) +
                                d::session_bytes(g, mid, /*mtp=*/true, kv, /*kv_resident=*/0, mtp, window)) / kMib;
         if (need + 512 <= kFreeMib) lo = mid;
         else hi = mid - 1;
@@ -87,7 +92,7 @@ int64_t max_cells_drafter(const d::Geometry& g, d::KvFormat kv, d::KvFormat mtp,
 // one context's whole plan in MiB: the model's shared scratch and one session's cells and state (what the adapter tests
 // against the card's free bytes)
 uint64_t plan_mib(const d::Geometry& g, int64_t cells, d::KvFormat kv, d::KvFormat mtp, int64_t window) {
-    return (d::shared_bytes(g, cells, kv) +
+    return (d::shared_bytes(g, cells, kv, 0, {false, false}, d::Drafter::Mtp) +
             d::session_bytes(g, cells, /*mtp=*/true, kv, /*kv_resident=*/0, mtp, window)) / kMib;
 }
 
@@ -106,13 +111,14 @@ int main() {
     expect(k8v4 == 1632, "K8V4: int8 K (1,056) plus 8 fp16-scaled q4_0 blocks a KV head (576)");
     expect(q4 == 1152, "Q4: 8 fp16-scaled q4_0 blocks a KV head (576) for K and the same for V");
 
-    // ---- the recorded planner outputs at 262,144 cells must not move (the formats' exact bytes live in one function)
+    // ---- the recorded planner outputs at 262,144 cells: the formats' exact bytes live in one function and do not move;
+    // the totals moved once (W33): the scratch is charged for what the pack's tensors run, so both are 129 MiB lower
     const int64_t ctx = 262144;
     const uint64_t at_int8 = need_mib(g, ctx, d::KvFormat::Int8), at_fp16 = need_mib(g, ctx, d::KvFormat::Fp16);
-    std::printf("  262,144 cells: int8 %llu MiB, fp16 %llu MiB (fit/: 11,830 and 19,766)\n", (unsigned long long) at_int8,
-                (unsigned long long) at_fp16);
-    expect(at_int8 == 11830, "the int8 total at 262,144 cells is the 11,830 MiB the engine printed");
-    expect(at_fp16 == 19766, "the fp16 total at 262,144 cells is the 19,766 MiB the engine printed");
+    std::printf("  262,144 cells: int8 %llu MiB, fp16 %llu MiB (fit/: 11,830 and 19,766 before the scratch trims)\n",
+                (unsigned long long) at_int8, (unsigned long long) at_fp16);
+    expect(at_int8 == 11701, "the int8 total at 262,144 cells is the 11,701 MiB the engine prints after the trims");
+    expect(at_fp16 == 19637, "the fp16 total at 262,144 cells is the 19,637 MiB the engine prints after the trims");
 
     // ---- D8: the KV a K8V4 cache takes at the roadmap's 184,320 cells, and the same bytes at 4-bit's 261,120
     const int64_t k8v4_cells = 184320, q4_cells = 261120;
@@ -143,7 +149,8 @@ int main() {
                 (long long) fp16_full, (long long) int8_full, (long long) int8_ring, (long long) k8v4_full_max,
                 (long long) k8v4_ring_max);
     expect(k8v4_ring_max >= k8v4_cells, "the roadmap's 184,320 K8V4 cells are inside the ring plan's maximum");
-    expect(k8v4_ring_max < 186000, "and the maximum is the roadmap's ~184K, not a larger range quoted by mistake");
+    expect(k8v4_ring_max >= 189800 && k8v4_ring_max <= 190000,
+           "and the maximum is ~190K after the scratch trims (it was under 186,000 before them)");
     expect(k8v4_full_max < k8v4_cells, "without the ring, 184,320 K8V4 cells do not fit: D8 item 2 is part of the 184K");
 
     // ---- the merged planner: the drafter's cache by its own format and ring (--mtp-kv, --mtp-window), searched over
@@ -183,7 +190,9 @@ int main() {
 
     // ---- D8's decision, at the full context: rotated 4-bit K and V is the format that reaches 262,144 cells; the
     // drafter's own cache decides whether the plan fits. `room` is what the plan leaves of the card's 7,597 MiB, after
-    // the 512 MiB reserve the adapter adds on top of shared_bytes' own.
+    // the 512 MiB reserve the adapter adds on top of shared_bytes' own.  W33's scratch trims (the pack's GGUF-quant
+    // tensors run no window-gemm or FP4 products, and the chunk keeps only its drafter's rows) free 129 MiB, so the
+    // fp16 ring fits now too; the int8 ring is still the profile (most room, and --mtp-kv int8 is the measured default).
     const uint64_t q4_kv = (uint64_t) ctx * g.attn_layers() * q4;
     std::printf("  Q4 at 262,144 cells: KV %llu MiB (the roadmap's ~4.6 GiB); 261,120 of its cells are 184,320 K8V4's bytes\n",
                 (unsigned long long) (q4_kv / kMib));
@@ -197,8 +206,9 @@ int main() {
                     q4_room[i] < 0 ? "short by" : "to spare", q4_room[i] < 0 ? -q4_room[i] : q4_room[i]);
     }
     expect(q4_room[0] < 0 && q4_room[1] < 0, "262,144 4-bit cells do not fit with the drafter's KV at full context");
-    expect(q4_room[3] > 0, "they fit with the drafter's int8 ring");
-    expect(q4_by_setup[2] < ctx && q4_by_setup[3] >= ctx, "the Q4 maximum crosses 262,144 with the drafter's int8 ring");
+    expect(q4_room[2] > 0 && q4_room[3] > 0, "they fit with either ring, the int8 ring with the most room");
+    expect(q4_by_setup[0] < ctx && q4_by_setup[1] < ctx, "a drafter at full context still does not reach 262,144");
+    expect(q4_by_setup[2] >= ctx && q4_by_setup[3] >= ctx, "the Q4 maximum crosses 262,144 with either ring");
 
     std::printf("dense_kv_planner: %s\n", g_fail ? "FAIL" : "PASS");
     return g_fail ? 1 : 0;

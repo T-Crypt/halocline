@@ -251,8 +251,21 @@ bool gather_draft_head(const Linear& head, const std::vector<int32_t>& ids, void
 uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, KvFormat kv, int64_t kv_resident);
 /// Page-locked host bytes one session's streamed K/V takes (0 without streaming).
 uint64_t session_host_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident);
-/// Device bytes the model's shared scratch takes (with streaming, the VRAM copy a prompt chunk reads one layer's far cells from).
-uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0);
+/// The optional scratch paths a pack's weights run: has_wg when a product runs on the window gemm (F8 E4M3 or NVFP4
+/// planes; the block drafter's Q8 matrices load as planes, so the load counts it), has_fp4 when a product the prompt
+/// chunks read is NVFP4 planes.  A pack whose matrices are all GGUF quants (the UD packs) runs neither, and the scratch
+/// those paths would take is neither planned nor allocated.  The defaults keep a caller without the weights at the old
+/// superset size.
+struct ScratchPaths {
+    bool has_wg = true;
+    bool has_fp4 = true;
+};
+/// Which of those paths a pack's weights run, from its tensors' types.
+ScratchPaths scratch_paths(const Weights& w);
+/// Device bytes the model's shared scratch takes (with streaming, the VRAM copy a prompt chunk reads one layer's far
+/// cells from).  `paths` trims the scratch to the pack's tensor types; `drafter` sizes the chunk's residual buffers.
+uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0,
+                      ScratchPaths paths = {}, Drafter drafter = Drafter::Mtp);
 /// Device bytes a session's block drafter keeps (its context ring and its window rows); 0 without one.
 uint64_t block_session_bytes(const Geometry& g, const BlockDrafter& bd);
 

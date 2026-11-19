@@ -277,7 +277,8 @@ public:
             core::model_sources(file, srcs);
             o.mmproj = srcs.vision;
         }
-        const uint64_t need_b = dense::shared_bytes(g, o.max_context, o.kv, o.kv_resident) +
+        const uint64_t need_b = dense::shared_bytes(g, o.max_context, o.kv, o.kv_resident, dense::scratch_paths(w),
+                                                    o.drafter) +
                                 (uint64_t) o.sessions * dense::session_bytes(g, o.max_context, o.drafter == dense::Drafter::Mtp, o.kv,
                                                                              o.kv_resident, o.mtp_format, o.mtp_window,
                                                                              o.draft_vocab_rows);

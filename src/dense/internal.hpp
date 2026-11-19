@@ -117,6 +117,7 @@ public:
     Geometry g;
     Weights w;
     Options o;
+    ScratchPaths paths;          // which optional scratch paths the pack's tensors run (window_bytes, chunk_bytes)
     Arena dec_arena, pre_arena;
     WindowScratch ws;
     ChunkScratch cs;
