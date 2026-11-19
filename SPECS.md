@@ -39,7 +39,7 @@ on.
 | Model | Weights | Role |
 |---|---|---|
 | [Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next) (`qwen4_exp`) | [Unsloth UD-IQ4_XS v3.1](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/tree/814db05f88b3b827ea7cfcab5344fd218de494d2), four shards, 93,672,359,738 bytes | the sparse path |
-| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | [Unsloth GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/tree/4af51b3542f775b0a8e4b310bfb3f17e01c306c9) at `4af51b35` (UD-IQ4_XS and UD-Q4_K_XL on disk) | stand-in for Qwen4-27B until its weights exist; the dense path does not run yet |
+| [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) | [Unsloth GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/tree/4af51b3542f775b0a8e4b310bfb3f17e01c306c9) at `4af51b35` (UD-IQ4_XS and UD-Q4_K_XL on disk) | stand-in for Qwen4-27B until its weights exist; the dense path runs and serves 262,144 tokens by default |
 | MTP draft layer | the 31 BF16 `mtp.*` tensors of [Qwen/Qwen3.8-Flash-Next](https://huggingface.co/Qwen/Qwen3.8-Flash-Next/tree/de4b8e4d43b917e7706784d8bb445c9af86a3540) at `de4b8e4d`, 4.9 GiB | drafter for the sparse path |
 | BF16 KLD base | [`flashnext-bf16-base.kld`](https://huggingface.co/datasets/jesdga/basalt-kld-bases/tree/a65bae55f703e9c6dab6e9f335146c532fb7dd95), sha256 `c4e0221632607324d314556b8813d772867c300454ecdea37f1bf9d5555cf1a9`, from `llama-perplexity --kl-divergence-base`, wikitext-2, 100 chunks of 512, base PPL 3.2749 (3.2733 on the scored rows) | the quality reference |
 

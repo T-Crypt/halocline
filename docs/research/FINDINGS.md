@@ -90,9 +90,8 @@ The kernel-level evidence is in `ADA_PORT_NOTES.md` and the SASS hashes in `gate
 
 ## Dense and sparse
 
-The verified open model is sparse: 512 experts, 10 routed plus 1 shared. The dense path exists in the adapter but does
-not run yet; Qwen3.8-27B stands in until Qwen4-27B weights exist, and those weights are a community lead, not a
-published artifact. The switch rule the notes settle on is capacity: a sparse model wins when inactive experts can live
+The verified open model is sparse: 512 experts, 10 routed plus 1 shared. The dense path runs too: Qwen3.8-27B stands in
+until Qwen4-27B weights exist, and those weights are a community lead, not a published artifact. The switch rule the notes settle on is capacity: a sparse model wins when inactive experts can live
 in RAM and latency is acceptable, and a dense model wins when every parameter must be read per token and the model fits.
 
 ## Validation method
@@ -117,4 +116,5 @@ determinism from invariance: two runs of one build matching row for row does not
 - The IQ4_XS census in the note is a single parse. The byte size is verified; the per-encoding shares are not.
 - Qwen4-27B's shape comes from keynote slides and kernel strides, not a config. The notes label it T4 and keep it out of
   the spec.
-- No KLD comparison of Strata on this host exists. The speed table against Strata is speed only.
+- No KLD comparison of Strata on this host exists. The speed table against Strata is speed only. Strata was retired on
+  2026-11-18, so none is planned; its rows stay as history.

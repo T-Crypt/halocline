@@ -13,7 +13,8 @@ The Hugging Face revisions are the ones the measurements used.
    that machine.
 2. **Measure what you run today on that machine.** I measured Strata 0.2.10 (sparse) and NInfer-4090 (dense) with one
    smoke script on a quiet host, three runs each. Prompt speed on this host dropped 30 to 40% under memory pressure, so
-   a quiet host is part of the method (`evals/2026-11-16/halocline-p0-floors/`).
+   a quiet host is part of the method (`evals/2026-11-16/halocline-p0-floors/`). Strata was retired on the maintainer's
+   machine on 2026-11-18; its rows stay as history.
 3. **Freeze a quality reference.** The BF16 GGUF of the same model through `llama-perplexity --kl-divergence-base`
    (wikitext-2, 100 chunks of 512 tokens) gives a file of the full-precision next-token distribution. Hash it and never
    regenerate it. Halocline scores against

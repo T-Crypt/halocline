@@ -127,10 +127,9 @@ reads the projector in place from the model file's `vision/mmproj` section.
 | `dynamic` | inside the engine, on the main card | none at rest (the encoder waits in host RAM) |
 | `cpu` | sidecar on the CPU | none, and slow |
 
-Neither Halocline pack has a measured image run in this repo: the README marks image serving for the sparse pack as untested,
-and the dense served profile runs `--vision cpu` with a pack that carries the projector
-([Qwen3.8-27B](models/qwen38-27b.md)). Which images a request may name: [image sources](configuration/image-sources.md). An
-image may not sit in a system prompt.
+Both packs carry the projector and both models serve images on the CPU encoder (`--vision cpu`); the engine repo's run is
+[`halocline-vision`](../evals/2026-11-19/halocline-vision/). Which images a request may name:
+[image sources](configuration/image-sources.md). An image may not sit in a system prompt.
 
 ## Video
 

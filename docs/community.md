@@ -19,7 +19,7 @@ binary, and the bench refuses them before it starts. A MIG slice is not one card
 Linux x86-64 and a driver new enough for CUDA 12. There is nothing else to install. The bench reads the card's compute
 capability, its VRAM, the power limit the driver enforces and the PCIe link, and the row records them.
 
-The only supported weights today are Unsloth's Qwen3.8-Flash-Next UD-IQ4_XS v3.1, converted by this repository:
+The sparse path's supported weights are Unsloth's Qwen3.8-Flash-Next UD-IQ4_XS v3.1, converted by this repository:
 
 | What | Size | Where |
 |---|---|---|
@@ -29,12 +29,9 @@ The only supported weights today are Unsloth's Qwen3.8-Flash-Next UD-IQ4_XS v3.1
 The GGUF and the pack need about 190 GiB of disk, and a run needs 64 GiB of RAM. On the reference machine the
 conversion took 235 s and the first load 88 s; every load after that reads the pack.
 
-Qwen3.8-27B from Unsloth's UD-Q4_K_XL is the second supported weight. Its GGUF converter path is not written yet, so
-no 27B row can exist until it is.
-
-2026-11-17: the qwen35 path of the converter exists (`tools/convert/gguf_qwen35.py`) and the dense packs run, so a 27B
-row can now be made. The preset has not run on a 27B pack yet: the first row is its test. The commands are in the
-README's [Ada user?](../README.md#ada-user) section.
+Qwen3.8-27B from Unsloth's UD-Q4_K_XL is the second supported weight. The qwen35 path of the converter is
+`tools/convert/gguf_qwen35.py` and the dense packs run, so a 27B row can be made. The preset has not run on a 27B pack
+yet: the first row is its test. The commands are in the README's [Ada user](../README.md#ada-user) section.
 
 ## The cards
 

@@ -10,8 +10,8 @@ engine process and starts the next.
   "models": [
     { "alias": "Flash-Next", "model": "flash-next.halo", "gpu": "0", "kv": "int8", "max-context": 262144, "parallel": 4,
       "slot-full-context": true, "vision": "dynamic" },
-    { "alias": "Qwen3.8-27B", "model": "qwen38-27b.halo", "gpu": "0", "kv": "k8v4", "mtp-kv": "int8",
-      "max-context": 175616, "vision": "cpu" }
+    { "alias": "Qwen3.8-27B", "model": "qwen38-27b.halo", "gpu": "0", "long-context": true,
+      "vision": "cpu" }
   ],
   "server": { "host": "127.0.0.1", "port": 8080 }
 }
@@ -38,9 +38,8 @@ Each entry is checked before anything loads, by the engine's own rules:
 | Value the model refuses (`max-context` past its maximum) | stops the start | stops the start |
 | Unknown name | stops the start | stops the start |
 
-`kv` takes each model's own values (`fp16`, `int8`, `q4_0` or `k8v4` for Flash-Next; `fp16`, `int8` or `k8v4` for
-Qwen3.8-27B); another value stops the start. Two aliases that are the same, or two entries sharing a cache directory,
-stop the start too.
+`kv` takes the model's own values; both paths take `fp16`, `int8`, `q4_0` and `k8v4`, and another value stops the
+start. Two aliases that are the same, or two entries sharing a cache directory, stop the start too.
 
 ## Requests and turns
 

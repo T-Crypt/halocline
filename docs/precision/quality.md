@@ -21,8 +21,9 @@ tokens. Both paths use this method. Their numbers: [Qwen3.8-Flash-Next](qwen38-f
   [greedy identity](#greedy-identity)).
 - **Coverage:** the gate scores 512-token chunks, so it cannot see KV rounding that builds up deep in a long context.
   The depth bases (`tools/depth_kld`, KLD of a scored window after a 65K to 261K prefix) measure that;
-  [`halocline-d8-depth`](../../evals/2026-11-17/halocline-d8-depth/) is the dense run, and
-  [testing](../testing.md) lists which depths are still open.
+  [`halocline-d8-depth`](../../evals/2026-11-17/halocline-d8-depth/) is the dense run, the 262K profile's rows are in
+  [`halocline-long-context`](../../evals/2026-11-18/halocline-long-context/), and [testing](../testing.md) lists which
+  depths are still open.
 
 ## The BF16 reference
 

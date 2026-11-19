@@ -94,8 +94,8 @@ on the reference machine before the merge.
    output hashes of the current kernels. Output for a token must not depend on the window width or the token's
    position in it, and the test must check that.
 2. **A profile.** A microbench line for the kernel: µs per call and achieved GB/s (or TFLOP/s) against the bytes or
-   FLOPs it moves. An end-to-end number from `halo-bench`: ms per decode window and passes per second, not only tok/s,
-   which drafting luck moves.
+   FLOPs it moves. An end-to-end number from `halocline-bench`: ms per decode window and passes per second, not only
+   tok/s, which drafting luck moves.
 3. **A quality check:**
    - Bitwise-identical output: the greedy-identity check against the previous build, with the expert tiers pinned.
      Changes in module size move the auto-sized tiers and change rounding.
