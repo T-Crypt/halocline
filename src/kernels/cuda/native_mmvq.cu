@@ -1342,15 +1342,17 @@ void launch_multi_n(const void* weights, const void* x_q8_1, float* y, int n_in,
         constexpr int ROWS = 2;
         const unsigned blocks = unsigned((std::size_t(n_out) + ROWS - 1) / ROWS);
         launch_pdl(native_mmvq_multi_kernel<F, NCOLS, WARPS, ROWS>, dim3(blocks), threads, 0, s, w, x, y, n_in, n_out);
-    } else if (n_in >= kLongRowIn && (NCOLS == 4 || NCOLS == 5)) {
+    } else if (NCOLS >= 4 && NCOLS <= 5 && n_in >= kLongRowIn) {
         // 4-5 columns of a long row (ffn-down's 17,408): one row a block re-reads every column for each output row, and
         // the columns (78-98 KB of q8_1) no longer stay in L1 beside the streamed weights; 2 rows a block at 4 columns
         // and 4 at 5 reuse each column load across rows. The same kernel and per-thread block order, so every output
         // stays bitwise the one-row layout's. Measured (mmvq_multi_parity --bench-types, 17,408 -> 5,120, us a call,
         // one row / these): Q5_K T4 89.3 / 70.1, T5 117.6 / 75.9; Q4_K T4 83.6 / 58.7; IQ4_XS T5 68.4 / 64.1.
-        constexpr int ROWS = NCOLS == 4 ? 2 : 4;
-        const unsigned blocks = unsigned((std::size_t(n_out) + ROWS - 1) / ROWS);
-        launch_pdl(native_mmvq_multi_kernel<F, NCOLS, WARPS, ROWS>, dim3(blocks), threads, 0, s, w, x, y, n_in, n_out);
+        if constexpr (NCOLS == 4 || NCOLS == 5) {   // only these widths instantiate the multi-row kernels
+            constexpr int ROWS = NCOLS == 4 ? 2 : 4;
+            const unsigned blocks = unsigned((std::size_t(n_out) + ROWS - 1) / ROWS);
+            launch_pdl(native_mmvq_multi_kernel<F, NCOLS, WARPS, ROWS>, dim3(blocks), threads, 0, s, w, x, y, n_in, n_out);
+        }
     } else {
         launch_pdl(native_mmvq_multi_kernel<F, NCOLS, WARPS, 1>, dim3(unsigned(n_out)), threads, 0, s, w, x, y, n_in,
                    n_out);
