@@ -44,7 +44,7 @@ one rounding on the path: the pack holds the GGUF's bytes.
 
 The served profile is UD-Q4_K_XL with rotated 4-bit K and V, MTP at `--spec 8`, vision on the CPU and 262,144 tokens of
 context. `--long-context` sets the cache, the context and the drafter's int8 ring. The vision pack adds the projector
-(`vision/mmproj`):
+(`vision/mmproj`) and serves images on the CPU encoder (`--vision cpu`):
 
 ```sh
 bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 \
