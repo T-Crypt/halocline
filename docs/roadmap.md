@@ -200,6 +200,22 @@ gains are end to end for that reason; the quality gate is the depth KLD above. S
 was latency-bound) and W16's staged hybrid (bitwise, +7% / +18% at 137K), both in `halocline-s1c-ab/README.md`'s
 lineage and the homelab evals.
 
+**2026-11-18 (W15, branch `draft-head`): the MTP drafter's head over a frequency-ranked token subset, opt-in as
+`--draft-vocab FILE`.** The flag names a committed int32 id list (`tools/draft_vocab`, FR-Spec arXiv 2502.14856); at
+load the engine gathers those rows of the head tensor as stored, so a draft head row is the full head's row byte for
+byte and needs no requantization (D1). The ranking's corpus is the depth bases' 40 MB wikitext-103 train cut plus the
+tree's sources (7.4 MB), tokenized by the pack's own tokenizer, with the pack's 33 control ids always in; the N most
+frequent ids, ties to the lower id. 131,072 rows are 525.0 MiB, 65,536 are 262.5 MiB, and the session's drafter logits
+row shrinks from 248,320 floats to the subset's (`session_bytes` counts both). The verify rule is what makes this
+lossless: on the MTP path acceptance is the target's own pick against the draft token on every row
+(`src/program/serve/session_engine.cpp`, `src/program/generate/adapter.cpp`), and the draft's probabilities never enter
+it, so only the acceptance rate can move; the verify pass still scores all 248,320 rows. (The dense block drafter's
+residual path, `sampler.cu` `drawn_pick`, is exact for any draft q, a subset head included; this flag is the MTP
+drafter's.) The 65,536-row head covers every id the corpus writes (63,500), so the 131,072 arm adds 67,572 zero-count
+rows chosen by id. Not measured yet: any GPU run of the flag, and the acceptance and speed at N = 32K / 64K / 131K.
+The draft confidence `draft_end` reports is the subset's own probability, larger than the full head's for the same
+token, so the window policy may read a subset draft as likelier than it is; the A/B decides.
+
 ### D6: identity and state (state round trip done 2026-11-17 on the real pack; build-to-build identity open)
 
 Greedy identity across the last two builds, and `qwen35_checkpoint_round_trip` with the real pack. Accept: 900 of 900

@@ -369,6 +369,7 @@ int run_session_model(halo::program::CommonOptions& o, const halo::model::ModelA
         lreq.kv_resident = o.kv_resident;
         lreq.mtp_kv = o.mtp_kv;
         lreq.mtp_window = o.mtp_window;
+        lreq.draft_vocab = o.draft_vocab;
         const halo::model::Result r = adapter->load(lreq, loaded);
         if (!r.ok() || !loaded) return fatal_start_error(r.message);
         std::vector<int64_t> stop;

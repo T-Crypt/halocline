@@ -54,6 +54,9 @@ struct CommonOptions {
     /// --long-context (dense): the 262,144-cell profile, rotated 4-bit K and V with the drafter's int8 ring, for a task
     /// that needs the context and accepts the measured KLD cost (docs/precision/qwen38-27b.md); flags given win
     bool long_context = false;
+    /// --draft-vocab FILE: the dense MTP drafter scores a head over the token ids the file lists (tools/draft_vocab),
+    /// instead of the full head.  The verify pass still scores every row, so the output does not change.
+    std::string draft_vocab;
     /// The engine's expert profile for the model (--expert-profile, else data/profiles/<key>.prof, cli::profile_key),
     /// or the --expert-profile-save file a start places from; empty means none.  A profile decides residency by routing
     /// frequency instead of by first use.

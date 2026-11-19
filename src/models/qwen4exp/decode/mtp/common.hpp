@@ -40,6 +40,7 @@
 #include "halo/models/qwen4exp/kernels/s2_expert_grouped.hpp"
 #include "halo/kernels/sampler.hpp"
 #include "halo/models/qwen4exp/kernels/shared_expert.hpp"
+#include "halo/kernels/head_rows.hpp"
 #include "halo/models/qwen4exp/kernels/verify_kernels.hpp"
 #include "halo/models/qwen4exp/kernels/ngram.hpp"
 #include "halo/models/qwen4exp/kernels/dense_tc.hpp"
