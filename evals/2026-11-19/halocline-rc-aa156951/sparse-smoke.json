@@ -1,0 +1,26 @@
+{
+ "model": "rc-sparse",
+ "url": "http://127.0.0.1:8096",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 137.9-150.5 t/s (cold 133.9), prompt 980 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 52 tok, 1.0 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 6.7 s, prompt 6470 t/s, decode 125.2 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 22.3 s, prompt 5602 t/s, decode 121.7 t/s"
+  }
+ }
+}

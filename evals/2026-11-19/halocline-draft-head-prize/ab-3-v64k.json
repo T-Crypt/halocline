@@ -1,0 +1,56 @@
+[
+ {
+  "work": "short-prose",
+  "ttft_s": 0.07,
+  "completion_tokens": 1200,
+  "decode_tps": 89.8,
+  "drafts": 671,
+  "offered": 1265,
+  "text_sha": "7ef3641d75f9ba0d"
+ },
+ {
+  "work": "short-struct",
+  "ttft_s": 0.06,
+  "completion_tokens": 1200,
+  "decode_tps": 147.3,
+  "drafts": 930,
+  "offered": 1289,
+  "text_sha": "e7eb9f8d96d0cb03"
+ },
+ {
+  "work": "d36k-prose",
+  "ttft_s": 13.18,
+  "completion_tokens": 1200,
+  "decode_tps": 74.5,
+  "drafts": 643,
+  "offered": 1192,
+  "text_sha": "1faa155eee0bed81"
+ },
+ {
+  "work": "d36k-struct",
+  "ttft_s": 13.18,
+  "completion_tokens": 1200,
+  "decode_tps": 132.5,
+  "drafts": 949,
+  "offered": 1215,
+  "text_sha": "b16728993b344a86"
+ },
+ {
+  "work": "d137k-prose",
+  "ttft_s": 83.68,
+  "completion_tokens": 1200,
+  "decode_tps": 54.3,
+  "drafts": 578,
+  "offered": 834,
+  "text_sha": "7a241cc2b486008d"
+ },
+ {
+  "work": "d137k-struct",
+  "ttft_s": 83.67,
+  "completion_tokens": 1200,
+  "decode_tps": 87.8,
+  "drafts": 930,
+  "offered": 1142,
+  "text_sha": "25b3d0b822d9a7f9"
+ }
+]

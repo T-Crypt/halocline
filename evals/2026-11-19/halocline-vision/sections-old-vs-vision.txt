@@ -1,0 +1,18 @@
+SAME  dense                  size 1485688320 / 1485688320  sha cdd71e91132cb69b / cdd71e91132cb69b
+SAME  dense.index            size 93449 / 93449  sha ca01947e32327cbb / ca01947e32327cbb
+SAME  experts                size 60384870400 / 60384870400  sha 50f0f4ae5c529be1 / 50f0f4ae5c529be1
+SAME  experts.layout         size 1419 / 1419  sha be1e67de89f78c1b / be1e67de89f78c1b
+SAME  gguf                   size 33277520896 / 33277520896  sha 48e3e80dafcc559b / 48e3e80dafcc559b
+DIFF  hc8                    size 712920832 / 712920832  sha ec05adc728111859 / 1640134d01a3d38b
+DIFF  meta                   size 8239728 / 8239980  sha b1dcb50ca65bbf41 / 00e965cb908262b5
+SAME  mtp/dense              size 116099072 / 116099072  sha c724dc0b0822ada5 / c724dc0b0822ada5
+SAME  mtp/dense.index        size 1851 / 1851  sha 991456cf4eb266eb / 991456cf4eb266eb
+SAME  mtp/experts            size 707788800 / 707788800  sha 09398406be61f1f5 / 09398406be61f1f5
+SAME  tokenizer/chat_template.jinja size 9993 / 9993  sha 12827f24b742ea4e / 12827f24b742ea4e
+SAME  tokenizer/merges.txt   size 3353258 / 3353258  sha 4ba698529766c7a2 / 4ba698529766c7a2
+SAME  tokenizer/token_type.json size 744960 / 744960  sha 5088c8c298fc06af / 5088c8c298fc06af
+SAME  tokenizer/tokenizer.json size 531 / 531  sha 47f715795cdd20c6 / 47f715795cdd20c6
+SAME  tokenizer/vocab.json   size 5737005 / 5737005  sha 4ba64f0332abcfb0 / 4ba64f0332abcfb0
+ONLY new  vision/mmproj  907542944
+ONLY new  vision/text_vocab  10946560
+shared sections: 13 identical, 2 different

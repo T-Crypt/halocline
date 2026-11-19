@@ -18,8 +18,8 @@ on.
 | VBIOS | 95.02.3C.40.B9 | |
 | CPU | Intel Core i9-14900K, 32 threads, AVX2 and AVX-VNNI, no AVX-512 | the CPU expert kernels run on AVX2; prefill gives the CPU 0.6 of the streamed experts |
 | RAM | 64 GB (62.5 GiB visible) | the Flash-Next pack page-locks 41 GiB of experts; about 4 GiB stays free with the model loaded |
-| Pack disk | WD SATA SSD, 2 TB (`WDS200T2B0B`), ext4 | cold start: the RAM copy reads at about 0.5 GB/s, 87 to 104 s |
-| GGUF disks | NVMe: TEAM TM8FP6001T 1 TB, KIOXIA KXG60ZNV512G 512 GB, ext4 | conversion reads the GGUF shards from here |
+| Pack disk | NVMe: TEAM TM8FP6001T 1 TB, PCIe 3.0 x4, ext4 (since 2026-11-19) | the sparse path reads the n-gram table from the pack during prefill, 4 KiB at a time; with a cold page cache a 137K prompt reads 4,106 to 4,417 t/s here and 1,857 to 3,262 from the WD SATA SSD the packs lived on before ([`halocline-sparse-abba`](evals/2026-11-19/halocline-sparse-abba/)) |
+| Other disks | WD SATA SSD, 2 TB (`WDS200T2B0B`), ext4, also the system disk; KIOXIA KXG60ZNV512G 512 GB NVMe (Windows) | the dense packs (the dense path reads its pack once, at load); the GGUF shards conversion reads sit on the TEAM NVMe |
 
 ## Software
 
@@ -55,5 +55,7 @@ reports 125B parameters with 6B activated, plus 51B in the n-gram embedding and 
   size and every speed number change with VRAM, bandwidth and SM count. Nobody has measured KLD on another card;
   re-run the quality gate before you trust any number from this repo.
 - **Less RAM:** the 41 GiB of page-locked experts plus the OS will not fit, and experts spill to disk. Not measured.
-- **An NVMe pack disk:** cold start gets faster. Steady-state speed does not change once the experts are in RAM.
+- **The pack disk:** the sparse path keeps reading the pack after load (the n-gram table, 16 rows a token, one 4 KiB read
+  each), so a slow or shared disk lowers prefill at depth whenever the page cache does not hold those pages. Put the
+  sparse pack on a fast NVMe that nothing else is busy on.
 - **AVX-512:** the CPU expert kernels have an AVX-512 path this machine does not exercise; it is untested here.

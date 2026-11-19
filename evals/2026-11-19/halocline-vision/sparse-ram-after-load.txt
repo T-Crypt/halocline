@@ -1,0 +1,6 @@
+               total        used        free      shared  buff/cache   available
+Mem:           63991       60437         724        1423        4978        3554
+Swap:           4095        2709        1386
+4987 ~/halocline/releases/5aec8e3a/bin/halocline --serve --model /data/models/halocl VmRSS:	53961576 kB
+4937 ~/halocline/releases/5aec8e3a/bin/halocline-vision --model /data/models/halocli VmRSS:	 1123396 kB
+4987, ~/halocline/releases/5aec8e3a/bin/halocline, 23536 MiB

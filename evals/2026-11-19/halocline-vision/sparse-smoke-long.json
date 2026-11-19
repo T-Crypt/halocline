@@ -1,0 +1,26 @@
+{
+ "model": "Halocline-QFN-UD-IQ4_XS",
+ "url": "http://127.0.0.1:9090",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 132.1-147.2 t/s (cold 130.3), prompt 980 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 31 tok, 0.8 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 7.2 s, prompt 5650 t/s, decode 121.9 t/s"
+  },
+  "error": {
+   "ok": false,
+   "detail": "HTTPError: HTTP Error 503: Service Unavailable"
+  }
+ }
+}

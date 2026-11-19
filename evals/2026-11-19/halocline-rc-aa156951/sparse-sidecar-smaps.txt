@@ -1,0 +1,1 @@
+sidecar rss: pack mapping 858 MiB, everything else 231 MiB

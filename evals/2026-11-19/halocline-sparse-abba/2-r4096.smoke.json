@@ -1,0 +1,26 @@
+{
+ "model": "sparse-abba",
+ "url": "http://127.0.0.1:8096",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 128.3-134.8 t/s (cold 132.9), prompt 980 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 38 tok, 0.9 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 10.1 s, prompt 4055 t/s, decode 117.3 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 42.9 s, prompt 3262 t/s, decode 117.6 t/s"
+  }
+ }
+}

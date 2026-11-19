@@ -1,0 +1,26 @@
+{
+ "model": "Halocline-QFN-UD-IQ4_XS",
+ "url": "http://127.0.0.1:9090",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 134.3-139.0 t/s (cold 127.9), prompt 980 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 50 tok, 0.9 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 9.1 s, prompt 4468 t/s, decode 115.6 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 24.8 s, prompt 4867 t/s, decode 119.1 t/s"
+  }
+ }
+}
