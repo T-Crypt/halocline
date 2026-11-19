@@ -620,10 +620,13 @@ void launch_win(const float* q, int n_head, int n_kv, const DecSegs& segs, float
 
 // Shared bytes of the K8V4 decode kernel: R groups of 16 rows' q on padded fp16 rows, the chunk's K and V as fp16, each
 // group's scores, probabilities, running {max, sum, weight} and its rows' ranges, then the chunk's raw bytes.
-template <int HD, int R>
+// Q4 (W22, --kv q4_0): the raw region holds K's rotated q4_0 blocks where K8V4 holds its codes and scales, so a chunk is
+// 9,216 B instead of 13,056 B; the other regions are the same.
+template <int HD, int R, bool Q4 = false>
 __host__ __device__ constexpr size_t dec_k8_smem() {
     constexpr size_t row = (size_t) (HD + 8) * sizeof(__half);
-    constexpr size_t raw = (size_t) CHUNK * (HD + HD / 64 * 2 + HD / kKvQ4Block * (int) sizeof(KvQ4Block));
+    constexpr size_t raw = Q4 ? (size_t) CHUNK * 2 * (HD / kKvQ4Block * (int) sizeof(KvQ4Block))
+                              : (size_t) CHUNK * (HD + HD / 64 * 2 + HD / kKvQ4Block * (int) sizeof(KvQ4Block));
     return (R * 16 * row + 2 * CHUNK * row + R * 16 * (CHUNK + 1) * sizeof(float) +
             R * 16 * (CHUNK + 8) * sizeof(__half) + 3 * R * 16 * sizeof(float) + 2 * R * 16 * sizeof(int64_t) + raw + 15) &
            ~(size_t) 15;
@@ -632,11 +635,28 @@ __host__ __device__ constexpr size_t dec_k8_smem() {
 // One chunk's raw bytes ([from, to) of the chunk whose first cell is c0) from the K8V4 cache into the raw region: K's
 // codes, K's per-64-dim scales, V's q4 blocks, at the offsets the dequant reads them.  Cells the chunk has no use for
 // (outside [from, to), or past every row's last cell) copy nothing and read as zeros.
-template <int HD, int THREADS>
+// Q4: K's blocks are copied with V's loop shape (144 B a cell and KV head is 9 uint4), from q4.k into rawK; rawS is unused.
+template <int HD, int THREADS, bool Q4 = false>
 __device__ __forceinline__ void dec_k8_cp(unsigned char* rawK, unsigned char* rawS, unsigned char* rawV, KvK8V4 k8v4, int kvh,
-                                          int n_kv, const Range& r, int64_t c0, int64_t hi_max, int from, int to, int tid) {
+                                          int n_kv, const Range& r, int64_t c0, int64_t hi_max, int from, int to, int tid,
+                                          KvQ4 q4 = {}) {
     constexpr int kQ4B = HD / kKvQ4Block * (int) sizeof(KvQ4Block);
     const int64_t cell0 = c0 % r.cap;
+    if constexpr (Q4) {
+        (void) rawS;
+        (void) k8v4;
+        for (int u = tid; u < CHUNK * (kQ4B / 16); u += THREADS) {
+            const int cell = u / (kQ4B / 16), b = (u - cell * (kQ4B / 16)) * 16;
+            int64_t ce = cell0 + cell;
+            if (ce >= r.cap) ce -= r.cap;
+            const bool ok = cell >= from && cell < to && c0 + cell < hi_max;
+            cp16(rawK + cell * kQ4B + b, q4.k + (ce * n_kv + kvh) * kQ4B + b, ok);
+            cp16(rawV + cell * kQ4B + b, q4.v + (ce * n_kv + kvh) * kQ4B + b, ok);
+        }
+        return;
+    } else {
+        (void) q4;
+    }
     for (int u = tid; u < CHUNK * (HD / 16); u += THREADS) {
         const int cell = u / (HD / 16), d16 = (u - cell * (HD / 16)) * 16;
         int64_t ce = cell0 + cell;
@@ -661,11 +681,40 @@ __device__ __forceinline__ void dec_k8_cp(unsigned char* rawK, unsigned char* ra
 
 // The staged chunk's cells [from, to) of K and V as fp16 in `ks` / `vs`: code x scale for K, the rotated q4_0 block for
 // V, each rounded to fp16 as dec_load_kv rounds it, and zeros past the rows' last cell (the same four statements).
-template <int HD, int THREADS>
+// Q4: K from its q4_0 block with the block's own scale, the statements of dec_load_kv<HD, true>, so the fp16 tile is the
+// tiled Q4 kernel's.
+template <int HD, int THREADS, bool Q4 = false>
 __device__ __forceinline__ void dec_k8_dequant(__half (*ks)[HD + 8], __half (*vs)[HD + 8], const unsigned char* rawK,
                                                const unsigned char* rawS, const unsigned char* rawV, int64_t c0, int64_t hi_max,
                                                int from, int to, int tid) {
     constexpr int kQ4B = HD / kKvQ4Block * (int) sizeof(KvQ4Block);
+    if constexpr (Q4) {
+        (void) rawS;
+        for (int idx = tid; idx < CHUNK * HD / 8; idx += THREADS) {
+            const int cell = idx / (HD / 8), d8 = (idx - cell * (HD / 8)) * 8;
+            if (cell < from || cell >= to) continue;
+            uint4 kw = make_uint4(0, 0, 0, 0), vw = make_uint4(0, 0, 0, 0);
+            if (c0 + cell < hi_max) {
+                const KvQ4Block* kb = reinterpret_cast<const KvQ4Block*>(rawK + cell * kQ4B) + (d8 >> 5);
+                const KvQ4Block* vb = reinterpret_cast<const KvQ4Block*>(rawV + cell * kQ4B) + (d8 >> 5);
+                const float kd = f32_from_f16(kb->d), vd = f32_from_f16(vb->d);
+                int kq[8], vq[8];
+                kv_q4_codes8(kb->qs, d8, kq);
+                kv_q4_codes8(vb->qs, d8, vq);
+                __half2 kh[4], vh[4];
+#pragma unroll
+                for (int e = 0; e < 4; ++e) {
+                    kh[e] = __floats2half2_rn(kv_q4_dequant(kq[2 * e], kd), kv_q4_dequant(kq[2 * e + 1], kd));
+                    vh[e] = __floats2half2_rn(kv_q4_dequant(vq[2 * e], vd), kv_q4_dequant(vq[2 * e + 1], vd));
+                }
+                kw = *reinterpret_cast<uint4*>(kh);
+                vw = *reinterpret_cast<uint4*>(vh);
+            }
+            *reinterpret_cast<uint4*>(&ks[cell][d8]) = kw;
+            *reinterpret_cast<uint4*>(&vs[cell][d8]) = vw;
+        }
+        return;
+    }
     for (int idx = tid; idx < CHUNK * HD / 8; idx += THREADS) {
         const int cell = idx / (HD / 8), d8 = (idx - cell * (HD / 8)) * 8;
         if (cell < from || cell >= to) continue;
@@ -695,7 +744,7 @@ __device__ __forceinline__ void dec_k8_dequant(__half (*ks)[HD + 8], __half (*vs
 // Block (split b, KV head, segment): every row of the segment's window for this KV head, W warps.  Its chunks b, b + gx,
 // ... of CHUNK cells each are dequantized once for all of the block's groups and folded in order, so a row's sums depend
 // on its own range only and its partials are the ones the merge expects at the same addresses.
-template <int HD, int R, int W>
+template <int HD, int R, int W, bool Q4 = false>
 __global__ void __launch_bounds__(W * 32) decode_k8v4_kernel(const float* q_all, int n_head, int n_kv, const DecSegs segs,
                                                              int n_chunks, float scale, float* part_all) {
     constexpr int LD = HD + 8;          // padded rows (halves): ldmatrix without bank conflicts
@@ -716,12 +765,14 @@ __global__ void __launch_bounds__(W * 32) decode_k8v4_kernel(const float* q_all,
     int64_t* rlo = reinterpret_cast<int64_t*>(ra + NR);
     int64_t* rhi = rlo + NR;
     unsigned char* rawK = reinterpret_cast<unsigned char*>(rhi + NR);
-    unsigned char* rawS = rawK + CHUNK * HD;
-    unsigned char* rawV = rawS + CHUNK * (HD / 64) * 2;
+    // Q4: K's blocks take the codes' place and there are no scales; K8V4: codes, scales, then V's blocks
+    unsigned char* rawS = rawK + (Q4 ? CHUNK * kQ4B : CHUNK * HD);
+    unsigned char* rawV = rawS + (Q4 ? 0 : CHUNK * (HD / 64) * 2);
     // the bytes the host asks for are the ones these regions span (the two are written apart)
-    static_assert(dec_k8_smem<HD, R>() ==
+    static_assert(dec_k8_smem<HD, R, Q4>() ==
                       (NR + 2 * CHUNK) * kRow + NR * (CHUNK + 1) * sizeof(float) + NR * (CHUNK + 8) * sizeof(__half) +
-                          3 * NR * sizeof(float) + 2 * NR * sizeof(int64_t) + (size_t) CHUNK * (HD + HD / 64 * 2 + kQ4B),
+                          3 * NR * sizeof(float) + 2 * NR * sizeof(int64_t) +
+                          (size_t) CHUNK * (Q4 ? 2 * kQ4B : HD + HD / 64 * 2 + kQ4B),
                   "the K8V4 decode kernel's shared bytes cover its regions");
     pdl_launch_dependents();
     const int tid = threadIdx.x, warp = tid >> 5, lane = tid & 31, g = lane >> 2, c = lane & 3;
@@ -729,6 +780,7 @@ __global__ void __launch_bounds__(W * 32) decode_k8v4_kernel(const float* q_all,
     const int sk = (int) blockIdx.z, row0 = segs.row0[sk], T = segs.row0[sk + 1] - row0;
     const Range r = segs.r[sk];
     const KvK8V4 k8v4 = segs.k8v4[sk];
+    const KvQ4 q4 = Q4 ? segs.q4[sk] : KvQ4{};
     const float* q = q_all + (int64_t) row0 * n_head * HD;
     float* part = part_all + (int64_t) row0 * n_head * gx * (HD + 2);
     const int M = T * G;
@@ -750,11 +802,11 @@ __global__ void __launch_bounds__(W * 32) decode_k8v4_kernel(const float* q_all,
     const int pre = (int) max((int64_t) 0, min((int64_t) CHUNK, own - first_c0));
     const bool live = (int) blockIdx.x < n_chunks && first_c0 < hi_max;
     if (live && pre > 0) {
-        dec_k8_cp<HD, W * 32>(rawK, rawS, rawV, k8v4, kvh, n_kv, r, first_c0, hi_max, 0, pre, tid);
+        dec_k8_cp<HD, W * 32, Q4>(rawK, rawS, rawV, k8v4, kvh, n_kv, r, first_c0, hi_max, 0, pre, tid, q4);
         cp_commit();
         cp_wait<0>();
         __syncthreads();   // the earlier cells have landed in every thread's copies
-        dec_k8_dequant<HD, W * 32>(ks, vs, rawK, rawS, rawV, first_c0, hi_max, 0, pre, tid);
+        dec_k8_dequant<HD, W * 32, Q4>(ks, vs, rawK, rawS, rawV, first_c0, hi_max, 0, pre, tid);
         __syncthreads();
     }
     pdl_wait();
@@ -768,7 +820,7 @@ __global__ void __launch_bounds__(W * 32) decode_k8v4_kernel(const float* q_all,
     for (int n = 0; n < NT; ++n) acc[n][0] = acc[n][1] = acc[n][2] = acc[n][3] = 0.0f;
     // the first chunk's own cells go in flight now; every later chunk stages its successor mid-loop, so the copy of one
     // chunk overlaps the dequant and the mma of the one before it
-    if (live) dec_k8_cp<HD, W * 32>(rawK, rawS, rawV, k8v4, kvh, n_kv, r, first_c0, hi_max, pre, CHUNK, tid);
+    if (live) dec_k8_cp<HD, W * 32, Q4>(rawK, rawS, rawV, k8v4, kvh, n_kv, r, first_c0, hi_max, pre, CHUNK, tid, q4);
     cp_commit();
     for (int chunk = blockIdx.x; chunk < n_chunks; chunk += gx) {
         const int64_t c0 = (int64_t) (r.base + chunk) * CHUNK;
@@ -776,12 +828,12 @@ __global__ void __launch_bounds__(W * 32) decode_k8v4_kernel(const float* q_all,
         cp_wait<0>();
         __syncthreads();           // this chunk's raw bytes are in shared, for every thread
         // the first chunk's earlier cells are already in
-        dec_k8_dequant<HD, W * 32>(ks, vs, rawK, rawS, rawV, c0, hi_max,
+        dec_k8_dequant<HD, W * 32, Q4>(ks, vs, rawK, rawS, rawV, c0, hi_max,
                                    chunk == (int) blockIdx.x ? pre : 0, CHUNK, tid);
         __syncthreads();           // the fp16 tile is ready for the mma and the raw region is free
         const int64_t nc0 = (int64_t) (r.base + chunk + gx) * CHUNK;
         if (chunk + gx < n_chunks && nc0 < hi_max)
-            dec_k8_cp<HD, W * 32>(rawK, rawS, rawV, k8v4, kvh, n_kv, r, nc0, hi_max, 0, CHUNK, tid);
+            dec_k8_cp<HD, W * 32, Q4>(rawK, rawS, rawV, k8v4, kvh, n_kv, r, nc0, hi_max, 0, CHUNK, tid, q4);
         cp_commit();
         // S = Q K^T: warp w group w / 4's 8-cell tile w % 4 (a group's four tiles in parallel)
         for (int t = warp; t < R * (CHUNK / 8); t += W) {
@@ -877,21 +929,21 @@ __global__ void __launch_bounds__(W * 32) decode_k8v4_kernel(const float* q_all,
 
 // the K8V4 kernel's launch: one block a (split, KV head, segment), W warps, its shared bytes opted in once per
 // instantiation and device
-template <int HD, int R, int W>
+template <int HD, int R, int W, bool Q4 = false>
 void launch_k8v4(const float* q, int n_head, int n_kv, const DecSegs& segs, float scale, int gx, int n_chunks, float* scratch,
                  cudaStream_t s) {
-    const size_t smem = dec_k8_smem<HD, R>();
+    const size_t smem = dec_k8_smem<HD, R, Q4>();
     static std::atomic<bool> raised[64];   // the shared-memory opt-in is per device
     const int dev = opt_in_device();
     if (!raised[dev].load(std::memory_order_acquire)) {
-        if (cudaFuncSetAttribute(decode_k8v4_kernel<HD, R, W>, cudaFuncAttributeMaxDynamicSharedMemorySize, (int) smem) !=
+        if (cudaFuncSetAttribute(decode_k8v4_kernel<HD, R, W, Q4>, cudaFuncAttributeMaxDynamicSharedMemorySize, (int) smem) !=
             cudaSuccess) {
             halo::log::error("halo", "gqa decode attention: shared-memory opt-in failed");
             std::exit(1);
         }
         raised[dev].store(true, std::memory_order_release);
     }
-    launch_pdl(decode_k8v4_kernel<HD, R, W>, dim3((unsigned) gx, (unsigned) n_kv, (unsigned) segs.n), dim3(W * 32), smem, s, q,
+    launch_pdl(decode_k8v4_kernel<HD, R, W, Q4>, dim3((unsigned) gx, (unsigned) n_kv, (unsigned) segs.n), dim3(W * 32), smem, s, q,
                n_head, n_kv, segs, n_chunks, scale, scratch);
 }
 
@@ -901,7 +953,8 @@ enum class DecPath { kEngine, kTiled, kWindow };
 
 // A launch takes one block a (split, KV head) with every row of the window: the K8V4 kernel for a K8V4 cache with
 // M <= 48 rows, the 16-row-tile launch past that (and for fp16 and int8 caches).  A rotated q4_0 cache (--kv q4_0)
-// takes the Q4 instantiations of the tiled and window kernels; every segment of a launch holds one format.
+// takes the Q4 instantiation of the staged kernel on the engine's path (W22, M <= 48), and of the tiled and window
+// kernels when a parity test or the bench forces those; every segment of a launch holds one format.
 template <int HD>
 void launch_segs(const float* q, int n_head, int n_kv, DecSegs& segs, float* scratch, int n_chunks, float* out, cudaStream_t s,
                  DecPath path, const float* gate_q = nullptr, uint16_t* gated16 = nullptr) {
@@ -920,7 +973,13 @@ void launch_segs(const float* q, int n_head, int n_kv, DecSegs& segs, float* scr
             else launch_k8v4<HD, 3, 12>(q, n_head, n_kv, segs, scale, gx, n_chunks, scratch, s);
         }
     } else if (segs.q4[0].k != nullptr) {
-        if (path == DecPath::kWindow && mmax <= 48) {
+        if (path == DecPath::kEngine && mmax <= 48 && HD == 256) {
+            if constexpr (HD == 256) {
+                if (mmax <= 16) launch_k8v4<HD, 1, 8, true>(q, n_head, n_kv, segs, scale, gx, n_chunks, scratch, s);
+                else if (mmax <= 32) launch_k8v4<HD, 2, 8, true>(q, n_head, n_kv, segs, scale, gx, n_chunks, scratch, s);
+                else launch_k8v4<HD, 3, 12, true>(q, n_head, n_kv, segs, scale, gx, n_chunks, scratch, s);
+            }
+        } else if (path == DecPath::kWindow && mmax <= 48) {
             if (mmax <= 16) launch_win<HD, 1, true>(q, n_head, n_kv, segs, scale, gx, n_chunks, scratch, s);
             else if (mmax <= 32) launch_win<HD, 2, true>(q, n_head, n_kv, segs, scale, gx, n_chunks, scratch, s);
             else launch_win<HD, 3, true>(q, n_head, n_kv, segs, scale, gx, n_chunks, scratch, s);
@@ -2017,9 +2076,9 @@ namespace test {
 void gqa_decode_attn_tiled(const float* q, const uint16_t* k_cache, const uint16_t* v_cache, int n_head, int n_kv,
                           int64_t pos0, int T, float* scratch, int64_t max_cells, float* out, void* stream,
                           const int32_t* pos_dev, KvInt8 q8, const float* gate_q, uint16_t* gated16, KvFar far_kv,
-                          KvK8V4 k8v4, int64_t window, int64_t cap) {
+                          KvK8V4 k8v4, int64_t window, int64_t cap, KvQ4 q4) {
     decode_attn(DecPath::kTiled, q, k_cache, v_cache, n_head, n_kv, pos0, T, scratch, max_cells, out, stream, pos_dev, q8,
-                gate_q, gated16, far_kv, k8v4, {}, window, cap);
+                gate_q, gated16, far_kv, k8v4, q4, window, cap);
 }
 
 void gqa_decode_attn_segs_tiled(const float* q, int n_head, int n_kv, const GqaSeg* segs, int n_seg, float* scratch,
@@ -2030,9 +2089,9 @@ void gqa_decode_attn_segs_tiled(const float* q, int n_head, int n_kv, const GqaS
 void gqa_decode_attn_window(const float* q, const uint16_t* k_cache, const uint16_t* v_cache, int n_head, int n_kv,
                            int64_t pos0, int T, float* scratch, int64_t max_cells, float* out, void* stream,
                            const int32_t* pos_dev, KvInt8 q8, const float* gate_q, uint16_t* gated16, KvFar far_kv,
-                           KvK8V4 k8v4, int64_t window, int64_t cap) {
+                           KvK8V4 k8v4, int64_t window, int64_t cap, KvQ4 q4) {
     decode_attn(DecPath::kWindow, q, k_cache, v_cache, n_head, n_kv, pos0, T, scratch, max_cells, out, stream, pos_dev, q8,
-                gate_q, gated16, far_kv, k8v4, {}, window, cap);
+                gate_q, gated16, far_kv, k8v4, q4, window, cap);
 }
 
 void gqa_decode_attn_segs_window(const float* q, int n_head, int n_kv, const GqaSeg* segs, int n_seg, float* scratch,

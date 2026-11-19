@@ -728,6 +728,29 @@ int main() {
         std::printf("  Q4 decode: max abs %.3g rel %.3g vs double over the widest window; the last row bitwise equal across "
                     "widths: %s\n", eq4.abs, eq4.rel, bitwise4 ? "yes" : "NO");
         report(eq4.abs < 1e-2 && bitwise4, "gqa_decode_attn over a Q4 cache matches the fp64 reference with Q and K rotated");
+        // ---- W22: the engine's Q4 launch (the staged kernel up to 48 rows) against the 16-row-tile Q4 launch, every width:
+        // the staged kernel builds the tiled kernel's fp16 K and V tile with the same statements, so the rows are its rows
+        {
+            bool same = true;
+            for (int T = 1; T <= k::kGqaMaxWindow; ++T) {
+                const int64_t p0 = last4 - T + 1;
+                const float* qw = &d_qr[(size_t) (k::kGqaMaxWindow - T) * NH * HD];
+                std::vector<float> a((size_t) T * NH * HD), b(a.size());
+                k::gqa_decode_attn(qw, nullptr, nullptr, NH, NKV, p0, T, d_scr, max_cells, d_out, nullptr, nullptr,
+                                   k::KvInt8{}, nullptr, nullptr, k::KvFar{}, k::KvK8V4{}, cache4);
+                ck(cudaMemcpy(a.data(), d_out, a.size() * 4, cudaMemcpyDeviceToHost), "q4 engine");
+                k::test::gqa_decode_attn_tiled(qw, nullptr, nullptr, NH, NKV, p0, T, d_scr, max_cells, d_out, nullptr, nullptr,
+                                               k::KvInt8{}, nullptr, nullptr, k::KvFar{}, k::KvK8V4{}, 0, 0, cache4);
+                ck(cudaMemcpy(b.data(), d_out, b.size() * 4, cudaMemcpyDeviceToHost), "q4 tiled");
+                if (std::memcmp(a.data(), b.data(), a.size() * 4) != 0) {
+                    same = false;
+                    std::printf("  Q4 staged vs tiled: T = %d differs\n", T);
+                }
+            }
+            std::printf("  Q4 decode, the engine's launch vs the 16-row tiles at 1-%d rows: bitwise %s\n", k::kGqaMaxWindow,
+                        same ? "yes" : "NO");
+            report(same, "the staged Q4 decode kernel (W22) gives the tiled Q4 kernel's rows bit for bit");
+        }
         // ---- prompt chunks over the Q4 cache, plain and split, rows around every tile and query-block edge
         {
             const int T = 300;
