@@ -117,6 +117,7 @@ public:
     Geometry g;
     Weights w;
     Options o;
+    ScratchPaths paths;          // which optional scratch paths the pack's tensors run (window_bytes, chunk_bytes)
     Arena dec_arena, pre_arena;
     WindowScratch ws;
     ChunkScratch cs;
@@ -197,6 +198,7 @@ struct SessionState {
     float *hid = nullptr, *tail = nullptr, *chain = nullptr;   // chain: [2][n_embd]
     float *dlogits = nullptr, *lp = nullptr;     // the drafter's head row and its picks [kWindow][kLogprobStride]
     int32_t* win_tok = nullptr;                  // the last window's tokens (device)
+    int32_t* dpick = nullptr;                    // one device zero: the row_logprobs pick of a subset head (its value is unused)
     int64_t tail_cell = -1;
     // the block drafter: its context K/V per layer (cyclic, dctx_cap cells), the last window's projected features,
     // its picks and their confidence, and the proposal each pick came from ([kWindow][top_k] candidates and their q)

@@ -3,6 +3,8 @@
 
 #include "halo/kernels/gdn_prompt.hpp"
 #include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/head_rows.hpp"
+#include "halo/kernels/iq_kernels.hpp"
 #include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/kernels/logprobs.hpp"
 #include "halo/kernels/nvfp4_planes.hpp"
@@ -15,6 +17,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <fstream>
 
 namespace halo::dense {
 
@@ -126,25 +129,34 @@ void wgemm_need(const Geometry& g, size_t& partial, size_t& tickets) {
         }
 }
 
-size_t window_bytes(const Geometry& g, const BlockDrafter& bd, int64_t max_context) {
+size_t window_bytes(const Geometry& g, const BlockDrafter& bd, int64_t max_context, bool has_wg) {
     const size_t W = kBatch, H = (size_t) g.n_embd, AQ = (size_t) g.n_head * g.head_dim;
     size_t f = 4 * W * H + W * g.value_width() + W * (2 * AQ + 2 * (size_t) g.n_kv * g.head_dim + 3 * AQ) + 3 * W * g.n_ff;
     if (g.attn_layers() > 0) f += kernels::gqa_decode_scratch_floats(max_context, kWindow, g.n_head);
     f += W * (2 * (size_t) g.conv_channels() + 2 * (size_t) g.gdn_v_heads) + (sizeof(BatchTable) + 3) / 4;
     f += W * 2 * H + kernels::row_logprobs_scratch_floats(kWindow, g.n_vocab) + W * g.value_width() + W * (size_t) g.n_vocab;
     f += block_scratch_floats(g, bd);
-    size_t wp, wt;
-    wgemm_need(g, wp, wt);
-    return f * 4 + 2 * act_slot(g) + q8_slot(g) + (wp + wt + 1) * 4 + W * 4 * 6 + 76 * 256;
+    // the window gemm's activation slots and split-K sums, taken when a product runs on it (F8 or NVFP4 planes, or the
+    // block drafter, whose products load as planes); a pack whose matrices are all GGUF quants runs every product on MMQ
+    size_t wg = 0;
+    if (has_wg || bd.present) {
+        size_t wp, wt;
+        wgemm_need(g, wp, wt);
+        wg = 2 * act_slot(g) + (wp + wt + 1) * 4;
+    }
+    return f * 4 + wg + q8_slot(g) + W * 4 * 6 + 76 * 256;
 }
 
-size_t chunk_bytes(const Geometry& g) {
+size_t chunk_bytes(const Geometry& g, bool has_fp4, Drafter drafter) {
     const size_t T = kChunk, H = (size_t) g.n_embd, AQ = (size_t) g.n_head * g.head_dim, C = (size_t) g.conv_channels();
     const size_t VD = (size_t) g.value_width(), HV = (size_t) g.gdn_v_heads;
     const size_t widest = std::max<size_t>({H, (size_t) g.n_ff, VD, AQ});
-    const size_t keep = 6 * T * H * 4 + H * 4 +
+    // the residual buffers the chunk's drafter takes: x, xn and tmp always; the MTP history adds cat and hn (its T + 1
+    // rows, hence H * 4), the block drafter's feature rows dacc
+    const size_t res = 3 + (drafter == Drafter::Mtp ? 2 : drafter == Drafter::Block ? 1 : 0);
+    const size_t keep = (res * T * H + (drafter == Drafter::Mtp ? H : 0)) * 4 +
                         std::max(prefill::mmq::q8_bytes(T, (int64_t) widest), prefill::fp8::act_bytes(T, (int64_t) widest)) +
-                        prefill::fp4_dense::act_bytes((int64_t) T, (int64_t) widest) + 2 * T * 4 + 5 * 256;
+                        (has_fp4 ? prefill::fp4_dense::act_bytes((int64_t) T, (int64_t) widest) : 0) + 2 * T * 4 + 5 * 256;
     const size_t gdn = g.gdn_layers() ? (2 * T * C + 3 * T * VD + 4 * T * HV) * 4 + kernels::gdn_work_bytes(T) : 0;
     const size_t attn = g.attn_layers() ? T * (2 * AQ + 2 * (size_t) g.n_kv * g.head_dim + 3 * AQ) * 4 +
                                               kernels::gqa_prompt_split_floats((int64_t) T, g.n_head, kAttnSplits) * 4
@@ -307,9 +319,31 @@ int64_t resident_cells(int64_t max_context, int64_t kv_resident) {
     return kv_resident > 0 && kv_resident < max_context ? kv_resident : max_context;
 }
 
-uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident) {
+ScratchPaths scratch_paths(const Weights& w) {
+    ScratchPaths p{false, false};
+    const auto see = [&](const Linear& l) {
+        if (!l.w) return;
+        if (l.type == kTypeF8 || l.type == kTypeNvfp4Planes) p.has_wg = true;
+        if (l.type == kTypeNvfp4Planes) p.has_fp4 = true;
+    };
+    see(w.head);
+    for (const Layer& L : w.layers)
+        for (const Linear* l : {&L.qkv, &L.z, &L.out, &L.q, &L.k, &L.v, &L.o, &L.gate, &L.up, &L.down}) see(*l);
+    if (w.mtp.present) {
+        see(w.mtp.fc);
+        for (const Linear* l : {&w.mtp.layer.q, &w.mtp.layer.k, &w.mtp.layer.v, &w.mtp.layer.o, &w.mtp.layer.gate,
+                                &w.mtp.layer.up, &w.mtp.layer.down})
+            see(*l);
+    }
+    if (w.dflash.present) p.has_wg = p.has_fp4 = true;   // its Q8 matrices load as planes; its k/v chunks read as planes
+    return p;
+}
+
+uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident, ScratchPaths paths,
+                      Drafter drafter) {
     const uint64_t stage = g.attn_layers() > 0 ? (uint64_t) (max_context - resident_cells(max_context, kv_resident)) * kv_cell_bytes(g, kv) : 0;
-    return window_bytes(g, BlockDrafter{}, max_context) + chunk_bytes(g) + stage + (512ull << 20);
+    return window_bytes(g, BlockDrafter{}, max_context, paths.has_wg) + chunk_bytes(g, paths.has_fp4, drafter) + stage +
+           (512ull << 20);
 }
 
 uint64_t session_host_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident) {
@@ -325,16 +359,122 @@ uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, KvF
 }
 
 uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, KvFormat kv, int64_t kv_resident,
-                       KvFormat mtp_format, int64_t mtp_window) {
+                       KvFormat mtp_format, int64_t mtp_window, int64_t draft_rows) {
     uint64_t b = 64 * 256;
     for (int il = 0; il < g.n_layers; ++il) b += session_layer_bytes(g, il, max_context, kv, kv_resident);
     // the drafter's cells: its own layer's format, and with a window only the ring's
     const int64_t cap = mtp ? mtp_ring_cap(max_context, mtp_window) : 0;
+    // the drafter's head row (a --draft-vocab subset is that many rows wide), its picks' rows and the zero pick
+    const uint64_t head_rows = draft_rows > 0 ? (uint64_t) draft_rows : (uint64_t) g.n_vocab;
     const uint64_t drafter =
         mtp ? (uint64_t) (cap > 0 ? cap : max_context) * kv_cell_bytes(g, mtp_format) +
-                  ((uint64_t) (kWindow + 3) * g.n_embd + g.n_vocab + (uint64_t) kWindow * 64) * 4
+                  ((uint64_t) (kWindow + 3) * g.n_embd + head_rows + (uint64_t) kWindow * 64 + 1) * 4
             : 0;
     return b + drafter + (uint64_t) kWindow * g.n_vocab * 4;
+}
+
+uint64_t draft_head_bytes(const Linear& head, int64_t n) {
+    if (n <= 0) return 0;
+    const size_t row = kernels::iq_row_bytes(head.type, head.cols);
+    return row == 0 ? 0 : (uint64_t) n * row;
+}
+
+bool read_draft_vocab(const std::string& path, int64_t n_vocab, std::vector<int32_t>& ids, std::string& err) {
+    ids.clear();
+    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    if (!f) {
+        err = "cannot open " + path;
+        return false;
+    }
+    const std::streamoff size = f.tellg();
+    if (size <= 0 || size % 4 != 0) {
+        err = path + ": " + std::to_string((long long) size) + " bytes is not a list of int32 token ids";
+        return false;
+    }
+    f.seekg(0);
+    std::vector<int32_t> got((size_t) size / 4);
+    if (!f.read(reinterpret_cast<char*>(got.data()), size)) {
+        err = path + ": short read";
+        return false;
+    }
+    if (got.size() > (size_t) n_vocab) {
+        err = path + ": " + std::to_string((long long) got.size()) + " ids for a vocabulary of " + std::to_string((long long) n_vocab);
+        return false;
+    }
+    for (size_t i = 0; i < got.size(); ++i) {
+        const int32_t id = got[i];
+        if (id < 0 || id >= n_vocab) {
+            err = path + ": id " + std::to_string((long long) id) + " at row " + std::to_string((long long) i) +
+                  " is outside [0, " + std::to_string((long long) n_vocab) + ")";
+            return false;
+        }
+        if (i > 0 && id <= got[i - 1]) {
+            err = path + ": row " + std::to_string((long long) i) + " (id " + std::to_string((long long) id) +
+                  ") does not follow id " + std::to_string((long long) got[i - 1]) + ": the list must be strictly ascending";
+            return false;
+        }
+    }
+    ids = std::move(got);
+    return true;
+}
+
+bool gather_draft_head(const Linear& head, const std::vector<int32_t>& ids, void* stream, Linear& out, const int32_t*& map,
+                       std::string& err) {
+    out = Linear{};
+    map = nullptr;
+    if (ids.empty()) {
+        err = "the draft vocabulary names no tokens";
+        return false;
+    }
+    if (head.w == nullptr || head.rows <= 0 || head.cols <= 0) {
+        err = "the pack has no head to gather the draft vocabulary from";
+        return false;
+    }
+    if (head.scale != nullptr || head.row_scales != nullptr) {
+        err = "the head carries a tensor scale, so its rows are not whole blocks a gather can copy";
+        return false;
+    }
+    if (!kernels::native_mmvq_supported(head.type)) {
+        err = "the head is GGUF type " + std::to_string(head.type) +
+              ", which the drafter's one-row product does not read natively";
+        return false;
+    }
+    const size_t row = kernels::iq_row_bytes(head.type, head.cols);
+    if (row == 0) {
+        err = "the head's rows are not whole blocks of its type";
+        return false;
+    }
+    const uint64_t bytes = (uint64_t) row * ids.size();
+    uint8_t* rows = nullptr;
+    int32_t* m = nullptr;
+    if (cudaMalloc((void**) &rows, bytes) != cudaSuccess) {
+        cudaGetLastError();
+        err = "out of device memory for the draft head (" + std::to_string((unsigned long long) (bytes >> 20)) + " MiB)";
+        return false;
+    }
+    if (cudaMalloc((void**) &m, ids.size() * sizeof(int32_t)) != cudaSuccess) {
+        cudaGetLastError();
+        cudaFree(rows);
+        err = "out of device memory for the draft vocabulary's id map";
+        return false;
+    }
+    const bool copied = cudaMemcpyAsync(m, ids.data(), ids.size() * sizeof(int32_t), cudaMemcpyHostToDevice,
+                                        (cudaStream_t) stream) == cudaSuccess;
+    if (!copied) {
+        cudaGetLastError();
+        cudaFree(rows);
+        cudaFree(m);
+        err = "the draft vocabulary's id map upload failed";
+        return false;
+    }
+    kernels::gather_rows((const uint8_t*) head.w, (int64_t) row, m, (int64_t) ids.size(), rows, stream);
+    out = head;
+    out.w = rows;
+    out.rows = (int64_t) ids.size();
+    out.scale = nullptr;
+    out.row_scales = nullptr;
+    map = m;
+    return true;
 }
 
 uint64_t block_session_bytes(const Geometry& g, const BlockDrafter& bd) {
@@ -391,6 +531,7 @@ bool Model::ready_products(std::string& err) {
     for (const Layer& L : w.layers) all.push_back(&L);
     if (o.drafter == Drafter::Mtp) all.push_back(&w.mtp.layer);
     std::vector<const Linear*> ls = {&w.head};
+    if (w.draft_head.rows > 0) ls.push_back(&w.draft_head);   // --draft-vocab: its rows' products are registered too
     if (o.drafter == Drafter::Mtp) ls.push_back(&w.mtp.fc);
     if (o.drafter == Drafter::Block) {
         for (const Linear& l : w.dflash.fc) ls.push_back(&l);
@@ -414,7 +555,7 @@ bool Model::ready_products(std::string& err) {
 bool Model::ensure_chunk(std::string& err) {
     if (chunk_ready) return true;
     const Geometry& gg = g;
-    if (!pre_arena.reserve(chunk_bytes(gg))) {
+    if (!pre_arena.reserve(chunk_bytes(gg, paths.has_fp4, o.drafter))) {
         err = o.arch + ": out of device memory for the prompt workspaces";
         return false;
     }
@@ -435,9 +576,13 @@ bool Model::ensure_chunk(std::string& err) {
         b.hn = pre_arena.take<float>((T + 1) * H);
     }
     if (o.drafter == Drafter::Block) b.dacc = pre_arena.take<float>(T * H);
-    // the FP4 activations (fp4_dense) of the widest product input and their token scales
-    b.a4 = pre_arena.take_bytes(prefill::fp4_dense::act_bytes((int64_t) T, (int64_t) widest));
-    b.gs = pre_arena.take<float>(T);
+    // the FP4 activations (fp4_dense) of the widest product input and their token scales: taken when a product runs as
+    // NVFP4 planes, which the chunks read through them; hmax stays for every pack (the gated rows' largest |value| is
+    // written each attention chunk)
+    if (paths.has_fp4) {
+        b.a4 = pre_arena.take_bytes(prefill::fp4_dense::act_bytes((int64_t) T, (int64_t) widest));
+        b.gs = pre_arena.take<float>(T);
+    }
     b.hmax = pre_arena.take<float>(T);
     const size_t phase = pre_arena.mark();
     if (gg.gdn_layers()) {
@@ -483,6 +628,7 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
     m->g = g;
     m->w = w;
     m->o = o;
+    m->paths = scratch_paths(w);
     if (const std::string e = g.check(); !e.empty()) {
         err = o.arch + ": " + e;
         return nullptr;
@@ -517,7 +663,8 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
         err = o.arch + ": " + (o.kv == KvFormat::Q4 ? "q4_0" : "k8v4") + " has no streamed form (--kv-resident)";
         return nullptr;
     }
-    if (!m->dec_arena.reserve(window_bytes(g, o.drafter == Drafter::Block ? w.dflash : BlockDrafter{}, o.max_context))) {
+    if (!m->dec_arena.reserve(window_bytes(g, o.drafter == Drafter::Block ? w.dflash : BlockDrafter{}, o.max_context,
+                                          m->paths.has_wg))) {
         err = o.arch + ": out of device memory for the decode scratch";
         return nullptr;
     }
@@ -528,12 +675,14 @@ ModelPtr make_model(const Geometry& g, const Weights& w, const Options& o, std::
     b.xn = a.take<float>(W * H);
     b.tmp = a.take<float>(W * H);
     b.dacc = a.take<float>(W * H);
-    b.xq = a.take_bytes(act_slot(g));
-    b.hq = a.take_bytes(act_slot(g));
+    if (m->paths.has_wg || o.drafter == Drafter::Block) {
+        b.xq = a.take_bytes(act_slot(g));
+        b.hq = a.take_bytes(act_slot(g));
+        wgemm_need(g, b.w8.partial_floats, b.w8.tickets_n);
+        b.w8.partial = a.take<float>(std::max<size_t>(b.w8.partial_floats, 1));
+        b.w8.tickets = a.take<int32_t>(std::max<size_t>(b.w8.tickets_n, 1));   // zero: the arena is cleared below
+    }
     b.x8 = a.take_bytes(q8_slot(g));
-    wgemm_need(g, b.w8.partial_floats, b.w8.tickets_n);
-    b.w8.partial = a.take<float>(std::max<size_t>(b.w8.partial_floats, 1));
-    b.w8.tickets = a.take<int32_t>(std::max<size_t>(b.w8.tickets_n, 1));   // zero: the arena is cleared below
     b.z = a.take<float>(W * g.value_width());
     b.qfull = a.take<float>(W * 2 * AQ);
     b.k = a.take<float>(W * KV);

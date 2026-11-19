@@ -105,6 +105,11 @@ struct Weights {
     Linear head;
     Mtp mtp;
     BlockDrafter dflash;
+    /// --draft-vocab: the head's rows for the draft vocabulary, gathered as stored (0 rows: the drafter scores the full
+    /// head).  Its rows are a permutation of `head`'s and each is `head`'s row for `draft_map[row]`, byte for byte, so
+    /// its logits at those ids are the full head's.  Opt-in: empty without the flag, and the drafter runs as before.
+    Linear draft_head;
+    const int32_t* draft_map = nullptr;  ///< [draft_head.rows] device ids: a draft head row's token id in the vocabulary
 };
 
 /// Which drafter a model's sessions run.
@@ -163,6 +168,11 @@ struct Options {
     /// --mtp-window: cells of context the drafter's attention reads (0: every cell, the default). Above 0 the drafter's
     /// cells are kept in a ring of mtp_ring_cells(N), so the cache costs those cells rather than the context's.
     int64_t mtp_window = 0;
+    /// --draft-vocab: the file the load reads the drafter's token subset from (empty: the drafter scores the full head).
+    std::string draft_vocab;
+    /// The rows that file names, once the load has read it: the drafter's logits row and its head are this wide, and the
+    /// planner counts them (0: the full vocabulary).
+    int64_t draft_vocab_rows = 0;
     uint64_t host_embedding_bytes = 0;  ///< the token embedding the adapter keeps in page-locked RAM (a row lookup per token)
     uint64_t gpu_weight_bytes = 0;      ///< the weights the adapter put on the main card (its "GiB on the GPU" load figure, no KV cache)
     bool vision = false;                ///< requests may carry images
@@ -197,6 +207,15 @@ inline std::string mtp_option_error(bool mtp_kv_given, const std::string& mtp_kv
     return {};
 }
 
+/// Why --draft-vocab cannot run with these flags and the drafter the load picked (empty: it can).  The block drafter
+/// already scores the vocabulary's first kDraftVocab rows; this flag is the MTP drafter's.
+inline std::string draft_vocab_option_error(bool given, Drafter drafter) {
+    if (!given) return {};
+    if (drafter != Drafter::Mtp)
+        return "--draft-vocab needs the pack's MTP drafter (--spec 2..16)";
+    return {};
+}
+
 class Model;
 void destroy(Model* m);
 struct ModelDeleter {
@@ -215,14 +234,38 @@ int64_t resident_cells(int64_t max_context, int64_t kv_resident);
 /// a format stores beside the codes. The planner and the cache carve both read this one number.
 uint64_t kv_cell_bytes(const Geometry& g, KvFormat fmt);
 /// Device bytes one session takes: its KV cells on the card, recurrent states and window rows, the logits and the drafter's state.
+/// `draft_rows`: the rows of the drafter's head (0 or the vocabulary's size: the drafter's logits row is that wide).
 uint64_t session_bytes(const Geometry& g, int64_t max_context, bool mtp, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0,
-                       KvFormat mtp_format = KvFormat::Fp16, int64_t mtp_window = 0);
+                       KvFormat mtp_format = KvFormat::Fp16, int64_t mtp_window = 0, int64_t draft_rows = 0);
+/// The token ids a --draft-vocab file names: little-endian int32, strictly ascending, each in [0, n_vocab).  Strict
+/// ascending order makes a duplicate or a file of another shape a named error instead of a silently wrong row map.
+bool read_draft_vocab(const std::string& path, int64_t n_vocab, std::vector<int32_t>& ids, std::string& err);
+/// Device bytes a draft head over `n` rows of `head` takes (the rows alone; the id map is n * 4 more).
+uint64_t draft_head_bytes(const Linear& head, int64_t n);
+/// `head`'s rows `ids` gathered into a new device buffer as stored, and `ids` uploaded as the row map (`map`).  The
+/// type must be a GGUF quant the drafter's one-row product reads natively (native_mmvq_supported), and the head must
+/// carry no tensor scale: the rows are whole blocks, so a gather is bit-exact.  Both allocations are the caller's.
+bool gather_draft_head(const Linear& head, const std::vector<int32_t>& ids, void* stream, Linear& out, const int32_t*& map,
+                       std::string& err);
 /// Device bytes one session's cells and recurrent state take in layer `il`.
 uint64_t session_layer_bytes(const Geometry& g, int il, int64_t max_context, KvFormat kv, int64_t kv_resident);
 /// Page-locked host bytes one session's streamed K/V takes (0 without streaming).
 uint64_t session_host_bytes(const Geometry& g, int64_t max_context, KvFormat kv, int64_t kv_resident);
-/// Device bytes the model's shared scratch takes (with streaming, the VRAM copy a prompt chunk reads one layer's far cells from).
-uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0);
+/// The optional scratch paths a pack's weights run: has_wg when a product runs on the window gemm (F8 E4M3 or NVFP4
+/// planes; the block drafter's Q8 matrices load as planes, so the load counts it), has_fp4 when a product the prompt
+/// chunks read is NVFP4 planes.  A pack whose matrices are all GGUF quants (the UD packs) runs neither, and the scratch
+/// those paths would take is neither planned nor allocated.  The defaults keep a caller without the weights at the old
+/// superset size.
+struct ScratchPaths {
+    bool has_wg = true;
+    bool has_fp4 = true;
+};
+/// Which of those paths a pack's weights run, from its tensors' types.
+ScratchPaths scratch_paths(const Weights& w);
+/// Device bytes the model's shared scratch takes (with streaming, the VRAM copy a prompt chunk reads one layer's far
+/// cells from).  `paths` trims the scratch to the pack's tensor types; `drafter` sizes the chunk's residual buffers.
+uint64_t shared_bytes(const Geometry& g, int64_t max_context, KvFormat kv = KvFormat::Fp16, int64_t kv_resident = 0,
+                      ScratchPaths paths = {}, Drafter drafter = Drafter::Mtp);
 /// Device bytes a session's block drafter keeps (its context ring and its window rows); 0 without one.
 uint64_t block_session_bytes(const Geometry& g, const BlockDrafter& bd);
 

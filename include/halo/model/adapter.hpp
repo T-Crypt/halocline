@@ -99,6 +99,7 @@ struct LoadRequest {
     int64_t kv_resident = 0;          ///< --kv-resident: K/V cells per attention layer kept in VRAM (0: all)
     std::string mtp_kv;               ///< --mtp-kv: the dense drafter's own K/V ("fp16" or "int8"; empty: the model's default)
     int64_t mtp_window = 0;           ///< --mtp-window: cells of context the dense drafter reads (0: every cell)
+    std::string draft_vocab;          ///< --draft-vocab: the MTP drafter's token subset (empty: the full head)
 };
 
 struct DecodeRequest {

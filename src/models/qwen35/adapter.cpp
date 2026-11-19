@@ -85,7 +85,7 @@ bool kv_format(const std::string& kv, dense::KvFormat& out) {
 
 // The dense stack's options for a run of these flags (the drafter the pack carries, when drafting).
 dense::Options run_options(const GgufFile& gg, int64_t max_context, int sessions, int spec, bool draft, bool vision, const std::string& kv,
-                           int64_t kv_resident, const std::string& mtp_kv, int64_t mtp_window) {
+                           int64_t kv_resident, const std::string& mtp_kv, int64_t mtp_window, const std::string& draft_vocab) {
     const auto has = [&](const char* name) {
         for (const TensorInfo& t : gg.tensors())
             if (t.name == name) return true;
@@ -104,6 +104,7 @@ dense::Options run_options(const GgufFile& gg, int64_t max_context, int sessions
     o.mtp_format = dense::KvFormat::Fp16;
     dense::mtp_kv_format(mtp_kv, o.mtp_format);   // an unknown value was refused with finish_flags; it keeps fp16
     o.mtp_window = mtp ? mtp_window : 0;
+    o.draft_vocab = draft_vocab;   // the load refuses it without the MTP drafter, so a dropped flag cannot pass as a run
     o.arch = "qwen35";
     return o;
 }
@@ -113,6 +114,8 @@ public:
     ~Loaded() override {
         model_.reset();
         for (auto& [dev, b] : blocks_) cudaFree(b.base);
+        if (draft_rows_) cudaFree(draft_rows_);
+        if (draft_map_) cudaFree(draft_map_);
         if (embd_) cudaFreeHost(embd_);
         if (fd_ >= 0) platform::close_fd(fd_);
     }
@@ -154,7 +157,7 @@ public:
         }
         for (const TensorInfo& t : gg.tensors()) tensors_[t.name] = t;
         dense::Options o = run_options(gg, req.max_context, req.sessions, req.spec, req.draft, req.vision, req.kv, req.kv_resident,
-                                       req.mtp_kv, req.mtp_window);
+                                       req.mtp_kv, req.mtp_window, req.draft_vocab);
         const bool want_block = o.drafter == dense::Drafter::Block, want_mtp = o.drafter == dense::Drafter::Mtp;
         dense::BlockDrafter bd_meta;
         if (want_block && !block_meta(gg, bd_meta, g.n_embd, err)) return false;
@@ -203,6 +206,34 @@ public:
         w.embd_row_bytes = kernels::iq_row_bytes(te_type, H);
         w.out_norm = floats(gg, "output_norm.weight", H, err);
         if (!w.out_norm || !linear(gg, "output", g.n_vocab, H, w.head, err)) return false;
+        // --draft-vocab: the drafter's head over the tokens the file ranks, its rows gathered from the head as stored.
+        // Opt-in: without the flag the drafter scores the full head exactly as before.
+        if (!o.draft_vocab.empty()) {
+            if (o.drafter != dense::Drafter::Mtp) {
+                err = "qwen35: --draft-vocab needs the pack's MTP drafter (--spec 2..16)";
+                return false;
+            }
+            std::vector<int32_t> ids;
+            if (!dense::read_draft_vocab(o.draft_vocab, g.n_vocab, ids, err)) {
+                err = "qwen35: " + err;
+                return false;
+            }
+            const uint64_t rows = dense::draft_head_bytes(w.head, (int64_t) ids.size());
+            if (!dense::gather_draft_head(w.head, ids, nullptr, w.draft_head, w.draft_map, err)) {
+                err = "qwen35: " + err;
+                return false;
+            }
+            if (cudaDeviceSynchronize() != cudaSuccess) {
+                err = std::string("qwen35: gathering the draft head failed: ") + cudaGetErrorString(cudaGetLastError());
+                return false;
+            }
+            draft_rows_ = const_cast<void*>(w.draft_head.w);
+            draft_map_ = const_cast<int32_t*>(w.draft_map);
+            o.draft_vocab_rows = (int64_t) ids.size();
+            dev_bytes_ += rows + (uint64_t) ids.size() * sizeof(int32_t);
+            halo::log::info("halo qwen35", "draft head: %zu of %d tokens, rows gathered as stored (%.1f MiB)",
+                              ids.size(), g.n_vocab, (double) (rows + (uint64_t) ids.size() * sizeof(int32_t)) / 1048576.0);
+        }
         const int AQ = g.n_head * g.head_dim, KV = g.n_kv * g.head_dim;
         for (int il = 0; il < g.n_layers; ++il) {
             dense::Layer L;
@@ -246,9 +277,11 @@ public:
             core::model_sources(file, srcs);
             o.mmproj = srcs.vision;
         }
-        const uint64_t need_b = dense::shared_bytes(g, o.max_context, o.kv, o.kv_resident) +
+        const uint64_t need_b = dense::shared_bytes(g, o.max_context, o.kv, o.kv_resident, dense::scratch_paths(w),
+                                                    o.drafter) +
                                 (uint64_t) o.sessions * dense::session_bytes(g, o.max_context, o.drafter == dense::Drafter::Mtp, o.kv,
-                                                                             o.kv_resident, o.mtp_format, o.mtp_window);
+                                                                             o.kv_resident, o.mtp_format, o.mtp_window,
+                                                                             o.draft_vocab_rows);
         if (const uint64_t host_b = dense::session_host_bytes(g, o.max_context, o.kv, o.kv_resident))
             halo::log::info("halo qwen35", "K/V streaming: %lld of %lld cells per attention layer in VRAM, %.2f GiB in page-locked "
                               "RAM per slot", (long long) dense::resident_cells(o.max_context, o.kv_resident), (long long) o.max_context,
@@ -551,6 +584,8 @@ private:
     size_t n_tensors_ = 0;
     uint64_t dev_bytes_ = 0;
     void* embd_ = nullptr;
+    void* draft_rows_ = nullptr;     // --draft-vocab: the gathered draft head, and its row -> token id map
+    int32_t* draft_map_ = nullptr;
     int fd_ = -1;
     std::vector<uint8_t> staging_;
     core::LoadProgress* progress_ = nullptr;
@@ -584,6 +619,7 @@ public:
         else if (a == "--mtp-kv") o.mtp_kv = args.next("--mtp-kv");
         else if (a == "--mtp-window") o.mtp_window = std::atoll(args.next("--mtp-window"));
         else if (a == "--long-context") o.long_context = true;
+        else if (a == "--draft-vocab") o.draft_vocab = args.next("--draft-vocab");
         else if (a == "--suffix-draft") o.suffix_draft = std::max(0, std::atoi(args.next("--suffix-draft")));
         else if (a == "--draft-log") halo::core::diagnostics().draft_log = args.next("--draft-log");
         else if (a == "--profile") halo::core::diagnostics().profile = true;
@@ -650,6 +686,10 @@ public:
                             kind != dense::Drafter::None ? (" --mtp-window " + std::to_string((long long) o.mtp_window)).c_str() : "");
         }
         if (const std::string why = dense::mtp_option_error(!o.mtp_kv.empty(), o.mtp_kv, o.mtp_window, kind); !why.empty()) {
+            halo::log::error("halo qwen35", "%s", why.c_str());
+            return 2;
+        }
+        if (const std::string why = dense::draft_vocab_option_error(!o.draft_vocab.empty(), kind); !why.empty()) {
             halo::log::error("halo qwen35", "%s", why.c_str());
             return 2;
         }

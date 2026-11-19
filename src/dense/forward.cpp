@@ -5,6 +5,7 @@
 
 #include "halo/kernels/gdn_prompt.hpp"
 #include "halo/kernels/gqa_attn.hpp"
+#include "halo/kernels/head_rows.hpp"
 #include "halo/kernels/iq_kernels.hpp"
 #include "halo/kernels/kv_q4_layout.hpp"
 #include "halo/kernels/logprobs.hpp"
@@ -1273,12 +1274,19 @@ bool mtp_window(Model& m, SessionState& st, const float* hid, const int32_t* tok
     win_attn(m, d.layer, st.mtp_kc, st.mtp_vc, n, c0, s, stages, st.mtp_kq, {}, {}, {}, st.mtp_cap, m.o.mtp_window);
     if (out) {
         win_ffn(m, d.layer, n, s, stages);
-        // the head's rows (scaled), of which the last is read
-        prod(m, m.w.head, wnorm(m, b.x, d.norm, b.xn, m.w.head.type, H, n, g.eps, s), b.hl, n, s);
+        // the head's rows (scaled), of which the last is read.  --draft-vocab: the draft head (a token subset, gathered
+        // as stored) stands in for the full head; its row for the argmax then maps back to the vocabulary's token id.
+        // Only the drafts change: the verify pass scores the full head, so the output distribution does not.
+        const bool subset = m.w.draft_head.rows > 0;
+        const Linear& head = subset ? m.w.draft_head : m.w.head;
+        const int64_t nv = head.rows;
+        prod(m, head, wnorm(m, b.x, d.norm, b.xn, head.type, H, n, g.eps, s), b.hl, n, s);
         cudaMemcpyAsync(out, b.xn, (size_t) n * H * sizeof(float), cudaMemcpyDeviceToDevice, s);
-        cudaMemcpyAsync(st.dlogits, b.hl + (size_t) (n - 1) * g.n_vocab, (size_t) g.n_vocab * sizeof(float),
+        cudaMemcpyAsync(st.dlogits, b.hl + (size_t) (n - 1) * nv, (size_t) nv * sizeof(float),
                         cudaMemcpyDeviceToDevice, s);
-        kernels::row_logprobs(st.dlogits, 1, g.n_vocab, tok + n - 1, 1, lp_row, b.lp_scratch, s);
+        // a subset head's pick is its row index: the zero stands in (out[0] and out[1] are not read for a draft)
+        kernels::row_logprobs(st.dlogits, 1, (int) nv, subset ? st.dpick : tok + n - 1, 1, lp_row, b.lp_scratch, s);
+        if (subset) kernels::map_ids(reinterpret_cast<int32_t*>(lp_row + 2), m.w.draft_map, 1, s);
     }
     return cuda_ok("drafter", err);
 }
