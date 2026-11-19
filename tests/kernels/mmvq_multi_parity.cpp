@@ -38,6 +38,7 @@
 // MMVQ_MMA=1 in the environment the sweeps above take it for their IQ4_XS case as well.
 //
 //     build/mmvq_multi_parity [--bench]      --bench: the dp4a and tensor-core kernels timed at the model's shapes
+//     build/mmvq_multi_parity --bench-types  every dense quant at the FFN shapes, T 1-6 (no parity run)
 #include "halo/kernels/iq_kernels.hpp"
 #include "halo/kernels/native_mmvq.hpp"
 
@@ -75,6 +76,15 @@ const Case CASES[] = {
     {"Q6_K short", 14, 1280, 8187, 256, 210, {208, -1}},   // rows of 5 blocks, enough of them for the staged kernel
     {"IQ4_XS", 23, 4096, 512, 256, 136, {0, -1}},     // IQ4XSBlock: half d; n_in 4096, see THE NEGATIVE CONTROL
     {"Q5_K wide", 13, 4096, 2048, 256, 176, {0, 2}},
+    // ffn-down's shape (17,408 in): the long-row layouts with 2 rows a block at T4 and 4 at T5, and a row tail past
+    // the last full group of four rows
+    {"Q4_K long", 12, 17408, 1280, 256, 144, {0, 2}},
+    {"Q5_K long", 13, 17408, 1280, 256, 176, {0, 2}},
+    {"Q5_K long tail", 13, 17408, 1027, 256, 176, {0, 2}},
+    {"Q6_K long", 14, 17408, 1280, 256, 210, {208, -1}},
+    {"IQ4_XS long", 23, 17408, 1280, 256, 136, {0, -1}},
+    {"IQ4_NL long", 20, 17408, 1280, 32, 18, {0, -1}},
+    {"Q8_0 long", 8, 17408, 1280, 32, 34, {0, -1}},
 };
 
 // a normal fp16 in +-[2^-10, 2^-5): exponent field 5..9 (bias 15), any mantissa, either sign
@@ -523,13 +533,66 @@ void bench_q80(cudaStream_t s) {
     cudaEventDestroy(e1);
 }
 
+// ---- every quant an Unsloth Dynamic dense layer carries, at the FFN's two shapes, T 1-6: us per call and weight GB/s
+// (weights cycled past L2), to find which type's multi-column path slows where (ffn-down's T4/T5 step, 2026-11-19)
+void bench_types(cudaStream_t s) {
+    namespace k = halo::kernels;
+    struct TypeCase { const char* name; int type; };
+    const TypeCase types[] = {{"Q4_K", 12}, {"Q5_K", 13}, {"Q6_K", 14}, {"IQ4_XS", 23}, {"IQ4_NL", 20}, {"Q8_0", 8}};
+    const Q80Geom shapes[] = {{17408, 5120}, {5120, 17408}};
+    std::printf("\n=== --bench-types: us per call (GB/s of weights), weights cycled past L2 ===\n");
+    cudaEvent_t e0, e1;
+    cudaEventCreate(&e0);
+    cudaEventCreate(&e1);
+    for (const Q80Geom& g : shapes) {
+        for (const TypeCase& t : types) {
+            const std::size_t wbytes = k::native_mmvq_weight_bytes(t.type, g.n_in, g.n_out);
+            const std::size_t stride = (wbytes + 255) / 256 * 256;
+            const int copies = std::max<int>(2, (int) ((320u << 20) / stride));
+            uint8_t* dw = nullptr;
+            uint8_t* dq = nullptr;
+            float *dx = nullptr, *dy = nullptr;
+            if (!ck(cudaMalloc(&dw, stride * copies), "malloc") || !ck(cudaMalloc(&dq, k::native_q8_1_bytes(g.n_in, 8)), "malloc") ||
+                !ck(cudaMalloc(&dx, (std::size_t) g.n_in * 8 * 4), "malloc") || !ck(cudaMalloc(&dy, (std::size_t) g.n_out * 8 * 4), "malloc"))
+                return;
+            cudaMemset(dw, 0x11, stride * copies);
+            cudaMemset(dx, 0, (std::size_t) g.n_in * 8 * 4);
+            k::quantize_q8_1_rows(dx, 8, g.n_in, dq, s);
+            std::printf("%5d -> %5d %-7s", g.n_in, g.n_out, t.name);
+            for (int T = 1; T <= 6; ++T) {
+                for (int r = 0; r < copies; ++r) k::native_mmvq(t.type, dw + stride * r, dq, dy, g.n_in, g.n_out, T, s);
+                const int N = copies * 4;
+                cudaEventRecord(e0, s);
+                for (int r = 0; r < N; ++r) k::native_mmvq(t.type, dw + stride * (r % copies), dq, dy, g.n_in, g.n_out, T, s);
+                cudaEventRecord(e1, s);
+                cudaEventSynchronize(e1);
+                float ms = 0;
+                cudaEventElapsedTime(&ms, e0, e1);
+                const double us = 1000.0 * ms / N;
+                std::printf("  T%d %7.1f (%4.0f)", T, us, wbytes / us / 1e3);
+            }
+            std::printf("\n");
+            cudaFree(dw); cudaFree(dq); cudaFree(dx); cudaFree(dy);
+        }
+    }
+    cudaEventDestroy(e0);
+    cudaEventDestroy(e1);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
-    bool do_bench = false;
-    for (int i = 1; i < argc; ++i) do_bench |= std::string(argv[i]) == "--bench";
+    bool do_bench = false, do_types = false;
+    for (int i = 1; i < argc; ++i) {
+        do_bench |= std::string(argv[i]) == "--bench";
+        do_types |= std::string(argv[i]) == "--bench-types";
+    }
     cudaStream_t s;
     if (!ck(cudaStreamCreate(&s), "stream create")) return 1;
+    if (do_types) {
+        bench_types(s);
+        return 0;
+    }
 
     Totals on, off;
     const int bad = sweep(true, s, on);
