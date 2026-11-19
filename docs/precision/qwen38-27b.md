@@ -23,16 +23,15 @@ comparable for the same model and tokenizer.
 KLD, top-1 agreement, PPL, and a paired per-chunk difference with a 95% interval. The method is in
 [quality.md](quality.md).
 
-Both Unsloth quants will be scored (UD-IQ4_XS and UD-Q4_K_XL), each with the KV format that fits at 262,144 tokens:
+Both Unsloth quants were scored on the same 100-chunk gate with int8 KV. UD-Q4_K_XL scores 0.00582 mean KLD and 96.67%
+top-1; UD-IQ4_XS scores 0.01618 and 94.31%
+([`halocline-dense-quality`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-dense-quality/)).
+UD-Q4_K_XL is 2.8 times closer to BF16 and is the dense baseline, as BUILD_SPEC §11.6 fixes it.
 
-| Config | Weights on card | KV at 262K | Headroom |
-|---|---|---|---|
-| UD-IQ4_XS + int8 KV | about 12 GiB | 8.25 GiB | tight |
-| UD-IQ4_XS + k8v4 KV | about 12 GiB | 6.2 GiB | more |
-| UD-Q4_K_XL + k8v4 KV | about 14.3 GiB | 6.2 GiB | tight |
-
-The choice is whole-system KLD at depth first, speed second, as BUILD_SPEC §11.6 fixes it. Weight error and KV error
-trade off, so neither is picked in advance.
+The dense path serves two profiles. The default is `--long-context`: rotated 4-bit K and V at 262,144 tokens with the
+drafter's int8 ring over 32,768 cells. That fits UD-Q4_K_XL on a 24 GB card with 53 MiB to spare, and it needs
+`--vision cpu` because the encoder does not fit too. The lower-KLD lever is K8V4 at 175,616 tokens: +0.00072 over int8
+at 65,536, so 0.00112 closer to BF16 than rotated 4-bit at the same depth.
 
 ## What has run (2026-11-17)
 
@@ -41,8 +40,10 @@ trade off, so neither is picked in advance.
   the same GGUF (0.00573 with f16 KV). UD-IQ4_XS scores 0.0162, 2.8 times worse, so UD-Q4_K_XL is the dense baseline.
 - K8V4 KV against int8 on UD-Q4_K_XL ([`evals/2026-11-17/halocline-d8-kv`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-kv/)):
   below.
-- Not yet: KLD at depth (the BF16 depth bases exist; the runs are `evals/2026-11-17/halocline-d8-depth`, pending), a
-  quality score for NInfer on this base, and the task suite.
+- Since then: KLD at depth from 65,536 to 174,080 (the section below), NInfer's quality at depth
+  ([`halocline-d8-depth`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-depth/) and
+  [`ninfer-depth-ppl`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-18/ninfer-depth-ppl/)), and the S1
+  and W22 decode kernels. The task suite has not run.
 - The speed floor to beat: NInfer-Qwen3.8-27B on the same card measured 112.4 to 118.3 tok/s warm decode,
   118.3 decode and 3,215 prompt at 36K, 93.0 decode and 2,155 prompt at 137K
   ([`evals/2026-11-16/halocline-p0-floors`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-16/halocline-p0-floors/)).
@@ -56,7 +57,11 @@ The dense path's goal is lower KLD and better output than NInfer and llama.cpp o
 - speed is ABBA in one session, one engine on the card, power limit recorded;
 - KLD near the baseline does not rank models, so the task suite in `docs/roadmap.md` runs beside it.
 
-D2 to D4 have landed; the NInfer quality arm (D7) has not run, so the comparison table is not filled yet.
+D2 to D4 have landed. The NInfer quality arm (D7) ran on 2026-11-18: on target-token dNLL against the same BF16 bases,
+Halocline K8V4 sits at +0.00176 at 65,536 and +0.00196 at 140,288, against NInfer's +0.01989 and +0.02013, about 10
+times farther from BF16 ([`ninfer-depth-ppl`](../../evals/2026-11-18/ninfer-depth-ppl/)). NInfer exposes no logits, so
+KLD is not possible for it; dNLL is the shared axis. Halocline wins quality, and NInfer wins the prose decode rows
+(D5).
 
 ## KV formats and context (2026-11-17)
 
@@ -79,26 +84,30 @@ format's scales; K8V4 is 1,024 bytes of K codes, 32 bytes of K scales and 576 by
 [`evals/2026-11-17/halocline-d8-kv`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-kv/).
 
 - **K8V4's cost is small and measurable**: +16% mean KLD over int8 at 36K, 0.28 top-1 points, for 27% more context at
-  the same drafter settings. Whether that cost grows with depth is what the depth bases decide.
+  the same drafter settings. The depth bases show it does not grow with depth (the table below).
 - **The drafter's cache is free**: `--mtp-kv int8` gives byte-identical scored rows to `--mtp-kv fp16`, because the
   verify pass decides every token. It buys 7,000 to 11,500 cells and is the recommended setting with either format.
 - Speed: decode within 2% of int8; prefill -2.1% at 16K and -4.6% at 36K (8-warp kernel, ABBA).
-- 262,144 cells need 4-bit K too: rotated q4_0 K and V (`--kv q4_0`, 1,152 bytes a cell, branch `d8-q4`) costs
-  +0.00104 over K8V4 at 36K (paired), so each 4-bit half adds about 0.001; decode on par; prefill -15% at 36K (its
-  prompt kernel runs 4 warps only). 262,144 cells fit only with both drafter levers (`--mtp-kv int8 --mtp-window 32768`).
-  Whether these gaps grow with depth is the depth gate's question (roadmap D8 item 3).
+- 262,144 cells need 4-bit K too: rotated q4_0 K and V (`--kv q4_0`, 1,152 bytes a cell) costs +0.00104 over K8V4 at
+  36K (paired), so each 4-bit half adds about 0.001. At 36K decode is on par; at depth the tiled Q4 decode kernel was
+  20-30% slower than K8V4 until W22's staged Q4 kernel (2026-11-18). Prefill is -15% at 36K and -28% at 137K (its
+  prompt kernel runs 4 warps only). 262,144 cells fit only with both drafter levers (`--mtp-kv int8 --mtp-window 32768`),
+  which is what `--long-context` sets.
 
 ## KV formats at depth (2026-11-18)
 
-The depth gate answers that question for K8V4: its cost does not grow. Each depth's base scores 1,024 rows after a
+The depth gate answered that question for K8V4: its cost does not grow. Each depth's base scores 1,024 rows after a
 prefix of that many tokens, 16 chunks ([`halocline-d8-depth`](../../evals/2026-11-17/halocline-d8-depth/)); compare
-formats within a depth, since each depth scores different text.
+formats within a depth, since each depth scores different text. The rotated 4-bit rows at 140,288 and 174,080 come from
+the 262K profile's gate, which uses the same bases ([`halocline-long-context`](../../evals/2026-11-18/halocline-long-context/)).
 
-| Depth | int8 | K8V4 (paired vs int8) | rotated 4-bit (paired vs int8) |
+| Depth | int8 | K8V4 (paired vs int8) | rotated 4-bit |
 |---|---|---|---|
-| 36,864 (the 100-chunk gate, [`halocline-d8-kv`](../../evals/2026-11-17/halocline-d8-kv/)) | 0.00582 | +0.00093 [+0.00074, +0.00113] | +0.00197 [+0.00167, +0.00228] |
-| 65,536 | 0.00418 | +0.00072 [+0.00050, +0.00095] | +0.00185 [+0.00135, +0.00234] |
-| 140,288 | 0.00494 | +0.00066 [+0.00050, +0.00082] | not run |
-| 174,080 | does not fit | 0.00654 alone | not run |
+| 36,864 (the 100-chunk gate, [`halocline-d8-kv`](../../evals/2026-11-17/halocline-d8-kv/)) | 0.00582 | +0.00093 [+0.00074, +0.00113] | +0.00197 [+0.00167, +0.00228] vs int8 |
+| 65,536 | 0.00418 | +0.00072 [+0.00050, +0.00095] | 0.00602, +0.00185 [+0.00135, +0.00234] vs int8; +0.00112 [+0.00080, +0.00144] vs K8V4 |
+| 140,288 | 0.00494 | +0.00066 [+0.00050, +0.00082] | 0.00676, +0.00116 [+0.00096, +0.00137] vs K8V4 |
+| 174,080 | does not fit | 0.00654 alone | 0.00762, +0.00108 [+0.00092, +0.00125] vs K8V4 |
+| 261,119 | | | not measured |
 
-Rotated 4-bit K and V at 261,119 has not run: that protocol needs 262,152 cells, past the model's 262,144.
+Rotated 4-bit K and V at 261,119 has not run: that protocol needs 262,152 cells, past the model's 262,144. The profile
+itself serves 262,144 and found a needle at 252,483 tokens.

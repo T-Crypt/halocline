@@ -5,10 +5,13 @@ its weights exist. It is the simpler model to hold close to BF16, and the path Q
 
 The path runs since 2026-11-17 on Unsloth's v3.1 GGUF quants. The
 [roadmap](../roadmap.md#p1-the-dense-path-qwen38-27b-the-priority) holds the state and every measured number: D1 is
-decided, D2 to D4 are done, D5 is open, D6 has the state round trip done with the build-to-build greedy identity open,
-D7 is open, and D8 is open. D8 is 262,144 tokens of context with MTP and vision on one 24 GB card. The served profile
-is 122,880 tokens at int8 KV; K8V4 KV with the drafter's int8 cache reaches 175,629, and 262,144 needs 4-bit K and V
-(branch `d8-q4`: +0.00104 KLD over K8V4 at 36K).
+decided; D2 to D4, the D6 state round trip and D8 are done; D5 and D7 have their NInfer runs, and the switch bar is not
+met. The build-to-build greedy identity (D6) has not run.
+
+D8 shipped on 2026-11-18: 262,144 tokens of context with MTP and vision on one 24 GB card, served as `--long-context`
+and made the dense default by standing order 8 (rotated 4-bit K and V, the drafter's int8 ring over 32,768 cells). K8V4
+at 175,616 tokens is the lower-KLD lever, +0.00072 over int8 at 65,536
+(`evals/2026-11-17/halocline-d8-depth`).
 
 From the [model card and `config.json`](https://huggingface.co/Qwen/Qwen3.8-27B):
 
@@ -39,16 +42,17 @@ one rounding on the path: the pack holds the GGUF's bytes.
 
 ## Run
 
-The served profile is UD-Q4_K_XL with int8 KV, MTP at `--spec 8`, vision on the CPU and 122,880 tokens of context. The
-vision pack adds the projector (`vision/mmproj`):
+The served profile is UD-Q4_K_XL with rotated 4-bit K and V, MTP at `--spec 8`, vision on the CPU and 262,144 tokens of
+context. `--long-context` sets the cache, the context and the drafter's int8 ring. The vision pack adds the projector
+(`vision/mmproj`):
 
 ```sh
 bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 \
-    --spec 8 --max-context 122880 --kv int8 --vision cpu
+    --spec 8 --long-context --vision cpu
 ```
 
-The BF16 reference for the quality gate is `qwen38-27b-bf16-base.kld`; the method is in
-[precision/qwen38-27b.md](../precision/qwen38-27b.md).
+The K8V4 profile at 175,616 tokens is below. The BF16 reference for the quality gate is `qwen38-27b-bf16-base.kld`;
+the method is in [precision/qwen38-27b.md](../precision/qwen38-27b.md).
 
 ## Two profiles
 
@@ -91,31 +95,37 @@ different names, so a request picks the profile by model name and only one holds
 - KLD against BF16 (D4): the measured table in the roadmap, from
   [`halocline-dense-quality`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-dense-quality).
   UD-Q4_K_XL is at llama.cpp parity on the same GGUF and 2.8 times better than UD-IQ4_XS.
-- Speed (D5): decode and prefill fixtures in the same eval. The like-for-like NInfer comparison is open (D5, D7).
+- Speed (D5): decode and prefill fixtures in the same eval. Against NInfer with thinking off on both, K8V4 at 175,616:
+  prose 9-10% under at short, 36K and 137K, JSON level at short and 8-9% over at depth
+  (`evals/2026-11-18/halocline-vs-ninfer-nothink`). S1 (2026-11-18) took K8V4 decode past the NInfer floors: 36K prose
+  150.6 to 158.8 and 137K prose 102.8 to 145.2 t/s against floors of 118 and 93 (`evals/2026-11-18/halocline-s1c-ab`).
+  The 262K profile with W22's kernel reads 81.5 / 74.0 / 63.5 t/s on prose and 152 / 147 / 129 on JSON at short / 36K /
+  137K (`evals/2026-11-18/halocline-w22`); prose stays about a tenth under NInfer there.
 - Identity (D6): the state round trip passed on the real pack; the build-to-build greedy gate has not run.
-- 262K fit (D8): probes in the same eval. Neither quant fits 262K at int8 or fp16 KV.
+- 262K fit (D8): probes in the same eval. Neither quant fits 262K at int8 or fp16 KV. Rotated 4-bit K and V with the
+  drafter's int8 ring over 32,768 cells fits with 53 MiB to spare, and it is the default profile.
 - K8V4 KV (D8 item 1):
   [`halocline-d8-kv`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-d8-kv). +0.00093 mean KLD
   over int8 at 36K (0.00676 against 0.00582), decode within 2%, prefill -4.6% at 36K, 175,629 tokens of context with
   `--mtp-kv int8`. The drafter's cache format leaves the scored output byte-identical.
-- Rotated 4-bit K and V (D8 item 3, branch `d8-q4`): 0.00779 mean KLD at 36K, +0.00104 over K8V4; 262,144 tokens fit
-  with `--mtp-kv int8 --mtp-window 32768`. Same eval, arm `q4`.
+- Rotated 4-bit K and V (D8 item 3): shipped on 2026-11-18 as `--long-context` (release ea5868de). Mean KLD 0.00602 /
+  0.00676 / 0.00762 at 65,536 / 140,288 / 174,080, paired +0.00112 / +0.00116 / +0.00108 over K8V4, top-1 down 0.17 /
+  0.15 / 0.33 points (`evals/2026-11-18/halocline-long-context`). A needle at 252,483 tokens was found. W22's staged Q4
+  decode kernel is bitwise to the tiled one, keeps the depth KLD at +0.00000 and recovers most of the depth decode
+  speed (`evals/2026-11-18/halocline-w22`).
 
-For long context, the planner's setting (175,616 = the 175,629-cell maximum rounded down to 256; not load-probed yet) is:
+For the K8V4 profile at 175,616 tokens (the 175,629-cell maximum rounded down to 256):
 
 ```sh
 bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 \
     --spec 8 --max-context 175616 --kv k8v4 --mtp-kv int8 --vision cpu
 ```
 
-It is not the served default until a load probe at that size and the depth gate (KLD at 65K to 174K tokens) have passed.
-
-**2026-11-18: this is the served profile** (maintainer decision). The depth gate passed (K8V4 over int8 +0.00072 at
+`examples/qwen38-27b-k8v4.json` is the same thing as a config. The depth gate passed (K8V4 over int8 +0.00072 at
 65,536 and +0.00066 at 140,288; 0.00654 mean KLD at 174,080, [`halocline-d8-depth`](../../evals/2026-11-17/halocline-d8-depth/)),
 and the load at 175,616 with MTP and vision served the full smoke through llama-swap: warm decode 113.3 to 145.9 t/s,
 sampling, a tool call, the 36K needle (prompt 3,137 t/s, decode 102.2) and the 137K needle (prompt 2,295 t/s, decode
-77.9). The int8 profile at 122,880 read 95.3 to 100.3 t/s decode and about 3,250 t/s prompt on the same 36K needle.
-Decode at 36K and 137K is still below the NInfer floors (118 and 93 t/s; roadmap D5).
+77.9).
 
 ## Why dense
 
