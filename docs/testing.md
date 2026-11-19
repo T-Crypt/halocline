@@ -28,8 +28,8 @@ Each row is a gate that is missing or has been run once. "Blocks" says what cann
 
 | Gate | Why it matters | Acceptance | Blocks |
 |---|---|---|---|
-| Dense 262K, identity, speed | the 262,144-token load passed on 2026-11-18 (release ea5868de, a needle at 252,483 tokens found), and the like-for-like NInfer smoke ran the same day with prose 9-10% under NInfer; build-to-build greedy identity has not run | build-to-build greedy identity, and decode at or above NInfer on prose at 262K | the claim that dense replaces NInfer |
-| Varying-context KLD | the gate scores 512-token chunks with a 256-token prefill, so KV error at depth is invisible | KLD of scored windows at 200K and beyond, per KV format, against the same base; dense is measured at 65,536, 140,288 and 174,080 | the claim that KV holds up past 174,080: the dense rows exist for int8, K8V4 and rotated 4-bit (`evals/2026-11-17/halocline-d8-depth`, `evals/2026-11-18/halocline-long-context`), the sparse path has none |
+| Dense 262K, identity, speed | the 262,144-token load passed on 2026-11-18 (release ea5868de, a needle at 252,483 tokens found); the like-for-like NInfer smoke ran the same day at K8V4/175,616, prose 9-10% under; build-to-build greedy identity has not run | build-to-build greedy identity, and decode at or above NInfer on prose at 262K | the claim that dense replaces NInfer |
+| Varying-context KLD | the gate scores 512-token chunks with a 256-token prefill, so KV error at depth is invisible | KLD of scored windows at 200K and beyond, per KV format, against the same base; dense is measured at 65,536, 140,288 and 174,080 | the claim that KV holds up past 174,080: the dense rows exist for int8 and K8V4, and rotated 4-bit at all three depths (`evals/2026-11-17/halocline-d8-depth`, `evals/2026-11-18/halocline-long-context`); the sparse path has none |
 | Sampling distribution | greedy identity says nothing about the sampler under temperature | seeded sampling, N runs per prompt, top-1 and top-10 frequency within the run-to-run interval of the reference build (`tools/sampling_dist/` exists; not yet run) | "sampling is unchanged" |
 | Task suite (SWE-bench) | KLD does not predict task outcomes near the baseline | fixed subset, fixed scaffold, resolve rate with an interval, recorded per config | any "as good as BF16 on tasks" claim |
 | Broader tool-call set | the paper behind the tool check found that whether-to-call flips before which-tool | 20 or more prompts, whether-to-call accuracy against the BF16 reference path (`tools/tool_calls/` holds 24 labelled cases; not yet run) | "tool calls are preserved" beyond one example |
@@ -67,8 +67,8 @@ confidence interval next to the KLD numbers for the same pack and KV format.
 
 A release is gated when every row in the first table passes on the release commit, the dense path has its own row of
 those gates, and no item in the second table is marked as blocking for the claims in the README. Today the sparse path
-meets the first table and the second table's rows are open work. The dense path meets the build, suite, KLD, state and
-smoke rows; its greedy identity row and the second table's rows are open.
+meets the first table and the second table's rows are open work. The dense path meets the build, SASS, suite, KLD,
+state and smoke rows; its greedy identity row and the second table's rows are open.
 
 ## Running the no-GPU checks (`tools/verify.sh`)
 

@@ -51,7 +51,7 @@ SSD. About 4 GiB of system RAM stays free with the model loaded.
 
 ## Vision
 
-The pack is published in two forms. `QFN-UD-IQ4_XS-v3.1-compat-mtp.halo` is the reference pack, built `--no-vision`.
+The pack is built in two forms. `QFN-UD-IQ4_XS-v3.1-compat-mtp.halo` is the reference pack, built `--no-vision`.
 `QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo` adds `vision/mmproj` and `vision/text_vocab` from the same GGUF's projector
 and serves images on the CPU encoder (`--vision cpu`, [the vision run](../running.md#vision---vision)).
 

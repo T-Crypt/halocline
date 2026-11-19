@@ -57,12 +57,12 @@ Status:
 | Sparse path (Flash-Next) | runs, gated, served through llama-swap |
 | Dense path (27B) | D2-D4 and D6 done on UD-IQ4_XS and UD-Q4_K_XL, vision packs built; 262,144 tokens served by default with rotated 4-bit K and V (`--long-context`, D8, 2026-11-18) |
 | Dense vs llama.cpp | parity on KLD for the same GGUF; better than llama.cpp at the same 8-bit KV precision (D4) |
-| Dense vs NInfer | about 10x closer to BF16 on target-token dNLL at 65K and 140K (D7; NInfer has no logits for KLD). Decode with thinking off on both: at K8V4/175,616, prose 9-10% under at short, 36K and 137K, JSON level at short and 8-9% over at depth (`evals/2026-11-18/halocline-vs-ninfer-nothink`); at 262K (W22's kernel) prose 81.5 / 74.0 / 63.5 against NInfer's 92.8 / 85.5 / 70.7 t/s, JSON 152 / 147 / 129 against 154.9 / 137.0 / 116.3, short / 36K / 137K in a separate session (`evals/2026-11-18/halocline-w22`). The switch bar (order 6) is not met |
+| Dense vs NInfer | about 10x closer to BF16 on target-token dNLL at 65K and 140K (D7; NInfer has no logits for KLD). Decode with thinking off on both: at K8V4/175,616, prose 9-10% under at short, 36K and 137K, JSON level at short and 8-9% over at depth (`evals/2026-11-18/halocline-vs-ninfer-nothink`); on the 262K profile (W22's kernel), at short / 36K / 137K: prose 81.5 / 74.0 / 63.5 against NInfer's 92.8 / 85.5 / 70.7 t/s, JSON 152 / 147 / 129 against 154.9 / 137.0 / 116.3, from a separate session (`evals/2026-11-18/halocline-w22`). The switch bar (order 6) is not met |
 | Qwen4-Flash / Qwen4-27B | target only; weights are not public |
 | Task-level eval | not started |
 | Sampling distribution | harness exists (`tools/sampling_dist/`, 28277c91), not yet run on the card |
 | Tool-call breadth | harness exists (`tools/tool_calls/`, d4823f8a), not yet run on the card |
-| Long-context KLD | measured at 65,536, 140,288 and 174,080 for int8, K8V4 and rotated 4-bit (D8 item 3, 2026-11-18); 200K and beyond not measured |
+| Long-context KLD | measured at 65,536 and 140,288 for int8, K8V4 and rotated 4-bit, and at 174,080 for K8V4 and rotated 4-bit (D8 item 3, 2026-11-18); 200K and beyond not measured |
 | Strata KLD | retired with Strata 0.2.10 on 2026-11-18; no longer planned |
 
 ## P1: the dense path (Qwen3.8-27B), the priority
@@ -232,9 +232,9 @@ Measured with the engine's own planner, vision packs, `--spec 8` (`evals/2026-11
 262,144 cells need 11,830 MiB at int8 KV (8,448 of it the KV, 1,024 the MTP drafter's fp16 KV, the rest state and
 workspace). Free after the weights: 10,589 MiB on UD-IQ4_XS, 7,597 on UD-Q4_K_XL. **At int8 or fp16 KV, that does not
 fit.** Rotated 4-bit K and V (1,152 bytes a cell) with the drafter's int8 ring over 32,768 cells is 7,032 MiB, 53 MiB
-under the free VRAM and reserve, and the 2026-11-18 load at 262,144 confirmed it (`evals/2026-11-18/
-halocline-long-context`). Q5 quants cannot fit it on 24 GB at any KV precision that keeps quality (UD-Q5_K_XL is
-19.5 GiB).
+under the 7,085 MiB left after the 512 MiB reserve, and the 2026-11-18 load at 262,144 confirmed it
+(`evals/2026-11-18/halocline-long-context`). Q5 quants cannot fit it on 24 GB at any KV precision that keeps quality
+(UD-Q5_K_XL is 19.5 GiB).
 
 The work, in order:
 
@@ -263,8 +263,8 @@ The work, in order:
    0.00779, paired +0.00197 [+0.00167, +0.00228] over int8 and +0.00104 [+0.00082, +0.00125] over K8V4, top-1 96.07%;
    decode on par; prefill 3,151 / 2,745 at 16K / 36K (-8% / -15%, 4 warps). Merged and shipped on 2026-11-18 as
    `--long-context`: the Q4 cache write and attention are their own compiled instantiations, so the fp16, int8 and K8V4
-   kernels are instruction-identical to the release before it (`sass-identity.txt` in
-   `evals/2026-11-18/halocline-long-context`).
+   cache-write and prompt kernels are instruction-identical to the release before it, and its decode kernels differ only
+   in constant-bank offsets (`sass-identity.txt` in `evals/2026-11-18/halocline-long-context`).
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
    **2026-11-17:** both levers landed as opt-in flags, the default unchanged: `--mtp-kv fp16|int8` (the drafter's cache
@@ -305,6 +305,8 @@ The work, in order:
    `--kv` on the dense path (`kv_format` in `src/models/qwen35/adapter.cpp`, and the "fp16 (the default)" message).
    The trap: K8V4 has no streamed form, so a run that passes `--kv-resident` without `--kv` would be refused; resolve
    that (streaming falls back to int8, or the refusal names `--kv int8`) and run the GPU suite before the change lands.
+   The item predates standing order 8: with the 262K profile as the default, an engine default would be the rotated
+   4-bit cache, and `q4_0` has no streamed form either, so the same trap applies.
 
    **2026-11-17 (W7):** the rotated 4-bit plan at 262,144 cells is 7,094 MiB with the drafter's KV as the 32K ring of
    item 2 (9 MiB short of the card's 7,597 MiB and the 512 MiB reserve) and 7,032 MiB with `--mtp-kv int8` too (53 MiB

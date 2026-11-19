@@ -10,7 +10,7 @@ eval. Where it is a paper's result, it links the paper. Where the notes could no
 |---|---|---|---|
 | Start from the `qwen4_exp` architecture | Qwen4-Max is API-only with no weights; the verified open artifact is Qwen3.8-Flash-Next | the adapter targets `qwen4_exp`; Qwen3.8-27B stands in for a dense model | [config at `de4b8e4d`](https://huggingface.co/Qwen/Qwen3.8-Flash-Next/blob/de4b8e4d43b917e7706784d8bb445c9af86a3540/config.json), [tech report](https://arxiv.org/abs/2608.30320) |
 | Keep Unsloth's quantized bytes, mixed encodings included | a 4-bit MoE cannot fit 24 GB at BF16; re-quantizing adds rounding the file does not have | the pack copies quantized tensors byte for byte; 195 `hc_*` tensors are cast to BF16 as an interim step | `SPECS.md`, [`evals/2026-11-17/halocline-kv-kld`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-kv-kld) |
-| int8 KV | the literature gradient is int8, then E8-compressed formats; published costs put int8 and fp16 within noise | `--kv int8` | [KLD table](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-kv-kld), [arXiv 2610.15384](https://arxiv.org/abs/2610.15384) |
+| int8 KV | the literature gradient is int8, then E8-compressed formats; published costs put int8 and fp16 within noise | `--kv int8` on the sparse path; the dense path's formats and default are in [precision/qwen38-27b.md](../precision/qwen38-27b.md) | [KLD table](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-kv-kld), [arXiv 2610.15384](https://arxiv.org/abs/2610.15384) |
 | MTP drafter at window 8 | a drafted method is lossless only with a correct verifier; acceptance is workload-dependent | `--spec 8`; window 12 accepts no further than 8 | [draft window table](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-kv-kld) |
 | Experts in VRAM and page-locked RAM, none on SSD | placement is not math if the same bytes reach the same kernels | 18.2 GiB in VRAM, 38.0 to 41.3 GiB pinned in RAM, 0 on SSD | [`halocline-first-load`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-first-load), [`halocline-greedy-identity`](https://github.com/T-Crypt/halocline/tree/main/evals/2026-11-17/halocline-greedy-identity) |
 | sm_89 kernels written for Ada | Ada has int8, BF16 and FP16 `mma.sync`, `cp.async` and 99 KB opt-in shared memory; it has no FP4 tensor cores, no clusters, no TMA and no PDL | the engine compiles sm_89 only, with Ada replacements for the cluster, TMA, FP4-convert and FP8 paths | `ADA_PORT_NOTES.md`, [arXiv 2608.10103](https://arxiv.org/abs/2608.10103) |
@@ -91,8 +91,9 @@ The kernel-level evidence is in `ADA_PORT_NOTES.md` and the SASS hashes in `gate
 ## Dense and sparse
 
 The verified open model is sparse: 512 experts, 10 routed plus 1 shared. The dense path runs too: Qwen3.8-27B stands in
-until Qwen4-27B weights exist, and those weights are a community lead, not a published artifact. The switch rule the notes settle on is capacity: a sparse model wins when inactive experts can live
-in RAM and latency is acceptable, and a dense model wins when every parameter must be read per token and the model fits.
+until Qwen4-27B weights exist, and those weights are a community lead, not a published artifact. The switch rule the
+notes settle on is capacity: a sparse model wins when inactive experts can live in RAM and latency is acceptable, and
+a dense model wins when every parameter must be read per token and the model fits.
 
 ## Validation method
 

@@ -86,7 +86,7 @@ nothing; the reason is in the row. Every entry links to the paper or the code.
 | [arXiv 2608.30320](https://arxiv.org/abs/2608.30320) | "On the Design of Qwen3.8-Next Architecture: Evaluation, Efficiency, and Training Stability" | the adapter came with the code; I have not checked it line by line against the report |
 | [arXiv 2602.06036](https://arxiv.org/abs/2602.06036) | "DFlash: Block Diffusion for Flash Speculative Decoding" | Strata's floors use DFlash2; Halocline runs the MTP drafter, and a DFlash2 A/B on Halocline is still open |
 | [arXiv 2309.00071](https://arxiv.org/abs/2309.00071) | "YaRN: Efficient Context Window Extension of Large Language Models" | the model runs 262,144 tokens natively |
-| [arXiv 2610.15384](https://arxiv.org/abs/2610.15384) | "E8 Lattice Key Quantization for Low-Bit KV-Cache Compression" | int8 KV fits 262K on this card and measured closest to BF16 |
+| [arXiv 2610.15384](https://arxiv.org/abs/2610.15384) | "E8 Lattice Key Quantization for Low-Bit KV-Cache Compression" | int8 KV fits 262K on this card for Flash-Next and measured closest to BF16 |
 | [arXiv 2501.01005](https://arxiv.org/abs/2501.01005) | "FlashInfer: Efficient and Customizable Attention Engine for LLM Inference Serving" | its GDN kernels need sm_90 |
 | [arXiv 2608.10103](https://arxiv.org/abs/2608.10103) | "Hand-Written PTX Tensor-Core GEMM Kernels: A Multi-Precision Study on NVIDIA L4" | background for reading the Ada kernels; no code taken from it |
 | [arXiv 2604.18556](https://arxiv.org/abs/2604.18556) | "GSQ: Highly-Accurate Low-Precision Scalar Quantization for LLMs via Gumbel-Softmax Sampling" | per-tensor quant allocation; Halocline keeps the Unsloth bytes unchanged by rule |

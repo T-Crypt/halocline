@@ -9,8 +9,8 @@ decided; D2 to D4, the D6 state round trip and D8 are done; D5 and D7 have their
 met. The build-to-build greedy identity (D6) has not run.
 
 D8 shipped on 2026-11-18: 262,144 tokens of context with MTP and vision on one 24 GB card, served as `--long-context`
-and made the dense default by standing order 8 (rotated 4-bit K and V, the drafter's int8 ring over 32,768 cells). K8V4
-at 175,616 tokens is the lower-KLD lever, +0.00072 over int8 at 65,536
+(rotated 4-bit K and V, the drafter's int8 ring over 32,768 cells), and standing order 8 made it the dense default the
+same day. K8V4 at 175,616 tokens is the lower-KLD lever, +0.00072 over int8 at 65,536
 (`evals/2026-11-17/halocline-d8-depth`).
 
 From the [model card and `config.json`](https://huggingface.co/Qwen/Qwen3.8-27B):
@@ -111,8 +111,8 @@ different names, so a request picks the profile by model name and only one holds
 - Rotated 4-bit K and V (D8 item 3): shipped on 2026-11-18 as `--long-context` (release ea5868de). Mean KLD 0.00602 /
   0.00676 / 0.00762 at 65,536 / 140,288 / 174,080, paired +0.00112 / +0.00116 / +0.00108 over K8V4, top-1 down 0.17 /
   0.15 / 0.33 points (`evals/2026-11-18/halocline-long-context`). A needle at 252,483 tokens was found. W22's staged Q4
-  decode kernel is bitwise to the tiled one, keeps the depth KLD at +0.00000 and recovers most of the depth decode
-  speed (`evals/2026-11-18/halocline-w22`).
+  decode kernel is bitwise to the tiled one, keeps the depth KLD at +0.00000, and lifts 137K prose decode from 52.8 to
+  63.5 t/s (`evals/2026-11-18/halocline-w22`).
 
 For the K8V4 profile at 175,616 tokens (the 175,629-cell maximum rounded down to 256):
 
