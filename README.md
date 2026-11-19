@@ -42,24 +42,26 @@ it still reads +0.0172. Halocline copies Unsloth's tensors as stored.
 [`ninfer-depth-ppl`](evals/2026-11-18/ninfer-depth-ppl/)
 
 **Speed.** Thinking off on both, so neither engine splits its reply into a thinking pass and an answer; greedy, 1,200
-tokens, streamed, decode rate as the client sees it, order Halocline, NInfer, NInfer, Halocline (2026-11-18, release
-75726a0f, K8V4 KV at 175,616; the 262K default with W22's kernel reads 81.5 / 74.0 / 63.5 t/s on prose and 152 / 147 /
-129 on JSON at short / 36K / 137K, [`halocline-w22`](evals/2026-11-18/halocline-w22/)):
+tokens, streamed, decode rate as the client sees it, both at 262,144 tokens of context. Halocline is release aa156951
+with the frequency-ranked draft head (`--draft-vocab`, 32,768 rows; FR-Spec, arXiv 2502.14856). The verify pass still
+scores all 248,320 rows, so the output is the model's own. Both columns are from 2026-11-19:
 
 | workload | Halocline t/s | NInfer t/s | Halocline vs NInfer |
 |---|---|---|---|
-| short prose | 83.4 | 92.8 | -10% |
-| short JSON | 154.1 | 154.9 | -0.5% |
-| 36K prose | 77.5 | 85.5 | -9% |
-| 36K JSON | 148.6 | 137.0 | +8% |
-| 137K prose | 64.0 | 70.7 | -10% |
-| 137K JSON | 126.5 | 116.3 | +9% |
+| short prose | 91.7 | 92.7 | -1.1% |
+| short JSON | 146.5 | 154.9 | -5.4% |
+| 36K prose | 81.5 | 85.5 | -4.6% |
+| 36K JSON | 143.5 | 136.9 | +4.8% |
+| 137K prose | 68.7 | 70.7 | -2.8% |
+| 137K JSON | 124.3 | 116.2 | +7.0% |
 
-[`halocline-vs-ninfer-nothink`](evals/2026-11-18/halocline-vs-ninfer-nothink/). Halocline loses prose by about a tenth at
-every depth and wins JSON at depth. Speculative decoding sets the pace: Halocline's drafter lands 56% of its guesses
-on prose and 85% on JSON, and its full 248,320-row head costs 1.1 ms of every 1.6 ms draft step. NInfer drafts with a
-frequency-ranked head (FR-Spec, arXiv 2502.14856). The same method is on branch `draft-head` as `--draft-vocab`; the
-verify pass keeps scoring every row, so it changes speed and leaves the output alone.
+[`halocline-rc-aa156951`](evals/2026-11-19/halocline-rc-aa156951/),
+[`halocline-ninfer-bar`](evals/2026-11-19/halocline-ninfer-bar/). The draft head moved prose from about -12% to within 5%
+and cost JSON 3-5%. The remaining gap is round cost. On short prose Halocline keeps 2.30 tokens a round to NInfer's
+2.21, but its round takes 25.1 ms to NInfer's 23.8. A fixed-width profile puts the extra time in the GEMVs: the
+17,408-input down projection slows by 1.2 ms at four rows, and the small projections run at 71-76% of the card's
+bandwidth ([`halocline-dense-profile-fixed`](evals/2026-11-19/halocline-dense-profile-fixed/)). Prefill trails as well,
+16% slower at 36K and 31% at 137K.
 
 Both paths share the build, the pack format, the server and the gates: the same BF16 KLD method, greedy identity, the
 GPU suite. The sparse path trades quality for a model 4.6 times larger; the dense path keeps every weight on the card
@@ -334,10 +336,10 @@ size does to the expert pool, and what a row records.
 The ordered list, with status, accept criteria and blockers, is in [`docs/roadmap.md`](docs/roadmap.md). The testing that
 is missing is in [`docs/testing.md`](docs/testing.md). The short list:
 
-1. **Dense path at 262K (Qwen3.8-27B).** K8V4 and 4-bit KV in the dense attention kernels, the MTP drafter's KV as a
-   ring of its window, then KLD at depth picks UD-IQ4_XS + K8V4 or UD-Q4_K_XL + 4-bit KV. The like-for-like comparison
-   against NInfer ran on 2026-11-18 ([above](#dense-against-ninfer)): the prose decode gap is the next job, through
-   the drafter (the frequency-ranked draft head first).
+1. **Dense round cost (Qwen3.8-27B).** At 262K the dense path trails NInfer by 1-5% on prose and leads JSON at depth
+   ([above](#dense-against-ninfer)). The time goes to the verify round: the down projection's multi-row GEMV at four
+   and five rows first, then the small projections at 71-76% of bandwidth, then the 262K prefill (16% and 31% behind
+   at 36K and 137K).
 2. **Task-level eval.** SWE-bench Lite, one scaffold, the same flags for every arm.
 3. **Gaps in the current gates.** Strata KLD, sampling distribution, KLD at 64K to 200K of context, a broader tool-call
    set.

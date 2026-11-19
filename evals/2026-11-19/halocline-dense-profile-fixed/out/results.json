@@ -1,0 +1,66 @@
+[
+ {
+  "name": "T1-short",
+  "T": 1,
+  "completion_tokens": 1200,
+  "wall_s": 26.4,
+  "decode_tps": 45.5,
+  "profile_lines": 10
+ },
+ {
+  "name": "T2-short",
+  "T": 2,
+  "completion_tokens": 1200,
+  "wall_s": 16.4,
+  "decode_tps": 73.5,
+  "profile_lines": 7
+ },
+ {
+  "name": "T3-short",
+  "T": 3,
+  "completion_tokens": 1200,
+  "wall_s": 14.1,
+  "decode_tps": 85.5,
+  "profile_lines": 5
+ },
+ {
+  "name": "T4-short",
+  "T": 4,
+  "completion_tokens": 1200,
+  "wall_s": 14.1,
+  "decode_tps": 85.1,
+  "profile_lines": 5
+ },
+ {
+  "name": "T5-short",
+  "T": 5,
+  "completion_tokens": 1200,
+  "wall_s": 15.1,
+  "decode_tps": 79.6,
+  "profile_lines": 5
+ },
+ {
+  "name": "T6-short",
+  "T": 6,
+  "completion_tokens": 1200,
+  "wall_s": 16.0,
+  "decode_tps": 75.0,
+  "profile_lines": 5
+ },
+ {
+  "name": "T1-d137k",
+  "T": 1,
+  "completion_tokens": 1200,
+  "wall_s": 112.8,
+  "decode_tps": 36.5,
+  "profile_lines": 10
+ },
+ {
+  "name": "T4-d137k",
+  "T": 4,
+  "completion_tokens": 1200,
+  "wall_s": 101.7,
+  "decode_tps": 66.3,
+  "profile_lines": 6
+ }
+]

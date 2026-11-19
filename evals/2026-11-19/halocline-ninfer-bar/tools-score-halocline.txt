@@ -1,0 +1,4 @@
+call  12/12
+none  12/12
+all   24/24
+agreement with the reference: 24/24
