@@ -37,8 +37,8 @@
         "name": "Qwen3.8-27B",
         "arch": "Qwen3.8-27B",
         "target": "Qwen4-27B",
-        "served_context": 175616,
-        "served_kv": "K8V4"
+        "served_context": 262144,
+        "served_kv": "q4_0"
       }
     },
     "project": {
@@ -48,23 +48,23 @@
     "commands": {
       "build": {
         "text": "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89 -DBUILD_TESTING=ON\nninja -C build\npython3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
-        "line": 182
+        "line": 213
       },
       "test": {
         "text": "ctest --test-dir build -L cpu -j 16                          # host logic, formats, tokenizers\nctest --test-dir build -L gpu -j 1                           # kernels against CPU references; logs/ctest-gpu.sm89.log lists the sm_89 skips\n.venv/bin/python -m unittest discover -s serve/tests -t .    # the server",
-        "line": 190
+        "line": 221
       },
       "convert": {
         "text": ".venv/bin/python tools/convert/convert.py --gguf Qwen3.8-27B-UD-Q4_K_XL.gguf --no-vision --out Qwen3.8-27B-UD-Q4_K_XL.halo\n.venv/bin/python tools/convert/gguf_qwen35.py verify Qwen3.8-27B-UD-Q4_K_XL.halo Qwen3.8-27B-UD-Q4_K_XL.gguf",
-        "line": 199
+        "line": 230
       },
       "serve_dense": {
-        "text": "bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8093 --spec 8 --max-context 175616 --kv k8v4 --mtp-kv int8",
-        "line": 219
+        "text": "bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 --spec 8 --long-context --vision cpu",
+        "line": 250
       },
       "quality": {
         "text": "bin/halocline-bench --model Qwen3.8-27B-UD-Q4_K_XL.halo --quality 100 --kld-base qwen38-27b-bf16-base.kld -- --kv int8",
-        "line": 210
+        "line": 241
       }
     },
     "gates": {
@@ -98,16 +98,16 @@
     }
   },
   "_sources": {
-    "commands.build.line": "README.md line 182",
-    "commands.build.text": "README.md line 182",
-    "commands.convert.line": "README.md line 199",
-    "commands.convert.text": "README.md line 199",
-    "commands.quality.line": "README.md line 210",
-    "commands.quality.text": "README.md line 210",
-    "commands.serve_dense.line": "README.md line 219",
-    "commands.serve_dense.text": "README.md line 219",
-    "commands.test.line": "README.md line 190",
-    "commands.test.text": "README.md line 190",
+    "commands.build.line": "README.md line 213",
+    "commands.build.text": "README.md line 213",
+    "commands.convert.line": "README.md line 230",
+    "commands.convert.text": "README.md line 230",
+    "commands.quality.line": "README.md line 241",
+    "commands.quality.text": "README.md line 241",
+    "commands.serve_dense.line": "README.md line 250",
+    "commands.serve_dense.text": "README.md line 250",
+    "commands.test.line": "README.md line 221",
+    "commands.test.text": "README.md line 221",
     "credits.basalt_author": "README.md line 331",
     "credits.infernix_author": "README.md line 333",
     "credits.strata_author": "README.md line 329",
@@ -134,12 +134,12 @@
     "models.dense.served_context": "README.md line 28",
     "models.dense.served_kv": "README.md line 28",
     "models.dense.target": "README.md line 21",
-    "models.sparse.active_b": "README.md line 67",
+    "models.sparse.active_b": "README.md line 98",
     "models.sparse.arch": "SPECS.md line 41",
     "models.sparse.name": "SPECS.md line 41",
-    "models.sparse.params_b": "README.md line 67",
+    "models.sparse.params_b": "README.md line 98",
     "models.sparse.role": "SPECS.md line 41",
-    "models.sparse.weights_bytes": "README.md line 69",
+    "models.sparse.weights_bytes": "README.md line 100",
     "project.licence": "README.md line 12",
     "project.status": "README.md line 12",
     "software.cmake": "SPECS.md line 32",

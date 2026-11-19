@@ -25,7 +25,7 @@
 | Against llama.cpp, same GGUF | | at parity: 0.00573 (f16 KV) and 0.01638 (q8_0 KV) |
 | Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS) |
 | Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
-| Context | 262,144, int8 KV | **262,144 by default** (`--long-context`: rotated 4-bit K and V, +0.0011 mean KLD over K8V4 at 65K, 140K and 174K; a needle at 252,483 tokens found, [`halocline-long-context`](evals/2026-11-18/halocline-long-context/)); 175,616 with K8V4 KV as the lower-KLD lever ([two profiles](docs/models/qwen38-27b.md#two-profiles)) |
+| Context | 262,144, int8 KV | **262,144 served with q4_0 KV** by default (`--long-context`: K and V rotated 4-bit, +0.0011 mean KLD over K8V4 at 65K, 140K and 174K; a needle at 252,483 tokens found, [`halocline-long-context`](evals/2026-11-18/halocline-long-context/)); 175,616 with K8V4 KV as the lower-KLD lever ([two profiles](docs/models/qwen38-27b.md#two-profiles)) |
 | Vision | | packs carry the projector; serving untested |
 | Status | **runs**, served through llama-swap | **runs**, gated, served at 262,144 tokens; about 10 times closer to BF16 than NInfer, 10% behind it on prose decode ([below](#dense-against-ninfer)) |
 | Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/) |
@@ -248,8 +248,11 @@ result should land close to that. A clear gap points at the conversion or a bug:
 **6. Serve.** `halocline serve` is a standalone server and needs nothing else:
 
 ```sh
-bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8093 --spec 8 --max-context 175616 --kv k8v4 --mtp-kv int8
+bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 --spec 8 --long-context --vision cpu
 ```
+
+That is the default profile: 262,144 tokens on rotated 4-bit K and V. For the lower-KLD profile at 175,616 tokens,
+replace `--long-context` with `--max-context 175616 --kv k8v4 --mtp-kv int8`; `examples/` has both as config files.
 
 OpenAI and Anthropic clients talk to `http://127.0.0.1:8093/v1`, and the same address in a browser shows the stats page.
 It binds to loopback by default. To expose it, read [security](docs/configuration/index.md) and set `--api-key`. To run

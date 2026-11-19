@@ -834,7 +834,7 @@ def build_dense() -> Dataset:
     # the served context and the planner's context ceilings, from the docs table
     prec = "docs/precision/qwen38-27b.md"
     pt = table_with(prec, "Format")
-    for fmt_name, slug in [("fp16", "fp16"), ("int8", "int8"), ("k8v4", "k8v4"), ("q4_0 (branch", "q4")]:
+    for fmt_name, slug in [("fp16", "fp16"), ("int8", "int8"), ("k8v4", "k8v4"), ("q4_0", "q4")]:
         r = row_by_cell(pt, "Format", fmt_name)
         cells = r["by_header"]
         src = f"{prec} line {r['line']}"
