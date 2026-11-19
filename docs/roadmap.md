@@ -2,7 +2,8 @@
 
 The engine has two paths. The sparse path runs Qwen3.8-Flash-Next today. The dense path is for Qwen3.8-27B now and
 Qwen4-27B later. Since 2026-11-17 it loads Unsloth's UD GGUFs losslessly and runs: at llama.cpp parity on KLD for the
-same weights, above the NInfer prefill floor. It does not reach 262K context yet (D8).
+same weights, above the NInfer prefill floor. Since 2026-11-18 it serves 262,144 tokens by default (`--long-context`,
+D8).
 
 The dense goal, set by the maintainer on 2026-11-17: **Qwen3.8-27B on Unsloth's v3.1 GGUF quants only, held to the same
 gates as the sparse path, with lower KLD to BF16 and better output quality than NInfer and llama.cpp on the same card.**
@@ -56,10 +57,13 @@ Status:
 | Sparse path (Flash-Next) | runs, gated, served through llama-swap |
 | Dense path (27B) | D2-D4 and D6 done on UD-IQ4_XS and UD-Q4_K_XL, vision packs built; 262,144 tokens served by default with rotated 4-bit K and V (`--long-context`, D8, 2026-11-18) |
 | Dense vs llama.cpp | parity on KLD for the same GGUF; better than llama.cpp at the same 8-bit KV precision (D4) |
-| Dense vs NInfer | 10x closer to BF16 on target-token dNLL at 65K and 140K (D7; NInfer has no logits for KLD). Decode with thinking off on both, K8V4: prose 9-10% under at short, 36K and 137K, JSON level at short and 8-9% over at depth (2026-11-18, `evals/2026-11-18/halocline-vs-ninfer-nothink`). The switch bar (order 6) is not met |
+| Dense vs NInfer | about 10x closer to BF16 on target-token dNLL at 65K and 140K (D7; NInfer has no logits for KLD). Decode with thinking off on both: at K8V4/175,616, prose 9-10% under at short, 36K and 137K, JSON level at short and 8-9% over at depth (`evals/2026-11-18/halocline-vs-ninfer-nothink`); at 262K (W22's kernel) prose 81.5 / 74.0 / 63.5 against NInfer's 92.8 / 85.5 / 70.7 t/s, JSON 152 / 147 / 129 against 154.9 / 137.0 / 116.3, short / 36K / 137K in a separate session (`evals/2026-11-18/halocline-w22`). The switch bar (order 6) is not met |
 | Qwen4-Flash / Qwen4-27B | target only; weights are not public |
 | Task-level eval | not started |
-| Sampling, long-context KLD, Strata KLD | not measured |
+| Sampling distribution | harness exists (`tools/sampling_dist/`, 28277c91), not yet run on the card |
+| Tool-call breadth | harness exists (`tools/tool_calls/`, d4823f8a), not yet run on the card |
+| Long-context KLD | measured at 65,536, 140,288 and 174,080 for int8, K8V4 and rotated 4-bit (D8 item 3, 2026-11-18); 200K and beyond not measured |
+| Strata KLD | retired with Strata 0.2.10 on 2026-11-18; no longer planned |
 
 ## P1: the dense path (Qwen3.8-27B), the priority
 
@@ -77,8 +81,8 @@ The dense path builds from Unsloth's Unsloth Dynamic GGUFs at the revision on di
 and UD-Q4_K_XL (17.66 GB). No NVFP4 checkpoint, no QUASAR or NVIDIA requantization, no plain absmax requant that throws
 away Unsloth's imatrix allocation. The NVFP4 converter stays in the tree as a tool and is not the path for any claim.
 
-This closes BUILD_SPEC §11.1 in the direction the spec already chose: repack, do not requantize. The work it implies is
-the qwen35 branch of the GGUF converter, which does not exist today.
+This closes BUILD_SPEC §11.1 in the direction the spec already chose: repack, do not requantize. The work it implied was
+the qwen35 branch of the GGUF converter, which landed on 2026-11-17 (`tools/convert/gguf_qwen35.py`).
 
 ### Measured state (2026-11-17)
 
@@ -134,16 +138,17 @@ output; struct is 153.8 tok/s at 351 GB/s.
   grows with depth (one redundant KV read is about 6 ms of a 30 ms window at 137K). Gate: bitwise against the current
   kernel at T = 1..9, then 36K / 137K / the format's maximum.
 
-  *Built 2026-11-18 (W14, branch `s1-decode-attn`, no GPU run yet):* `decode_mma_window_kernel` puts every row of a
+  *Built 2026-11-18 (W14, branch `s1-decode-attn`):* `decode_mma_window_kernel` puts every row of a
   window for one KV head in one block, R = ceil(M / 16) 16-row m16 groups a block (R <= 3, so T <= 8 at 6 query heads a
   KV head), and decodes each 32-cell K/V chunk into shared memory once for all of a block's groups, so a window reads
   its cells once per split instead of `ceil(6T/16)` times. Shared bytes a block: 46,080 at R = 1, 58,368 at R = 2,
   70,656 at R = 3 (two blocks an SM at R = 1, one from R = 2), registers 96 / 128 / 168 with no spills. A row runs the
   tiled kernel's statements inside the tiled kernel's 16-row group, so its output is bitwise that kernel's (the parity
   tests hold T = 1..9 against the tiled launch on fp16, int8, K8V4, the far cache, a ring and a batch window's
-  segments). Windows past 48 rows (M > 48) keep the tiled launch. The GPU A/B at 36K and 137K is pending.
+  segments). Windows past 48 rows (M > 48) keep the tiled launch. The GPU A/B at 36K and 137K found it slower than the
+  tiled launch, because it was latency-bound, so it did not ship (S1's shipped entry below).
 
-  *Built 2026-11-18 (W17, branch `s1c-decode-kernel`, no GPU run yet):* `decode_k8v4_kernel` takes the served K8V4 cache
+  *Built 2026-11-18 (W17, branch `s1c-decode-kernel`):* `decode_k8v4_kernel` takes the served K8V4 cache
   at M <= 48 rows. One block still holds every row of a window for one KV head (R = ceil(M / 16) m16 groups), but it now
   has 8 warps at R <= 2 and 12 at R = 3 (four a group), stages each chunk's raw K/V bytes (13,056 B: K's codes and
   per-64 scales, V's q4 blocks) into shared memory with `cp.async` a chunk ahead of the dequant that reads them, and runs
@@ -155,15 +160,17 @@ output; struct is 153.8 tok/s at 351 GB/s.
   (printing whether they are bitwise, gating at 5e-6), while the fp16 and int8 window-vs-tile checks stay bitwise. The
   engine selects it for a K8V4 cache with M <= 48; fp16 and int8 decode at M <= 48 are the tiled launch again, as they
   were before W14, and both older decode kernels are reachable from `tests/kernels/gqa_decode_ref.hpp` and
-  `gqa_decode_bench` only. ms and GB/s a layer at 36K and 137K are pending.
+  `gqa_decode_bench` only. The GPU A/B at 36K and 137K followed and the kernel shipped; its layer times are in S1's
+  shipped entry below.
 - **S2, one weight pass for the whole verify window at GEMV rate.** `kMmvqMaxRows = 5` (`src/dense/forward.cpp:59`):
   wider windows drop to MMQ, so struct (mean 7.5 rows) streams 351 GB/s against 758 GB/s for a T=1 window. Port
   llama.cpp #31533 (few-row MMQ, see Q4) first, then measure MMVQ with fp32 activation scales to 8 rows (also Q2).
 - **S3, draft depth from the cost model.** Choose the window from `ms_per_window`, mean rows and acceptance (prose
   2.40 tokens at 27.7 ms, struct 7.43 at 48.3 ms); NInfer serves 3 drafts. One day, no kernel, no quality path.
-- Later: rotated 4-bit KV (D8 item 3; a depth lever, never A/B it at short context), a block drafter (DFlash, arXiv
-  2602.06036; needs a trained drafter), acceptance-targeted drafter training (arXiv 2602.23881). Measured as not worth
-  it: the GDN decode recurrence (FP32 state on both engines, about 1.5% of a window) and a fused top-k sampler.
+- Later: a block drafter (DFlash, arXiv 2602.06036; needs a trained drafter), acceptance-targeted drafter training
+  (arXiv 2602.23881). Shipped 2026-11-18: rotated 4-bit KV (D8 item 3; a depth lever, never A/B it at short context).
+  Measured as not worth it: the GDN decode recurrence (FP32 state on both engines, about 1.5% of a window) and a fused
+  top-k sampler.
 
 **Per-stage profile of the dense window (2026-11-18).** The dense path has the sparse path's instrument now: `--profile`
 on the qwen35 path (a diagnostic flag, off by default) runs each decode window as launched (no graph replay) and stamps
@@ -223,8 +230,11 @@ kernel at 1-16 rows, depth KLD +0.00000 at 65,536 and 140,288, K8V4's kernels in
 
 Measured with the engine's own planner, vision packs, `--spec 8` (`evals/2026-11-17/halocline-dense-quality`):
 262,144 cells need 11,830 MiB at int8 KV (8,448 of it the KV, 1,024 the MTP drafter's fp16 KV, the rest state and
-workspace). Free after the weights: 10,589 MiB on UD-IQ4_XS, 7,597 on UD-Q4_K_XL. **Neither quant fits 262K today.**
-Q5 quants cannot fit it on 24 GB at any KV precision that keeps quality (UD-Q5_K_XL is 19.5 GiB).
+workspace). Free after the weights: 10,589 MiB on UD-IQ4_XS, 7,597 on UD-Q4_K_XL. **At int8 or fp16 KV, that does not
+fit.** Rotated 4-bit K and V (1,152 bytes a cell) with the drafter's int8 ring over 32,768 cells is 7,032 MiB, 53 MiB
+under the free VRAM and reserve, and the 2026-11-18 load at 262,144 confirmed it (`evals/2026-11-18/
+halocline-long-context`). Q5 quants cannot fit it on 24 GB at any KV precision that keeps quality (UD-Q5_K_XL is
+19.5 GiB).
 
 The work, in order:
 
@@ -251,17 +261,20 @@ The work, in order:
    (decode 0.00082, prompt 0.0234 against fp64), planner 241,285 cells with `--mtp-kv int8` and 265,176 adding the 32K
    ring (262,144 fits with both, 53 MiB to spare). **Its KLD at 36K** (`evals/2026-11-17/halocline-d8-kv`, arm `q4`):
    0.00779, paired +0.00197 [+0.00167, +0.00228] over int8 and +0.00104 [+0.00082, +0.00125] over K8V4, top-1 96.07%;
-   decode on par; prefill 3,151 / 2,745 at 16K / 36K (-8% / -15%, 4 warps). Not merged into `d8-integration` yet: it
-   changes shared kernels non-bitwise (W7's SASS diff), so it carries the sparse gate before it merges.
+   decode on par; prefill 3,151 / 2,745 at 16K / 36K (-8% / -15%, 4 warps). Merged and shipped on 2026-11-18 as
+   `--long-context`: the Q4 cache write and attention are their own compiled instantiations, so the fp16, int8 and K8V4
+   kernels are instruction-identical to the release before it (`sass-identity.txt` in
+   `evals/2026-11-18/halocline-long-context`).
 2. **MTP drafter KV as a ring of its attention window** (32K) instead of full context: 1,024 MiB down to 128 at 262K.
    The drafter indexes cells by absolute position today.
    **2026-11-17:** both levers landed as opt-in flags, the default unchanged: `--mtp-kv fp16|int8` (the drafter's cache
    at 528 MiB at 262K in int8) and `--mtp-window N` (it reads the last N cells; its cache is a ring of N + 15, 128.05
-   MiB at N = 32,768). A windowed session is not parked (a ring has no linear image). The acceptance A/B that would pick
-   a default has not run.
+   MiB at N = 32,768). A windowed session is not parked (a ring has no linear image).
    **Measured 2026-11-17:** `--mtp-kv int8` leaves the 100-chunk gate's scored rows byte-identical to fp16 (the verify
-   pass decides every token) and decode within 2%, so it is the recommended setting with every format; the ring stays
-   a last resort because it gives up parking and the conversation cache.
+   pass decides every token) and decode within 2%, so it is the recommended setting with every format. The ring gives up
+   parking and the conversation cache; no acceptance A/B has run.
+   **2026-11-18:** `--long-context` makes the int8 ring over 32,768 cells part of the dense default, because it is what
+   brings 262,144 cells within the card.
    **2026-11-18:** the ring was broken past one lap: `gqa_decode_attn` swept it from chunk 0, so beyond position
    `cap` the drafter read no cell (NaN logits, "the drafter failed" at depth 140,288). Fixed on branch `mtp-ring-fix`
    (sweep from the window's first chunk; a ring case in `gqa_attn_parity` reads max abs 0 against an absolute cache).
@@ -274,17 +287,20 @@ The work, in order:
    and on decode and prefill at 36K, 137K and each format's maximum. The maintainer's preference is K8V4 at ~184K if
    its decode is on par with the sparse path's served profile and NInfer; 4-bit K at 262K only if the measured KLD
    difference says it costs nothing that matters. **Whichever KV
-   format wins at depth becomes the dense default, and this item stays open until that profile ships.** Until then the
-   served profile is UD-Q4_K_XL, int8 KV, 122,880 tokens (the largest that fits with MTP and vision today).
+   format wins at depth becomes the dense default, and this item stays open until that profile ships.** Until then
+   (2026-11-17) the served profile was UD-Q4_K_XL, int8 KV, 122,880 tokens, the largest that fitted with MTP and vision.
    **Measured 2026-11-18** (`evals/2026-11-17/halocline-d8-depth`, 16 chunks x 1,024 rows after the prefix): K8V4
    over int8 +0.00072 [+0.00050, +0.00095] at 65,536 and +0.00066 [+0.00050, +0.00082] at 140,288, the same cost as
    at 36K; K8V4 alone at 174,080: 0.00654 mean KLD, 96.62% top-1. Rotated 4-bit K and V at 65,536: +0.00185
    [+0.00135, +0.00234] over int8, 2.6 times K8V4's increment. Its 261,119 arm did not run: the protocol needs
    262,152 cells there (the engine keeps 8 cells past the last generated token). Decode and prefill at each format's
-   maximum are still open.
+   maximum were measured on 2026-11-18 (`evals/2026-11-18/halocline-long-context`, `evals/2026-11-18/halocline-w22`).
    **Decided 2026-11-18 (maintainer): K8V4 is the dense default.** Served profile UD-Q4_K_XL, `--kv k8v4 --mtp-kv int8`,
    175,616 tokens, MTP and vision; its llama-swap smoke passes, the 137K needle included. The engine's own default for an
-   unset `--kv` is still fp16. 262K stays open (rotated 4-bit, or a smaller drafter cache).
+   unset `--kv` is still fp16.
+   **Later on 2026-11-18 (standing order 8):** the 262K profile became the default. Served profile UD-Q4_K_XL,
+   `--long-context` (rotated q4_0 K and V, 262,144 tokens, the drafter's int8 ring over 32,768), MTP and vision on the
+   CPU; K8V4 at 175,616 is the lower-KLD lever. The int8 122,880 profile is no longer served.
    **Open, deferred (maintainer 2026-11-18, "we will fix it later"):** make K8V4 the engine's default for an unset
    `--kv` on the dense path (`kv_format` in `src/models/qwen35/adapter.cpp`, and the "fp16 (the default)" message).
    The trap: K8V4 has no streamed form, so a run that passes `--kv-resident` without `--kv` would be refused; resolve
@@ -297,6 +313,8 @@ The work, in order:
    The numbers are the planner's own, `tests/kernels/dense_kv_planner_test.cpp`; nothing was measured on the card.
 
 Accept: a 262K load with MTP and vision, the long-context KLD table, decode at 36K and 137K above the NInfer floors.
+2026-11-18: the load and the table passed, and K8V4 decode is above the floors; the 262K profile's own decode is still
+under them (`evals/2026-11-18/halocline-w22`).
 
 ### Dense quality levers (each A/B'd on the 100-chunk gate with a paired interval; keep what wins)
 
@@ -342,20 +360,25 @@ target-token dNLL (mean NLL of the observed token minus BF16's, paired per chunk
 rows (16 x 1,024 at 65,536 and 140,288, the same tokens round-tripped). Served against served: Halocline K8V4 +0.0018
 and +0.0020; NInfer `rk4v4-e8` +0.0199 [+0.0157, +0.0241] and +0.0201 [+0.0145, +0.0257], paired +0.018 against
 Halocline at both depths. NInfer with int8 KV is still +0.0172 at 65K: most of its loss is its weight conversion, not
-its 4-bit cache. Halocline wins this axis by about 10 times; speed is the open one (D5).
+its 4-bit cache. Halocline wins this axis by about 10 times; on speed it is behind on prose (D5).
 
 ## P0: close the cheap gaps in the published build
 
 These run beside P1 because they need GPU time, not converter work.
 
 1. **Strata KLD.** Score Strata 0.2.10 on the same frozen base with its own pack and KV. Without it the speed table
-   compares two engines and the quality comparison is missing. Accept: the 100-chunk row for Strata.
+   compares two engines and the quality comparison is missing. Accept: the 100-chunk row for Strata. **Retired
+   2026-11-18:** Strata 0.2.10 was retired on the maintainer's machine, so this row is no longer planned work. The
+   comparison rows stay as history.
 2. **Sampling distribution.** Seeded runs, top-1 and top-10 frequency within the run-to-run interval of the reference
-   build. Accept: the same prompts, the same seeds, the numbers recorded.
+   build. Accept: the same prompts, the same seeds, the numbers recorded. The harness is `tools/sampling_dist/`
+   (28277c91); it has not been run on the card.
 3. **Long-context KLD.** Score windows placed at 64K, 137K and 200K of context, per KV format. This is the gate that
-   would catch int8 KV drifting at depth. Accept: the table.
+   would catch int8 KV drifting at depth. Accept: the table. **2026-11-18:** the dense path is measured at 65,536,
+   140,288 and 174,080 for int8, K8V4 and rotated 4-bit (`evals/2026-11-17/halocline-d8-depth`,
+   `evals/2026-11-18/halocline-long-context`); 200K and beyond and the sparse path stay open.
 4. **Tool-call breadth.** Twenty or more prompts with a whether-to-call label. Accept: accuracy against the reference
-   path.
+   path. The harness is `tools/tool_calls/` (d4823f8a, 24 labelled cases); it has not been run on the card.
 
 ## P2: task-level eval (SWE-bench)
 
@@ -364,7 +387,8 @@ the right first one: long context, tool use and code editing in one loop.
 
 - **Harness:** mini-swe-agent, one scaffold for every arm, OpenAI-compatible endpoint against `bin/halocline serve`.
 - **Set:** SWE-bench Lite first (300 instances), then Verified (500). Pin the dataset revision and the images.
-- **Settings:** temperature 0, one attempt per instance, 262,144 context, int8 KV, drafter on. Same flags for every arm.
+- **Settings:** temperature 0, one attempt per instance, the 262K profile (`--long-context`), drafter on. Same flags for
+  every arm.
 - **Arms:** the sparse pack, the dense pack, then llama.cpp and NInfer on the same set if their harness support allows.
 - **Report:** resolve rate with a 95% interval, tokens in and out, wall time per instance, and the KLD row for the
   same pack.
@@ -382,13 +406,13 @@ Then the order is P1 again: pack, load, KLD, speed, identity, task gate.
 ## P4: support and polish
 
 - Remove the Windows and Docker code paths, or test them. Neither is supported today.
-- Rewrite the carried-over user docs (`docs/configuration/`, `docs/models/`, `docs/precision/`); each still carries
-  Basalt's banner.
+- Rewrite the carried-over user docs (`docs/configuration/`, `docs/models/`, `docs/precision/`); the Basalt banner is
+  gone, and the 2026-11-19 sweep brought their state lines up to date. The changelog pages stay as history.
 - A release workflow: tag, archive, checksum, recorded toolchain.
 - The formal trademark check for the name was never run; run it before commercial use.
 
 ## Order of work
 
-D1-D4 and the D6 round trip are done (2026-11-17). Next: D8 (262K), then D5 against NInfer like for like, D7, and
-the levers Q1-Q4. P0 runs in parallel because it needs the card, not a converter. D7 needs D3 to D5
-first; P2 starts once the dense pack loads, so the task gate measures a model that runs. P3 waits on Qwen.
+D1-D4, the D6 round trip and D8 are done (2026-11-18). D5 and D7 have their NInfer runs; the switch bar is not met, so
+the next work is the lossless levers (S2, S3, Q1-Q4) and the gates still open in [`docs/testing.md`](testing.md). P0
+runs in parallel because it needs the card, not a converter. P2 can start now that both packs load. P3 waits on Qwen.
