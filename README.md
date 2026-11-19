@@ -25,9 +25,9 @@
 | Against llama.cpp, same GGUF | | at parity: 0.00573 (f16 KV) and 0.01638 (q8_0 KV) |
 | Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS) |
 | Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
-| Context | 262,144, int8 KV | **175,616 served with K8V4 KV** since 2026-11-18 (depth gate: +0.00066 KLD over int8 at 140K, [`halocline-d8-depth`](evals/2026-11-17/halocline-d8-depth/)); before that 122,880 (int8 KV); 175,629 with K8V4 KV, +0.00093 KLD at 36K ([`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/)); 262,144 with rotated 4-bit K and V, +0.00197 KLD (on a branch, [D8](docs/roadmap.md#d8-262k-context-mtp-and-vision-on-one-card-open-the-next-engine-job)) |
+| Context | 262,144, int8 KV | **262,144 by default** (`--long-context`: rotated 4-bit K and V, +0.0011 mean KLD over K8V4 at 65K, 140K and 174K; a needle at 252,483 tokens found, [`halocline-long-context`](evals/2026-11-18/halocline-long-context/)); 175,616 with K8V4 KV as the lower-KLD lever ([two profiles](docs/models/qwen38-27b.md#two-profiles)) |
 | Vision | | packs carry the projector; serving untested |
-| Status | **runs**, served through llama-swap | **runs**, gated; about 10 times closer to BF16 than NInfer, 10% behind it on prose decode ([below](#dense-against-ninfer)) |
+| Status | **runs**, served through llama-swap | **runs**, gated, served at 262,144 tokens; about 10 times closer to BF16 than NInfer, 10% behind it on prose decode ([below](#dense-against-ninfer)) |
 | Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/) |
 
 ## Dense against NInfer
@@ -43,7 +43,8 @@ it still reads +0.0172. Halocline copies Unsloth's tensors as stored.
 
 **Speed.** Thinking off on both, so neither engine splits its reply into a thinking pass and an answer; greedy, 1,200
 tokens, streamed, decode rate as the client sees it, order Halocline, NInfer, NInfer, Halocline (2026-11-18, release
-75726a0f, K8V4 KV):
+75726a0f, K8V4 KV at 175,616; the 262K default decodes slower at depth until its attention kernel gets S1's staged form,
+see the profile's eval):
 
 | workload | Halocline t/s | NInfer t/s | Halocline vs NInfer |
 |---|---|---|---|
@@ -87,7 +88,7 @@ from 4-bit weights, an int8 KV cache and a draft layer, on a single 24 GB card.
 | **Models** | The Qwen4 family only. Another architecture belongs in its own fork (`halocline-<family>`). |
 | **Paths** | Sparse (Qwen3.8-Flash-Next: 512 experts, 10 routed plus 1 shared, expert offload) and dense (Qwen3.8-27B: 64 layers, no experts, no router). Both run. |
 | **Sparse** | Qwen3.8-Flash-Next (`qwen4_exp`): 512 experts, 10 active plus 1 shared, QSA sparse attention, gated residual, n-gram embedding, MTP drafter. Experts that do not fit the card live in page-locked RAM. **Runs.** |
-| **Dense** | Qwen3.8-27B (`qwen35`), standing in for Qwen4-27B until its weights exist: Gated DeltaNet and gated attention (3 to 1), SwiGLU, MTP drafter. Unsloth's v3.1 UD GGUFs repacked with every tensor as stored; the matrices run on llama.cpp's MMQ and MMVQ kernels in their stored types. **Runs.** 262K context is open ([roadmap](docs/roadmap.md#p1-the-dense-path-qwen38-27b-the-priority)). |
+| **Dense** | Qwen3.8-27B (`qwen35`), standing in for Qwen4-27B until its weights exist: Gated DeltaNet and gated attention (3 to 1), SwiGLU, MTP drafter. Unsloth's v3.1 UD GGUFs repacked with every tensor as stored; the matrices run on llama.cpp's MMQ and MMVQ kernels in their stored types. **Runs, at 262,144 tokens by default** ([two profiles](docs/models/qwen38-27b.md#two-profiles)). |
 | **Weights** | Unsloth GGUFs, converted to a pack that copies the quantized tensors byte for byte. One interim exception: the 195 `hc_*` tensors (Q8_0 in the GGUF) are cast to BF16. |
 | **API** | OpenAI chat completions and Responses, Anthropic Messages, streaming and tool calls, and a stats page, all from one standalone server (`halocline serve`). One request at a time is the supported mode. Run it alone, or add it to [llama-swap](https://github.com/mostlygeek/llama-swap) as one entry ([Ada user?](#ada-user) step 6). No chat UI. |
 

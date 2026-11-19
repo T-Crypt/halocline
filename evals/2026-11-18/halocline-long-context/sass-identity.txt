@@ -1,0 +1,15 @@
+SASS identity, release 75726a0f build-89 against branch long-context (after the attn_qk_prepare Q4 instantiation),
+cuobjdump -sass on the kernels' objects, 2026-11-18. Instruction text compared kernel by kernel; "cbank" = identical
+except constant-bank parameter offsets (DecSegs grew by KvQ4 q4[] at its end).
+
+dense_ops.cu.o
+  attn_qk_prepare_kernel<256, float, float>            IDENTICAL (Q4 = false instantiation)
+  attn_qk_prepare_kernel<128, float, float>            IDENTICAL
+  attn_qk_prepare_kernel<256, bf16, bf16>              IDENTICAL
+  the other 19 kernels                                 IDENTICAL
+  (before the change: the runtime Q4 branch made the K8V4 write 1,096 -> 1,480 instructions)
+gqa_attn.cu.o
+  prompt_i8_kernel x6, prompt_i8_merge x2, prompt_f16, decode_merge x2              IDENTICAL
+  prompt_k8v4_kernel x6 (now prompt_v4_kernel<W, B, Q4 = false>)                    IDENTICAL
+  decode_mma_kernel<128|256> (Q4 = false), decode_mma_window_kernel<128|256, 1..3>,
+  decode_k8v4_kernel<256, 1..3, 8|12>                                                cbank only
