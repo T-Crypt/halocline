@@ -41,6 +41,13 @@ These hold for every change until the maintainer replaces them.
    now." Speed work is lossless: front end, scheduling, kernels that pass fp64 parity and the paired depth-KLD gate at
    +0.00000 against the served K8V4 reference. No weight conversion (D1 stands), no lower-precision KV or drafter
    format bought for speed. A quality gain is welcome; the speed work then continues on top of it, losslessly.
+8. **The dense default is the 262K profile (maintainer, 2026-11-18).** "262K context stretched with only .0011 KLD mean
+   higher than its acceptable, as compaction on context will hurt with only 175K, so we push 262K, and continue to
+   refine, arVix paper research and test new methods. This is also subject to change when Qwen4-27B drops depending on
+   the arch the model is presented to us in. For now this is the lever we use 262K native window on 4bit rotated KV."
+   So `--long-context` (rotated q4_0 K and V, 262,144 tokens) is the documented default and the first example config;
+   K8V4 at 175,616 is the lever for a run that wants the lower KLD. Order 7 still holds for speed work: it stays lossless
+   on top of whichever cache a profile uses.
 
 Status:
 

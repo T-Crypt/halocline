@@ -50,6 +50,42 @@ bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8
 The BF16 reference for the quality gate is `qwen38-27b-bf16-base.kld`; the method is in
 [precision/qwen38-27b.md](../precision/qwen38-27b.md).
 
+## Two profiles
+
+The dense path has two serving profiles. The default is `--long-context`: the model's full 262,144 tokens on rotated
+4-bit K and V, at +0.0011 mean KLD over K8V4 at every measured depth (roadmap standing order 8). K8V4 at 175,616 tokens
+is the lever for a run that wants the lower KLD and fits in the shorter window. Pick one per server start.
+
+| | K8V4 (the lever) | `--long-context` (the default) |
+|---|---|---|
+| KV cache | `k8v4` (K int8, V rotated 4-bit) | `q4_0` (K and V rotated 4-bit) |
+| Context | 175,616 tokens | 262,144 tokens (the model's native maximum) |
+| Drafter cache | `--mtp-kv int8` | `--mtp-kv int8 --mtp-window 32768` (a ring over the last 32K cells; set by the flag) |
+| Mean KLD vs BF16 at 65,536 / 140,288 / 174,080 tokens | 0.00490 / 0.00560 / 0.00654 | 0.00602 / 0.00676 / 0.00762 (+0.00112 / +0.00116 / +0.00108) |
+| Reported as | | a lossy flag (the start warns, `/v1/status` lists it) |
+
+Both need `--vision cpu` on a 24 GB card: at 262,144 tokens the plan fits with 53 MiB to spare and no room for the
+vision encoder on the GPU. The default kernels are untouched by the second profile: its cache write and attention are
+their own compiled instantiations, and the default's are instruction-identical to the release before it.
+
+Two ready-made configs sit in `examples/`; copy one, point `model` at your pack, and start the server with it:
+
+```sh
+bin/halocline serve --config examples/qwen38-27b.json        # default: 262,144 tokens, rotated 4-bit K and V
+bin/halocline serve --config examples/qwen38-27b-k8v4.json   # 175,616 tokens, K8V4: the lower KLD
+```
+
+Or add the flag to your own command line; any setting you give beside it wins, except `--kv`, which must be `q4_0` or
+absent (the flag refuses another rather than silently replacing it):
+
+```sh
+bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 \
+    --spec 8 --long-context --vision cpu
+```
+
+To keep both on hand, run them as two entries of a model switcher (llama-swap, for example) on the same port with
+different names, so a request picks the profile by model name and only one holds the card at a time.
+
 ## What is measured
 
 - KLD against BF16 (D4): the measured table in the roadmap, from
