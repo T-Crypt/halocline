@@ -141,3 +141,4 @@ in the roadmap.
 
 2026-11-17: the first version of this page said the dense path did not run and that no pack had been built. The
 converter, both packs, the first load and the quality gate landed the same day; this page now describes that state.
+2026-11-19: the state lines describe the 262K default and the depth results.
