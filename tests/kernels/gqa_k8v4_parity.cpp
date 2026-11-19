@@ -812,8 +812,11 @@ int main() {
                         warps, ep.abs, ep.rel);
             report(warps == 8 && ep.abs < 4e-2,
                    "gqa_prompt_attn over a Q4 cache at 8 warps is within its rounding of the fp64 reference");
-            // the 8-warp launch's last 300 rows are the 4-warp launch's over the same queries at the same positions
-            const int T4 = 300;
+            // the 8-warp launch's last 304 rows (from row 896, a multiple of both shapes' 128 and 64 rows a block, so
+            // both launches give each warp the same 16 rows and the same key-tile bound) are the 4-warp launch's over
+            // the same queries at the same positions. A 4-warp launch from row 900 groups the rows differently and
+            // was measured to differ (2026-11-19); the served prompt chunks start on 4,096-row boundaries
+            const int T4 = 304;
             const int64_t pp4 = c4 + L - T4;
             float *d_q4 = dev<float>((size_t) T4 * NH * HD), *d_o4 = dev<float>((size_t) T4 * NH * HD);
             ck(cudaMemcpy(d_q4, &qpr[(size_t) (T - T4) * NH * HD], (size_t) T4 * NH * HD * 4, cudaMemcpyHostToDevice),
