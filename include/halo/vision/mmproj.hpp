@@ -1,7 +1,9 @@
 // halo/vision/mmproj.hpp - the vision projector file (GGUF, architecture "clip"): hyper-parameters and tensors.
 //
-// Opened read-only and mapped; tensor data stays in the mapping.  Only the layout the Qwen3-VL style encoder uses
-// is checked, and a file that does not match is refused with the reason.
+// Opened as a read-only mapping of the file, so the tensor bytes are file-backed pages: they never become
+// anonymous memory of the reader, the page cache can reclaim them under memory pressure and MemAvailable counts
+// them (the CPU encoder sidecar reads them in place this way).  Only the layout the Qwen3-VL style encoder uses is
+// checked, and a file that does not match is refused with the reason.
 #pragma once
 
 #include "halo/core/model_file.hpp"
@@ -37,10 +39,14 @@ public:
     Mmproj(const Mmproj&) = delete;
     Mmproj& operator=(const Mmproj&) = delete;
 
-    /// Reads the projector GGUF at `range` in place (a whole file, or the `vision/mmproj` section of a .halo; mapped
-    /// when the file system refuses unbuffered reads), parses the header and checks it is the `projector` type.  False
-    /// with `err` otherwise.
+    /// Reads the projector GGUF at `range` in place through a read-only mapping of the file (a whole file, or the
+    /// `vision/mmproj` section of a .halo), parses the header and checks it is the `projector` type.  False with
+    /// `err` otherwise.
     bool open(const core::FileRange& range, std::string& err, const char* projector = "qwen3vl_merger");
+
+    /// The same parser over `bytes` already in memory (the pre-mapping load path, kept for the parity tests):
+    /// `data` must outlive the Mmproj.  False with `err` otherwise.
+    bool open_bytes(const uint8_t* data, size_t bytes, std::string& err, const char* projector = "qwen3vl_merger");
 
     /// Drops the file's bytes: tensor pointers are invalid afterwards, hp() stays.  For callers that copied the weights.
     void release();
@@ -52,10 +58,8 @@ public:
     const TensorRef* need(const std::string& name, uint32_t type, int64_t elems, std::string& err) const;
 
 private:
-    void* map_ = nullptr;
-    platform::MappedFile mapping_;   ///< the file's view, when `map_` is one
-    bool mapped_ = false;   ///< `map_` is a file mapping (else allocated memory the file was read into)
-    size_t size_ = 0;
+    bool parse(const uint8_t* base, size_t bytes, std::string& err, const char* projector);
+    platform::MappedFile mapping_;   ///< the file's view: the tensor data lives inside it
     Hparams hp_;
     std::map<std::string, TensorRef> tensors_;
 };

@@ -8,6 +8,9 @@
 // embedding, 5e-5 for the layer-0 attention half (no rounding flips yet), 1.5e-1 after that, where a bf16 rounding
 // flip in one element spreads: the reference's own runs with and without flash attention differ by 1e-2 after
 // 5 layers and 1e-1 at the output on a photo.
+//
+// Then the file's mapped projector and the same bytes read into memory (the pre-mapping load path) encode the same
+// image once more: their embeddings must be bit-identical.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -17,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "halo/core/model_file.hpp"
 #include "halo/vision/encoder_cpu.hpp"
 
 using namespace halo::vision;
@@ -72,5 +76,28 @@ int main(int argc, char** argv) {
     };
     std::vector<float> out;
     if (!enc.encode(patches, sz, out, check)) { std::fprintf(stderr, "encode failed\n"); return 2; }
+
+    // the mapped file and the same bytes read into memory (the pre-mapping load path) give bit-identical embeddings
+    {
+        std::vector<uint8_t> raw;
+        if (!halo::core::read_range(halo::core::FileRange(argv[1]), raw, err)) {
+            std::fprintf(stderr, "identity: cannot read %s: %s\n", argv[1], err.c_str());
+            return 2;
+        }
+        Mmproj heap;
+        if (!heap.open_bytes(raw.data(), raw.size(), err)) { std::fprintf(stderr, "identity: %s\n", err.c_str()); return 2; }
+        const Hparams& a = mp.hp(), &b = heap.hp();
+        const bool same_hp = a.image_size == b.image_size && a.patch == b.patch && a.embd == b.embd && a.ffn == b.ffn &&
+                             a.layers == b.layers && a.heads == b.heads && a.merge == b.merge && a.proj == b.proj;
+        CpuEncoder heap_enc;
+        if (!heap_enc.init(heap, threads, bf16, true, err)) { std::fprintf(stderr, "identity: %s\n", err.c_str()); return 2; }
+        std::vector<float> heap_out;
+        if (!heap_enc.encode(patches, sz, heap_out)) { std::fprintf(stderr, "identity: encode failed\n"); return 2; }
+        const bool same = same_hp && heap_out.size() == out.size() &&
+                          std::memcmp(heap_out.data(), out.data(), out.size() * sizeof(float)) == 0;
+        std::printf("identity  hparams %s, embeddings %s (%zu values)\n", same_hp ? "match" : "DIFFER",
+                    same ? "bit-identical" : "DIFFER", out.size());
+        if (!same) ++bad;
+    }
     return bad ? 1 : 0;
 }

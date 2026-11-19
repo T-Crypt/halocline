@@ -2,10 +2,7 @@
 #include "halo/vision/mmproj.hpp"
 
 #include "halo/platform/file.hpp"
-#include "halo/platform/memory.hpp"
 
-#include <algorithm>
-#include <cstdlib>
 #include <cstring>
 
 namespace halo::vision {
@@ -84,10 +81,7 @@ Value read_value(Cursor& c, uint32_t t) {
 }  // namespace
 
 void Mmproj::release() {
-    if (map_ && !mapped_) halo::platform::free_aligned(map_);
     mapping_.reset();
-    mapped_ = false;
-    map_ = nullptr;
     tensors_.clear();
 }
 
@@ -99,41 +93,24 @@ bool Mmproj::open(const core::FileRange& range, std::string& err, const char* pr
     uint64_t whole = 0;
     if (!platform::file_size(path, whole)) { err = "cannot open " + path; return false; }
     if (file_bytes < 32 || offset + file_bytes > whole) { err = "cannot read " + path; return false; }
-    size_ = (size_t) file_bytes;
-    // read whole with block-aligned unbuffered reads, so the file cache neither copies nor keeps it; a file system that
-    // refuses them, and a platform with no unbuffered descriptor, is mapped instead
-    {
-        constexpr size_t kAlign = 4096, kChunk = 16u << 20;
-        const int dfd = platform::open_unbuffered(path);
-        void* mem = nullptr;
-        if (dfd >= 0 && offset % kAlign == 0) mem = halo::platform::alloc_aligned((size_t) ((size_ + kAlign - 1) / kAlign * kAlign), kAlign);
-        if (mem != nullptr) {
-            size_t got = 0;
-            while (got < size_) {
-                const size_t want = std::min<size_t>(kChunk, (size_ - got + kAlign - 1) / kAlign * kAlign);
-                const int64_t r = halo::platform::pread(dfd, (uint8_t*) mem + got, want, offset + got);
-                if (r <= 0) break;
-                got += (size_t) r;
-            }
-            if (got >= size_) { map_ = mem; mapped_ = false; }
-            else halo::platform::free_aligned(mem);
-        }
-        if (dfd >= 0) platform::close_fd(dfd);
-    }
-    if (map_ == nullptr) {
-        std::string why;
-        platform::MapOptions window;   // only the projector's bytes: a section of a pack must not map the whole pack
-        window.offset = offset;
-        window.bytes = file_bytes;
-        auto m = platform::MappedFile::open_ro(path, &why, window);
-        if (!m) { err = "cannot map " + path; return false; }
-        mapping_ = std::move(*m);
-        map_ = const_cast<uint8_t*>(mapping_.data());
-        mapped_ = true;
-    }
-    const uint8_t* base = (const uint8_t*) map_;
-    Cursor c{base, base + size_};
-    if (c.get<uint32_t>() != 0x46554747u) { err = path + " is not a GGUF file"; return false; }
+    std::string why;
+    platform::MapOptions window;   // only the projector's bytes: a section of a pack must not map the whole pack
+    window.offset = offset;
+    window.bytes = file_bytes;
+    auto m = platform::MappedFile::open_ro(path, &why, window);
+    if (!m) { err = "cannot map " + path; return false; }
+    mapping_ = std::move(*m);
+    return parse(mapping_.data(), (size_t) file_bytes, err, projector);
+}
+
+bool Mmproj::open_bytes(const uint8_t* data, size_t bytes, std::string& err, const char* projector) {
+    if (data == nullptr || bytes < 32) { err = "no projector bytes"; return false; }
+    return parse(data, bytes, err, projector);
+}
+
+bool Mmproj::parse(const uint8_t* base, size_t bytes, std::string& err, const char* projector) {
+    Cursor c{base, base + bytes};
+    if (c.get<uint32_t>() != 0x46554747u) { err = "not a GGUF file"; return false; }
     if (c.get<uint32_t>() != 3) { err = "unsupported GGUF version"; return false; }
     const uint64_t n_tensors = c.get<uint64_t>(), n_kv = c.get<uint64_t>();
     std::map<std::string, Value> kv;
@@ -203,7 +180,7 @@ bool Mmproj::open(const core::FileRange& range, std::string& err, const char* pr
         const size_t esz = t.type == 0 ? 4 : (t.type == 1 || t.type == 30) ? 2 : 0;
         if (esz == 0) { err = "tensor " + t.name + " has an unsupported type " + std::to_string(t.type); return false; }
         r.bytes = (size_t) r.elems() * esz;
-        if (data0 + t.off + r.bytes > size_) { err = "tensor " + t.name + " runs past the end of the file"; return false; }
+        if (data0 + t.off + r.bytes > bytes) { err = "tensor " + t.name + " runs past the end of the file"; return false; }
         r.data = base + data0 + t.off;
         tensors_[t.name] = std::move(r);
     }
