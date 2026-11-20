@@ -1,0 +1,52 @@
+2026-11-20T11:43:57-07:00 sha256 start
+2026-11-20T11:46:28-07:00 sha256 ok: both shards match the HF LFS oids
+2026-11-20T11:46:29-07:00 convert dry run
+2026-11-20T11:46:32-07:00 STOP: dry run failed:   gguf                                            31.256 GiB 124070789 MB/s   mtp/dense                                        0.108 GiB  77399381 MB/s convert: section mtp/dense: the copys SHA-256 differs from /mnt/models/halocline/packs/QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halos 
+--- resume 2026-11-20T11:47:42-07:00 after the dry-run fix (71199e25) ---
+2026-11-20T11:47:42-07:00 sha256 already ok (sha256.ok)
+2026-11-20T11:47:42-07:00 convert dry run
+2026-11-20T11:47:44-07:00 dry run ok
+2026-11-20T11:47:44-07:00 convert start
+2026-11-20T11:54:20-07:00 pack: 87889249268 bytes
+2026-11-20T11:54:20-07:00 bench queue start
+2026-11-20T11:54:21-07:00 A-ud-350 bench start: QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo at 350 W
+2026-11-20T11:54:26-07:00 A-ud-350 bench rc=1 
+2026-11-20T11:54:26-07:00 B-sc117-350 bench start: QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo at 350 W
+2026-11-20T11:54:27-07:00 B-sc117-350 bench rc=1 
+2026-11-20T11:54:27-07:00 power limit now 450.00 W
+2026-11-20T11:54:27-07:00 C-sc117-450 bench start: QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo at 450 W
+THERMAL C-sc117-450 2026/11/20 11:54:27.602 temp=25 hw= Not Active hwt= Not Active
+2026-11-20T11:54:27-07:00 power limit now 350.00 W
+2026-11-20T11:54:28-07:00 C-sc117-450 bench rc=1 THERMAL-LIMITED
+2026-11-20T11:54:28-07:00 power limit now 350.00 W
+2026-11-20T11:54:28-07:00 power limit now 450.00 W
+2026-11-20T11:54:28-07:00 D-ud-450 bench start: QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo at 450 W
+THERMAL D-ud-450 2026/11/20 11:54:28.490 temp=25 hw= Not Active hwt= Not Active
+2026-11-20T11:54:28-07:00 power limit now 350.00 W
+2026-11-20T11:54:28-07:00 D-ud-450 bench rc=1 THERMAL-LIMITED
+2026-11-20T11:54:29-07:00 power limit now 350.00 W
+2026-11-20T11:54:29-07:00 gpu-tune.service restarted: 350.00 W
+2026-11-20T11:54:29-07:00 bench queue rc=0; power limit 350.00 W
+2026-11-20T11:54:29-07:00 done
+--- rerun 2026-11-20T11:57:09-07:00: bench from the abil-halo checkout build (71199e25), watchdog fixed (it matched 'Not Active') ---
+2026-11-20T11:57:24-07:00 sha256 already ok (sha256.ok)
+2026-11-20T11:57:24-07:00 convert dry run
+2026-11-20T11:57:24-07:00 STOP: dry run failed: convert: /data/models/halocline/packs/QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo exists (use --force to overwrite) 
+2026-11-20T11:57:42-07:00 sha256 already ok (sha256.ok)
+2026-11-20T11:57:42-07:00 pack exists, convert skipped: 87889249268 bytes
+2026-11-20T11:57:42-07:00 bench queue start
+2026-11-20T11:57:42-07:00 A-ud-350 bench start: QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo at 350 W
+2026-11-20T12:01:09-07:00 A-ud-350 bench rc=0 
+2026-11-20T12:01:09-07:00 B-sc117-350 bench start: QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo at 350 W
+2026-11-20T12:08:31-07:00 B-sc117-350 bench rc=0 
+2026-11-20T12:08:31-07:00 power limit now 450.00 W
+2026-11-20T12:08:31-07:00 C-sc117-450 bench start: QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo at 450 W
+2026-11-20T12:15:51-07:00 C-sc117-450 bench rc=0 
+2026-11-20T12:15:51-07:00 power limit now 350.00 W
+2026-11-20T12:15:51-07:00 power limit now 450.00 W
+2026-11-20T12:15:51-07:00 D-ud-450 bench start: QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo at 450 W
+2026-11-20T12:19:10-07:00 D-ud-450 bench rc=0 
+2026-11-20T12:19:10-07:00 power limit now 350.00 W
+2026-11-20T12:19:10-07:00 gpu-tune.service restarted: 350.00 W
+2026-11-20T12:19:10-07:00 bench queue rc=0; power limit 350.00 W
+2026-11-20T12:19:10-07:00 done
