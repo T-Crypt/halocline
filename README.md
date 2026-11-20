@@ -3,16 +3,60 @@
 </p>
 
 <p align="center">
-  <b>Halocline: the engine that hides nothing.</b><br>
-  <b>One engine, two paths: sparse and dense.</b> Qwen mixture-of-experts and dense models on one NVIDIA Ada GPU
-  (sm_89), a 24 GB RTX 4090. Each result names the run directory that produced it.
+  <b>Halocline <code>halo-cyber</code>: a research branch.</b><br>
+  Planned: OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored on Halocline's dense path, at its native 262,144 tokens on one
+  24 GB Ada card.
 </p>
 
 <p align="center">
-  <code>status: pre-alpha</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>models: Qwen4 family</code> &nbsp; <code>licence: MIT</code>
+  <code>status: research, planned</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>model: bring your own</code> &nbsp; <code>licence: MIT</code>
 </p>
 
+> [!WARNING]
+> **This is not `main`.** [`main`](https://github.com/T-Crypt/halocline/tree/main) is the supported Halocline:
+> Unsloth's UD packs, tensors copied byte for byte, every change gated on KLD against BF16. This branch is research:
+> it has no gates, nothing on it runs yet, and it can change or vanish without notice.
+
+## What this branch plans
+
+Support for one model on the dense path: **OrcaSAQ-2 Cyber 27B Uncensored** (`orcarouter/OrcaSAQ-2-Cyber-27B-Uncensored-GGUF`).
+It is a Qwen3.8-27B with its refusals removed, built for red-team and security work. OrcaRouter quantized it with
+their own importance matrix:
+
+| | |
+|---|---|
+| Architecture | `qwen35`, 64 layers plus one MTP layer (`nextn_predict_layers = 1`) |
+| Tensor types | IQ4_XS on 439 tensors (the FFNs, attention gate, q, k and output, the SSM projections, the MTP layer), Q5_K on `attn_qkv` and `attn_v`, Q6_K on the embedding and output head |
+| File | `OrcaSAQ-2-27B-Uncensored.gguf`, 15,676,553,472 bytes, sha256 `4ab6bdf8a9008869abf1630fb92d04b5439805f96b56692962fa240b1d439977` |
+| Licence | Apache-2.0 |
+
+Halocline's dense path already runs each of those types in its stored form. A converter dry run takes all of the
+file's tensors as stored, the MTP layer included:
+
+```sh
+.venv/bin/python tools/convert/convert.py --gguf OrcaSAQ-2-27B-Uncensored.gguf --no-vision \
+    --name OrcaSAQ-2-27B-Uncensored --out OrcaSAQ-2-27B-Uncensored.halo --dry-run
+```
+
+**The goal is the full 262,144-token context.** On the same RTX 4090, stock llama.cpp fits 188,416 tokens of this
+model with a q8_0 KV cache and its own MTP drafter, at 113 to 117 tok/s. Halocline's dense path serves a 27B at
+262,144 tokens with a rotated 4-bit KV cache from an 18.6 GB pack. This file is 15.7 GB, which leaves about 3 GB more
+of the card for KV. The work: convert, load at 262,144, find the KV format that fits, and measure decode and a needle at
+depth against the llama.cpp numbers above.
+
+## No weights here
+
+This repository does not host, mirror or link a download of the model. The branch is for people who already have
+the file. Check your file against the sha256 above before you convert it.
+
+The model has no reliable refusals. Serve it only behind your own access control, and never give it a router or role
+alias that other agents pick up on their own.
+
 <img src="assets/halocline-divider.svg" width="100%" alt="">
+
+> [!NOTE]
+> **Everything below is `main`'s README**, about the Unsloth UD reference builds. Its quality numbers, gates and
+> byte-for-byte claims describe those packs, not this branch's model.
 
 ## Two paths
 
