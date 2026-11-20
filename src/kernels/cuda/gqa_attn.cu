@@ -1689,7 +1689,7 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
         int8_t* v_s = k_s + I8_TILE;
         uint16_t* vs_s = reinterpret_cast<uint16_t*>(v_s + I8_TILE);
         const int valid = min(I8BC, max_qabs + 1 - kb * I8BC);
-#pragma unroll
+#pragma unroll 1
         for (int i = 0; i < I8_TILE / 16 / Threads; ++i) {
             const int chunk = tid + i * Threads;
             const int key = chunk >> 4, c = chunk & 15;
@@ -1760,11 +1760,14 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
             else issue_tile(kb + 1);
         }
         const int k0 = kb * I8BC;
-        if (!warp_active || k0 > warp_max_qabs) {
-            if constexpr (PF) next_tile(kb);
-            continue;
-        }
-        const unsigned char* base = smem_raw + Br * HD + (PF ? 0 : (kb & 1)) * STAGE;
+        // one exit for every warp, so the barrier in next_tile is reached from one place (PF)
+        do {
+        if (!warp_active || k0 > warp_max_qabs) break;
+        // PF computes from stage 0 always; an opaque zero keeps the base a per-iteration value as (kb & 1) is, so
+        // the compiler does not hoist every lane's shared addresses out of the loop (that spilled 584 B a thread)
+        int stage = kb & 1;
+        if constexpr (PF) asm volatile("mov.b32 %0, 0;" : "=r"(stage));
+        const unsigned char* base = smem_raw + Br * HD + stage * STAGE;
         const int8_t* k_s = reinterpret_cast<const int8_t*>(base);
         const int8_t* v_s = k_s + I8_TILE;
         const uint16_t* ks_s = reinterpret_cast<const uint16_t*>(v_s + I8_TILE);   // K8V4 only; Q4 reads K's scales through L1
@@ -1941,6 +1944,7 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
                 o[3] = fmaf(o[3], al1, step1 * (float) od[3]);
             }
         }
+        } while (0);
         if constexpr (PF) next_tile(kb);
     }
 
