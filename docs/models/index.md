@@ -17,10 +17,6 @@ Halocline runs the Qwen4 family only. Two paths exist:
 | Guide | [Flash-Next](qwen38-flash-next.md) | [Qwen3.8-27B](qwen38-27b.md) |
 | Precision | [Flash-Next](../precision/qwen38-flash-next.md) | [Qwen3.8-27B](../precision/qwen38-27b.md) |
 
-On branch `abil-halo` the sparse path also takes two GSQ-RCO IQ3_S builds, ISTA-DASLab's and SC117's abliterated one,
-each under its own name ([sparse sources](sparse-sources.md)). That branch is experimental and untested; `main` stays
-Unsloth-only.
-
 Both paths run. The dense path is the plan of record for Qwen4-27B. The ordered work, with accept criteria, is in
 [`docs/roadmap.md`](../roadmap.md).
 

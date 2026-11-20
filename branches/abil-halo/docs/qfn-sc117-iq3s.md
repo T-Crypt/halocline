@@ -53,5 +53,5 @@ abliteration changes outputs on purpose.
 
 ## Serving
 
-`examples/qfn-sc117-iq3s.json` is the local config: its own port and alias, the served sparse flags. Give it a
+[`../examples/qfn-sc117-iq3s.json`](../examples/qfn-sc117-iq3s.json) is the local config: its own port and alias, the served sparse flags. Give it a
 llama-swap entry of its own with no router or role aliases.

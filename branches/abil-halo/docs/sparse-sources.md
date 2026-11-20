@@ -6,8 +6,8 @@ which keeps its gates; it appears below only for the expert sizes.
 
 | Source | Download (folder, revision) | Pack | Local config | llama-swap name |
 |---|---|---|---|---|
-| [ISTA-DASLab GSQ-RCO IQ3_S](https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF) | `IQ3_S/` and `mmproj-Qwen3.8-Flash-Next-BF16.gguf`, `ed59f920` | `QFN-GSQ-RCO-IQ3_S-vision.halo` | [`qfn-gsq-iq3s.json`](../../examples/qfn-gsq-iq3s.json) (port 8094) | `Halocline-QFN-GSQ-IQ3_S` |
-| [SC117 GSQ-RCO abliterated IQ3_S](https://huggingface.co/SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF) | `IQ3_S/`, `90a3350c`, plus ISTA's projector | `QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo` | [`qfn-sc117-iq3s.json`](../../examples/qfn-sc117-iq3s.json) (port 8095) | `Halocline-QFN-SC117-IQ3_S` |
+| [ISTA-DASLab GSQ-RCO IQ3_S](https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF) | `IQ3_S/` and `mmproj-Qwen3.8-Flash-Next-BF16.gguf`, `ed59f920` | `QFN-GSQ-RCO-IQ3_S-vision.halo` | [`qfn-gsq-iq3s.json`](../examples/qfn-gsq-iq3s.json) (port 8094) | `Halocline-QFN-GSQ-IQ3_S` |
+| [SC117 GSQ-RCO abliterated IQ3_S](https://huggingface.co/SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF) | `IQ3_S/`, `90a3350c`, plus ISTA's projector | `QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo` | [`qfn-sc117-iq3s.json`](../examples/qfn-sc117-iq3s.json) (port 8095) | `Halocline-QFN-SC117-IQ3_S` |
 
 SC117's build has no reliable refusals. Read the warning on [its page](qfn-sc117-iq3s.md) before you serve it, and
 give it no router or role alias.

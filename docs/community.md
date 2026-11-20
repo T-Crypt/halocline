@@ -19,11 +19,7 @@ binary, and the bench refuses them before it starts. A MIG slice is not one card
 Linux x86-64 and a driver new enough for CUDA 12. There is nothing else to install. The bench reads the card's compute
 capability, its VRAM, the power limit the driver enforces and the PCIe link, and the row records them.
 
-> [!NOTE]
-> Branch `abil-halo` converts ISTA-DASLab's GSQ-RCO IQ3_S shards instead ([sparse sources](models/sparse-sources.md)).
-> It is experimental and untested; this page describes `main`.
-
-On `main` the sparse path's supported weights are Unsloth's Qwen3.8-Flash-Next UD-IQ4_XS v3.1, converted by this repository:
+The sparse path's supported weights are Unsloth's Qwen3.8-Flash-Next UD-IQ4_XS v3.1, converted by this repository:
 
 | What | Size | Where |
 |---|---|---|

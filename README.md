@@ -18,6 +18,17 @@
 > tests it, scores it against BF16 or compares it with `main`, and none of that is planned. It can change or vanish
 > without notice.
 
+## Branches
+
+`main` is the default install. The other two branches are optional research configurations for people who want them.
+Each keeps its own files under `branches/<name>/` and changes no file of `main`'s except its README.
+
+| Branch | What it runs | Weights | Status |
+|---|---|---|---|
+| [`main`](https://github.com/T-Crypt/halocline/tree/main) | Both paths, sparse and dense, gated on KLD against BF16 | Unsloth UD-IQ4_XS (sparse); UD-Q4_K_XL and UD-IQ4_XS (dense), tensors copied byte for byte | supported, the default |
+| [`abil-halo`](https://github.com/T-Crypt/halocline/tree/abil-halo) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
+| [`halo-cyber`](https://github.com/T-Crypt/halocline/tree/halo-cyber) | The dense path on OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored, byte-identical, at its native 262,144 tokens | bring your own copy; the repository hosts none | research |
+
 ## What this branch is for
 
 A place to try ISTA-DASLab's approach to bit allocation on Halocline's engine. Their
@@ -35,13 +46,18 @@ Two builds of the same quant convert here, each under its own name:
 | SC117 GSQ-RCO abliterated IQ3_S | [`SC117/...-GSQ-RCO-abliterated-GGUF`](https://huggingface.co/SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF), `IQ3_S/`, revision `90a3350c` | 87,889,249,268 bytes | `QFN-SC117-GSQ-RCO-abliterated-IQ3_S` |
 
 SC117 replaced 144 tensors with ones from an uncensored release, so that model has no reliable refusals. Read
-[its page](docs/models/qfn-sc117-iq3s.md) before you serve it. Both builds use the same expert types layer for layer;
-[sparse sources](docs/models/sparse-sources.md) has the types, the file hashes and the commands. For quality, read
+[its page](branches/abil-halo/docs/qfn-sc117-iq3s.md) before you serve it. Both builds use the same expert types layer for layer;
+[sparse sources](branches/abil-halo/docs/sparse-sources.md) has the types, the file hashes and the commands. For quality, read
 ISTA-DASLab's own evaluation on their model card.
 
 ## Build, convert, serve
 
-Any Ada card builds and runs it; the build refuses every other architecture.
+Any Ada card builds and runs it; the build refuses every other architecture. Check it out in its own folder, so it
+installs beside `main` (or without it) and neither touches the other's build, packs or ports:
+
+```sh
+git clone -b abil-halo https://github.com/T-Crypt/halocline.git halocline-abil-halo && cd halocline-abil-halo
+```
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
@@ -63,9 +79,13 @@ bin/halocline serve QFN-GSQ-RCO-IQ3_S-vision.halo --host 127.0.0.1 --port 8094 \
     --spec 8 --prefill auto --max-context 262144 --kv int8 --vision dynamic
 ```
 
+Its ports are its own: 8094 for the GSQ pack and 8095 for SC117's, beside `main`'s 8092 (sparse) and 8093 (dense)
+and `halo-cyber`'s 8096. [`branches/abil-halo/examples/`](branches/abil-halo/examples/) holds a server config for each;
+in llama-swap give each pack an entry of its own with that port.
+
 You need no Unsloth file. The converter finds shard 2 (the n-gram table) beside shard 1. Once the pack exists you can
 delete the GGUF shards: the engine reads only the pack. For SC117's build, download its `IQ3_S/` folder and convert it
-with ISTA's projector; [its page](docs/models/qfn-sc117-iq3s.md) has the command. The pack takes about 82 GiB of disk;
+with ISTA's projector; [its page](branches/abil-halo/docs/qfn-sc117-iq3s.md) has the command. The pack takes about 82 GiB of disk;
 the author's machine runs it with 64 GB of RAM.
 
 <img src="assets/halocline-divider.svg" width="100%" alt="">
