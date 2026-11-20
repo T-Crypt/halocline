@@ -1,0 +1,14 @@
+OrcaSAQ-2-27B-Uncensored.gguf: 64 layers, 866 tensors, 14.590 GiB, copied as stored
+hashing the source tensors ...
+  866 tensors in 18.4 s
+writing sections:
+  tokenizer/chat_template.jinja                    0.000 GiB        21 MB/s
+  tokenizer/merges.txt                             0.003 GiB      1440 MB/s
+  tokenizer/token_type.json                        0.001 GiB      1343 MB/s
+  tokenizer/tokenizer.json                         0.000 GiB         3 MB/s
+  tokenizer/vocab.json                             0.005 GiB      1525 MB/s
+  gguf                                            14.590 GiB       346 MB/s
+  vision/mmproj                                    0.867 GiB       182 MB/s
+  vision/text_vocab                                0.010 GiB      1808 MB/s
+  meta                                             0.008 GiB      1782 MB/s
+done: 9 sections, 15.498 GiB, 49.8 s -> /data/models/halocline/packs/OrcaSAQ-2-27B-Uncensored-vision.halo

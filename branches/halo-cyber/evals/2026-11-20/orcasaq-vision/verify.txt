@@ -1,0 +1,2 @@
+note: vision/mmproj is not compared: pass --mmproj to check it
+verify: 866 tensors, 5 tokenizer files, 2 vision sections, 0 mismatches -> LOSSLESS

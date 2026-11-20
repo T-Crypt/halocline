@@ -6,14 +6,15 @@
   },
   "models": [
     {
-      "model": "models/OrcaSAQ-2-27B-Uncensored.halo",
+      "model": "models/OrcaSAQ-2-27B-Uncensored-vision.halo",
       "alias": "Halocline-OrcaSAQ-27B",
       "gpu": "0",
       "spec": 8,
       "kv": "k8v4",
       "mtp-kv": "int8",
       "mtp-window": 32768,
-      "max-context": 262144
+      "max-context": 262144,
+      "vision": "cpu"
     }
   ]
 }

@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <code>status: research, runs</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>model: bring your own</code> &nbsp; <code>licence: MIT</code>
+  <code>status: research, runs, vision</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>model: bring your own</code> &nbsp; <code>licence: MIT</code>
 </p>
 
 > [!WARNING]
 > **This is not `main`.** [`main`](https://github.com/T-Crypt/halocline/tree/main) is the supported Halocline:
 > Unsloth's UD packs, tensors copied byte for byte, every change gated on KLD against BF16. This branch is research:
-> it has no gates and no KLD, and it can change or vanish without notice.
+> it has no gates, and it can change or vanish without notice.
 
 ## Branches
 
@@ -43,7 +43,17 @@ their own importance matrix:
 | Licence | Apache-2.0 |
 
 The pack keeps every tensor as OrcaRouter stored it: `gguf_qwen35.py verify` reads all 866 tensors back against the
-GGUF, 0 mismatches. One engine change makes it load (the IQ4_XS gating tensors,
+GGUF, 0 mismatches.
+
+OrcaRouter publishes no vision projector, so the pack adds the stock Qwen3.8-27B BF16 one (Unsloth's `mmproj-BF16.gguf`,
+sha256 `83ee4f4f...`, the same bytes `main`'s UD dense pack carries) as its own section; the model's tensors do not
+change. Three known-answer images (counted shapes, read text, the tallest bar) come back right with the encoder on the
+CPU, 1.8 to 2.6 s each, also after a 137K-token prompt
+([`branches/halo-cyber/evals/2026-11-20/orcasaq-vision/`](branches/halo-cyber/evals/2026-11-20/orcasaq-vision/)).
+`--vision dynamic` runs the encoder on the card (0.3 to 0.4 s an image) only while the card has 966 MiB free: after a
+long prompt it refuses with `no device memory for the image encoder`, and it has no CPU fallback, so the config uses
+`cpu`. The projector was trained against the stock model; nobody has measured how the abliteration changes what it
+sees beyond those three images. One engine change makes it load (the IQ4_XS gating tensors,
 [`branches/halo-cyber/README.md`](branches/halo-cyber/README.md#engine-change-against-main)).
 
 ## Against llama.cpp, same file, same card
@@ -66,10 +76,28 @@ A passphrase at a quarter of the depth: both engines find it in a 181,851-token 
 token, llama.cpp 94.9 s). Halocline also finds it in a 252,398-token prompt (135.8 s), which llama.cpp cannot hold on
 this card. Peak VRAM: Halocline 23,178 MiB, llama.cpp 24,086 MiB.
 
-What the table does not say. The V cache is 4-bit on Halocline and 8-bit on llama.cpp. The engines write different
+## What the extra context costs
+
+The same file scored against a reference: llama.cpp on this GGUF with f16 K and V (OrcaSAQ-2 exists only quantized, so
+there is no BF16 model to score against). A D-token prefix, then 1,024 scored rows, 16 chunks of wikitext-103
+(`tools/depth_kld`). Lower KLD is closer to the reference.
+
+| Depth | KV | Mean KLD | Top-1 agreement |
+|---|---|---|---|
+| 65,536 | llama.cpp q8_0 K and V | 0.00041 | 98.99% |
+| 65,536 | Halocline int8 K and V | 0.00088 | 98.65% |
+| 65,536 | Halocline K8V4 (served) | 0.00163 | 98.01% |
+| 140,288 | llama.cpp q8_0 K and V | 0.00053 | 98.87% |
+| 140,288 | Halocline K8V4 (served) | 0.00208 | 97.93% |
+
+The reference is llama.cpp's own arithmetic, so llama.cpp's rows inherit its kernels and Halocline's rows carry the
+difference between two engines on top. Within Halocline the 4-bit V costs +0.00075 at 65,536. The served profile trades
+about 0.0015 KLD (one top-1 point) at depth against llama.cpp's for 73,728 more tokens of context and faster decode.
+[`branches/halo-cyber/evals/2026-11-20/orcasaq-kld/`](branches/halo-cyber/evals/2026-11-20/orcasaq-kld/)
+
+What the speed table does not say. The V cache is 4-bit on Halocline and 8-bit on llama.cpp. The engines write different
 text, so each rate is measured on its own output. llama.cpp reused the prose request's cached prompt on the JSON
-rows, so compare prompt time on the prose rows only (36K: 10.8 s against 12.2 s; 137K: 56.2 s against 57.6 s). No
-quality score was run. Every number, command and log is in
+rows, so compare prompt time on the prose rows only (36K: 10.8 s against 12.2 s; 137K: 56.2 s against 57.6 s). Every number, command and log is in
 [`branches/halo-cyber/evals/2026-11-20/orcasaq-vs-llamacpp/`](branches/halo-cyber/evals/2026-11-20/orcasaq-vs-llamacpp/).
 
 ## Build and serve
@@ -83,15 +111,18 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTUR
 ninja -C build
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-.venv/bin/python tools/convert/convert.py --gguf OrcaSAQ-2-27B-Uncensored.gguf --no-vision \
-    --name OrcaSAQ-2-27B-Uncensored --out OrcaSAQ-2-27B-Uncensored.halo
-.venv/bin/python tools/convert/gguf_qwen35.py verify OrcaSAQ-2-27B-Uncensored.halo OrcaSAQ-2-27B-Uncensored.gguf
+# the projector: the stock Qwen3.8-27B BF16 vision tower (OrcaRouter ships none), from Unsloth's 27B repo
+hf download unsloth/Qwen3.8-27B-GGUF mmproj-BF16.gguf --local-dir qwen38-27b
+
+.venv/bin/python tools/convert/convert.py --gguf OrcaSAQ-2-27B-Uncensored.gguf --mmproj qwen38-27b/mmproj-BF16.gguf \
+    --name OrcaSAQ-2-27B-Uncensored --out OrcaSAQ-2-27B-Uncensored-vision.halo
+.venv/bin/python tools/convert/gguf_qwen35.py verify OrcaSAQ-2-27B-Uncensored-vision.halo OrcaSAQ-2-27B-Uncensored.gguf
 
 bin/halocline serve --config branches/halo-cyber/examples/orcasaq-27b.json
 ```
 
 The config serves `Halocline-OrcaSAQ-27B` on port 8096, beside `main`'s 8092 and 8093 and `halo-ista`'s 8094 and
-8095. Point its `model` at your pack. For the draft head the table used, add
+8095. Point its `model` at your pack. In llama-swap it serves as `Halocline-OrcaSAQ-27B`. For the draft head the table used, add
 `--draft-vocab tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin`.
 
 ## No weights here

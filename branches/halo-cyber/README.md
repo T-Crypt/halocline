@@ -4,7 +4,7 @@ This branch's own files. `main` never writes here, so a merge from `main` cannot
 
 | Path | What |
 |---|---|
-| [`examples/orcasaq-27b.json`](examples/orcasaq-27b.json) | The server config: port 8096, name `Halocline-OrcaSAQ-27B`, K8V4 KV at 262,144 tokens |
+| [`examples/orcasaq-27b.json`](examples/orcasaq-27b.json) | The server config: port 8096, name `Halocline-OrcaSAQ-27B`, K8V4 KV at 262,144 tokens, the image encoder on the card |
 | [`evals/`](evals/) | The runs behind the numbers in the branch README |
 
 ## Engine change against `main`

@@ -1,0 +1,11 @@
+[server] legend   pp=prompt read  tg=generation  c=cached  acc=drafts accepted  dl=tokens per window  hit=expert cache  pcie=routed experts over PCIe
+[server] Halocline-OrcaSAQ-27B  ctx=262144 kv=k8v4 mtp-kv=int8 mtp-window=32768 draft-vocab=~/halocline/releases/25d5cb79/tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin spec=8 temp=1.0 top_p=0.95 top_k=20 vision=gpu0
+[server] ready    http://127.0.0.1:8096/v1  openai+anthropic  stats http://127.0.0.1:8096/
+[server] loaded   14.4GiB 12.2s  cuda0=14.4GiB
+[server] weights  loaded, ctx=262144 images=on
+[server] video    on, FFmpeg 9 (libavformat 63.1.102) from /usr/lib/libavformat.so.63
+[server] s1 done  pp=279/0c 0.1s  tg=9 98.7t/s acc=100%  ttft=0.2s  end=stop
+[server] s1 done  pp=228/0c 0.1s  tg=10 93.0t/s acc=80%  ttft=0.1s  end=stop
+[server] s1 done  pp=292/0c 0.1s  tg=4 66.6t/s acc=60%  ttft=0.2s  end=stop
+[server] stopping (Ctrl+C again to force)
+[server] stopped
