@@ -1,0 +1,22 @@
+acuity-20            ttft    1.13 s  wall    1.16 s  prompt=1117  <reply redacted>
+acuity-14            ttft    1.11 s  wall    1.17 s  prompt=1117  <reply redacted>
+acuity-10            ttft    1.10 s  wall    1.18 s  prompt=1117  <reply redacted>
+acuity-8             ttft    1.09 s  wall    1.16 s  prompt=1117  <reply redacted>
+count-simple         ttft    1.26 s  wall    1.30 s  prompt=1100  <reply redacted>
+count-medium         ttft    1.28 s  wall    1.34 s  prompt=1400  <reply redacted>
+count-complex        ttft    1.19 s  wall    1.24 s  prompt=1400  <reply redacted>
+spatial-simple       ttft    1.35 s  wall    1.44 s  prompt=1565  <reply redacted>
+spatial-medium       ttft    1.22 s  wall    1.26 s  prompt=1491  <reply redacted>
+spatial-complex      ttft    1.23 s  wall    1.29 s  prompt=1570  <reply redacted>
+chart-simple         ttft    1.13 s  wall    1.69 s  prompt=866  <reply redacted>
+chart-medium         ttft    1.23 s  wall    1.29 s  prompt=990  <reply redacted>
+chart-complex        ttft    1.29 s  wall    1.33 s  prompt=1271  <reply redacted>
+screenshot-simple    ttft    1.34 s  wall    1.43 s  prompt=1149  <reply redacted>
+screenshot-medium    ttft    1.48 s  wall    1.53 s  prompt=1413  <reply redacted>
+screenshot-complex   ttft    1.46 s  wall    1.54 s  prompt=1412  <reply redacted>
+diagram-simple       ttft    0.54 s  wall    0.58 s  prompt=182  <reply redacted>
+diagram-medium       ttft    0.78 s  wall    0.83 s  prompt=496  <reply redacted>
+diagram-complex      ttft    1.08 s  wall    1.14 s  prompt=1029  <reply redacted>
+text probe 0: 400 tok, decode 120.4 t/s, ttft 0.286 s
+text probe 1: 400 tok, decode 133.6 t/s, ttft 0.283 s
+summary {"images": 19, "ttft_sum_s": 22.3, "ttft_median_s": 1.218, "errors": 0}

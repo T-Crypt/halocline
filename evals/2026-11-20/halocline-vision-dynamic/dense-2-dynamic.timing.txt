@@ -1,0 +1,22 @@
+acuity-20            ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+acuity-14            ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+acuity-10            ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+acuity-8             ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+count-simple         ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+count-medium         ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+count-complex        ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+spatial-simple       ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+spatial-medium       ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+spatial-complex      ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+chart-simple         ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+chart-medium         ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+chart-complex        ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+screenshot-simple    ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+screenshot-medium    ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+screenshot-complex   ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+diagram-simple       ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+diagram-medium       ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+diagram-complex      ttft    0.00 s  wall    0.00 s  prompt=None  <reply redacted>
+text probe 0: 400 tok, decode 87.1 t/s, ttft 0.057 s
+text probe 1: 400 tok, decode 92.1 t/s, ttft 0.056 s
+summary {"images": 0, "ttft_sum_s": 0, "ttft_median_s": null, "errors": 19}

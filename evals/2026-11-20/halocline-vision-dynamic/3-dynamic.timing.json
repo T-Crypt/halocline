@@ -1,0 +1,351 @@
+{
+ "model": "vision-ab",
+ "utc": "2026-11-20T16:22:44Z",
+ "summary": {
+  "images": 19,
+  "ttft_sum_s": 22.2,
+  "ttft_median_s": 1.215,
+  "errors": 0
+ },
+ "results": [
+  {
+   "ttft_s": 1.135,
+   "wall_s": 1.218,
+   "usage": {
+    "prompt_tokens": 1117,
+    "completion_tokens": 5,
+    "total_tokens": 1122,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 4,
+   "key": "acuity-20",
+   "reply_sha12": "cfe05b7c43d7",
+   "reply_len": 5
+  },
+  {
+   "ttft_s": 1.098,
+   "wall_s": 1.156,
+   "usage": {
+    "prompt_tokens": 1117,
+    "completion_tokens": 5,
+    "total_tokens": 1122,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 4,
+   "key": "acuity-14",
+   "reply_sha12": "c9be8808230e",
+   "reply_len": 5
+  },
+  {
+   "ttft_s": 1.104,
+   "wall_s": 1.176,
+   "usage": {
+    "prompt_tokens": 1117,
+    "completion_tokens": 5,
+    "total_tokens": 1122,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 4,
+   "key": "acuity-10",
+   "reply_sha12": "436271cf872b",
+   "reply_len": 5
+  },
+  {
+   "ttft_s": 1.098,
+   "wall_s": 1.166,
+   "usage": {
+    "prompt_tokens": 1117,
+    "completion_tokens": 4,
+    "total_tokens": 1121,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 3,
+   "key": "acuity-8",
+   "reply_sha12": "ce68a2e57aab",
+   "reply_len": 5
+  },
+  {
+   "ttft_s": 1.262,
+   "wall_s": 1.307,
+   "usage": {
+    "prompt_tokens": 1100,
+    "completion_tokens": 2,
+    "total_tokens": 1102,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 1,
+   "key": "count-simple",
+   "reply_sha12": "4e07408562be",
+   "reply_len": 1
+  },
+  {
+   "ttft_s": 1.272,
+   "wall_s": 1.328,
+   "usage": {
+    "prompt_tokens": 1400,
+    "completion_tokens": 3,
+    "total_tokens": 1403,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 2,
+   "key": "count-medium",
+   "reply_sha12": "b17ef6d19c7a",
+   "reply_len": 2
+  },
+  {
+   "ttft_s": 1.184,
+   "wall_s": 1.24,
+   "usage": {
+    "prompt_tokens": 1400,
+    "completion_tokens": 3,
+    "total_tokens": 1403,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 2,
+   "key": "count-complex",
+   "reply_sha12": "b7a56873cd77",
+   "reply_len": 2
+  },
+  {
+   "ttft_s": 1.334,
+   "wall_s": 1.425,
+   "usage": {
+    "prompt_tokens": 1565,
+    "completion_tokens": 8,
+    "total_tokens": 1573,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 7,
+   "key": "spatial-simple",
+   "reply_sha12": "10a6498149c7",
+   "reply_len": 15
+  },
+  {
+   "ttft_s": 1.215,
+   "wall_s": 1.263,
+   "usage": {
+    "prompt_tokens": 1491,
+    "completion_tokens": 3,
+    "total_tokens": 1494,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 2,
+   "key": "spatial-medium",
+   "reply_sha12": "006b37d57e30",
+   "reply_len": 14
+  },
+  {
+   "ttft_s": 1.238,
+   "wall_s": 1.303,
+   "usage": {
+    "prompt_tokens": 1570,
+    "completion_tokens": 4,
+    "total_tokens": 1574,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 3,
+   "key": "spatial-complex",
+   "reply_sha12": "6b4f37e1675e",
+   "reply_len": 11
+  },
+  {
+   "ttft_s": 1.141,
+   "wall_s": 1.763,
+   "usage": {
+    "prompt_tokens": 866,
+    "completion_tokens": 64,
+    "total_tokens": 930,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 62,
+   "key": "chart-simple",
+   "reply_sha12": "a4a0f5bf81c3",
+   "reply_len": 225
+  },
+  {
+   "ttft_s": 1.24,
+   "wall_s": 1.296,
+   "usage": {
+    "prompt_tokens": 990,
+    "completion_tokens": 4,
+    "total_tokens": 994,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 3,
+   "key": "chart-medium",
+   "reply_sha12": "be3baf178f3a",
+   "reply_len": 16
+  },
+  {
+   "ttft_s": 1.287,
+   "wall_s": 1.323,
+   "usage": {
+    "prompt_tokens": 1271,
+    "completion_tokens": 2,
+    "total_tokens": 1273,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 1,
+   "key": "chart-complex",
+   "reply_sha12": "2c624232cdd2",
+   "reply_len": 1
+  },
+  {
+   "ttft_s": 1.318,
+   "wall_s": 1.373,
+   "usage": {
+    "prompt_tokens": 1149,
+    "completion_tokens": 7,
+    "total_tokens": 1156,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 6,
+   "key": "screenshot-simple",
+   "reply_sha12": "1f7ae4229a42",
+   "reply_len": 6
+  },
+  {
+   "ttft_s": 1.466,
+   "wall_s": 1.515,
+   "usage": {
+    "prompt_tokens": 1413,
+    "completion_tokens": 8,
+    "total_tokens": 1421,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 7,
+   "key": "screenshot-medium",
+   "reply_sha12": "d1b820b4db54",
+   "reply_len": 7
+  },
+  {
+   "ttft_s": 1.451,
+   "wall_s": 1.54,
+   "usage": {
+    "prompt_tokens": 1412,
+    "completion_tokens": 7,
+    "total_tokens": 1419,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 6,
+   "key": "screenshot-complex",
+   "reply_sha12": "7f5bebda573a",
+   "reply_len": 6
+  },
+  {
+   "ttft_s": 0.534,
+   "wall_s": 0.582,
+   "usage": {
+    "prompt_tokens": 182,
+    "completion_tokens": 3,
+    "total_tokens": 185,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 2,
+   "key": "diagram-simple",
+   "reply_sha12": "84c44516e1d4",
+   "reply_len": 7
+  },
+  {
+   "ttft_s": 0.778,
+   "wall_s": 0.826,
+   "usage": {
+    "prompt_tokens": 496,
+    "completion_tokens": 3,
+    "total_tokens": 499,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 2,
+   "key": "diagram-medium",
+   "reply_sha12": "31377fd10d46",
+   "reply_len": 6
+  },
+  {
+   "ttft_s": 1.071,
+   "wall_s": 1.107,
+   "usage": {
+    "prompt_tokens": 1029,
+    "completion_tokens": 3,
+    "total_tokens": 1032,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 2,
+   "key": "diagram-complex",
+   "reply_sha12": "e5eb92ee2ea8",
+   "reply_len": 5
+  }
+ ],
+ "probes": [
+  {
+   "ttft_s": 0.297,
+   "wall_s": 3.739,
+   "usage": {
+    "prompt_tokens": 44,
+    "completion_tokens": 400,
+    "total_tokens": 444,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 397,
+   "decode_tps": 116.2,
+   "reply_sha12": "259f933021af",
+   "reply_len": 1913
+  },
+  {
+   "ttft_s": 0.3,
+   "wall_s": 3.158,
+   "usage": {
+    "prompt_tokens": 44,
+    "completion_tokens": 400,
+    "total_tokens": 444,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 397,
+   "decode_tps": 140.0,
+   "reply_sha12": "2a8e695de168",
+   "reply_len": 1962
+  }
+ ],
+ "note": "airbench answers redacted (hidden on shared reports): reply_sha12 = first 12 hex of sha256(reply); raw copies kept off-repo in /var/tmp/vision-ab/raw"
+}

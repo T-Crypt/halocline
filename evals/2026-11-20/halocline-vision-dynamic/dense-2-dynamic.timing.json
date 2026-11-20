@@ -1,0 +1,123 @@
+{
+ "model": "vision-ab",
+ "utc": "2026-11-20T17:01:10Z",
+ "summary": {
+  "images": 0,
+  "ttft_sum_s": 0,
+  "ttft_median_s": null,
+  "errors": 19
+ },
+ "results": [
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "acuity-20"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "acuity-14"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "acuity-10"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "acuity-8"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "count-simple"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "count-medium"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "count-complex"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "spatial-simple"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "spatial-medium"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "spatial-complex"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "chart-simple"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "chart-medium"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "chart-complex"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "screenshot-simple"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "screenshot-medium"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "screenshot-complex"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "diagram-simple"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "diagram-medium"
+  },
+  {
+   "error": "HTTP Error 400: Bad Request",
+   "key": "diagram-complex"
+  }
+ ],
+ "probes": [
+  {
+   "ttft_s": 0.057,
+   "wall_s": 4.649,
+   "usage": {
+    "prompt_tokens": 44,
+    "completion_tokens": 400,
+    "total_tokens": 444,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 397,
+   "decode_tps": 87.1,
+   "reply_sha12": "66e7ae0b77e7",
+   "reply_len": 1844
+  },
+  {
+   "ttft_s": 0.056,
+   "wall_s": 4.4,
+   "usage": {
+    "prompt_tokens": 44,
+    "completion_tokens": 400,
+    "total_tokens": 444,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "chunks": 397,
+   "decode_tps": 92.1,
+   "reply_sha12": "1b83232b3738",
+   "reply_len": 1905
+  }
+ ],
+ "note": "airbench answers redacted (hidden on shared reports): reply_sha12 = first 12 hex of sha256(reply); raw copies kept off-repo in /var/tmp/vision-ab/raw"
+}
