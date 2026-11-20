@@ -12,6 +12,11 @@
   <code>status: pre-alpha</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>models: Qwen4 family</code> &nbsp; <code>licence: MIT</code>
 </p>
 
+> [!NOTE]
+> **Branch `abil-halo`.** This branch adds SC117's abliterated GSQ-RCO IQ3_S build of Qwen3.8-Flash-Next as a sparse
+> option ([model page](docs/models/qfn-sc117-iq3s.md), [local config](examples/qfn-sc117-iq3s.json)). `main` keeps
+> the Unsloth UD packs and the official gates.
+
 <img src="assets/halocline-divider.svg" width="100%" alt="">
 
 ## Two paths

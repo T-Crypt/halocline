@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8094
+  },
+  "models": [
+    {
+      "model": "models/QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo",
+      "alias": "Halocline-QFN-SC117-IQ3_S",
+      "spec": 8,
+      "prefill": "auto",
+      "kv": "int8",
+      "max-context": 262144,
+      "vision": "dynamic",
+      "ram-reserve-mib": 2048
+    }
+  ]
+}
