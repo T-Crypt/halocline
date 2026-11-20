@@ -1,4 +1,4 @@
-# Sparse sources (branch `abil-halo`)
+# Sparse sources (branch `halo-ista`)
 
 This branch converts two builds of ISTA-DASLab's GSQ-RCO IQ3_S quant of Qwen3.8-Flash-Next. Each becomes its own pack
 and runs under its own name. Unsloth's UD-IQ4_XS lives on [`main`](https://github.com/T-Crypt/halocline/tree/main),

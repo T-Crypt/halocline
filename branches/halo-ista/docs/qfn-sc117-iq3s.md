@@ -1,8 +1,8 @@
-# Qwen3.8-Flash-Next, SC117 GSQ-RCO abliterated IQ3_S (branch `abil-halo`)
+# Qwen3.8-Flash-Next, SC117 GSQ-RCO abliterated IQ3_S (branch `halo-ista`)
 
 This branch adds one more sparse source next to the Unsloth UD-IQ4_XS pack on `main`: SC117's abliterated build of
 ISTA-DASLab's GSQ-RCO IQ3_S tier. `main` stays Unsloth-only and keeps the official gates. This page and its evals live
-on `abil-halo` only.
+on `halo-ista` only.
 
 > [!WARNING]
 > The model is abliterated: its refusal direction is removed, so it has no reliable built-in guardrails. Serve it only
