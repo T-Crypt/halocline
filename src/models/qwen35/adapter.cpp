@@ -2,6 +2,7 @@
 // pack into the shared dense stack and hands out its sessions.
 #include "models/qwen35/adapter.hpp"
 
+#include "halo/artifact/dequant.hpp"
 #include "halo/core/diag.hpp"
 #include "halo/core/load_progress.hpp"
 #include "halo/core/model_file.hpp"
@@ -56,9 +57,10 @@ bool block_meta(const GgufFile& gg, dense::BlockDrafter& d, int H, std::string& 
 
 // The device bytes a weight takes: its payload in its card's weight block, 256-byte aligned (load_weights carves every
 // tensor from one allocation per card, so the planner counts exactly what the load takes).
-// A GGUF's Q8_0 ssm_alpha / ssm_beta go up as BF16 (q8_pair_as_bf16), two bytes a value.
+// A GGUF's Q8_0 or IQ4_XS ssm_alpha / ssm_beta go up as BF16 (quant_pair_as_bf16), two bytes a value.
 uint64_t weight_bytes(const TensorInfo& t) {
-    const bool gate_q8 = t.type == (uint32_t) kTypeQ8_0 && (t.name.ends_with(".ssm_alpha.weight") || t.name.ends_with(".ssm_beta.weight"));
+    const bool gate_q8 = (t.type == (uint32_t) kTypeQ8_0 || t.type == (uint32_t) kTypeIq4Xs) &&
+                         (t.name.ends_with(".ssm_alpha.weight") || t.name.ends_with(".ssm_beta.weight"));
     const uint64_t payload = gate_q8 ? (uint64_t) t.elements() * 2 : tensor_payload_bytes(t);
     return (payload + 255) & ~(uint64_t) 255;
 }
@@ -454,7 +456,8 @@ private:
     // two BF16 tensors in one buffer, the first then the second
     const uint16_t* bf16_pair(const GgufFile& gg, const std::string& a, const std::string& b, int64_t elems, std::string& err) {
         auto ia = tensors_.find(a);
-        if (ia != tensors_.end() && ia->second.type == (uint32_t) kTypeQ8_0) return q8_pair_as_bf16(gg, a, b, elems, err);
+        if (ia != tensors_.end() && (ia->second.type == (uint32_t) kTypeQ8_0 || ia->second.type == (uint32_t) kTypeIq4Xs))
+            return quant_pair_as_bf16(gg, a, b, elems, (int) ia->second.type, err);
         const TensorInfo* ta = need(gg, a, kTypeBf16, elems, err);
         const TensorInfo* tb = ta ? need(gg, b, kTypeBf16, elems, err) : nullptr;
         if (!tb) return nullptr;
@@ -475,18 +478,23 @@ private:
         return (const uint16_t*) d;
     }
 
-    // bf16_pair of two Q8_0 tensors (a GGUF's ssm_alpha and ssm_beta): each value d q as ggml dequantizes it (fp32), rounded
-    // to BF16 (nearest, ties to even) for the gating kernels, which read BF16 rows. The one rounding a GGUF pack's load
-    // makes: 2 x 48 x 5,120 values a GDN layer, recorded in docs/roadmap.md (D2).
-    const uint16_t* q8_pair_as_bf16(const GgufFile& gg, const std::string& a, const std::string& b, int64_t elems, std::string& err) {
-        if (elems % 32 != 0) {
-            err = "qwen35: " + a + " is not whole Q8_0 blocks";
+    // bf16_pair of two Q8_0 or IQ4_XS tensors (a GGUF's ssm_alpha and ssm_beta): each value as ggml dequantizes it
+    // (fp32, exact for both types), rounded to BF16 (nearest, ties to even) for the gating kernels, which read BF16 rows.
+    // The one rounding a GGUF pack's load makes: 2 x 48 x 5,120 values a GDN layer, recorded in docs/roadmap.md (D2).
+    // Unsloth's UD GGUFs store these Q8_0; OrcaRouter's OrcaSAQ-2 27B stores them IQ4_XS (branch halo-cyber).
+    const uint16_t* quant_pair_as_bf16(const GgufFile& gg, const std::string& a, const std::string& b, int64_t elems,
+                                       int type, std::string& err) {
+        const bool iq4 = type == kTypeIq4Xs;
+        const int64_t qk = iq4 ? 256 : 32, bsz = iq4 ? 136 : 34;   // values and bytes per block
+        if (elems % qk != 0) {
+            err = "qwen35: " + a + " is not whole " + (iq4 ? "IQ4_XS" : "Q8_0") + " blocks";
             return nullptr;
         }
-        const TensorInfo* ta = need(gg, a, kTypeQ8_0, elems, err);
-        const TensorInfo* tb = ta ? need(gg, b, kTypeQ8_0, elems, err) : nullptr;
+        const TensorInfo* ta = need(gg, a, type, elems, err);
+        const TensorInfo* tb = ta ? need(gg, b, type, elems, err) : nullptr;
         if (!tb) return nullptr;
         std::vector<uint16_t> out((size_t) elems * 2);
+        float v[256];
         size_t o = 0;
         for (const TensorInfo* t : {ta, tb}) {
             staging_.resize((size_t) tensor_payload_bytes(*t));
@@ -494,12 +502,17 @@ private:
                 err = "qwen35: reading " + t->name + " failed";
                 return nullptr;
             }
-            for (int64_t blk = 0; blk < elems / 32; ++blk) {   // block_q8_0: fp16 d, then 32 int8
-                const uint8_t* q = staging_.data() + blk * 34;
-                uint16_t hbits;
-                std::memcpy(&hbits, q, 2);
-                const float d = half_to_float(hbits);
-                for (int j = 0; j < 32; ++j) out[o++] = float_to_bf16_rne(d * (float) (int8_t) q[2 + j]);
+            for (int64_t blk = 0; blk < elems / qk; ++blk) {
+                const uint8_t* q = staging_.data() + blk * bsz;
+                if (iq4) {
+                    dequantize_iq4_xs(q, v);   // halo/artifact/dequant.hpp, transcribed from ggml-quants.c
+                } else {                       // block_q8_0: fp16 d, then 32 int8
+                    uint16_t hbits;
+                    std::memcpy(&hbits, q, 2);
+                    const float d = half_to_float(hbits);
+                    for (int j = 0; j < 32; ++j) v[j] = d * (float) (int8_t) q[2 + j];
+                }
+                for (int64_t j = 0; j < qk; ++j) out[o++] = float_to_bf16_rne(v[j]);
             }
             if (progress_) progress_->add(tensor_payload_bytes(*t));
         }

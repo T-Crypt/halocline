@@ -1,0 +1,107 @@
+[server] legend   pp=prompt read  tg=generation  c=cached  acc=drafts accepted  dl=tokens per window  hit=expert cache  pcie=routed experts over PCIe
+[server] Halocline-OrcaSAQ-27B  ctx=262144 kv=k8v4 mtp-kv=int8 mtp-window=32768 draft-vocab=~/halocline/releases/b2f81178/tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin spec=8 temp=1.0 top_p=0.95 top_k=20
+[server] ready    http://127.0.0.1:8096/v1  openai+anthropic  stats http://127.0.0.1:8096/
+[server] loaded   14.4GiB 3.1s  cuda0=14.4GiB
+[server] weights  loaded, ctx=262144 images=off
+[server] live | s1 tg=92/1200 95.7t/s | total 96t/s
+[server] live | s1 tg=294/1200 98.6t/s | total 99t/s
+[server] live | s1 tg=494/1200 98.7t/s | total 99t/s
+[server] live | s1 tg=686/1200 97.5t/s | total 98t/s
+[server] live | s1 tg=884/1200 97.8t/s | total 98t/s
+[server] live | s1 tg=1096/1200 99.2t/s | total 99t/s
+[server] s1 done  pp=39/0c 0.0s  tg=1200 99.6t/s acc=42%  ttft=0.1s  end=length
+[server] live | s1 tg=365/1200 183.1t/s | total 183t/s
+[server] live | s1 tg=712/1200 176.7t/s | total 177t/s
+[server] live | s1 tg=1034/1200 170.9t/s | total 171t/s
+[server] s1 done  pp=62/0c 0.0s  tg=1200 171.1t/s acc=73%  ttft=0.1s  end=length
+[server] s1 read  pp=20480/36431 3610t/s 6s
+[server] s1 read  pp=36430/36431 3380t/s 11s
+[server] live | s1 tg=88/1200 89.9t/s | total 90t/s
+[server] live | s1 tg=263/1200 87.5t/s | total 87t/s
+[server] live | s1 tg=421/1200 83.4t/s | total 83t/s
+[server] live | s1 tg=614/1200 86.9t/s | total 87t/s
+[server] live | s1 tg=809/1200 89.2t/s | total 89t/s
+[server] live | s1 tg=1015/1200 91.5t/s | total 92t/s
+[server] s1 done  pp=36431/0c 10.8s 3380t/s  tg=1200 93.3t/s acc=48%  ttft=10.8s  end=length
+[server] s1 read  pp=20480/36454 3604t/s 6s
+[server] s1 read  pp=36453/36454 3376t/s 11s
+[server] live | s1 tg=161/1200 162.1t/s | total 162t/s
+[server] live | s1 tg=484/1200 161.4t/s | total 161t/s
+[server] live | s1 tg=802/1200 159.2t/s | total 159t/s
+[server] live | s1 tg=1118/1200 158.5t/s | total 159t/s
+[server] s1 done  pp=36454/0c 10.8s 3376t/s  tg=1200 157.9t/s acc=74%  ttft=10.8s  end=length
+[server] s1 read  pp=20480/137364 3610t/s 6s
+[server] s1 read  pp=36864/137364 3382t/s 11s
+[server] s1 read  pp=53248/137364 3181t/s 17s
+[server] s1 read  pp=69632/137364 3005t/s 23s
+[server] s1 read  pp=81920/137364 2886t/s 28s
+[server] s1 read  pp=94208/137364 2776t/s 34s
+[server] s1 read  pp=106496/137364 2674t/s 40s
+[server] s1 read  pp=118784/137364 2580t/s 46s
+[server] s1 read  pp=131072/137364 2492t/s 53s
+[server] live | s1 tg=1/1200 | total 0t/s
+[server] live | s1 tg=146/1200 72.1t/s | total 72t/s
+[server] live | s1 tg=308/1200 75.6t/s | total 76t/s
+[server] live | s1 tg=467/1200 76.3t/s | total 76t/s
+[server] live | s1 tg=617/1200 75.9t/s | total 76t/s
+[server] live | s1 tg=783/1200 77.1t/s | total 77t/s
+[server] live | s1 tg=924/1200 75.8t/s | total 76t/s
+[server] live | s1 tg=1101/1200 77.4t/s | total 77t/s
+[server] s1 done  pp=137364/0c 56.2s 2446t/s  tg=1200 77.2t/s acc=46%  ttft=56.2s  end=length
+[server] s1 read  pp=20480/137387 3601t/s 6s
+[server] s1 read  pp=36864/137387 3375t/s 11s
+[server] s1 read  pp=53248/137387 3175t/s 17s
+[server] s1 read  pp=69632/137387 2998t/s 23s
+[server] s1 read  pp=81920/137387 2879t/s 28s
+[server] s1 read  pp=94208/137387 2769t/s 34s
+[server] s1 read  pp=106496/137387 2668t/s 40s
+[server] s1 read  pp=118784/137387 2573t/s 46s
+[server] s1 read  pp=131072/137387 2485t/s 53s
+[server] live | s1 tg=1/1200 | total 0t/s
+[server] live | s1 tg=280/1200 138.0t/s | total 138t/s
+[server] live | s1 tg=543/1200 133.7t/s | total 134t/s
+[server] live | s1 tg=814/1200 133.7t/s | total 134t/s
+[server] live | s1 tg=1086/1200 133.7t/s | total 134t/s
+[server] s1 done  pp=137387/0c 56.3s 2441t/s  tg=1200 134.4t/s acc=75%  ttft=56.3s  end=length
+[server] s1 read  pp=20480/181851 3592t/s 6s
+[server] s1 read  pp=36864/181851 3368t/s 11s
+[server] s1 read  pp=53248/181851 3170t/s 17s
+[server] s1 read  pp=69632/181851 2994t/s 23s
+[server] s1 read  pp=81920/181851 2876t/s 28s
+[server] s1 read  pp=94208/181851 2766t/s 34s
+[server] s1 read  pp=106496/181851 2665t/s 40s
+[server] s1 read  pp=118784/181851 2570t/s 46s
+[server] s1 read  pp=131072/181851 2483t/s 53s
+[server] s1 read  pp=143360/181851 2401t/s 60s
+[server] s1 read  pp=155648/181851 2325t/s 67s
+[server] s1 read  pp=163840/181851 2276t/s 72s
+[server] s1 read  pp=172032/181851 2230t/s 77s
+[server] s1 read  pp=180224/181851 2186t/s 82s
+[server] live | s1 tg=1/32 | total 0t/s
+[server] s1 done  pp=181851/0c 83.6s 2176t/s  tg=10 86.6t/s acc=100%  ttft=83.6s  end=stop
+[server] s1 read  pp=20480/252398 3601t/s 6s
+[server] s1 read  pp=36864/252398 3374t/s 11s
+[server] s1 read  pp=53248/252398 3173t/s 17s
+[server] s1 read  pp=69632/252398 2996t/s 23s
+[server] s1 read  pp=81920/252398 2877t/s 28s
+[server] s1 read  pp=94208/252398 2767t/s 34s
+[server] s1 read  pp=106496/252398 2666t/s 40s
+[server] s1 read  pp=118784/252398 2571t/s 46s
+[server] s1 read  pp=131072/252398 2483t/s 53s
+[server] s1 read  pp=143360/252398 2402t/s 60s
+[server] s1 read  pp=155648/252398 2325t/s 67s
+[server] s1 read  pp=163840/252398 2276t/s 72s
+[server] s1 read  pp=172032/252398 2230t/s 77s
+[server] s1 read  pp=180224/252398 2186t/s 82s
+[server] s1 read  pp=188416/252398 2143t/s 88s
+[server] s1 read  pp=196608/252398 2102t/s 94s
+[server] s1 read  pp=204800/252398 2063t/s 99s
+[server] s1 read  pp=212992/252398 2024t/s 105s
+[server] s1 read  pp=221184/252398 1988t/s 111s
+[server] s1 read  pp=229376/252398 1952t/s 117s
+[server] s1 read  pp=237568/252398 1918t/s 124s
+[server] s1 read  pp=245760/252398 1885t/s 130s
+[server] s1 read  pp=252397/252398 1859t/s 136s
+[server] s1 done  pp=252398/0c 135.8s 1859t/s  tg=10 60.0t/s acc=64%  ttft=135.8s  end=stop
+[server] stopping (Ctrl+C again to force)
+[server] stopped

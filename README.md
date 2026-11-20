@@ -4,18 +4,18 @@
 
 <p align="center">
   <b>Halocline <code>halo-cyber</code>: a research branch.</b><br>
-  Planned: OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored on Halocline's dense path, at its native 262,144 tokens on one
-  24 GB Ada card.
+  OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored on Halocline's dense path, byte for byte, at its native 262,144 tokens on
+  one 24 GB Ada card.
 </p>
 
 <p align="center">
-  <code>status: research, planned</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>model: bring your own</code> &nbsp; <code>licence: MIT</code>
+  <code>status: research, runs</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>model: bring your own</code> &nbsp; <code>licence: MIT</code>
 </p>
 
 > [!WARNING]
 > **This is not `main`.** [`main`](https://github.com/T-Crypt/halocline/tree/main) is the supported Halocline:
 > Unsloth's UD packs, tensors copied byte for byte, every change gated on KLD against BF16. This branch is research:
-> it has no gates, nothing on it runs yet, and it can change or vanish without notice.
+> it has no gates and no KLD, and it can change or vanish without notice.
 
 ## Branches
 
@@ -29,9 +29,9 @@ listed in that folder's README.
 | [`abil-halo`](https://github.com/T-Crypt/halocline/tree/abil-halo) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
 | [`halo-cyber`](https://github.com/T-Crypt/halocline/tree/halo-cyber) | The dense path on OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored, byte-identical, at its native 262,144 tokens | bring your own copy; the repository hosts none | research |
 
-## What this branch plans
+## What this branch does
 
-Support for one model on the dense path: **OrcaSAQ-2 Cyber 27B Uncensored** (`orcarouter/OrcaSAQ-2-Cyber-27B-Uncensored-GGUF`).
+Runs one model on the dense path: **OrcaSAQ-2 Cyber 27B Uncensored** (`orcarouter/OrcaSAQ-2-Cyber-27B-Uncensored-GGUF`).
 It is a Qwen3.8-27B with its refusals removed, built for red-team and security work. OrcaRouter quantized it with
 their own importance matrix:
 
@@ -42,24 +42,62 @@ their own importance matrix:
 | File | `OrcaSAQ-2-27B-Uncensored.gguf`, 15,676,553,472 bytes, sha256 `4ab6bdf8a9008869abf1630fb92d04b5439805f96b56692962fa240b1d439977` |
 | Licence | Apache-2.0 |
 
-Halocline's dense path already runs each of those types in its stored form. A converter dry run takes all of the
-file's tensors as stored, the MTP layer included:
+The pack keeps every tensor as OrcaRouter stored it: `gguf_qwen35.py verify` reads all 866 tensors back against the
+GGUF, 0 mismatches. One engine change makes it load (the IQ4_XS gating tensors,
+[`branches/halo-cyber/README.md`](branches/halo-cyber/README.md#engine-change-against-main)).
+
+## Against llama.cpp, same file, same card
+
+One RTX 4090 at 350 W, one engine at a time, the same GGUF bytes. llama.cpp runs the lab's served command for this
+model: 188,416 tokens (the most that fits with a q8_0 cache), q8_0 K and V, its MTP draft. Halocline runs 262,144
+tokens with K8V4 (K int8, V rotated 4-bit), an int8 drafter cache and `--spec 8`. Greedy, thinking off, 1,200 tokens
+streamed, decode rate as the client sees it:
+
+| Workload | Halocline tok/s | llama.cpp tok/s | Halocline vs llama.cpp |
+|---|---|---|---|
+| short prose | 99.7 | 84.5 | +18% |
+| short JSON | 171.4 | 150.7 | +14% |
+| 36K prose | 93.4 | 66.3 | +41% |
+| 36K JSON | 158.2 | 119.3 | +33% |
+| 137K prose | 77.2 | 42.1 | +83% |
+| 137K JSON | 134.7 | 76.4 | +76% |
+
+A passphrase at a quarter of the depth: both engines find it in a 181,851-token prompt (Halocline 83.6 s to the first
+token, llama.cpp 94.9 s). Halocline also finds it in a 252,398-token prompt (135.8 s), which llama.cpp cannot hold on
+this card. Peak VRAM: Halocline 23,178 MiB, llama.cpp 24,086 MiB.
+
+What the table does not say. The V cache is 4-bit on Halocline and 8-bit on llama.cpp. The engines write different
+text, so each rate is measured on its own output. llama.cpp reused the prose request's cached prompt on the JSON
+rows, so compare prompt time on the prose rows only (36K: 10.8 s against 12.2 s; 137K: 56.2 s against 57.6 s). No
+quality score was run. Every number, command and log is in
+[`branches/halo-cyber/evals/2026-11-20/orcasaq-vs-llamacpp/`](branches/halo-cyber/evals/2026-11-20/orcasaq-vs-llamacpp/).
+
+## Build and serve
+
+Clone it in its own folder, so it installs beside `main` (or without it) and neither touches the other's build, packs
+or ports. Build from this branch: the IQ4_XS gating change is not on `main`.
 
 ```sh
+git clone -b halo-cyber https://github.com/T-Crypt/halocline.git halocline-halo-cyber && cd halocline-halo-cyber
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
+ninja -C build
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
 .venv/bin/python tools/convert/convert.py --gguf OrcaSAQ-2-27B-Uncensored.gguf --no-vision \
-    --name OrcaSAQ-2-27B-Uncensored --out OrcaSAQ-2-27B-Uncensored.halo --dry-run
+    --name OrcaSAQ-2-27B-Uncensored --out OrcaSAQ-2-27B-Uncensored.halo
+.venv/bin/python tools/convert/gguf_qwen35.py verify OrcaSAQ-2-27B-Uncensored.halo OrcaSAQ-2-27B-Uncensored.gguf
+
+bin/halocline serve --config branches/halo-cyber/examples/orcasaq-27b.json
 ```
 
-**The goal is the full 262,144-token context.** On the same RTX 4090, stock llama.cpp fits 188,416 tokens of this
-model with a q8_0 KV cache and its own MTP drafter, at 113 to 117 tok/s. Halocline's dense path serves a 27B at
-262,144 tokens with a rotated 4-bit KV cache from an 18.6 GB pack. This file is 15.7 GB, which leaves about 3 GB more
-of the card for KV. The work: convert, load at 262,144, find the KV format that fits, and measure decode and a needle at
-depth against the llama.cpp numbers above.
+The config serves `Halocline-OrcaSAQ-27B` on port 8096, beside `main`'s 8092 and 8093 and `abil-halo`'s 8094 and
+8095. Point its `model` at your pack. For the draft head the table used, add
+`--draft-vocab tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin`.
 
 ## No weights here
 
 This repository does not host, mirror or link a download of the model. The branch is for people who already have
-the file. Check your file against the sha256 above before you convert it.
+the file. Check yours against the sha256 above before you convert it.
 
 The model has no reliable refusals. Serve it only behind your own access control, and never give it a router or role
 alias that other agents pick up on their own.

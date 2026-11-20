@@ -1,0 +1,7 @@
+[server] legend   pp=prompt read  tg=generation  c=cached  acc=drafts accepted  dl=tokens per window  hit=expert cache  pcie=routed experts over PCIe
+[server] fit  ctx=262144 kv=int8 mtp-kv=int8 mtp-window=32768 draft-vocab=~/halocline/releases/b2f81178/tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin spec=8 temp=1.0 top_p=0.95 top_k=20
+[server] ready    http://127.0.0.1:8097/v1  openai+anthropic  stats http://127.0.0.1:8097/
+[server] loaded   14.4GiB 2.7s  cuda0=14.4GiB
+[server] error: qwen35: 1 session(s) of 262144 cells need 10742 MiB, 9651 MiB are free; lower --max-context or --parallel
+[server] engine log: ~/.cache/halo/2e74b5d39d70f6d4/engine.log
+[server] stopped

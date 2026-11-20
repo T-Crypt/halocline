@@ -11,7 +11,7 @@
 
 namespace halo::models::qwen35 {
 
-constexpr int kTypeF32 = 0, kTypeQ8_0 = 8, kTypeBf16 = 30, kTypeNvfp4 = 40, kTypeF8 = 44, kTypeNvfp4Planes = 45;
+constexpr int kTypeF32 = 0, kTypeQ8_0 = 8, kTypeIq4Xs = 23, kTypeBf16 = 30, kTypeNvfp4 = 40, kTypeF8 = 44, kTypeNvfp4Planes = 45;
 
 /// Values per block of a llama.cpp type the dense stack runs on MMQ as the GGUF stores it (a Unsloth Dynamic GGUF mixes
 /// these per tensor: tools/convert/gguf_qwen35.py copies them byte for byte); 0 for any other type.

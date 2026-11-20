@@ -1,0 +1,12 @@
+OrcaSAQ-2-27B-Uncensored.gguf: 64 layers, 866 tensors, 14.590 GiB, copied as stored
+hashing the source tensors ...
+  866 tensors in 9.9 s
+writing sections:
+  tokenizer/chat_template.jinja                    0.000 GiB        19 MB/s
+  tokenizer/merges.txt                             0.003 GiB      1331 MB/s
+  tokenizer/token_type.json                        0.001 GiB      1255 MB/s
+  tokenizer/tokenizer.json                         0.000 GiB         3 MB/s
+  tokenizer/vocab.json                             0.005 GiB      1441 MB/s
+  gguf                                            14.590 GiB       428 MB/s
+  meta                                             0.008 GiB      1766 MB/s
+done: 7 sections, 14.617 GiB, 36.0 s -> /data/models/halocline/packs/OrcaSAQ-2-27B-Uncensored.halo

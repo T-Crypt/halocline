@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8096
+  },
+  "models": [
+    {
+      "model": "models/OrcaSAQ-2-27B-Uncensored.halo",
+      "alias": "Halocline-OrcaSAQ-27B",
+      "gpu": "0",
+      "spec": 8,
+      "kv": "k8v4",
+      "mtp-kv": "int8",
+      "mtp-window": 32768,
+      "max-context": 262144
+    }
+  ]
+}
