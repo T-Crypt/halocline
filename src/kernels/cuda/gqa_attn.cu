@@ -1660,6 +1660,71 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
         asm volatile("cp.async.commit_group;\n" ::: "memory");
     };
 
+    // Q4 at 8 warps: issue_tile's q4_0 reads are plain loads its unpack has to wait for, so issued at the top of an
+    // iteration they hold up that tile's compute (K8V4's K goes through cp.async). Here tile kb + 1's raw q4_0 cells
+    // (K's and V's 144 B a cell, 18,432 B a tile) go to shared memory by cp.async during tile kb's compute, into the
+    // second stage's space, which this path does not use otherwise; after the compute every thread unpacks them into
+    // stage 0. Registers are not held across the compute (the kernel is at the 255 cap: a register prefetch spilled,
+    // ~/homelab state/evals/2026-11-19/halocline-q4-prompt-prefetch). The codes, signs, scales and positions are
+    // issue_tile's (q4_piece's (code - 8) and (8 - code), four bytes at a time), so the MMAs read the same bytes.
+    constexpr bool PF = K4 && W == 8;
+    constexpr int CELL = (HD / kKvQ4Block) * (int) sizeof(KvQ4Block);   // a cell's K (or V) q4_0 bytes: 144
+    static_assert(!PF || (CELL % 16 == 0 && 2 * I8BC * CELL <= STAGE), "Q4 raw tile: 16-B pieces that fit stage 1");
+    unsigned char* raw_s = smem_raw + Br * HD + STAGE;   // stage 1's space
+    const auto issue_raw = [&](int kb) {
+        const int valid = min(I8BC, max_qabs + 1 - kb * I8BC);
+        constexpr int PER = CELL / 16;                     // 16-B pieces a cell's K (or V)
+        for (int i = tid; i < 2 * I8BC * PER; i += Threads) {
+            const int kv = i / (I8BC * PER), r = i % (I8BC * PER), key = r / PER, piece = r % PER;
+            const bool ok = key < valid;
+            const int64_t cell = (int64_t) kb * I8BC + (ok ? key : 0);
+            const int64_t row = cell * n_kv + kvh;
+            const uint8_t* src = (kv ? q4.v : q4.k) + row * (int64_t) CELL + piece * 16;
+            cp16(raw_s + (kv * I8BC + key) * CELL + piece * 16, src, ok);
+        }
+        asm volatile("cp.async.commit_group;\n" ::: "memory");
+    };
+    const auto unpack_raw = [&](int kb) {
+        int8_t* k_s = reinterpret_cast<int8_t*>(smem_raw + Br * HD);
+        int8_t* v_s = k_s + I8_TILE;
+        uint16_t* vs_s = reinterpret_cast<uint16_t*>(v_s + I8_TILE);
+        const int valid = min(I8BC, max_qabs + 1 - kb * I8BC);
+#pragma unroll
+        for (int i = 0; i < I8_TILE / 16 / Threads; ++i) {
+            const int chunk = tid + i * Threads;
+            const int key = chunk >> 4, c = chunk & 15;
+            const bool ok = key < valid;
+            const int dst = key * HD + ((c ^ (key & 7)) << 4);
+            const int sh = (c & 1) * 4;                    // kv_q4_codes8: the low nibbles, or the high ones
+            const uint8_t* kblk = raw_s + key * CELL + (c >> 1) * (int) sizeof(KvQ4Block);
+            const uint8_t* vblk = raw_s + (I8BC + key) * CELL + (c >> 1) * (int) sizeof(KvQ4Block);
+            const uint16_t* kh = reinterpret_cast<const uint16_t*>(kblk + 2);
+            const uint16_t* vh = reinterpret_cast<const uint16_t*>(vblk + 2);
+            const bool neg = (*reinterpret_cast<const uint16_t*>(vblk) & 0x8000u) != 0;
+#pragma unroll
+            for (int j = 0; j < 4; ++j) {
+                const uint32_t kw = (uint32_t) kh[2 * j] | ((uint32_t) kh[2 * j + 1] << 16);
+                const uint32_t vw = (uint32_t) vh[2 * j] | ((uint32_t) vh[2 * j + 1] << 16);
+                const uint32_t kc = (kw >> sh) & 0x0F0F0F0Fu, vc = (vw >> sh) & 0x0F0F0F0Fu;
+                *reinterpret_cast<uint32_t*>(k_s + dst + 4 * j) = ok ? __vsub4(kc, 0x08080808u) : 0u;
+                *reinterpret_cast<uint32_t*>(v_s + dst + 4 * j) =
+                    ok ? (neg ? __vsub4(0x08080808u, vc) : __vsub4(vc, 0x08080808u)) : 0u;
+            }
+        }
+        for (int i = tid; i < I8BC * NG; i += Threads) {
+            const int key = i / NG, b = i % NG;
+            const uint16_t d = *reinterpret_cast<const uint16_t*>(raw_s + (I8BC + key) * CELL + b * (int) sizeof(KvQ4Block));
+            vs_s[i] = key < valid ? (uint16_t) (d & 0x7FFFu) : (uint16_t) 0;
+        }
+    };
+    // after a tile's compute (PF): tile kb + 1's raw cells are in, every warp is done with stage 0, unpack into it
+    const auto next_tile = [&](int kb) {
+        if (kb + 1 >= kb_end) return;
+        asm volatile("cp.async.wait_group 0;\n" ::: "memory");
+        __syncthreads();
+        unpack_raw(kb + 1);
+    };
+
     const int a_mat = lane >> 3, a_rin = lane & 7;
     const int a_row = warp * 16 + a_rin + ((a_mat & 1) << 3);
     const int a_chunk = a_mat >> 1;        // 16-byte piece within a 32-byte k step
@@ -1678,15 +1743,28 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
         for (int p = 0; p < 2; ++p) acc[b][p][0] = acc[b][p][1] = acc[b][p][2] = acc[b][p][3] = 0.0f;
     float m0 = -INFINITY, m1 = -INFINITY, l0 = 0.0f, l1 = 0.0f;
 
-    if (kb_begin < kb_end) issue_tile(kb_begin);
+    if (kb_begin < kb_end) {
+        if constexpr (PF) {   // the first tile through the same path, into stage 0
+            issue_raw(kb_begin);
+            next_tile(kb_begin - 1);
+        } else {
+            issue_tile(kb_begin);
+        }
+    }
 #pragma unroll 1
     for (int kb = kb_begin; kb < kb_end; ++kb) {
         asm volatile("cp.async.wait_group 0;\n" ::: "memory");
-        __syncthreads();   // tile kb is in, and every warp is done with the other stage
-        if (kb + 1 < kb_end) issue_tile(kb + 1);
+        __syncthreads();   // tile kb is in, and every warp is done with the other stage (PF: with the raw cells)
+        if (kb + 1 < kb_end) {
+            if constexpr (PF) issue_raw(kb + 1);   // unpacked into stage 0 after this tile's compute (next_tile)
+            else issue_tile(kb + 1);
+        }
         const int k0 = kb * I8BC;
-        if (!warp_active || k0 > warp_max_qabs) continue;
-        const unsigned char* base = smem_raw + Br * HD + (kb & 1) * STAGE;
+        if (!warp_active || k0 > warp_max_qabs) {
+            if constexpr (PF) next_tile(kb);
+            continue;
+        }
+        const unsigned char* base = smem_raw + Br * HD + (PF ? 0 : (kb & 1)) * STAGE;
         const int8_t* k_s = reinterpret_cast<const int8_t*>(base);
         const int8_t* v_s = k_s + I8_TILE;
         const uint16_t* ks_s = reinterpret_cast<const uint16_t*>(v_s + I8_TILE);   // K8V4 only; Q4 reads K's scales through L1
@@ -1863,6 +1941,7 @@ __global__ void __launch_bounds__(W * 32, 1) prompt_v4_kernel(const IO* __restri
                 o[3] = fmaf(o[3], al1, step1 * (float) od[3]);
             }
         }
+        if constexpr (PF) next_tile(kb);
     }
 
     l0 = quad_sum(l0);
