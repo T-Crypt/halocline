@@ -79,11 +79,10 @@ on one 2-hour clock. I ran both models through the HADAL harness on this card, s
 | Board, 2026-11-20 | #13 | #65 |
 | Report | [64baefc1](https://airbench.ai/checkup/64baefc1-476e-41e8-ab11-938f248f8389/report) | [02db2264](https://airbench.ai/checkup/02db2264-4211-4dc1-93ba-da42b616e7cc/report) |
 
-The dense model's one miss is a vision challenge, and the engine did not cause it. The harness never told the model it
-could see, so it worked all 19 images out with numpy and OCR and misread one arrow. The harness prompt now names the
-model and says it takes images. The sparse run waited about 340 s of its 15m41s vision section on the CPU image
-encoder. Sparse now serves `--vision dynamic`: on the same 19 images the time to first token drops from 317 s to 22 s,
-with the same replies
+The dense model missed one vision challenge because the harness never told it that it could see. It worked all 19
+images out with numpy and OCR and misread one arrow. I added the model's name and its image input to the harness
+prompt. The sparse run spent about 340 s of its 15m41s vision section waiting on the CPU image encoder, so I moved
+sparse to `--vision dynamic`: on the same 19 images, time to first token fell from 317 s to 22 s with the same replies
 ([`halocline-vision-dynamic`](evals/2026-11-20/halocline-vision-dynamic/)).
 
 > [!IMPORTANT]

@@ -135,8 +135,8 @@ Both packs carry the projector. Measured on the 19 airbench vision images, one f
 | Sparse | 317 s to first tokens in all, median 16.1 s | 22 s in all, median 1.2 s; same replies, depth speed and VRAM unchanged |
 | Dense, 262,144 tokens | 305 s in all, median 14.8 s | refuses each image: no device memory for the encoder's 958-1,165 MiB arena |
 
-The two encoders compute alike. The CPU sidecar rounds each product input to bf16 as the CUDA encoder does, and both
-land equally far from an fp32 encoder (relative L2 1.30e-2 and 1.28e-2). The CUDA encoder reads an image in 6-77 ms.
+The CPU sidecar rounds each product input to bf16, as the CUDA encoder does, and the two sit equally far from an fp32
+encoder (relative L2 1.30e-2 and 1.28e-2). The CUDA encoder reads an image in 6-77 ms.
 Serve sparse with `--vision dynamic`; dense stays on `--vision cpu` until its encoder has memory beside the full context.
 The first vision check is [`halocline-vision`](../evals/2026-11-19/halocline-vision/). Which images a request may name:
 [image sources](configuration/image-sources.md). An image may not sit in a system prompt.
