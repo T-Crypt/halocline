@@ -435,7 +435,7 @@ def convert(a) -> None:
                         die(f"{name}: its shard holds only the header, and {a.sections_from} has no section of that tensor")
                     off, _ = base.section(section)
                     job.file(section, a.sections_from, off, size)
-                    if w.entries[-1][3] != base.sections[section][2]:
+                    if not dry and w.entries[-1][3] != base.sections[section][2]:   # a dry run hashes nothing
                         die(f"section {section}: the copy's SHA-256 differs from {a.sections_from}'s")
                     copied.append(section)
                 else:
@@ -448,7 +448,7 @@ def convert(a) -> None:
                     if name != "vision/text_vocab" and name.startswith(("mtp/", "vision/", "dspark/")):
                         off, size = base.section(name)
                         job.file(name, a.sections_from, off, size)
-                        if w.entries[-1][3] != base.sections[name][2]:
+                        if not dry and w.entries[-1][3] != base.sections[name][2]:   # a dry run hashes nothing
                             die(f"section {name}: the copys SHA-256 differs from {a.sections_from}s")
                         copied.append(name)
                 if "vision/text_vocab" in base.sections:
