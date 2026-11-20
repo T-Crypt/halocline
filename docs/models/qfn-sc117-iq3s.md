@@ -33,8 +33,28 @@ supported here; SC117's IQ3_XXS, IQ2_XS and Q2_0 tiers are not.
 The draft layer and the vision projector come from the served UD pack (`--sections-from`): SC117's MTP head is the stock
 base model's, not abliterated, and the projector is the same Flash-Next BF16 `clip` model.
 
-I add the convert command, the gates and the numbers under `evals/` once the runs exist. Until then this source
-is **unmeasured**.
+```sh
+.venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf \
+    --sections-from QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo --name QFN-SC117-GSQ-RCO-abliterated-IQ3_S \
+    --out QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo
+```
+
+The pack is 87,889,249,268 bytes; every one of the tier's 1,223 tensors converts.
+
+## Speed
+
+`halocline-bench --community` at 350 W, against the UD-IQ4_XS pack on the same build
+([`halocline-sc117-iq3s`](../../evals/2026-11-20/halocline-sc117-iq3s/)):
+
+| Pack | conv | struct | prose | 16K prefill |
+|---|---|---|---|---|
+| UD-IQ4_XS | 135.4 | 266.7 | 138.6 | 5,709 |
+| SC117 IQ3_S | **171.7** | **316.0** | **154.1** | 5,610 |
+
+A 450 W limit changes neither: the card's 2,600 MHz clock lock binds first (peak 391 W, 60 C).
+
+Quality is **unmeasured**: no KLD against BF16, smoke or vision check yet. The abliteration changes outputs on
+purpose, so a KLD against the base model measures the edit plus the quant.
 
 ## Serving
 
