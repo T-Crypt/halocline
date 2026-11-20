@@ -2,7 +2,7 @@
   "version": 2,
   "server": {
     "host": "127.0.0.1",
-    "port": 8094
+    "port": 8095
   },
   "models": [
     {
