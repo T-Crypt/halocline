@@ -1,0 +1,20 @@
+reading the source GGUFs ...
+writing sections:
+  tokenizer/chat_template.jinja                    0.000 GiB         1 MB/s
+  tokenizer/merges.txt                             0.003 GiB       904 MB/s
+  tokenizer/token_type.json                        0.001 GiB      1018 MB/s
+  tokenizer/tokenizer.json                         0.000 GiB         3 MB/s
+  tokenizer/vocab.json                             0.005 GiB      1018 MB/s
+  dense                                            1.432 GiB      1252 MB/s
+  dense.index                                      0.000 GiB       418 MB/s
+  experts                                         46.838 GiB       182 MB/s
+  experts.layout                                   0.000 GiB         2 MB/s
+  gguf                                            31.256 GiB       280 MB/s
+  mtp/dense                                        0.108 GiB       524 MB/s
+  mtp/dense.index                                  0.000 GiB         3 MB/s
+  mtp/experts                                      0.659 GiB       470 MB/s
+  vision/mmproj                                    0.845 GiB       428 MB/s
+  vision/text_vocab                                0.010 GiB      1881 MB/s
+  hc8                                              0.664 GiB        65 MB/s
+  meta                                             0.008 GiB      1911 MB/s
+done: 17 sections, 81.853 GiB, 395.6 s -> /data/models/halocline/packs/QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo

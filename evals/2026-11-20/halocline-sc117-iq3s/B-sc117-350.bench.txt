@@ -1,0 +1,116 @@
+halocline-bench: starting ~/wt/halocline-abil-halo/bin/halocline (log: /tmp/halocline-bench-2860724/engine.log)
+halocline-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+halocline-bench: loading 51.4 GiB: cuda0 0.0 / 4.5 GiB
+halocline-bench: loading cuda0 4.9 / 21.5 GiB (22%)
+halocline-bench: loading cuda0 9.8 / 21.5 GiB (45%)
+halocline-bench: loading cuda0 14.7 / 21.5 GiB (68%)
+halocline-bench: loading cuda0 19.5 / 21.5 GiB (90%)
+halocline-bench: loading cuda0 21.3 / 21.3 GiB done (44 s)
+halocline-bench: loading ram 2.0 / 29.9 GiB (6%)
+halocline-bench: loading ram 5.5 / 29.9 GiB (18%)
+halocline-bench: loading ram 9.1 / 29.9 GiB (30%)
+halocline-bench: loading ram 12.8 / 29.9 GiB (42%)
+halocline-bench: loading ram 16.4 / 29.9 GiB (55%)
+halocline-bench: loading ram 20.2 / 29.9 GiB (67%)
+halocline-bench: loading ram 24.0 / 29.9 GiB (80%)
+halocline-bench: loading ram 28.1 / 29.9 GiB (93%)
+halocline-bench: loading ram 29.9 / 29.9 GiB done (81 s)
+halocline-bench: engine ready in 129 s
+  run 1 conv    171.7 tok/s, 1177 tokens
+  run 1 struct  316.0 tok/s, 7230 tokens
+  run 1 prose   154.1 tok/s, 1200 tokens
+halocline-bench: starting ~/wt/halocline-abil-halo/bin/halocline (log: /tmp/halocline-bench-2860724/engine-1.log)
+halocline-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+halocline-bench: loading 51.4 GiB: cuda0 0.0 / 4.5 GiB
+halocline-bench: loading cuda0 5.2 / 21.5 GiB (24%)
+halocline-bench: loading cuda0 9.9 / 21.5 GiB (46%)
+halocline-bench: loading cuda0 14.8 / 21.5 GiB (68%)
+halocline-bench: loading cuda0 19.6 / 21.5 GiB (91%)
+halocline-bench: loading cuda0 21.3 / 21.3 GiB done (44 s)
+halocline-bench: loading ram 2.1 / 29.9 GiB (7%)
+halocline-bench: loading ram 5.6 / 29.9 GiB (18%)
+halocline-bench: loading ram 9.2 / 29.9 GiB (30%)
+halocline-bench: loading ram 12.9 / 29.9 GiB (43%)
+halocline-bench: loading ram 16.6 / 29.9 GiB (55%)
+halocline-bench: loading ram 20.2 / 29.9 GiB (67%)
+halocline-bench: loading ram 24.1 / 29.9 GiB (80%)
+halocline-bench: loading ram 28.2 / 29.9 GiB (94%)
+halocline-bench: loading ram 29.9 / 29.9 GiB done (81 s)
+halocline-bench: engine ready in 128 s
+  run 1 pp16384 16676 tokens, 5610 t/s engine, 5545 t/s wall
+halocline-bench: starting ~/wt/halocline-abil-halo/bin/halocline (log: /tmp/halocline-bench-2860724/engine-2.log)
+halocline-bench: engine: warning: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+halocline-bench: loading 51.4 GiB: cuda0 0.0 / 4.5 GiB
+halocline-bench: loading cuda0 5.2 / 21.5 GiB (24%)
+halocline-bench: loading cuda0 9.9 / 21.5 GiB (46%)
+halocline-bench: loading cuda0 14.8 / 21.5 GiB (68%)
+halocline-bench: loading cuda0 19.6 / 21.5 GiB (91%)
+halocline-bench: loading cuda0 21.3 / 21.3 GiB done (44 s)
+halocline-bench: loading ram 2.1 / 29.9 GiB (7%)
+halocline-bench: loading ram 5.6 / 29.9 GiB (18%)
+halocline-bench: loading ram 9.2 / 29.9 GiB (30%)
+halocline-bench: loading ram 12.9 / 29.9 GiB (43%)
+halocline-bench: loading ram 16.6 / 29.9 GiB (55%)
+halocline-bench: loading ram 20.3 / 29.9 GiB (67%)
+halocline-bench: loading ram 24.2 / 29.9 GiB (80%)
+halocline-bench: loading ram 28.1 / 29.9 GiB (94%)
+halocline-bench: loading ram 29.9 / 29.9 GiB done (81 s)
+halocline-bench: engine ready in 128 s
+  run 1 pp65536 66617 tokens, 6673 t/s engine, 6650 t/s wall
+halocline-bench  build 71199e257f  power limit 350 W
+
+| test      |  t/s | accept % | draft len |
+| --------- | ---: | -------: | --------: |
+| pp16384   | 5610 |        - |         - |
+| pp65536   | 6673 |        - |         - |
+| tg conv   |  172 |     76.3 |      2.41 |
+| tg struct |  316 |     97.7 |      6.97 |
+| tg prose  |  154 |     63.7 |      1.79 |
+
+hardware (measured before the engine starts)
+  CPU   Intel Core i9-14900K, 24 cores
+  RAM   read 75.6 GB/s
+  GPU   RTX 4090  24 GiB  sm_89  16384 CUDA cores  power 350 W  PCIe 4.0 x16  host-to-device 23.9 GB/s
+
+community-1: prefill 16K 5609.5 t/s (3.0 s), prefill 64K 6673.2 t/s (10.0 s), decode 256.1 t/s (9607 tokens in 37.5 s), each measured cold
+
+COMMUNITY ROW:
+    {
+      "submitter": "T-Crypt",
+      "date": "2026-11-20",
+      "commit": "71199e257f",
+      "preset": "community-1",
+      "model": "Qwen3.8-Flash-Next",
+      "gpus": [
+        {
+          "name": "RTX 4090",
+          "vram_gib": 24,
+          "power_w": 350,
+          "cuda_cores": 16384,
+          "compute_cap": "8.9",
+          "pcie": "4.0 x16",
+          "h2d_gbps": 23.9
+        }
+      ],
+      "ram_gib": 62,
+      "cpu": "Intel Core i9-14900K, 24 cores",
+      "ram_gbps": 75.6,
+      "os": "Linux",
+      "driver": "615.78.08",
+      "quant": "QFN-SC117-GSQ-RCO-abliterated-IQ3_S",
+      "kv": "int8",
+      "prefill_16k_tps": 5609.5,
+      "prefill_64k_tps": 6673.2,
+      "decode_tps": 256.1,
+      "decode_conv_tps": 171.7,
+      "decode_struct_tps": 316.0,
+      "decode_prose_tps": 154.1,
+      "accept_conv_pct": 76.3,
+      "accept_struct_pct": 97.7,
+      "accept_prose_pct": 63.7,
+      "draft_len_conv": 2.4,
+      "draft_len_struct": 7.0,
+      "draft_len_prose": 1.8,
+      "engine_args": "--gpu 0 --max-context 66661 --kv int8"
+    }
+halocline-bench: the row was added to ~/wt/halocline-abil-halo/docs/community/benchmarks.json; review it, commit it and open a pull request (docs/community.md)

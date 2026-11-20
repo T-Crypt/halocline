@@ -1,0 +1,1 @@
+convert: /data/models/halocline/packs/QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo exists (use --force to overwrite)
