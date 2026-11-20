@@ -22,10 +22,10 @@ listed in that folder's README.
 | Branch | What it runs | Weights | Status |
 |---|---|---|---|
 | [`main`](https://github.com/T-Crypt/halocline/tree/main) | Both paths, sparse and dense, gated on KLD against BF16 | Unsloth UD-IQ4_XS (sparse); UD-Q4_K_XL and UD-IQ4_XS (dense), tensors copied byte for byte | supported, the default |
-| [`abil-halo`](https://github.com/T-Crypt/halocline/tree/abil-halo) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
+| [`halo-ista`](https://github.com/T-Crypt/halocline/tree/halo-ista) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
 | [`halo-cyber`](https://github.com/T-Crypt/halocline/tree/halo-cyber) | The dense path on OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored, byte-identical, at its native 262,144 tokens | bring your own copy; the repository hosts none | research |
 
-Each branch builds from its own clone and serves on its own ports (`main` 8092 and 8093, `abil-halo` 8094 and 8095,
+Each branch builds from its own clone and serves on its own ports (`main` 8092 and 8093, `halo-ista` 8094 and 8095,
 `halo-cyber` 8096), so they never share a build, a pack or a port.
 
 <img src="assets/halocline-divider.svg" width="100%" alt="">
