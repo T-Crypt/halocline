@@ -21,7 +21,8 @@
 ## Branches
 
 `main` is the default install. The other two branches are optional research configurations for people who want them.
-Each keeps its own files under `branches/<name>/` and changes no file of `main`'s except its README.
+Each keeps its own docs, configs and data under `branches/<name>/`; an engine change a branch needs for its model is
+listed in that folder's README.
 
 | Branch | What it runs | Weights | Status |
 |---|---|---|---|
