@@ -1,0 +1,3 @@
+2026-11-20T13:47:38-07:00 int8: exited vram [] [server] fit  ctx=262144 kv=int8 mtp-kv=int8 mtp-window=32768 draft-vocab=~/halocline/releases/b2f81178/tools/draft_vocab/data/qwen38-27b-wikitext103 | [server] error: qwen35: 1 session(s) of 262144 cells need 10742 MiB, 9651 MiB are free; lower --max-context or --parallel 
+2026-11-20T13:47:47-07:00 k8v4: loaded vram [3000428, 21676 MiB ] [server] fit  ctx=262144 kv=k8v4 mtp-kv=int8 mtp-window=32768 draft-vocab=~/halocline/releases/b2f81178/tools/draft_vocab/data/qwen38-27b-wikitext103 | 
+2026-11-20T13:47:51-07:00 end

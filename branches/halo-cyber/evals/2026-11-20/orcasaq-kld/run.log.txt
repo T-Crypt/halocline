@@ -1,0 +1,18 @@
+2026-11-20T14:57:37-07:00 base 65536 (llama.cpp f16 K/V, -ngl 99)
+2026-11-20T15:04:29-07:00 base 65536 done 8141340760 bytes
+2026-11-20T15:04:29-07:00 arm llama-q8-65536
+2026-11-20T15:12:44-07:00 arm llama-q8-65536 rc=0 chunk PPL ln(PPL(Q)/PPL(base)) KL Divergence Δp RMS Same top p Mean PPL(Q) : 7.100030 ± 0.138626 Mean PPL(Q)/PPL(base) : 1.000076 ± 0.000275 Mean PPL(Q)-PPL(base) : 0.000537 ± 0.001951 Mean KLD: 0.000410 ± 0.000008 Same top p: 98.993 ± 0.078 % 
+2026-11-20T15:12:44-07:00 arm halo-k8v4-65536
+2026-11-20T15:25:47-07:00 arm halo-k8v4-65536 rc=0 kld 0.00163 top1 98.01 ppl 7.1109 base 7.0995
+2026-11-20T15:25:47-07:00 arm halo-int8-65536
+2026-11-20T15:38:34-07:00 arm halo-int8-65536 rc=0 kld 0.00088 top1 98.65 ppl 7.1081 base 7.0995
+2026-11-20T15:38:34-07:00 base 140288 (llama.cpp f16 K/V, -ngl 48)
+2026-11-20T16:01:46-07:00 base 140288 done 8146124888 bytes
+2026-11-20T16:01:46-07:00 arm llama-q8-140288
+2026-11-20T16:01:48-07:00 arm llama-q8-140288 rc=1 
+2026-11-20T16:01:48-07:00 arm halo-k8v4-140288
+2026-11-20T16:25:09-07:00 arm halo-k8v4-140288 rc=0 kld 0.00208 top1 97.93 ppl 5.8997 base 5.8858
+2026-11-20T16:25:09-07:00 end
+2026-11-20T16:26:01-07:00 arm llama-q8-140288
+2026-11-20T16:44:27-07:00 arm llama-q8-140288 rc=0 chunk PPL ln(PPL(Q)/PPL(base)) KL Divergence Δp RMS Same top p Mean PPL(Q) : 5.887118 ± 0.107678 Mean PPL(Q)/PPL(base) : 1.000223 ± 0.000290 Mean PPL(Q)-PPL(base) : 0.001311 ± 0.001707 Mean KLD: 0.000526 ± 0.000024 Same top p: 98.865 ± 0.083 % 
+2026-11-20T16:44:27-07:00 end

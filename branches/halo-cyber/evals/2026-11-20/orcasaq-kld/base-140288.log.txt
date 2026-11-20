@@ -1,0 +1,26 @@
+0.00.426.432 W model has unused tensor blk.64.attn_norm.weight (size = 20480 bytes) -- ignoring
+0.00.426.436 W model has unused tensor blk.64.post_attention_norm.weight (size = 20480 bytes) -- ignoring
+0.00.426.441 W model has unused tensor blk.64.attn_q.weight (size = 33423360 bytes) -- ignoring
+0.00.426.442 W model has unused tensor blk.64.attn_k.weight (size = 2785280 bytes) -- ignoring
+0.00.426.444 W model has unused tensor blk.64.attn_v.weight (size = 3604480 bytes) -- ignoring
+0.00.426.449 W model has unused tensor blk.64.attn_output.weight (size = 16711680 bytes) -- ignoring
+0.00.426.451 W model has unused tensor blk.64.attn_q_norm.weight (size = 1024 bytes) -- ignoring
+0.00.426.452 W model has unused tensor blk.64.attn_k_norm.weight (size = 1024 bytes) -- ignoring
+0.00.426.454 W model has unused tensor blk.64.ffn_gate.weight (size = 47349760 bytes) -- ignoring
+0.00.426.455 W model has unused tensor blk.64.ffn_down.weight (size = 47349760 bytes) -- ignoring
+0.00.426.457 W model has unused tensor blk.64.ffn_up.weight (size = 47349760 bytes) -- ignoring
+0.00.426.459 W model has unused tensor blk.64.nextn.eh_proj.weight (size = 27852800 bytes) -- ignoring
+0.00.426.461 W model has unused tensor blk.64.nextn.enorm.weight (size = 20480 bytes) -- ignoring
+0.00.426.462 W model has unused tensor blk.64.nextn.hnorm.weight (size = 20480 bytes) -- ignoring
+0.00.426.467 W model has unused tensor blk.64.nextn.shared_head_norm.weight (size = 20480 bytes) -- ignoring
+0.02.194.754 I cmn          init: llama threadpool init, n_threads = 16
+0.02.374.472 I 
+0.02.374.522 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 890 | USE_GRAPHS = 1 | FA_QUANTS = q4_0-q4_0,q8_0-q8_0,f16-f16,bf16-bf16,f8_e4m3-f8_e4m3 | NATIVE_FP8 = 1 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX_VNNI = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.02.374.566 I perplexity: saving all logits to /data/models/halocline/kld-bases/depth/orcasaq/orcasaq-f16kv-depth140288-w1024-c16.kld
+0.02.374.569 I perplexity: tokenizing the input ..
+0.06.319.566 I perplexity: tokenization took 3944.99 ms
+0.06.321.097 I perplexity: calculating perplexity over 16 chunks, n_ctx=141313, batch_size=4096, n_seq=1
+1.32.897.573 I perplexity: 86.46 seconds per pass - ETA 23.05 minutes
+[1]4.2790,[2]6.0918,[3]6.3162,[4]6.2467,[5]6.1354,[6]5.9542,[7]5.8309,[8]6.0433,[9]6.1682,[10]6.4028,[11]6.1655,[12]5.7731,[13]5.6417,[14]5.8978,[15]5.7744,[16]5.8859,
+23.11.871.641 I Final estimate: PPL = 5.8859 +/- 0.10753
+

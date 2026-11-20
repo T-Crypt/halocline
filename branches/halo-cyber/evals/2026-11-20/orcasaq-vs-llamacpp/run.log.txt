@@ -1,0 +1,4 @@
+2026-11-20T13:39:46-07:00 sha256 ok
+2026-11-20T13:40:33-07:00 pack 15694834804 bytes
+2026-11-20T13:41:04-07:00 verify rc=0 verify: 866 tensors, 5 tokenizer files, 0 vision sections, 0 mismatches -> LOSSLESS
+2026-11-20T13:41:04-07:00 done

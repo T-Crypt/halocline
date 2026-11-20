@@ -1,0 +1,7 @@
+{"work": "short-prose", "prompt_tokens": 39, "ttft_s": 0.26, "completion_tokens": 1200, "decode_tps": 84.5, "text_sha": "be1eeaf7fc00ac7e"}
+{"work": "short-struct", "prompt_tokens": 62, "ttft_s": 0.12, "completion_tokens": 1200, "decode_tps": 150.7, "text_sha": "c1b5efa694f9f6f4"}
+{"work": "d36k-prose", "prompt_tokens": 36431, "ttft_s": 12.17, "completion_tokens": 1200, "decode_tps": 66.3, "text_sha": "5fa0df560a431a63"}
+{"work": "d36k-struct", "prompt_tokens": 36454, "ttft_s": 0.56, "completion_tokens": 1200, "decode_tps": 119.3, "text_sha": "15af43e1e1133bcc"}
+{"work": "d137k-prose", "prompt_tokens": 137364, "ttft_s": 57.61, "completion_tokens": 1200, "decode_tps": 42.1, "text_sha": "31a873b20a1fab7a"}
+{"work": "d137k-struct", "prompt_tokens": 137387, "ttft_s": 0.99, "completion_tokens": 1200, "decode_tps": 76.4, "text_sha": "31fd2d32a6541ab2"}
+{"work": "needle-180k", "prompt_tokens": 181851, "ttft_s": 94.86, "completion_tokens": 10, "decode_tps": 64.7, "text_sha": "d923305b0393a9e3", "found": true, "reply": "7-3-9-1-4"}
