@@ -18,5 +18,5 @@ Limits:
   differences. No neutral BF16 reference exists for this model.
 - 16 chunks x 1,024 rows per depth, one run per arm.
 - 140,288 llama.cpp: `-ub 4096` (the 65,536 setting) needed a 5.3 GB compute buffer that does not fit
-  (`llama-q8-140288-ub4096-oom.log` in the lab notes); `run2.sh` reran it at `-ub 1024`, as the served entry runs.
+  (`llama-q8-140288-ub4096-oom.log`); `run2.sh` reran it at `-ub 1024`, as the served entry runs.
 - The base at 140,288 ran with 48 of 65 layers on the card (f16 K/V 8.6 GiB); the layer split does not change the math.
