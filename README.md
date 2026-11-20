@@ -3,21 +3,76 @@
 </p>
 
 <p align="center">
-  <b>Halocline: the engine that hides nothing.</b><br>
-  <b>One engine, two paths: sparse and dense.</b> Qwen mixture-of-experts and dense models on one NVIDIA Ada GPU
-  (sm_89), a 24 GB RTX 4090. Each result names the run directory that produced it.
+  <b>Halocline <code>abil-halo</code>: an experimental branch.</b><br>
+  Qwen3.8-Flash-Next from ISTA-DASLab's GSQ-RCO IQ3_S shards, on NVIDIA Ada (sm_89) cards. Untested; use it if you
+  want to.
 </p>
 
 <p align="center">
-  <code>status: pre-alpha</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>models: Qwen4 family</code> &nbsp; <code>licence: MIT</code>
+  <code>status: experimental, untested</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>weights: ISTA-DASLab GSQ-RCO IQ3_S</code> &nbsp; <code>licence: MIT</code>
 </p>
 
-> [!NOTE]
-> **Branch `abil-halo`.** This branch adds SC117's abliterated GSQ-RCO IQ3_S build of Qwen3.8-Flash-Next as a sparse
-> option ([model page](docs/models/qfn-sc117-iq3s.md), [local config](examples/qfn-sc117-iq3s.json)). `main` keeps
-> the Unsloth UD packs and the official gates.
+> [!WARNING]
+> **This is not `main`.** [`main`](https://github.com/T-Crypt/halocline/tree/main) is the supported Halocline: Unsloth's
+> UD packs, tensors copied byte for byte, every change gated on KLD against BF16. This branch has no gates. Nobody
+> tests it, scores it against BF16 or compares it with `main`, and none of that is planned. It can change or vanish
+> without notice.
+
+## What this branch is for
+
+A place to try ISTA-DASLab's approach to bit allocation on Halocline's engine. Their
+[GSQ-RCO](https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF) quants give each tensor its own type,
+chosen by a gradient search under a size budget, so the bits go where the model is most sensitive. At IQ3_S the routed
+experts take 46.8 GiB for the whole pool, 17% fewer bytes per expert than `main`'s UD-IQ4_XS. Halocline keeps as many
+experts on the card as fit and pins the rest in host RAM, so a smaller pool can mean faster decode on a 24 GB card and
+a smaller pinned share on a 16 or 12 GB one. That is the idea under study.
+
+Two builds of the same quant convert here, each under its own name:
+
+| Build | Hugging Face | Pack | Name |
+|---|---|---|---|
+| ISTA-DASLab GSQ-RCO IQ3_S (official) | [`ISTA-DASLab/...-GSQ-RCO-GGUF`](https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF), `IQ3_S/`, revision `ed59f920` | 87,641,785,427 bytes | `QFN-GSQ-RCO-IQ3_S` |
+| SC117 GSQ-RCO abliterated IQ3_S | [`SC117/...-GSQ-RCO-abliterated-GGUF`](https://huggingface.co/SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF), `IQ3_S/`, revision `90a3350c` | 87,889,249,268 bytes | `QFN-SC117-GSQ-RCO-abliterated-IQ3_S` |
+
+SC117 replaced 144 tensors with ones from an uncensored release, so that model has no reliable refusals. Read
+[its page](docs/models/qfn-sc117-iq3s.md) before you serve it. Both builds use the same expert types layer for layer;
+[sparse sources](docs/models/sparse-sources.md) has the types, the file hashes and the commands. For quality, read
+ISTA-DASLab's own evaluation on their model card.
+
+## Build, convert, serve
+
+Any Ada card builds and runs it; the build refuses every other architecture.
+
+```sh
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
+ninja -C build
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+# ISTA's two IQ3_S shards and its BF16 vision projector: 84.5 GB
+hf download ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF --revision ed59f92082b1e93c0e96d60a8b11aab089b52f09 \
+    --include "IQ3_S/*" --include "mmproj-Qwen3.8-Flash-Next-BF16.gguf" --local-dir ista
+
+# the draft layer: Qwen's BF16 mtp.* tensors, 4.9 GB by range reads, hash-checked
+.venv/bin/python tools/convert/mtp_fetch.py fetch --out mtp-qfn
+
+.venv/bin/python tools/convert/convert.py --gguf ista/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf \
+    --mmproj ista/mmproj-Qwen3.8-Flash-Next-BF16.gguf --mtp-source mtp-qfn \
+    --name QFN-GSQ-RCO-IQ3_S --out QFN-GSQ-RCO-IQ3_S-vision.halo
+
+bin/halocline serve QFN-GSQ-RCO-IQ3_S-vision.halo --host 127.0.0.1 --port 8094 \
+    --spec 8 --prefill auto --max-context 262144 --kv int8 --vision dynamic
+```
+
+You need no Unsloth file. The converter finds shard 2 (the n-gram table) beside shard 1. Once the pack exists you can
+delete the GGUF shards: the engine reads only the pack. For SC117's build, download its `IQ3_S/` folder and convert it
+with ISTA's projector; [its page](docs/models/qfn-sc117-iq3s.md) has the command. The pack takes about 82 GiB of disk;
+the author's machine runs it with 64 GB of RAM.
 
 <img src="assets/halocline-divider.svg" width="100%" alt="">
+
+> [!NOTE]
+> **Everything below is `main`'s README**, about the Unsloth UD reference build. Its quality numbers, gates and
+> byte-for-byte claims describe the UD packs, not this branch's.
 
 ## Two paths
 

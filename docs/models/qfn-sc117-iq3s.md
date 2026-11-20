@@ -30,31 +30,26 @@ supported here; SC117's IQ3_XXS, IQ2_XS and Q2_0 tiers are not.
 
 ## Pack
 
-The draft layer and the vision projector come from the served UD pack (`--sections-from`): SC117's MTP head is the stock
-base model's, not abliterated, and the projector is the same Flash-Next BF16 `clip` model.
+SC117's MTP head is the stock base model's, not abliterated, so the draft layer comes from Qwen's BF16 checkpoint
+(`mtp_fetch.py`) as for ISTA's build, and the projector from ISTA's repo (the same Flash-Next BF16 `clip` model):
 
 ```sh
-.venv/bin/python tools/convert/convert.py --gguf Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf \
-    --sections-from QFN-UD-IQ4_XS-v3.1-compat-mtp-vision.halo --name QFN-SC117-GSQ-RCO-abliterated-IQ3_S \
-    --out QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo
+.venv/bin/python tools/convert/mtp_fetch.py fetch --out mtp-qfn
+.venv/bin/python tools/convert/convert.py --gguf sc117/IQ3_S/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-IQ3_S-00001-of-00002.gguf \
+    --mmproj ista/mmproj-Qwen3.8-Flash-Next-BF16.gguf --mtp-source mtp-qfn \
+    --name QFN-SC117-GSQ-RCO-abliterated-IQ3_S --out QFN-SC117-GSQ-RCO-abliterated-IQ3_S-vision.halo
 ```
+
+The reference pack was built with `--sections-from` the UD pack instead. For ISTA's build the two routes give the same
+bytes in every section but `meta` and the projector, whose 334 tensors match and whose GGUF header names a different
+publisher.
 
 The pack is 87,889,249,268 bytes; every one of the tier's 1,223 tensors converts.
 
-## Speed
+## Status
 
-`halocline-bench --community` at 350 W, against the UD-IQ4_XS pack on the same build
-([`halocline-sc117-iq3s`](../../evals/2026-11-20/halocline-sc117-iq3s/)):
-
-| Pack | conv | struct | prose | 16K prefill |
-|---|---|---|---|---|
-| UD-IQ4_XS | 135.4 | 266.7 | 138.6 | 5,709 |
-| SC117 IQ3_S | **171.7** | **316.0** | **154.1** | 5,610 |
-
-A 450 W limit changes neither: the card's 2,600 MHz clock lock binds first (peak 391 W, 60 C).
-
-Quality is **unmeasured**: no KLD against BF16, smoke or vision check yet. The abliteration changes outputs on
-purpose, so a KLD against the base model measures the edit plus the quant.
+Experimental and untested, like the rest of this branch: no KLD against BF16 and no comparison with `main`. The
+abliteration changes outputs on purpose.
 
 ## Serving
 
