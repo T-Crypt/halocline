@@ -26,7 +26,7 @@
 | Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS) |
 | Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
 | Context | 262,144, int8 KV | **262,144 served with q4_0 KV** by default (`--long-context`: K and V rotated 4-bit, +0.0011 mean KLD over K8V4 at 65K, 140K and 174K; a needle at 252,483 tokens found, [`halocline-long-context`](evals/2026-11-18/halocline-long-context/)); 175,616 with K8V4 KV as the lower-KLD lever ([two profiles](docs/models/qwen38-27b.md#two-profiles)) |
-| Vision | | packs carry the projector; serving untested |
+| Vision | `--vision dynamic`: the encoder on the card, 1.2 s median to the first token on an image ([`halocline-vision-dynamic`](evals/2026-11-20/halocline-vision-dynamic/)) | `--vision cpu`, about 15 s an image; `dynamic` does not fit beside 262,144 tokens yet |
 | Status | **runs**, served through llama-swap | **runs**, gated, served at 262,144 tokens; about 10 times closer to BF16 than NInfer, 10% behind it on prose decode ([below](#dense-against-ninfer)) |
 | Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/) |
 
@@ -66,6 +66,25 @@ bandwidth ([`halocline-dense-profile-fixed`](evals/2026-11-19/halocline-dense-pr
 Both paths share the build, the pack format, the server and the gates: the same BF16 KLD method, greedy identity, the
 GPU suite. The sparse path trades quality for a model 4.6 times larger; the dense path keeps every weight on the card
 and lands within llama.cpp's error bar on the same quant.
+
+## Agent benchmark
+
+[airbench](https://airbench.ai/) Benchmark v1.0 gives an agent 49 challenges (math, vision, email, purchasing, coding)
+on one 2-hour clock. I ran both models through the HADAL harness on this card, served through llama-swap:
+
+| | Sparse | Dense |
+|---|---|---|
+| Score | **49/49** | **48/49** |
+| Time | 25m 00s | 1h 29m |
+| Board, 2026-11-20 | #13 | #65 |
+| Report | [64baefc1](https://airbench.ai/checkup/64baefc1-476e-41e8-ab11-938f248f8389/report) | [02db2264](https://airbench.ai/checkup/02db2264-4211-4dc1-93ba-da42b616e7cc/report) |
+
+The dense model's one miss is a vision challenge, and the engine did not cause it. The harness never told the model it
+could see, so it worked all 19 images out with numpy and OCR and misread one arrow. The harness prompt now names the
+model and says it takes images. The sparse run waited about 340 s of its 15m41s vision section on the CPU image
+encoder. Sparse now serves `--vision dynamic`: on the same 19 images the time to first token drops from 317 s to 22 s,
+with the same replies
+([`halocline-vision-dynamic`](evals/2026-11-20/halocline-vision-dynamic/)).
 
 > [!IMPORTANT]
 > **Halocline is for sm_89 (Ada) only, and it is tuned for one machine: [mine](SPECS.md).** The build refuses any compute
