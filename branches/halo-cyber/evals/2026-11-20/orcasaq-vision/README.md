@@ -19,3 +19,5 @@ prompt, `dynamic` refused every image (HTTP 400, `no device memory for the image
 working memory stays on the card, and there is no CPU fallback), so the served config uses `--vision cpu`, which passed
 all three again after that prompt (1.8-2.4 s). Three images are a working check, not
 a vision benchmark; the projector was trained with the stock model, not the abliterated one.
+
+Logs are named `*.log.txt` here because the repository ignores `*.log` outside `logs/`; the scripts wrote them as `*.log`.

@@ -36,8 +36,8 @@ delta). Then needles: a passphrase at a quarter of the depth.
 
 Peak card memory: Halocline 23,178 MiB, llama.cpp 24,086 MiB (`*.gpu.csv`, 2 s samples).
 
-`fit.log`: int8 K and V at 262,144 needs 10,742 MiB of cache with 9,651 MiB free and is refused; K8V4 loads.
-`fit-1-release.log`: `main`'s loader refuses the file (`blk.0.ssm_alpha.weight is not the expected type and size`).
+`fit.log.txt`: int8 K and V at 262,144 needs 10,742 MiB of cache with 9,651 MiB free and is refused; K8V4 loads.
+`fit-1-release.log.txt`: `main`'s loader refuses the file (`blk.0.ssm_alpha.weight is not the expected type and size`).
 
 ## Limits
 
@@ -52,3 +52,5 @@ Peak card memory: Halocline 23,178 MiB, llama.cpp 24,086 MiB (`*.gpu.csv`, 2 s s
 `ud-identity.sh`: the UD-Q4_K_XL pack (Q8_0 gating tensors) on `main`'s release engine and on this branch's build,
 `--spec 0` so no timing-dependent draft windows, greedy short prose and JSON, 256 tokens. Both write the same bytes
 (`ud-identity.result`: `4f7c107f0c7cf6d8`, `fb104a7f1e1cdc3d` on both).
+
+Logs are named `*.log.txt` here because the repository ignores `*.log` outside `logs/`; the scripts wrote them as `*.log`.

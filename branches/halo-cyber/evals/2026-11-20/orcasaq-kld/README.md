@@ -2,7 +2,7 @@
 
 Same GGUF (`OrcaSAQ-2-27B-Uncensored.gguf`, sha256 `4ab6bdf8...`). The model exists only quantized, so the reference is
 the most exact run of these weights: llama.cpp (the lab's pinned build with `tools/depth_kld/llama-kl-first.patch`) with
-f16 K and V. Each base: a D-token prefix of wikitext-103 train, then 1,024 scored rows, 16 chunks (`run.sh`, `base-*.log`).
+f16 K and V. Each base: a D-token prefix of wikitext-103 train, then 1,024 scored rows, 16 chunks (`run.sh`, `base-*.log.txt`).
 
 | Depth | Arm | Mean KLD | Top-1 | PPL (base) |
 |---|---|---|---|---|
@@ -18,5 +18,7 @@ Limits:
   differences. No neutral BF16 reference exists for this model.
 - 16 chunks x 1,024 rows per depth, one run per arm.
 - 140,288 llama.cpp: `-ub 4096` (the 65,536 setting) needed a 5.3 GB compute buffer that does not fit
-  (`llama-q8-140288-ub4096-oom.log`); `run2.sh` reran it at `-ub 1024`, as the served entry runs.
+  (`llama-q8-140288-ub4096-oom.log.txt`); `run2.sh` reran it at `-ub 1024`, as the served entry runs.
 - The base at 140,288 ran with 48 of 65 layers on the card (f16 K/V 8.6 GiB); the layer split does not change the math.
+
+Logs are named `*.log.txt` here because the repository ignores `*.log` outside `logs/`; the scripts wrote them as `*.log`.
