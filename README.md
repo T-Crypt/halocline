@@ -26,7 +26,7 @@ listed in that folder's README.
 | Branch | What it runs | Weights | Status |
 |---|---|---|---|
 | [`main`](https://github.com/T-Crypt/halocline/tree/main) | Both paths, sparse and dense, gated on KLD against BF16 | Unsloth UD-IQ4_XS (sparse); UD-Q4_K_XL and UD-IQ4_XS (dense), tensors copied byte for byte | supported, the default |
-| [`abil-halo`](https://github.com/T-Crypt/halocline/tree/abil-halo) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
+| [`halo-ista`](https://github.com/T-Crypt/halocline/tree/halo-ista) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
 | [`halo-cyber`](https://github.com/T-Crypt/halocline/tree/halo-cyber) | The dense path on OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored, byte-identical, at its native 262,144 tokens | bring your own copy; the repository hosts none | research |
 
 ## What this branch does
@@ -90,7 +90,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 bin/halocline serve --config branches/halo-cyber/examples/orcasaq-27b.json
 ```
 
-The config serves `Halocline-OrcaSAQ-27B` on port 8096, beside `main`'s 8092 and 8093 and `abil-halo`'s 8094 and
+The config serves `Halocline-OrcaSAQ-27B` on port 8096, beside `main`'s 8092 and 8093 and `halo-ista`'s 8094 and
 8095. Point its `model` at your pack. For the draft head the table used, add
 `--draft-vocab tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin`.
 
