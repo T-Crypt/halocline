@@ -16,6 +16,7 @@ from serve.models import dialect_for  # noqa: E402
 from serve.engine.flags import flag_value  # noqa: E402
 
 VISION_EXE = "halocline-vision"
+DENSE_ARCH = "qwen35"   # the dense path (Qwen3.8-27B); its weights and work live on the card
 # llama.cpp's sampling keys in the GGUF metadata -> the request field each one defaults
 GGUF_SAMPLING = {"general.sampling.temp": "temperature", "general.sampling.top_p": "top_p",
                  "general.sampling.top_k": "top_k", "general.sampling.min_p": "min_p",
@@ -121,6 +122,8 @@ def model_config(spec: ModelSpec, engine_bin: str) -> dict:
     if v:
         v["mode"] = vision
         v["gpu"] = vision != "cpu"
+        if vision == "cpu" and cfg["arch"] == DENSE_ARCH:
+            v["threads"] = os.cpu_count() or 1      # the dense path leaves the CPU idle: the encoder takes every thread
         cfg["vision"] = v
         # dynamic: the engine encodes, opening the projector inside the model file itself; else the sidecar's
         # embeddings come in with each image
