@@ -1,6 +1,7 @@
 """--model FILE.halo: the config derived from the file, the tokenizer read in memory, the peer card, vision."""
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -165,6 +166,15 @@ class Vision(Tmp):
         (self.engine_bin.parent / "halocline-vision").write_text("")
         self.assertTrue(modelfile.model_config(modelfile.ModelSpec(path, vision="1"), str(self.engine_bin))["vision"]["gpu"])
         self.assertFalse(modelfile.model_config(modelfile.ModelSpec(path, vision="cpu"), str(self.engine_bin))["vision"]["gpu"])
+
+    def test_a_dense_cpu_encoder_takes_every_thread(self):
+        (self.engine_bin.parent / "halocline-vision").write_text("")
+        dense = self.build(vision=True, meta={**META, "gguf_kv": {**META["gguf_kv"], "general.architecture": "qwen35"}})
+        v = modelfile.model_config(modelfile.ModelSpec(dense, vision="cpu"), str(self.engine_bin))["vision"]
+        self.assertEqual(v["threads"], os.cpu_count())
+        self.assertNotIn("threads", modelfile.model_config(modelfile.ModelSpec(dense, vision="1"), str(self.engine_bin))["vision"])
+        other = self.build(vision=True)                     # sparse keeps the sidecar's own default
+        self.assertNotIn("threads", modelfile.model_config(modelfile.ModelSpec(other, vision="cpu"), str(self.engine_bin))["vision"])
 
     def test_modes_name_the_encoder(self):
         path = self.build(vision=True)
