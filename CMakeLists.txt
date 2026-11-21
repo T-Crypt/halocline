@@ -238,6 +238,8 @@ target_link_libraries(model_inkling2 PUBLIC model tokenizer kernels mmq core war
 set_target_properties(model_inkling2 PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)
 add_executable(inkling2_greedy tests/models/inkling2/greedy_main.cpp)
 target_link_libraries(inkling2_greedy PRIVATE model_inkling2 ${_gpu_runtime_target})
+add_executable(inkling2_kld tests/models/inkling2/kld_main.cpp)
+target_link_libraries(inkling2_kld PRIVATE model_inkling2 ${_gpu_runtime_target})
 endif()
 
 # The composition root links the built models and sees their ids (HALO_MODEL_<ARCH>) and the registration list.

@@ -770,6 +770,7 @@ bool Session::forward(const int32_t* tokens, int T, int64_t pos, bool all_logits
     const int64_t TD = (int64_t) T * D;
     const Weights& W = m_.w;
     prof_.mark(0, s);
+    if (!dev_pos && pos == 0) cudaMemsetAsync(st_.conv_state, 0, (size_t) st_.conv_floats * h_.n_visit * 4, s);   // a new sequence
     if (!dev_pos) cudaMemcpyAsync(st_.tok, tokens, (size_t) T * 4, cudaMemcpyHostToDevice, s);
     kernels::iq_embed_rows(W.embd_type, W.embd, W.embd_row_bytes, st_.tok, T, D, st_.cur, s);
     k::rms_rows(st_.cur, W.embd_norm, st_.cur, T, D, h_.eps, s);
@@ -885,10 +886,12 @@ bool Session::forward(const int32_t* tokens, int T, int64_t pos, bool all_logits
 }
 
 Result Session::decode_window(const model::DecodeRequest& r) {
-    if (r.n_tokens != 1) return {Status::Error, "inkling2: first light decodes one row a window"};
+    if (r.n_tokens < 1 || r.n_tokens > kWindow) return {Status::Error, "inkling2: a decode window of " + std::to_string(r.n_tokens) + " rows"};
     if (r.pos + r.n_tokens > m_.max_ctx_) return {Status::Error, "inkling2: the window passes the context"};
     std::string err;
-    if (st_.graph_state >= 1) {   // the captured one-row forward: token and position through device memory
+    if (r.n_tokens > 1) {   // a verify window: every row's logits, no graph
+        if (!forward(r.tokens, r.n_tokens, r.pos, true, err)) return {Status::Error, err};
+    } else if (st_.graph_state >= 1) {   // the captured one-row forward: token and position through device memory
         st_.h_tok[0] = r.tokens[0];
         *st_.h_pos = r.pos;
         cudaMemcpyAsync(st_.tok, st_.h_tok, 4, cudaMemcpyHostToDevice, st_.s);
@@ -931,12 +934,14 @@ Result Session::decode_window(const model::DecodeRequest& r) {
     } else {
         hist_len_ = 0;
     }
-    kernels::sample_tokens(st_.logits, 1, (int) h_.n_vocab, hist_len_ && d_hist_ ? d_hist_ : nullptr, hist_len_, sp, st_.picks, st_.s);
-    if (r.logits) cudaMemcpyAsync(r.logits, st_.logits, (size_t) h_.n_vocab * 4, cudaMemcpyDeviceToHost, st_.s);
-    cudaMemcpyAsync(h_picks_, st_.picks, 4, cudaMemcpyDeviceToHost, st_.s);
+    const int T = r.n_tokens;
+    kernels::sample_tokens(st_.logits, T, (int) h_.n_vocab, hist_len_ && d_hist_ && T == 1 ? d_hist_ : nullptr, T == 1 ? hist_len_ : 0, sp,
+                           st_.picks, st_.s);
+    if (r.logits) cudaMemcpyAsync(r.logits, st_.logits + (size_t) (T - 1) * h_.n_vocab, (size_t) h_.n_vocab * 4, cudaMemcpyDeviceToHost, st_.s);
+    cudaMemcpyAsync(h_picks_, st_.picks, (size_t) T * 4, cudaMemcpyDeviceToHost, st_.s);
     if (cudaStreamSynchronize(st_.s) != cudaSuccess) return {Status::Error, std::string("inkling2: ") + cudaGetErrorString(cudaGetLastError())};
-    if (r.row_tokens) r.row_tokens[0] = h_picks_[0];
-    if (r.next_token) *r.next_token = h_picks_[0];
+    if (r.row_tokens) std::copy(h_picks_, h_picks_ + T, r.row_tokens);
+    if (r.next_token) *r.next_token = h_picks_[T - 1];
     return {};
 }
 
