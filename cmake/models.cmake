@@ -3,7 +3,7 @@
 # `if(HALO_MODEL_<ARCH>)`. A model left out is not compiled, not linked and not registered.
 
 # Every model that ships: the architecture ids, as `general.architecture` names them.
-set(HALO_BUILTIN_MODELS qwen4exp qwen35)
+set(HALO_BUILTIN_MODELS qwen4exp qwen35 inkling2)
 
 set(HALO_MODELS "${HALO_BUILTIN_MODELS}" CACHE STRING
     "Semicolon list of the models to build, from: ${HALO_BUILTIN_MODELS}")

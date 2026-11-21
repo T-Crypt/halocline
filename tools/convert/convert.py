@@ -12,6 +12,8 @@
     python3 tools/convert/convert.py --gguf QWEN35.gguf --out MODEL.halo [--mmproj MMPROJ.gguf | --no-vision] [--name NAME] [--force]
         (a dense qwen35 GGUF: every tensor copied as stored, tools/convert/gguf_qwen35.py; check with
          python3 tools/convert/gguf_qwen35.py verify MODEL.halo QWEN35.gguf)
+    python3 tools/convert/convert.py --gguf INKLING2.gguf --out MODEL.halo [--mmproj MMPROJ.gguf | --no-vision] [--dspark FILE]
+        (Inkling 2 Mini, Unsloth's root layout: every tensor copied as stored, tools/convert/gguf_inkling2.py)
 
 Inputs
   --gguf FILE        the model's GGUF: shard 1 of a split model (the others are found beside it) or --gguf per shard
@@ -833,6 +835,12 @@ def main():
             ap.error("a qwen35 --gguf takes only --mmproj, --no-vision, --name, --out, --force and --dry-run")
         import gguf_qwen35
         gguf_qwen35.build(a, Job, fingerprint, die, export_tokenizer)
+        return
+    if source_architecture(Path(a.gguf[0])) == "inkling2":   # every tensor copied as stored (gguf_inkling2.py)
+        if a.sections_from or a.mtp_source or a.mtp_dense or a.draft_vocab or a.compat_bf16:
+            ap.error("an inkling2 --gguf takes only --mmproj, --no-vision, --dspark, --name, --out, --force and --dry-run")
+        import gguf_inkling2
+        gguf_inkling2.build(a, Job, fingerprint, die, export_tokenizer)
         return
     arch = A.for_architecture(source_architecture(Path(a.gguf[0])))
     if arch.side_sections:
