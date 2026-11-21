@@ -46,6 +46,7 @@ public:
     void rewind(size_t mark) { used_ = mark; }
     size_t mark() const { return used_; }
     size_t size() const { return size_; }
+    void* base() const { return base_; }
 private:
     uint8_t* base_ = nullptr;
     size_t size_ = 0, used_ = 0;
@@ -156,13 +157,19 @@ public:
     std::vector<void*> owned;                    // device buffers the model allocated (Q8 plane copies, a wider workspace)
     void* enc_arena = nullptr;
     size_t enc_bytes = 0;
+    // the encoder borrowed pre_arena (the prompt workspace) for this picture: an encode runs alone on the engine thread,
+    // and no prompt chunk leaves anything in pre_arena the next one reads but the token iota, which vision_detach
+    // writes again (the MTP row a chunk carries goes through the session's tail, forward.cpp)
+    bool enc_lent = false;
+    int64_t lent_images = 0;                     // pictures encoded in the borrowed workspace, for the log
     ~Model();
     bool ensure_chunk(std::string& err);
     /// llama.cpp's MMQ readied for every product of the model (its kernels loaded for each format and height).
     bool ready_products(std::string& err);
-    /// The image encoder placed in device memory for pictures of up to `tokens` merged tokens.
+    /// The image encoder placed in device memory for pictures of up to `tokens` merged tokens: in the prompt
+    /// workspace when it is large enough (no memory of its own), else in an arena of its own.
     bool vision_attach(int tokens, std::string& err);
-    /// Its memory goes back.
+    /// Its memory goes back: a borrowed workspace is handed back to the prompt chunks, an own arena is freed.
     void vision_detach();
     /// The CPU encoder ready (opened on first use). False with `err` when the projector cannot be read.
     bool vision_cpu_ready(std::string& err);

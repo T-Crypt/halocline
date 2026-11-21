@@ -505,10 +505,28 @@ bool Model::vision_attach(int tokens, std::string& err) {
     const size_t need = encoder->arena_bytes(tokens);
     if (enc_arena && enc_bytes >= need) return true;
     vision_detach();
+    // borrow the prompt workspace: the planner already counts it, so the picture costs no memory beyond the plan.
+    // The card's queued work is finished first; the encoder runs on its own stream.
+    std::string werr;
+    if (ensure_chunk(werr) && pre_arena.size() >= need) {
+        if (cudaDeviceSynchronize() != cudaSuccess) {
+            err = o.arch + ": the card failed before the image encoder";
+            return false;
+        }
+        if (encoder->attach(pre_arena.base(), pre_arena.size(), tokens, err)) {
+            enc_lent = true;
+            ++lent_images;
+            return true;
+        }
+        enc_lent = true;   // the attach may have written part of the workspace: hand it back as after an encode
+        vision_detach();
+    }
     if (cudaMalloc(&enc_arena, need) != cudaSuccess) {
         cudaGetLastError();
         enc_arena = nullptr;
-        err = o.arch + ": no device memory for the image encoder (" + std::to_string((unsigned long long) (need >> 20)) + " MiB)";
+        err = o.arch + ": no device memory for the image encoder (" + std::to_string((unsigned long long) (need >> 20)) + " MiB" +
+              (werr.empty() ? ", the prompt workspace holds " + std::to_string((unsigned long long) (pre_arena.size() >> 20)) + " MiB)"
+                            : "; " + werr + ")");
         return false;
     }
     enc_bytes = need;
@@ -538,6 +556,13 @@ bool Model::vision_cpu_ready(std::string& err) {
 }
 
 void Model::vision_detach() {
+    if (enc_lent) {
+        if (encoder) encoder->detach();   // waits for the encoder's stream
+        enc_lent = false;
+        prefill::mmq::iota(cs.iota, (int64_t) kChunk, nullptr);   // the one row set ensure_chunk wrote, written again
+        cudaDeviceSynchronize();
+        return;
+    }
     if (!enc_arena) return;
     if (encoder) encoder->detach();
     cudaFree(enc_arena);
