@@ -516,7 +516,9 @@ public:
             ++m_.cpu_images;
             halo::log::info("halo dense", "%s: this picture was encoded on the CPU (%lld so far)", gerr.c_str(),
                             (long long) m_.cpu_images);
+            return {};
         }
+        if (m_.enc_lent) m_.vision_detach();   // the prompt workspace goes back before the next chunk
         return {};
     }
 
