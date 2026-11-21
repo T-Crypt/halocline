@@ -39,12 +39,12 @@ Each branch builds from its own clone and serves on its own ports (`main` 8092 a
 | Weights | Unsloth UD-IQ4_XS v3.1, repacked | Unsloth UD-Q4_K_XL or UD-IQ4_XS v3.1, every tensor copied as stored |
 | Mean KLD to BF16, top-1 | 0.08195, 90.45% | 0.00582, 96.67% (UD-Q4_K_XL); 0.01618, 94.31% (UD-IQ4_XS) |
 | Against llama.cpp, same GGUF | | at parity: 0.00573 (f16 KV) and 0.01638 (q8_0 KV) |
-| Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS) |
-| Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS) |
+| Prefill | 5,322 t/s at 16K, 5,070 at 64K | 3,383 t/s at 36K (UD-IQ4_XS); served, UD-Q4_K_XL: 3,309-3,325 t/s on a fresh 12-14K prompt, a median 2,220 on agent turns of 1,000+ new tokens over a warm cache |
+| Decode, MTP drafter | 212 t/s over three fixtures | 113 t/s conversation, 98 prose (UD-IQ4_XS); served, UD-Q4_K_XL, a coding agent's replies of 200+ tokens at up to 73K context: median 117 t/s, p95 156, up to 166 ([`halocline-dense-served`](evals/2026-11-21/halocline-dense-served/)) |
 | Context | 262,144, int8 KV | **262,144 served with q4_0 KV** by default (`--long-context`: K and V rotated 4-bit, +0.0011 mean KLD over K8V4 at 65K, 140K and 174K; a needle at 252,483 tokens found, [`halocline-long-context`](evals/2026-11-18/halocline-long-context/)); 175,616 with K8V4 KV as the lower-KLD lever ([two profiles](docs/models/qwen38-27b.md#two-profiles)) |
 | Vision | `--vision dynamic`: the encoder on the card, 1.2 s median to the first token on an image ([`halocline-vision-dynamic`](evals/2026-11-20/halocline-vision-dynamic/)) | `--vision dynamic`: the encoder borrows the prompt workspace, 0.53 s median to the first token on an image against 14.4 s on the CPU ([`halocline-vision-lend`](evals/2026-11-21/halocline-vision-lend/)) |
-| Status | **runs**, served through llama-swap | **runs**, gated, served at 262,144 tokens; about 10 times closer to BF16 than NInfer, 10% behind it on prose decode ([below](#dense-against-ninfer)) |
-| Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/) |
+| Status | **runs**, served through llama-swap | **runs**, gated, served at 262,144 tokens; about 10 times closer to BF16 than NInfer, 1-5% behind it on prose decode and up to 7% ahead on JSON at depth ([below](#dense-against-ninfer)) |
+| Evidence | [`halocline-kv-kld`](evals/2026-11-17/halocline-kv-kld/), [community row](docs/community.md) | [`halocline-dense-quality`](evals/2026-11-17/halocline-dense-quality/), [`halocline-dense-load`](evals/2026-11-17/halocline-dense-load/), [`halocline-d8-kv`](evals/2026-11-17/halocline-d8-kv/), [`halocline-dense-served`](evals/2026-11-21/halocline-dense-served/) |
 
 ## Dense against NInfer
 

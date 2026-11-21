@@ -1,0 +1,6 @@
+requests 59 (2026-11-21T09:12:44-07:00 to 2026-11-21T09:22:25-07:00; 1 with no tokens), context 957-73,011 tokens
+reply tokens: p25 168, median 262, p75 607, max 3433
+decode, every reply: n=58 median 115.8 p25 106.2 p75 128.2 p95 150.2 max 166.4 t/s
+decode, replies of 200+ tokens: n=36 median 116.8 p25 110.5 p75 132.0 p95 156.2 max 166.4 t/s
+prefill, chunks of 1,000+ new tokens over a warm cache: n=16 median 2220 max 3325 t/s
+draft tokens accepted: median 64%, best 80%
