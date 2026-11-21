@@ -1,0 +1,48 @@
+{
+ "model": "Halocline-OrcaSAQ-27B",
+ "utc": "2026-11-21T17:36:23Z",
+ "results": [
+  {
+   "case": "shapes",
+   "pass": true,
+   "wall_s": 0.22,
+   "reply": "3 red circles, 2 blue squares",
+   "usage": {
+    "prompt_tokens": 279,
+    "completion_tokens": 9,
+    "total_tokens": 288,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   }
+  },
+  {
+   "case": "text",
+   "pass": true,
+   "wall_s": 0.22,
+   "reply": "HALOCLINE 4090",
+   "usage": {
+    "prompt_tokens": 228,
+    "completion_tokens": 10,
+    "total_tokens": 238,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   }
+  },
+  {
+   "case": "bars",
+   "pass": true,
+   "wall_s": 0.2,
+   "reply": "C, green",
+   "usage": {
+    "prompt_tokens": 292,
+    "completion_tokens": 4,
+    "total_tokens": 296,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   }
+  }
+ ]
+}

@@ -26,7 +26,7 @@ release and this build write byte-identical text ([`ud-identity.result`](evals/2
 
 The second is in the dense image path. `--vision dynamic` places the encoder's arena on the card per request; when
 `cudaMalloc` fails, or the encode on the card fails because cuBLAS cannot get its workspace, `main` refuses the request. This branch encodes the picture on the CPU instead, with
-`vision::CpuEncoder` set up as `halocline-vision --vision cpu` sets it up (bf16-rounded GEMM inputs, half the cores),
+`vision::CpuEncoder` set up as `halocline-vision --vision cpu` sets it up (bf16-rounded GEMM inputs, every hardware thread),
 from its own mapping of the pack's projector, made on first use, and logs each one.
 
 | File | Change |
@@ -37,3 +37,11 @@ from its own mapping of the pack's projector, made on first use, and logs each o
 
 Checked with the card squeezed to 198 MiB free: the three known-answer images give the same replies as `--vision cpu`
 ([`evals/2026-11-20/orcasaq-vision-fallback/`](evals/2026-11-20/orcasaq-vision-fallback/)).
+
+Since 2026-11-21 the encoder first borrows the prompt workspace (`pre_arena`, 1,292 MiB, already in the plan and idle
+while a picture is encoded), so the CPU path is the last resort, not the usual one after a long prompt. Through
+llama-swap, before this, 15 pictures had gone to the CPU (`no device memory for the image encoder (1101 MiB)`). After a
+137K prompt and again with 198 MiB free: 3/3 known answers on the card in 0.2-0.3 s, 0 CPU fallbacks, replies equal to
+`--vision cpu`, engine peak 23,198 MiB
+([`evals/2026-11-21/orcasaq-vision-lend/`](evals/2026-11-21/orcasaq-vision-lend/); the same change on `main` is branch
+`vision-pre-arena`, measured in its `evals/2026-11-21/halocline-vision-lend/`).

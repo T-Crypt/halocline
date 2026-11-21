@@ -1,0 +1,4 @@
+halo dense: image encoder: 0.87 GiB staged in page-locked RAM, on the card per request
+halo dense: image encoder: 0.87 GiB staged in page-locked RAM, on the card per request
+halo dense: image encoder: 0.87 GiB staged in page-locked RAM, on the card per request
+halo dense: image encoder: in the prompt workspace (1292 MiB, the picture needs 966 MiB)
