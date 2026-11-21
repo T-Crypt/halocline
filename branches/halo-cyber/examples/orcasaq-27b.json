@@ -14,7 +14,7 @@
       "mtp-kv": "int8",
       "mtp-window": 32768,
       "max-context": 262144,
-      "vision": "cpu"
+      "vision": "dynamic"
     }
   ]
 }

@@ -1,0 +1,3 @@
+PASS  shapes     3.0 s  prompt=279  '3 red circles, 2 blue squares'
+PASS  text       2.6 s  prompt=228  'HALOCLINE 4090'
+PASS  bars       3.2 s  prompt=292  'C, green'

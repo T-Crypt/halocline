@@ -1,0 +1,10 @@
+2026-11-20T17:02:14-07:00 after load: 3/3 PASS, cpu-fallback lines so far: 0
+2026-11-20T17:02:14-07:00 smoke (the sequence that refused images through llama-swap): 0/5 PASS
+2026-11-20T17:03:10-07:00 long prompt: prompt_tokens 137335 s 56.2 'OK.'  vram 23086 MiB 
+2026-11-20T17:03:14-07:00 hog rc=0 held 470 MiB, free now 198 MiB
+2026-11-20T17:03:15-07:00 after the long prompt: 3/3 PASS, cpu-fallback lines: 0
+fallback replies == --vision cpu replies: True | after-load (GPU) == cpu: True
+  shapes '3 red circles, 2 blue squares' | '3 red circles, 2 blue squares'
+  text 'HALOCLINE 4090' | 'HALOCLINE 4090'
+  bars 'C, green' | 'C, green'
+2026-11-20T17:03:15-07:00 end

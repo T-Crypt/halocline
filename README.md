@@ -47,12 +47,11 @@ GGUF, 0 mismatches.
 
 OrcaRouter publishes no vision projector, so the pack adds the stock Qwen3.8-27B BF16 one (Unsloth's `mmproj-BF16.gguf`,
 sha256 `83ee4f4f...`, the same bytes `main`'s UD dense pack carries) as its own section; the model's tensors do not
-change. Three known-answer images (counted shapes, read text, the tallest bar) come back right with the encoder on the
-CPU, 1.8 to 2.6 s each, also after a 137K-token prompt
-([`branches/halo-cyber/evals/2026-11-20/orcasaq-vision/`](branches/halo-cyber/evals/2026-11-20/orcasaq-vision/)).
-`--vision dynamic` runs the encoder on the card (0.3 to 0.4 s an image) only while the card has 966 MiB free: after a
-long prompt it refuses with `no device memory for the image encoder`, and it has no CPU fallback, so the config uses
-`cpu`. The projector was trained against the stock model; nobody has measured how the abliteration changes what it
+change. Three known-answer images (counted shapes, read text, the tallest bar) come back right: 0.2 to 0.4 s each with
+`--vision dynamic` (the encoder on the card), and 2.6 to 3.2 s with the same replies when the card has no room for the
+encoder after a long prompt. This branch encodes such a picture on the CPU instead of refusing it, with the encoder
+`--vision cpu` uses ([`branches/halo-cyber/evals/2026-11-20/orcasaq-vision-fallback/`](branches/halo-cyber/evals/2026-11-20/orcasaq-vision-fallback/)).
+The projector was trained against the stock model; nobody has measured how the abliteration changes what it
 sees beyond those three images. One engine change makes it load (the IQ4_XS gating tensors,
 [`branches/halo-cyber/README.md`](branches/halo-cyber/README.md#engine-change-against-main)).
 

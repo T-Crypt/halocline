@@ -10,6 +10,7 @@
 #include "halo/kernels/sampler.hpp"
 #include "halo/log.hpp"
 #include "halo/program/expert_spill.hpp"
+#include "halo/vision/encoder_cpu.hpp"
 #include "halo/vision/encoder_cuda.hpp"
 #include "halo/vision/preprocess.hpp"
 
@@ -492,7 +493,17 @@ public:
     Result encode_patches(const std::vector<float>& patches, int w, int h, std::vector<float>& rows) override {
         if (!m_.encoder) return {Status::NotImplemented, m_.o.arch + ": started without --vision"};
         std::string err;
-        if (!m_.vision_attach((w / 16) * (h / 16) / 4, err)) return fail(err);
+        if (!m_.vision_attach((w / 16) * (h / 16) / 4, err)) {
+            // no room on the card for the arena (a long prompt's working memory, a full cache): encode this picture on
+            // the CPU, as --vision cpu would, instead of refusing the request
+            std::string cerr;
+            if (!m_.vision_cpu_ready(cerr)) return fail(err + "; " + cerr);
+            if (!m_.cpu_encoder->encode(patches, vision::Size{w, h}, rows)) return fail("the CPU vision encoder failed");
+            ++m_.cpu_images;
+            halo::log::info("halo dense", "%s: this picture was encoded on the CPU (%lld so far)", err.c_str(),
+                            (long long) m_.cpu_images);
+            return {};
+        }
         if (!m_.encoder->encode(patches, vision::Size{w, h}, rows)) return fail("the vision encoder failed: " + m_.encoder->last_error());
         return {};
     }

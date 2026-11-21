@@ -1,0 +1,3 @@
+948:halo dense: qwen35: no device memory for the image encoder (966 MiB): this picture was encoded on the CPU (1 so far)
+950:halo dense: qwen35: no device memory for the image encoder (958 MiB): this picture was encoded on the CPU (2 so far)
+952:halo dense: qwen35: no device memory for the image encoder (969 MiB): this picture was encoded on the CPU (3 so far)

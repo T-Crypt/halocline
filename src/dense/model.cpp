@@ -12,10 +12,12 @@
 #include "halo/prefill/fp8_gemm.hpp"
 #include "halo/kernels/native_mmvq.hpp"
 #include "halo/log.hpp"
+#include "halo/vision/encoder_cpu.hpp"
 #include "halo/vision/encoder_cuda.hpp"
 #include "halo/vision/mmproj.hpp"
 
 #include <algorithm>
+#include <thread>
 #include <cstdlib>
 #include <fstream>
 
@@ -514,6 +516,24 @@ bool Model::vision_attach(int tokens, std::string& err) {
         vision_detach();
         return false;
     }
+    return true;
+}
+
+bool Model::vision_cpu_ready(std::string& err) {
+    if (cpu_encoder) return true;
+    if (o.mmproj.empty()) {
+        err = o.arch + ": no vision/mmproj section for the CPU encoder";
+        return false;
+    }
+    auto mp = std::make_unique<vision::Mmproj>();
+    auto enc = std::make_unique<vision::CpuEncoder>();
+    const int threads = (int) std::max(1u, std::thread::hardware_concurrency() / 2);   // as halocline-vision's default
+    if (!mp->open(o.mmproj, err) || !enc->init(*mp, threads, true, false, err)) {
+        err = o.arch + ": the CPU image encoder: " + err;
+        return false;
+    }
+    cpu_mmproj = std::move(mp);
+    cpu_encoder = std::move(enc);
     return true;
 }
 
