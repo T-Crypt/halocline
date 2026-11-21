@@ -40,6 +40,9 @@ struct AttnArgs {
     const uint16_t* vc = nullptr;
     int64_t ring = 0;                ///< 0: linear (cell = position); else cell = position % ring
     int64_t pos0 = 0;                ///< position of row 0; the cache holds every position <= pos0 + T - 1
+    const int64_t* pos_dev = nullptr;   ///< when given, row 0's position is *pos_dev (a CUDA graph replays one launch for
+                                        ///< every position) and the splits are fixed by max_keys
+    int64_t max_keys = 0;            ///< with pos_dev: the most keys a row may have
     int T = 0;
     int64_t window = 0;              ///< 0 full; W: keys pos_t - W + 1 .. pos_t
     int extent = 1024;               ///< relative bias past this distance is 0
@@ -76,8 +79,17 @@ void moe_situ(const float* gu, const int32_t* expert_of, const float* gu_scale, 
 void moe_combine(const float* down, const int32_t* row_of, const int32_t* sel, const float* weight, const float* d_scale,
                  float* out, int T, int k, int D, void* stream);
 
-/// tau[t] = 1 + alpha log(max(1, (pos0 + t + 1) / floor)).
-void log_tau(int64_t pos0, int T, float floor, float alpha, float* tau, void* stream);
+/// Decode-sized experts (T * k picks, T small): h[pick] = situ of the picked expert's gate/up rows of x[t] (with its
+/// gu_scale), straight from the GGUF blocks (NVFP4 type 40 or Q8_0 type 8) in FP32. `gu`: the experts' [2F][D] matrices,
+/// `gu_bytes` apart.
+void moe_dec_gu(const void* gu, size_t gu_bytes, int type, const int32_t* sel, const float* x, const float* gu_scale,
+                float* h, int T, int k, int D, int F, float beta, float lbeta, void* stream);
+/// out[t] = sum_slot weight * d_scale[e] * (W_down[e] h[pick]) for the picks of moe_dec_gu; `down`: [D][F] matrices.
+void moe_dec_down(const void* down, size_t d_bytes, int type, const int32_t* sel, const float* weight, const float* d_scale,
+                  const float* h, float* out, int T, int k, int D, int F, void* stream);
+
+/// tau[t] = 1 + alpha log(max(1, (pos0 + t + 1) / floor)); pos_dev, when given, holds pos0.
+void log_tau(int64_t pos0, const int64_t* pos_dev, int T, float floor, float alpha, float* tau, void* stream);
 /// x[t][*] *= tau[t].
 void scale_heads(float* x, const float* tau, int T, int per_row, void* stream);
 /// o *= sigmoid(g).
@@ -85,7 +97,10 @@ void sigmoid_gate(float* o, const float* g, int64_t n, void* stream);
 /// x = cap tanh(x / cap).
 void softcap(float* x, int64_t n, float cap, void* stream);
 /// K and V rows [T][8][128] into the BF16 caches at the cells of positions pos0.. (ring as in AttnArgs).
-void kv_store(const float* k, const float* v, uint16_t* kc, uint16_t* vc, int64_t pos0, int T, int64_t ring, void* stream);
+void kv_store(const float* k, const float* v, uint16_t* kc, uint16_t* vc, int64_t pos0, const int64_t* pos_dev, int T,
+              int64_t ring, void* stream);
+/// Sizes the kernels' own scratch for calls of up to T rows (before a CUDA graph capture, which cannot allocate).
+void reserve(int T);
 /// x += y.
 void add_rows(float* x, const float* y, int64_t n, void* stream);
 

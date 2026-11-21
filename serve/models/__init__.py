@@ -66,4 +66,7 @@ def dialect_for(arch: str | None) -> Dialect:
     if arch in ("qwen4exp", "qwen35", None):
         from serve.models.qwen import Qwen
         return Qwen()
+    if arch == "inkling2":
+        from serve.models.inkling import Inkling
+        return Inkling()
     raise ValueError(f"no dialect for architecture {arch!r}")
