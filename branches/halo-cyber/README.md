@@ -25,7 +25,7 @@ go through the same arithmetic as before. Checked on the UD-Q4_K_XL pack, `--spe
 release and this build write byte-identical text ([`ud-identity.result`](evals/2026-11-20/orcasaq-vs-llamacpp/ud-identity.result)).
 
 The second is in the dense image path. `--vision dynamic` places the encoder's arena on the card per request; when
-`cudaMalloc` fails, `main` refuses the request. This branch encodes the picture on the CPU instead, with
+`cudaMalloc` fails, or the encode on the card fails because cuBLAS cannot get its workspace, `main` refuses the request. This branch encodes the picture on the CPU instead, with
 `vision::CpuEncoder` set up as `halocline-vision --vision cpu` sets it up (bf16-rounded GEMM inputs, half the cores),
 from its own mapping of the pack's projector, made on first use, and logs each one.
 
@@ -33,7 +33,7 @@ from its own mapping of the pack's projector, made on first use, and logs each o
 |---|---|
 | `src/dense/internal.hpp` | `cpu_mmproj`, `cpu_encoder`, `vision_cpu_ready` |
 | `src/dense/model.cpp` | `vision_cpu_ready`: opens the projector and the CPU encoder on first use |
-| `src/dense/session.cpp` | `encode_patches`: on a failed `vision_attach`, the CPU encoder |
+| `src/dense/session.cpp` | `encode_patches`: on a failed `vision_attach`, or a failed encode on the card (cuBLAS out of workspace), the CPU encoder |
 
 Checked with the card squeezed to 198 MiB free: the three known-answer images give the same replies as `--vision cpu`
 ([`evals/2026-11-20/orcasaq-vision-fallback/`](evals/2026-11-20/orcasaq-vision-fallback/)).

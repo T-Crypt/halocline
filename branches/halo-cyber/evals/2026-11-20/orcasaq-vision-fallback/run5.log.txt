@@ -1,0 +1,5 @@
+2026-11-20T17:10:44-07:00 round 1: smoke 5/5, images 3/3 (3.1 2.6 3.2 s), vram 23180 MiB 
+2026-11-20T17:12:15-07:00 round 2: smoke 5/5, images 3/3 (0.2 0.2 0.2 s), vram 23180 MiB 
+2026-11-20T17:13:46-07:00 round 3: smoke 5/5, images 3/3 (0.2 0.2 0.2 s), vram 23180 MiB 
+2026-11-20T17:13:47-07:00 fallback lines: 8 (6 no arena, 2 encoder failed)
+2026-11-20T17:13:47-07:00 end

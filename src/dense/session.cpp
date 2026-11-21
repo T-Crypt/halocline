@@ -504,7 +504,19 @@ public:
                             (long long) m_.cpu_images);
             return {};
         }
-        if (!m_.encoder->encode(patches, vision::Size{w, h}, rows)) return fail("the vision encoder failed: " + m_.encoder->last_error());
+        if (!m_.encoder->encode(patches, vision::Size{w, h}, rows)) {
+            // the arena fit but the products did not (cuBLAS takes its own workspace, status 13 when the card is that
+            // full): give the arena back and encode this picture on the CPU
+            const std::string gerr = "the vision encoder failed: " + m_.encoder->last_error();
+            m_.vision_detach();
+            std::string cerr;
+            if (!m_.vision_cpu_ready(cerr)) return fail(gerr + "; " + cerr);
+            rows.clear();
+            if (!m_.cpu_encoder->encode(patches, vision::Size{w, h}, rows)) return fail(gerr + "; the CPU vision encoder failed too");
+            ++m_.cpu_images;
+            halo::log::info("halo dense", "%s: this picture was encoded on the CPU (%lld so far)", gerr.c_str(),
+                            (long long) m_.cpu_images);
+        }
         return {};
     }
 
