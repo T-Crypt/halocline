@@ -238,6 +238,15 @@ def text_at(rel: str, needle: str, pattern: str, group: int = 1) -> tuple[str, s
     raise LookupError(f"{rel}: no line with {needle!r} matching {pattern!r}")
 
 
+def line_with(rel: str, needle: str) -> str:
+    """The source `rel line N` of the first line containing `needle`: a value typed here still names the line that
+    states it, and the extraction fails when that line is gone instead of pointing at whatever moved there."""
+    for n, line in enumerate(read_lines(rel), 1):
+        if needle in line:
+            return f"{rel} line {n}"
+    raise LookupError(f"{rel}: no line with {needle!r}")
+
+
 def bench(rel: str) -> dict:
     d = read_json(rel)
     summary = {s["test"]: s for s in d.get("summary", [])}
@@ -503,12 +512,12 @@ def build_machine() -> Dataset:
         ds.add(f"gates.{key}.result", r["by_header"]["Current result"], f"{testing} line {r['line']}")
 
     # format names, so the prose can name them without typing a number
-    ds.add("formats.bf16", "BF16", f"{readme} line 33")
-    ds.add("formats.q8_0", "Q8_0", "evals/2026-11-17/halocline-dense-load/README.md line 31")
-    ds.add("labels.p99", "p99", "docs/precision/quality.md line 19")
-    ds.add("credits.strata_author", "Niko1221", f"{readme} line 329")
-    ds.add("credits.basalt_author", "Jes\u00fas Gulfo", f"{readme} line 331")
-    ds.add("credits.infernix_author", "Wallawalla47", f"{readme} line 333")
+    ds.add("formats.bf16", "BF16", line_with(readme, "Mean KLD to BF16"))
+    ds.add("formats.q8_0", "Q8_0", line_with("evals/2026-11-17/halocline-dense-load/README.md", "Q8_0"))
+    ds.add("labels.p99", "p99", line_with("docs/precision/quality.md", "p99"))
+    ds.add("credits.strata_author", "Niko1221", line_with(readme, "by Niko1221"))
+    ds.add("credits.basalt_author", "Jes\u00fas Gulfo", line_with(readme, "by Jes\u00fas Gulfo"))
+    ds.add("credits.infernix_author", "Wallawalla47", line_with(readme, "github.com/Wallawalla47/Infernix"))
     return ds
 
 
@@ -778,7 +787,8 @@ def build_dense() -> Dataset:
         prefix = f"kv.arms.{arm}"
         ds.add(f"{prefix}.flag", flag, f"{rel}#engine_args")
         ds.add(f"{prefix}.label", label, f"{rel}#engine_args")
-        ds.add(f"{prefix}.short", {"int8": "int8", "k8v4": "K8V4", "k8v4-mtpint8": "K8V4", "q4": "q4_0"}[arm], f"{kdir}/README.md line 1")
+        short = {"int8": "int8", "k8v4": "K8V4", "k8v4-mtpint8": "K8V4", "q4": "q4_0"}[arm]
+        ds.add(f"{prefix}.short", short, line_with(f"{kdir}/README.md", short))
         bench_prefix(ds, prefix, rel, b)
         if arm in paired:
             p = paired[arm]
@@ -861,11 +871,12 @@ def build_dense() -> Dataset:
                 ds.add(f"fit.{pack}.need_mib", float(m.group(2)), f"{rel} line {n}", "mib")
                 ds.add(f"fit.{pack}.free_mib", float(m.group(3)), f"{rel} line {n}", "mib")
                 ds.add(f"fit.{pack}.cells", float(m.group(1)), f"{rel} line {n}", "tokens")
-    ds.add("fit.q4kxl.free_vision_mib", 7597, f"{prec} line 75", "mib")
-    ds.add("fit.iq4xs.free_vision_mib", 10589, f"{prec} line 75", "mib")
-    ds.add("fit.fp16_need_mib", 19766, f"{prec} line 77", "mib")
+                # the probes ran on the vision packs: what is free there is what the vision pack leaves free
+                ds.add(f"fit.{pack}.free_vision_mib", int(m.group(3)), f"{rel} line {n}", "mib")
+    text, src = text_at(prec, "fp16 (", r"fp16 \(([\d,]+) MiB\)")
+    ds.add("fit.fp16_need_mib", int(text.replace(",", "")), src, "mib")
     for depth, text in [("16", "16K"), ("36", "36K")]:
-        ds.add(f"prefill.depth{depth}.label", text, f"{kdir}/README.md line 51")
+        ds.add(f"prefill.depth{depth}.label", text, line_with(f"{kdir}/README.md", text))
 
     # the dense speed floor, NInfer
     rel = "evals/2026-11-16/halocline-p0-floors/ninfer-1.json"
@@ -890,11 +901,14 @@ def build_dense() -> Dataset:
 def build_compare() -> Dataset:
     ds = Dataset("compare")
     # the depth labels the tables use, from the eval READMEs that name them
-    ds.add("sparse.depth36.label", "36K", "evals/2026-11-17/halocline-llama-swap/README.md line 15")
-    ds.add("sparse.depth137.label", "137K", "evals/2026-11-17/halocline-llama-swap/README.md line 16")
-    ds.add("dense.depth16.label", "16K", "evals/2026-11-17/halocline-d8-kv/README.md line 51")
-    ds.add("dense.depth36.label", "36K", "evals/2026-11-17/halocline-d8-kv/README.md line 51")
-    ds.add("dense.depth137.label", "137K", "evals/2026-11-16/halocline-p0-floors/README.md line 31")
+    for key, rel, label in [
+        ("sparse.depth36.label", "evals/2026-11-17/halocline-llama-swap/README.md", "36K"),
+        ("sparse.depth137.label", "evals/2026-11-17/halocline-llama-swap/README.md", "137K"),
+        ("dense.depth16.label", "evals/2026-11-17/halocline-d8-kv/README.md", "16K"),
+        ("dense.depth36.label", "evals/2026-11-17/halocline-d8-kv/README.md", "36K"),
+        ("dense.depth137.label", "evals/2026-11-16/halocline-p0-floors/README.md", "137K"),
+    ]:
+        ds.add(key, label, line_with(rel, label))
     text, src = text_at("evals/2026-11-17/halocline-llama-swap/README.md", "--kv int8", r"--kv\s+([a-z0-9_]+)")
     ds.add("sparse.halocline.kv", text, src)
     text, src = text_at("evals/2026-11-16/halocline-p0-floors/README.md", "q4_0 KV", r"(\S+) KV")

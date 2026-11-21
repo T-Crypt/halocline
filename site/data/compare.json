@@ -86,9 +86,9 @@
     }
   },
   "_sources": {
-    "dense.depth137.label": "evals/2026-11-16/halocline-p0-floors/README.md line 31",
+    "dense.depth137.label": "evals/2026-11-16/halocline-p0-floors/README.md line 16",
     "dense.depth16.label": "evals/2026-11-17/halocline-d8-kv/README.md line 51",
-    "dense.depth36.label": "evals/2026-11-17/halocline-d8-kv/README.md line 51",
+    "dense.depth36.label": "evals/2026-11-17/halocline-d8-kv/README.md line 26",
     "dense.halocline.conv": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[tg conv].tok_s_mean",
     "dense.halocline.pp16k": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[pp16384].tok_s_mean",
     "dense.halocline.pp36k": "evals/2026-11-17/halocline-d8-kv/int8/bench.json#summary[pp36864].tok_s_mean",

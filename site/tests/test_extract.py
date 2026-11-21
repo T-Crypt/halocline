@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -101,6 +102,56 @@ class DataFileTests(unittest.TestCase):
                 self.assertIn(prefix, formats, f"{name}: {prefix} has no format")
 
             walk(values)
+
+    def test_every_line_source_states_its_value(self):
+        # A source "FILE line N" must still say the value: on that line, or further down the paragraph, table or code
+        # block it opens. Every word of a text value counts (a label can be assembled from one line's parts); a number
+        # may be written with or without thousands separators. This catches a pointer left behind when the file moved
+        # (2026-11-21: README line 33 and lines 329-333 had drifted onto other text).
+        def forms(value):
+            if isinstance(value, bool):
+                return None
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            if isinstance(value, int):
+                return [[str(value)], [f"{value:,}"]]
+            if isinstance(value, float):
+                return [[f"{value:.{k}f}"] for k in range(0, 7)] + [[repr(value)]]
+            if isinstance(value, str) and value.strip():
+                return [value.replace("`", "").replace("*", "").split()]
+            return None
+
+        def block(lines, n):
+            first = lines[n - 1]
+            if first.lstrip().startswith("```"):
+                end = next((i for i in range(n, len(lines)) if lines[i].lstrip().startswith("```")), len(lines))
+                return lines[n - 1 : end + 1]
+            if first.lstrip().startswith("|"):
+                return [first]
+            end = next((i for i in range(n, len(lines)) if not lines[i].strip()), len(lines))
+            return lines[n - 1 : end]
+
+        checked = 0
+        for name, data in extract.build_all().items():
+            for path, source in data["_sources"].items():
+                m = re.fullmatch(r"(.+) line (\d+)", source)
+                if not m:
+                    continue
+                rel, n = m.group(1), int(m.group(2))
+                node = data["values"]
+                for part in path.split("."):
+                    node = node[part]
+                options = forms(node)
+                if options is None:
+                    continue
+                lines = (ROOT / rel).read_text(errors="replace").splitlines()
+                self.assertLessEqual(n, len(lines), f"{name}: {path}: {source} is past the end of the file")
+                text = " ".join(block(lines, n)).replace("`", "").replace("*", "")
+                said = any(all(word in text for word in words) for words in options)
+                self.assertTrue(said or (path.endswith(".line") and node == n),
+                                f"{name}: {path} = {node!r}, but {source} reads {lines[n - 1][:80]!r}")
+                checked += 1
+        self.assertGreater(checked, 150)
 
     def test_sparse_architecture_facts(self):
         data = extract.build_sparse().as_json()["values"]
