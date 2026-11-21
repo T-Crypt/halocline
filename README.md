@@ -14,8 +14,9 @@
 
 ## Branches
 
-This branch, `main`, is the default install and the one the rest of this README describes. Two optional research
-branches add other weights for people who want them: install none, one or both, alone or beside `main`.
+This branch, `main`, is the default install and the one the rest of this README describes. Three optional research
+branches add other weights for people who want them: install none, one or more, alone or beside `main`. Only `main` is
+supported; the others are published for people to build and test on their own.
 Each keeps its own docs, configs and data under `branches/<name>/`; an engine change a branch needs for its model is
 listed in that folder's README.
 
@@ -24,9 +25,10 @@ listed in that folder's README.
 | [`main`](https://github.com/T-Crypt/halocline/tree/main) | Both paths, sparse and dense, gated on KLD against BF16 | Unsloth UD-IQ4_XS (sparse); UD-Q4_K_XL and UD-IQ4_XS (dense), tensors copied byte for byte | supported, the default |
 | [`halo-ista`](https://github.com/T-Crypt/halocline/tree/halo-ista) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
 | [`halo-cyber`](https://github.com/T-Crypt/halocline/tree/halo-cyber) | The dense path on OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored, byte-identical, at its native 262,144 tokens | bring your own copy; the repository hosts none | research |
+| [`halo-inkling`](https://github.com/T-Crypt/halocline/tree/halo-inkling) | Inkling 2 Mini (Thinking Machines' looped MoE, 26B with 3.4B active) on its own forward: greedy identical to llama.cpp, KLD 0.0032 against the released precision | Unsloth UD-Q4_K_XL, tensors copied byte for byte | experimental |
 
 Each branch builds from its own clone and serves on its own ports (`main` 8092 and 8093, `halo-ista` 8094 and 8095,
-`halo-cyber` 8096), so they never share a build, a pack or a port.
+`halo-cyber` 8096, `halo-inkling` 8097), so they never share a build, a pack or a port.
 
 <img src="assets/halocline-divider.svg" width="100%" alt="">
 
