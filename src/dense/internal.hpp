@@ -16,6 +16,7 @@
 
 namespace halo::vision {
 class Mmproj;
+class CpuEncoder;
 class CudaEncoder;
 }
 
@@ -145,6 +146,12 @@ public:
     cudaEvent_t gate_fork = nullptr, gate_join = nullptr;
     std::unique_ptr<vision::Mmproj> mmproj;
     std::unique_ptr<vision::CudaEncoder> encoder;
+    // the CPU fallback (branch halo-cyber): when the card has no room for the encoder's arena, a picture is encoded on
+    // the CPU with the same encoder halocline-vision runs for --vision cpu (bf16-rounded GEMM inputs, half the cores),
+    // from its own mapping of the pack's projector, made on first use.
+    std::unique_ptr<vision::Mmproj> cpu_mmproj;
+    std::unique_ptr<vision::CpuEncoder> cpu_encoder;
+    int64_t cpu_images = 0;                      // pictures that fell back, for the log
     BlockDrafter bd_dec;                         // the block drafter as decode windows run it (its products in Q8 planes)
     std::vector<void*> owned;                    // device buffers the model allocated (Q8 plane copies, a wider workspace)
     void* enc_arena = nullptr;
@@ -157,6 +164,8 @@ public:
     bool vision_attach(int tokens, std::string& err);
     /// Its memory goes back.
     void vision_detach();
+    /// The CPU encoder ready (opened on first use). False with `err` when the projector cannot be read.
+    bool vision_cpu_ready(std::string& err);
 };
 
 /// One conversation's device state.
