@@ -1,0 +1,5 @@
+threads=16 images=6 sum=  64.6s median=13.05s max=14.45s
+threads=24 images=6 sum=  55.8s median=11.37s max=12.26s
+threads=32 images=6 sum=  49.4s median= 9.87s max=10.58s
+threads= 8 images=6 sum=  89.7s median=18.28s max=19.49s
+rc=0

@@ -124,7 +124,7 @@ reads the projector in place from the model file's `vision/mmproj` section.
 | --- | --- | --- |
 | `off` | none | none |
 | GPU number | sidecar `bin/halocline-vision` on that card | about 2.2 GiB while it runs |
-| `dynamic` | inside the engine, on the main card | none at rest (the encoder waits in host RAM) |
+| `dynamic` | inside the engine, on the main card | none at rest (the encoder waits in host RAM); the dense path borrows the prompt workspace for each picture |
 | `cpu` | sidecar on the CPU | none, and slow |
 
 Both packs carry the projector. Measured on the 19 airbench vision images, one fresh request each
@@ -134,10 +134,19 @@ Both packs carry the projector. Measured on the 19 airbench vision images, one f
 | --- | --- | --- |
 | Sparse | 317 s to first tokens in all, median 16.1 s | 22 s in all, median 1.2 s; same replies, depth speed and VRAM unchanged |
 | Dense, 262,144 tokens | 305 s in all, median 14.8 s | refuses each image: no device memory for the encoder's 958-1,165 MiB arena |
+| Dense, 262,144 tokens, encoder in the borrowed prompt workspace (2026-11-21) | 298 and 290 s in all, median 14.4 and 14.2 s | 10.2 s in all, median 0.53 s; peak 23,458 MiB against 23,456, depth speed unchanged |
+
+The 2026-11-21 row is an ABBA run ([`halocline-vision-lend`](../evals/2026-11-21/halocline-vision-lend/)). Each encoder
+gives the same 19 replies in both of its arms; between them 17 of 19 are the same, and the two chart replies word their
+first steps differently inside the 64-token cap.
 
 The CPU sidecar rounds each product input to bf16, as the CUDA encoder does, and the two sit equally far from an fp32
 encoder (relative L2 1.30e-2 and 1.28e-2). The CUDA encoder reads an image in 6-77 ms.
-Serve sparse with `--vision dynamic`; dense stays on `--vision cpu` until its encoder has memory beside the full context.
+Serve both with `--vision dynamic`. The dense path has no arena to spare at 262,144 tokens, so its encoder borrows the
+prompt workspace (about 1.3 GiB, already in the plan, idle while a picture is encoded) and hands it back before the
+next chunk; a picture that cannot be placed there, or whose encode fails on the card, is encoded on the CPU on every
+hardware thread. A dense model's `--vision cpu` sidecar takes every hardware thread too (32 on the reference
+machine: 9.87 s median a picture against 13.05 s at the sidecar's default of 16).
 The first vision check is [`halocline-vision`](../evals/2026-11-19/halocline-vision/). Which images a request may name:
 [image sources](configuration/image-sources.md). An image may not sit in a system prompt.
 

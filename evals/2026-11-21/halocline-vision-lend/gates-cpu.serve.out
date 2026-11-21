@@ -1,0 +1,13 @@
+[server] legend   pp=prompt read  tg=generation  c=cached  acc=drafts accepted  dl=tokens per window  hit=expert cache  pcie=routed experts over PCIe
+[server] vision-ab  long-context draft-vocab=/home/tcrypt/wt/halocline-vision-arena/tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin spec=8 temp=1.0 top_p=0.95 top_k=20 vision=cpu
+[server] ready    http://127.0.0.1:8097/v1  openai+anthropic  stats http://127.0.0.1:8097/
+[server] warning: lossy flags enabled, these flags will affect the accuracy of the served model
+[server] warning: --long-context stores K and V as rotated 4-bit blocks
+[server] loaded   16.1GiB 3.5s  cuda0=16.1GiB
+[server] weights  loaded, ctx=262144 images=on
+[server] video    on, FFmpeg 9 (libavformat 63.16.100) from /usr/lib/libavformat.so.63
+[server] s1 done  pp=279/0c 0.1s  tg=10 99.0t/s acc=100%  ttft=0.2s  end=stop
+[server] s1 done  pp=228/0c 0.1s  tg=10 83.1t/s acc=80%  ttft=0.2s  end=stop
+[server] s1 done  pp=292/0c 0.1s  tg=18 114.4t/s acc=80%  ttft=0.2s  end=stop
+[server] stopping (Ctrl+C again to force)
+[server] stopped

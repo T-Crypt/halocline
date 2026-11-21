@@ -1,0 +1,26 @@
+{
+ "model": "Halocline-OrcaSAQ-27B",
+ "url": "http://127.0.0.1:8097",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 122.7-123.5 t/s (cold 123.7), prompt 2109 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 73 tok, 0.5 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 12.3 s, prompt 3373 t/s, decode 112.3 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 57.1 s, prompt 2444 t/s, decode 96.5 t/s"
+  }
+ }
+}

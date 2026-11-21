@@ -1,0 +1,26 @@
+{
+ "model": "vision-ab",
+ "url": "http://127.0.0.1:8097",
+ "results": {
+  "speed": {
+   "ok": true,
+   "detail": "warm decode 102.8-114.8 t/s (cold 114.3), prompt 1955 t/s"
+  },
+  "sampling": {
+   "ok": true,
+   "detail": "'391', 62 tok, 0.5 s"
+  },
+  "tool": {
+   "ok": true,
+   "detail": "{\"city\": \"Oslo\"}"
+  },
+  "needle": {
+   "ok": true,
+   "detail": "36467 tok, 13.8 s, prompt 2930 t/s, decode 101.5 t/s"
+  },
+  "long": {
+   "ok": true,
+   "detail": "137400 tok, 72.3 s, prompt 1930 t/s, decode 80.4 t/s"
+  }
+ }
+}

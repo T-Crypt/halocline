@@ -1,0 +1,33 @@
+PASS  platform boundary
+PASS  model layering
+PASS  engine log lines (stderr)
+PASS  build structure (.cu includes)
+PASS  server suite
+PASS  tool tests
+PASS  converter tests
+PASS  migration tests
+NOTE  build-89 was configured with /home/tcrypt/.local/bin/python3.12, which lacks requirements.txt (regex, numpy): convert_tests will fail.
+      Reconfigure with -DPython3_EXECUTABLE=<a python with requirements.txt installed>.
+PASS  every test carries a cpu or gpu label
+FAIL  cpu suite (ctest -L cpu)
+      
+      91/96 Test  #26: conversation_store_test ..............   Passed    2.69 sec
+      92/96 Test #191: iq1s_parity_cpu ......................   Passed    3.78 sec
+      93/96 Test #124: platform_memory_test .................   Passed    3.95 sec
+      94/96 Test #207: native_expert_parity_q8k_quant .......   Passed    6.51 sec
+      95/96 Test #217: pool_native_test .....................   Passed   18.64 sec
+      96/96 Test #216: pool_stress ..........................   Passed   20.25 sec
+      
+      99% tests passed, 1 tests failed out of 96
+      
+      Label Time Summary:
+      avx2      =   0.26 sec*proc (1 test)
+      avx512    =   0.00 sec*proc (1 test)
+      cpu       =  69.70 sec*proc (96 tests)
+      
+      Total Test time (real) =  20.33 sec
+      
+      The following tests FAILED:
+      	 59 - convert_tests (Failed)                            cpu
+      Errors while running CTest
+verify: 1 failed: cpu suite (ctest -L cpu)

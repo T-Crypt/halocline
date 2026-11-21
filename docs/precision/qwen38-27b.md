@@ -29,8 +29,8 @@ top-1; UD-IQ4_XS scores 0.01618 and 94.31%
 UD-Q4_K_XL is 2.8 times closer to BF16 and is the dense baseline, as BUILD_SPEC §11.6 fixes it.
 
 The dense path serves two profiles. The default is `--long-context`: rotated 4-bit K and V at 262,144 tokens with the
-drafter's int8 ring over 32,768 cells. That fits UD-Q4_K_XL on a 24 GB card with 53 MiB to spare, and it needs
-`--vision cpu` because the encoder does not fit too. The lower-KLD lever is K8V4 at 175,616 tokens: +0.00072 over int8
+drafter's int8 ring over 32,768 cells. That fits UD-Q4_K_XL on a 24 GB card with 53 MiB to spare; images
+still run on the card (`--vision dynamic`), the encoder in the borrowed prompt workspace. The lower-KLD lever is K8V4 at 175,616 tokens: +0.00072 over int8
 at 65,536, so 0.00112 closer to BF16 than rotated 4-bit at the same depth.
 
 ## What has run (2026-11-17 onward)

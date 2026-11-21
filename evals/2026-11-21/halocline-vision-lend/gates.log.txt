@@ -1,0 +1,27 @@
+2026-11-21T10:16:52-07:00 HEAD c7cb0e19 dirty=9
+2026-11-21T10:24:57-07:00 verify.sh rc=1
+PASS  platform boundary
+PASS  model layering
+PASS  engine log lines (stderr)
+PASS  build structure (.cu includes)
+PASS  server suite
+PASS  tool tests
+PASS  converter tests
+PASS  migration tests
+PASS  every test carries a cpu or gpu label
+FAIL  cpu suite (ctest -L cpu)
+2026-11-21T10:32:20-07:00 ctest gpu rc=0
+ 21/125 Test  #48: window_gemm_two_gpu ................***Skipped   0.02 sec
+ 26/125 Test  #54: generate_prompt_test ...............***Skipped   0.03 sec
+ 45/125 Test  #81: hc_fused_parity ....................***Skipped   0.02 sec
+ 50/125 Test  #86: mid_chain_hold .....................***Skipped   0.02 sec
+ 51/125 Test  #87: mid_chain_hold_abort ...............***Skipped   0.02 sec
+ 52/125 Test  #88: qsa_mid_parity .....................***Skipped   0.02 sec
+100% tests passed out of 125
+2026-11-21T10:32:20-07:00 cpu sidecar threads: serving --vision cpu from the branch
+2026-11-21T10:32:22-07:00 sidecar: --threads 32
+2026-11-21T10:32:33-07:00 vision_check rc=0
+cpu32  PASS  shapes     6.1 s  prompt=279  '3 red circles, 2 blue squares.'
+cpu32  PASS  text       2.2 s  prompt=228  'HALOCLINE 4090'
+cpu32  PASS  bars       2.6 s  prompt=292  'The tallest bar in the chart is **C**, and its colour is **green**.'
+2026-11-21T10:32:34-07:00 done

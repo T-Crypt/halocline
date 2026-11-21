@@ -1,0 +1,72 @@
+berth: granted halocline-vision-lend-350
+2026-11-21T09:55:38-07:00 build lock held; load 10.84 17.35 19.44; power: 350.00 W, 3285 MHz; new HEAD 443e2d21 dirty=3
+2026-11-21T09:55:38-07:00 1-cpu start: /home/tcrypt/halocline/releases/b2f81178 --vision cpu; MemAvailable 57659 MiB
+2026-11-21T09:55:50-07:00 1-cpu ready: vision=cpu; vram after load 21972 MiB
+2026-11-21T09:55:57-07:00 1-cpu vision_check rc=0
+1-cpu  PASS  shapes     2.2 s  prompt=279  '3 red circles, 2 blue squares.'
+1-cpu  PASS  text       1.9 s  prompt=228  'HALOCLINE 4090'
+1-cpu  PASS  bars       2.5 s  prompt=292  'The tallest bar in the chart is **C**, and its colour is **green**.'
+2026-11-21T10:01:06-07:00 1-cpu timing rc=0
+1-cpu  text probe 0: 400 tok, decode 87.6 t/s, ttft 0.055 s
+1-cpu  text probe 1: 400 tok, decode 93.0 t/s, ttft 0.055 s
+1-cpu  summary {"images": 19, "ttft_sum_s": 298.1, "ttft_median_s": 14.391, "errors": 0}
+2026-11-21T10:02:55-07:00 1-cpu smoke rc=0
+1-cpu  PASS  speed    warm decode 103.7-114.0 t/s (cold 113.5), prompt 1955 t/s
+1-cpu  PASS  sampling '391', 51 tok, 0.4 s
+1-cpu  PASS  tool     {"city": "Oslo"}
+1-cpu  PASS  needle   36467 tok, 13.8 s, prompt 2934 t/s, decode 103.2 t/s
+1-cpu  PASS  long     137400 tok, 72.2 s, prompt 1930 t/s, decode 82.4 t/s
+2026-11-21T10:02:55-07:00 1-cpu vram peak 23456 MiB; engine CPU fallbacks: 0
+2026-11-21T10:03:01-07:00 2-lend start: /home/tcrypt/wt/halocline-vision-arena --vision dynamic; MemAvailable 58843 MiB
+2026-11-21T10:03:07-07:00 2-lend ready: vision=gpu0; vram after load 21972 MiB
+2026-11-21T10:03:08-07:00 2-lend vision_check rc=0
+2-lend  PASS  shapes     0.4 s  prompt=279  '3 red circles, 2 blue squares.'
+2-lend  PASS  text       0.3 s  prompt=228  'HALOCLINE 4090'
+2-lend  PASS  bars       0.4 s  prompt=292  'The tallest bar in the chart is **C**, and its colour is **green**.'
+2026-11-21T10:03:29-07:00 2-lend timing rc=0
+2-lend  text probe 0: 400 tok, decode 86.9 t/s, ttft 0.055 s
+2-lend  text probe 1: 400 tok, decode 92.7 t/s, ttft 0.056 s
+2-lend  summary {"images": 19, "ttft_sum_s": 10.2, "ttft_median_s": 0.53, "errors": 0}
+2026-11-21T10:05:19-07:00 2-lend smoke rc=0
+2-lend  PASS  speed    warm decode 103.5-110.1 t/s (cold 107.7), prompt 1955 t/s
+2-lend  PASS  sampling '391', 64 tok, 0.5 s
+2-lend  PASS  tool     {"city": "Oslo"}
+2-lend  PASS  needle   36467 tok, 13.8 s, prompt 2933 t/s, decode 103.2 t/s
+2-lend  PASS  long     137400 tok, 72.2 s, prompt 1930 t/s, decode 82.3 t/s
+2026-11-21T10:05:19-07:00 2-lend vram peak 23458 MiB; engine CPU fallbacks: 0
+2026-11-21T10:05:25-07:00 3-lend start: /home/tcrypt/wt/halocline-vision-arena --vision dynamic; MemAvailable 58820 MiB
+2026-11-21T10:05:31-07:00 3-lend ready: vision=gpu0; vram after load 21972 MiB
+2026-11-21T10:05:32-07:00 3-lend vision_check rc=0
+3-lend  PASS  shapes     0.4 s  prompt=279  '3 red circles, 2 blue squares.'
+3-lend  PASS  text       0.3 s  prompt=228  'HALOCLINE 4090'
+3-lend  PASS  bars       0.4 s  prompt=292  'The tallest bar in the chart is **C**, and its colour is **green**.'
+2026-11-21T10:05:53-07:00 3-lend timing rc=0
+3-lend  text probe 0: 400 tok, decode 86.7 t/s, ttft 0.055 s
+3-lend  text probe 1: 400 tok, decode 92.4 t/s, ttft 0.056 s
+3-lend  summary {"images": 19, "ttft_sum_s": 10.2, "ttft_median_s": 0.532, "errors": 0}
+2026-11-21T10:07:43-07:00 3-lend smoke rc=0
+3-lend  PASS  speed    warm decode 102.8-114.8 t/s (cold 114.3), prompt 1955 t/s
+3-lend  PASS  sampling '391', 62 tok, 0.5 s
+3-lend  PASS  tool     {"city": "Oslo"}
+3-lend  PASS  needle   36467 tok, 13.8 s, prompt 2930 t/s, decode 101.5 t/s
+3-lend  PASS  long     137400 tok, 72.3 s, prompt 1930 t/s, decode 80.4 t/s
+2026-11-21T10:07:43-07:00 3-lend vram peak 23458 MiB; engine CPU fallbacks: 0
+2026-11-21T10:07:49-07:00 4-cpu start: /home/tcrypt/halocline/releases/b2f81178 --vision cpu; MemAvailable 58860 MiB
+2026-11-21T10:07:55-07:00 4-cpu ready: vision=cpu; vram after load 21972 MiB
+2026-11-21T10:08:01-07:00 4-cpu vision_check rc=0
+4-cpu  PASS  shapes     2.2 s  prompt=279  '3 red circles, 2 blue squares.'
+4-cpu  PASS  text       1.8 s  prompt=228  'HALOCLINE 4090'
+4-cpu  PASS  bars       2.4 s  prompt=292  'The tallest bar in the chart is **C**, and its colour is **green**.'
+2026-11-21T10:13:02-07:00 4-cpu timing rc=0
+4-cpu  text probe 0: 400 tok, decode 87.5 t/s, ttft 0.055 s
+4-cpu  text probe 1: 400 tok, decode 93.0 t/s, ttft 0.055 s
+4-cpu  summary {"images": 19, "ttft_sum_s": 289.7, "ttft_median_s": 14.218, "errors": 0}
+2026-11-21T10:14:51-07:00 4-cpu smoke rc=0
+4-cpu  PASS  speed    warm decode 103.7-114.2 t/s (cold 113.6), prompt 1955 t/s
+4-cpu  PASS  sampling '391', 36 tok, 0.3 s
+4-cpu  PASS  tool     {"city": "Oslo"}
+4-cpu  PASS  needle   36467 tok, 13.8 s, prompt 2931 t/s, decode 103.1 t/s
+4-cpu  PASS  long     137400 tok, 72.3 s, prompt 1929 t/s, decode 82.3 t/s
+2026-11-21T10:14:51-07:00 4-cpu vram peak 23456 MiB; engine CPU fallbacks: 0
+2026-11-21T10:14:57-07:00 done
+rc=0

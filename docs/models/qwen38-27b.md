@@ -42,13 +42,13 @@ one rounding on the path: the pack holds the GGUF's bytes.
 
 ## Run
 
-The served profile is UD-Q4_K_XL with rotated 4-bit K and V, MTP at `--spec 8`, vision on the CPU and 262,144 tokens of
+The served profile is UD-Q4_K_XL with rotated 4-bit K and V, MTP at `--spec 8`, vision on the card and 262,144 tokens of
 context. `--long-context` sets the cache, the context and the drafter's int8 ring. The vision pack adds the projector
-(`vision/mmproj`) and serves images on the CPU encoder (`--vision cpu`):
+(`vision/mmproj`) and serves images on the card (`--vision dynamic`):
 
 ```sh
 bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 \
-    --spec 8 --long-context --vision cpu
+    --spec 8 --long-context --vision dynamic
 ```
 
 The K8V4 profile at 175,616 tokens is below. The BF16 reference for the quality gate is `qwen38-27b-bf16-base.kld`;
@@ -68,8 +68,11 @@ is the lever for a run that wants the lower KLD and fits in the shorter window. 
 | Mean KLD vs BF16 at 65,536 / 140,288 / 174,080 tokens | 0.00490 / 0.00560 / 0.00654 | 0.00602 / 0.00676 / 0.00762 (+0.00112 / +0.00116 / +0.00108) |
 | Reported as | | a lossy flag (the start warns, `/v1/status` lists it) |
 
-Both need `--vision cpu` on a 24 GB card: at 262,144 tokens the plan fits with 53 MiB to spare and no room for the
-vision encoder on the GPU. The default kernels are untouched by the second profile: its cache write and attention are
+Both serve images on the card (`--vision dynamic`) on a 24 GB card. At 262,144 tokens the plan fits with 53 MiB to
+spare, so the image encoder has no arena of its own: it borrows the prompt workspace (about 1.3 GiB, counted in the
+plan and idle while a picture is encoded) and hands it back before the next chunk. On the 19 airbench images the time to
+the first token fell from 14.4 s (`--vision cpu`) to 0.53 s at the same peak memory, 23,458 MiB against 23,456
+([`halocline-vision-lend`](../../evals/2026-11-21/halocline-vision-lend/)). The default kernels are untouched by the second profile: its cache write and attention are
 their own compiled instantiations, and the default's are instruction-identical to the release before it.
 
 Two ready-made configs sit in `examples/`; copy one, point `model` at your pack, and start the server with it:
@@ -84,7 +87,7 @@ absent (the flag refuses another rather than silently replacing it):
 
 ```sh
 bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 \
-    --spec 8 --long-context --vision cpu
+    --spec 8 --long-context --vision dynamic
 ```
 
 To keep both on hand, run them as two entries of a model switcher (llama-swap, for example) on the same port with
@@ -118,7 +121,7 @@ For the K8V4 profile at 175,616 tokens (the 175,629-cell maximum rounded down to
 
 ```sh
 bin/halocline serve Qwen3.8-27B-UD-Q4_K_XL-vision.halo --host 127.0.0.1 --port 8093 \
-    --spec 8 --max-context 175616 --kv k8v4 --mtp-kv int8 --vision cpu
+    --spec 8 --max-context 175616 --kv k8v4 --mtp-kv int8 --vision dynamic
 ```
 
 `examples/qwen38-27b-k8v4.json` is the same thing as a config. The depth gate passed (K8V4 over int8 +0.00072 at

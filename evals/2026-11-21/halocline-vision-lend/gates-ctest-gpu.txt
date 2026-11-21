@@ -1,0 +1,267 @@
+Test project /home/tcrypt/wt/halocline-vision-arena/build-89
+        Start   1: qwen35_checkpoint_round_trip
+  1/125 Test   #1: qwen35_checkpoint_round_trip .......   Passed    9.34 sec
+        Start   5: qwen35_mtp_cache_test
+  2/125 Test   #5: qwen35_mtp_cache_test ..............   Passed   52.58 sec
+        Start   7: qwen35_draft_head_test
+  3/125 Test   #7: qwen35_draft_head_test .............   Passed    0.24 sec
+        Start  11: adapter_builtin_test
+  4/125 Test  #11: adapter_builtin_test ...............   Passed    0.04 sec
+        Start  14: qsa_prompt_attn_parity
+  5/125 Test  #14: qsa_prompt_attn_parity .............   Passed    5.80 sec
+        Start  15: qsa_topk_active_parity
+  6/125 Test  #15: qsa_topk_active_parity .............   Passed    0.58 sec
+        Start  17: host_registration_test
+  7/125 Test  #17: host_registration_test .............   Passed    0.13 sec
+        Start  18: direct_upload_test
+  8/125 Test  #18: direct_upload_test .................   Passed    0.69 sec
+        Start  24: checkpoint_transfer_test
+  9/125 Test  #24: checkpoint_transfer_test ...........   Passed    0.31 sec
+        Start  28: conversation_snapshot_test
+ 10/125 Test  #28: conversation_snapshot_test .........   Passed    0.21 sec
+        Start  30: native_dense_ple_key_test
+ 11/125 Test  #30: native_dense_ple_key_test ..........   Passed    0.20 sec
+        Start  31: expert_cache_per_layer_test
+ 12/125 Test  #31: expert_cache_per_layer_test ........   Passed    0.13 sec
+        Start  32: expert_cache_segmented_test
+ 13/125 Test  #32: expert_cache_segmented_test ........   Passed    0.30 sec
+        Start  33: file_expert_homes_test
+ 14/125 Test  #33: file_expert_homes_test .............   Passed    3.09 sec
+        Start  34: file_expert_repin_test
+ 15/125 Test  #34: file_expert_repin_test .............   Passed    2.66 sec
+        Start  35: kv_arena_test
+ 16/125 Test  #35: kv_arena_test ......................   Passed    0.26 sec
+        Start  44: dense_ops_parity
+ 17/125 Test  #44: dense_ops_parity ...................   Passed    0.76 sec
+        Start  45: nvfp4_planes_test
+ 18/125 Test  #45: nvfp4_planes_test ..................   Passed    0.11 sec
+        Start  46: gdn_seg_split_parity
+ 19/125 Test  #46: gdn_seg_split_parity ...............   Passed    0.44 sec
+        Start  47: window_gemm_parity
+ 20/125 Test  #47: window_gemm_parity .................   Passed    7.75 sec
+        Start  48: window_gemm_two_gpu
+ 21/125 Test  #48: window_gemm_two_gpu ................***Skipped   0.02 sec
+        Start  49: narrow_bf16_parity
+ 22/125 Test  #49: narrow_bf16_parity .................   Passed    0.13 sec
+        Start  50: gqa_attn_parity
+ 23/125 Test  #50: gqa_attn_parity ....................   Passed    4.66 sec
+        Start  51: gqa_k8v4_parity
+ 24/125 Test  #51: gqa_k8v4_parity ....................   Passed    2.40 sec
+        Start  52: gqa_far_parity
+ 25/125 Test  #52: gqa_far_parity .....................   Passed    1.11 sec
+        Start  54: generate_prompt_test
+ 26/125 Test  #54: generate_prompt_test ...............***Skipped   0.03 sec
+        Start  57: iq_parity_fixtures
+ 27/125 Test  #57: iq_parity_fixtures .................   Passed    0.07 sec
+        Start  58: iq_parity
+ 28/125 Test  #58: iq_parity ..........................   Passed    0.13 sec
+        Start  65: mmvq_multi_parity
+ 29/125 Test  #65: mmvq_multi_parity ..................   Passed    3.37 sec
+        Start  66: dec_gdn_parity
+ 30/125 Test  #66: dec_gdn_parity .....................   Passed    2.55 sec
+        Start  67: route_tail_skip_parity
+ 31/125 Test  #67: route_tail_skip_parity .............   Passed    0.29 sec
+        Start  68: route_prior_parity
+ 32/125 Test  #68: route_prior_parity .................   Passed    0.63 sec
+        Start  69: pair_snapshot_parity
+ 33/125 Test  #69: pair_snapshot_parity ...............   Passed    0.83 sec
+        Start  70: dense_tc_parity
+ 34/125 Test  #70: dense_tc_parity ....................   Passed    0.89 sec
+        Start  71: dec_commit_parity
+ 35/125 Test  #71: dec_commit_parity ..................   Passed    0.57 sec
+        Start  72: dec_commit_finisher
+ 36/125 Test  #72: dec_commit_finisher ................   Passed   22.09 sec
+        Start  73: dec_commit_lazy
+ 37/125 Test  #73: dec_commit_lazy ....................   Passed    2.37 sec
+        Start  74: iq_multi_parity
+ 38/125 Test  #74: iq_multi_parity ....................   Passed    1.85 sec
+        Start  75: gdn_chunk_parity
+ 39/125 Test  #75: gdn_chunk_parity ...................   Passed   12.53 sec
+        Start  76: hc8_parity
+ 40/125 Test  #76: hc8_parity .........................   Passed    0.43 sec
+        Start  77: native_grouped_parity
+ 41/125 Test  #77: native_grouped_parity ..............   Passed    4.76 sec
+        Start  78: native_grouped_parity_glue
+ 42/125 Test  #78: native_grouped_parity_glue .........   Passed   33.35 sec
+        Start  79: mixed_gu_parity
+ 43/125 Test  #79: mixed_gu_parity ....................   Passed    0.73 sec
+        Start  80: shared_expert_parity
+ 44/125 Test  #80: shared_expert_parity ...............   Passed    0.12 sec
+        Start  81: hc_fused_parity
+ 45/125 Test  #81: hc_fused_parity ....................***Skipped   0.02 sec
+        Start  82: dm_route_ada_parity
+ 46/125 Test  #82: dm_route_ada_parity ................   Passed    1.36 sec
+        Start  83: hc_fused_ada_parity
+ 47/125 Test  #83: hc_fused_ada_parity ................   Passed    0.32 sec
+        Start  84: hc_read_ada_parity
+ 48/125 Test  #84: hc_read_ada_parity .................   Passed    3.49 sec
+        Start  85: mid_chain_parity
+ 49/125 Test  #85: mid_chain_parity ...................   Passed    7.40 sec
+        Start  86: mid_chain_hold
+ 50/125 Test  #86: mid_chain_hold .....................***Skipped   0.02 sec
+        Start  87: mid_chain_hold_abort
+ 51/125 Test  #87: mid_chain_hold_abort ...............***Skipped   0.02 sec
+        Start  88: qsa_mid_parity
+ 52/125 Test  #88: qsa_mid_parity .....................***Skipped   0.02 sec
+        Start  89: gr_parity
+ 53/125 Test  #89: gr_parity ..........................   Passed    0.21 sec
+        Start  90: gdn_parity
+ 54/125 Test  #90: gdn_parity .........................   Passed    0.15 sec
+        Start  91: s2_gemv_q8_parity
+ 55/125 Test  #91: s2_gemv_q8_parity ..................   Passed    0.12 sec
+        Start  92: sampler_parity
+ 56/125 Test  #92: sampler_parity .....................   Passed    9.04 sec
+        Start  93: sampler_split_parity
+ 57/125 Test  #93: sampler_split_parity ...............   Passed    1.18 sec
+        Start  94: sampler_drawn_parity
+ 58/125 Test  #94: sampler_drawn_parity ...............   Passed    6.33 sec
+        Start  95: logprobs_parity
+ 59/125 Test  #95: logprobs_parity ....................   Passed    0.26 sec
+        Start  96: decode_cluster_parity
+ 60/125 Test  #96: decode_cluster_parity ..............   Passed    0.13 sec
+        Start  97: rope_parity
+ 61/125 Test  #97: rope_parity ........................   Passed    0.12 sec
+        Start  98: quantize_act_parity
+ 62/125 Test  #98: quantize_act_parity ................   Passed    0.15 sec
+        Start  99: route_window_parity
+ 63/125 Test  #99: route_window_parity ................   Passed    0.15 sec
+        Start 100: router_top10_parity
+ 64/125 Test #100: router_top10_parity ................   Passed    0.12 sec
+        Start 101: s_gemv_parity
+ 65/125 Test #101: s_gemv_parity ......................   Passed    0.13 sec
+        Start 102: elementwise_parity
+ 66/125 Test #102: elementwise_parity .................   Passed    0.12 sec
+        Start 103: bf16_gemv_parity
+ 67/125 Test #103: bf16_gemv_parity ...................   Passed    0.20 sec
+        Start 104: s_gemv_q8k_parity
+ 68/125 Test #104: s_gemv_q8k_parity ..................   Passed    0.12 sec
+        Start 105: qsa_parity
+ 69/125 Test #105: qsa_parity .........................   Passed    0.33 sec
+        Start 106: qsa_scores_parity
+ 70/125 Test #106: qsa_scores_parity ..................   Passed    0.60 sec
+        Start 107: qsa_topk_parity
+ 71/125 Test #107: qsa_topk_parity ....................   Passed    0.57 sec
+        Start 108: kv_q8_parity
+ 72/125 Test #108: kv_q8_parity .......................   Passed    0.15 sec
+        Start 109: qsa_dec_attn_parity
+ 73/125 Test #109: qsa_dec_attn_parity ................   Passed    2.56 sec
+        Start 110: qsa_dec_fused_parity
+ 74/125 Test #110: qsa_dec_fused_parity ...............   Passed    0.40 sec
+        Start 111: qsa_seg_parity
+ 75/125 Test #111: qsa_seg_parity .....................   Passed    3.74 sec
+        Start 112: ple_win_parity
+ 76/125 Test #112: ple_win_parity .....................   Passed    0.42 sec
+        Start 113: ple_key_rows_parity
+ 77/125 Test #113: ple_key_rows_parity ................   Passed    0.94 sec
+        Start 114: q5k_head_parity
+ 78/125 Test #114: q5k_head_parity ....................   Passed    0.36 sec
+        Start 115: q80_proxy_parity
+ 79/125 Test #115: q80_proxy_parity ...................   Passed    0.73 sec
+        Start 116: q80_vhead_parity
+ 80/125 Test #116: q80_vhead_parity ...................   Passed    0.77 sec
+        Start 117: q6k_head_parity
+ 81/125 Test #117: q6k_head_parity ....................   Passed    0.43 sec
+        Start 118: q6k_vhead_parity
+ 82/125 Test #118: q6k_vhead_parity ...................   Passed    1.52 sec
+        Start 119: kv_stream_parity
+ 83/125 Test #119: kv_stream_parity ...................   Passed    5.41 sec
+        Start 120: kv_hybrid_parity
+ 84/125 Test #120: kv_hybrid_parity ...................   Passed    0.23 sec
+        Start 121: kv_q4_parity
+ 85/125 Test #121: kv_q4_parity .......................   Passed    0.14 sec
+        Start 122: cvec_parity
+ 86/125 Test #122: cvec_parity ........................   Passed    0.17 sec
+        Start 123: s2_expert_grouped_parity
+ 87/125 Test #123: s2_expert_grouped_parity ...........   Passed    0.22 sec
+        Start 157: device_memory_test
+ 88/125 Test #157: device_memory_test .................   Passed    0.11 sec
+        Start 159: ple_reader_selftest
+ 89/125 Test #159: ple_reader_selftest ................   Passed   71.59 sec
+        Start 160: cuda_device_selftest
+ 90/125 Test #160: cuda_device_selftest ...............   Passed    0.13 sec
+        Start 171: router_dot_parity
+ 91/125 Test #171: router_dot_parity ..................   Passed    0.02 sec
+        Start 172: fp8_gemm_test
+ 92/125 Test #172: fp8_gemm_test ......................   Passed    0.50 sec
+        Start 173: e4m3_producers_test
+ 93/125 Test #173: e4m3_producers_test ................   Passed    0.20 sec
+        Start 174: bf16_chunk_test
+ 94/125 Test #174: bf16_chunk_test ....................   Passed    0.31 sec
+        Start 175: prefill_fused_moe_test
+ 95/125 Test #175: prefill_fused_moe_test .............   Passed    1.70 sec
+        Start 176: prefill_fused_iq_test
+ 96/125 Test #176: prefill_fused_iq_test ..............   Passed   44.39 sec
+        Start 177: prefill_cpu_share_test
+ 97/125 Test #177: prefill_cpu_share_test .............   Passed    3.24 sec
+        Start 178: prefill_route_count_test
+ 98/125 Test #178: prefill_route_count_test ...........   Passed    0.18 sec
+        Start 179: prefill_layout_nvfp4
+ 99/125 Test #179: prefill_layout_nvfp4 ...............   Passed    0.16 sec
+        Start 180: prefill_layout_mixed
+100/125 Test #180: prefill_layout_mixed ...............   Passed    0.17 sec
+        Start 181: prefill_layout_kquant
+101/125 Test #181: prefill_layout_kquant ..............   Passed    0.16 sec
+        Start 182: prefill_layout_q2
+102/125 Test #182: prefill_layout_q2 ..................   Passed    0.17 sec
+        Start 183: prefill_mmq_iq1s_test
+103/125 Test #183: prefill_mmq_iq1s_test ..............   Passed   13.60 sec
+        Start 184: prefill_mmq_kq_test
+104/125 Test #184: prefill_mmq_kq_test ................   Passed   16.86 sec
+        Start 185: prefill_mmq_nvfp4_test
+105/125 Test #185: prefill_mmq_nvfp4_test .............   Passed    9.08 sec
+        Start 187: prefill_hc_up_mix_test
+106/125 Test #187: prefill_hc_up_mix_test .............   Passed    4.10 sec
+        Start 188: fp4_dense_tma_test
+107/125 Test #188: fp4_dense_tma_test .................   Passed    0.85 sec
+        Start 189: silu_parity
+108/125 Test #189: silu_parity ........................   Passed    0.12 sec
+        Start 190: iq1s_parity
+109/125 Test #190: iq1s_parity ........................   Passed   29.57 sec
+        Start 192: dec_moe_parity_nvfp4
+110/125 Test #192: dec_moe_parity_nvfp4 ...............   Passed    0.89 sec
+        Start 193: dec_moe_parity_kq
+111/125 Test #193: dec_moe_parity_kq ..................   Passed    8.10 sec
+        Start 194: native_expert_parity_q4_K_q5_1
+112/125 Test #194: native_expert_parity_q4_K_q5_1 .....   Passed    0.33 sec
+        Start 195: native_expert_parity_q4_K_q8_0
+113/125 Test #195: native_expert_parity_q4_K_q8_0 .....   Passed    0.31 sec
+        Start 196: native_expert_parity_q5_K_q8_0
+114/125 Test #196: native_expert_parity_q5_K_q8_0 .....   Passed    0.30 sec
+        Start 197: native_expert_parity_q6_K_q8_0
+115/125 Test #197: native_expert_parity_q6_K_q8_0 .....   Passed    0.27 sec
+        Start 198: native_expert_parity_q8_0_q8_0
+116/125 Test #198: native_expert_parity_q8_0_q8_0 .....   Passed    0.21 sec
+        Start 199: native_expert_parity_q4_K_q5_0
+117/125 Test #199: native_expert_parity_q4_K_q5_0 .....   Passed    0.31 sec
+        Start 200: native_expert_parity_q5_0_q8_0
+118/125 Test #200: native_expert_parity_q5_0_q8_0 .....   Passed    0.21 sec
+        Start 201: native_expert_parity_q2_K_q8_0
+119/125 Test #201: native_expert_parity_q2_K_q8_0 .....   Passed    0.29 sec
+        Start 202: native_expert_parity_q3_K_q8_0
+120/125 Test #202: native_expert_parity_q3_K_q8_0 .....   Passed    0.22 sec
+        Start 206: native_expert_parity_q5_1_min
+121/125 Test #206: native_expert_parity_q5_1_min ......   Passed    0.12 sec
+        Start 208: native_expert_parity_bf16_embd
+122/125 Test #208: native_expert_parity_bf16_embd .....   Passed    0.12 sec
+        Start 209: native_expert_parity_q6k_embd
+123/125 Test #209: native_expert_parity_q6k_embd ......   Passed    0.12 sec
+        Start 210: native_expert_parity_q8_embd_hot
+124/125 Test #210: native_expert_parity_q8_embd_hot ...   Passed    0.55 sec
+        Start 211: native_expert_parity_nvfp4
+125/125 Test #211: native_expert_parity_nvfp4 .........   Passed    0.91 sec
+
+100% tests passed out of 125
+
+Label Time Summary:
+cpu    =   0.07 sec*proc (1 test)
+gpu    = 442.73 sec*proc (124 tests)
+
+Total Test time (real) = 442.84 sec
+
+The following tests did not run:
+	 48 - window_gemm_two_gpu (Skipped)
+	 54 - generate_prompt_test (Skipped)
+	 81 - hc_fused_parity (Skipped)
+	 86 - mid_chain_hold (Skipped)
+	 87 - mid_chain_hold_abort (Skipped)
+	 88 - qsa_mid_parity (Skipped)

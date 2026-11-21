@@ -1,0 +1,48 @@
+{
+ "model": "vision-ab",
+ "utc": "2026-11-21T17:03:08Z",
+ "results": [
+  {
+   "case": "shapes",
+   "pass": true,
+   "wall_s": 0.4,
+   "reply": "3 red circles, 2 blue squares.",
+   "usage": {
+    "prompt_tokens": 279,
+    "completion_tokens": 10,
+    "total_tokens": 289,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   }
+  },
+  {
+   "case": "text",
+   "pass": true,
+   "wall_s": 0.3,
+   "reply": "HALOCLINE 4090",
+   "usage": {
+    "prompt_tokens": 228,
+    "completion_tokens": 10,
+    "total_tokens": 238,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   }
+  },
+  {
+   "case": "bars",
+   "pass": true,
+   "wall_s": 0.36,
+   "reply": "The tallest bar in the chart is **C**, and its colour is **green**.",
+   "usage": {
+    "prompt_tokens": 292,
+    "completion_tokens": 18,
+    "total_tokens": 310,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   }
+  }
+ ]
+}

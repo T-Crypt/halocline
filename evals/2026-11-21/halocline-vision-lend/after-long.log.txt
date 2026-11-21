@@ -1,0 +1,37 @@
+2026-11-21T10:32:34-07:00 dense start: /home/tcrypt/wt/halocline-vision-arena HEAD c7cb0e19 dirty=9
+2026-11-21T10:32:36-07:00 dense ready, engine log /home/tcrypt/.cache/halo/2017685c8b08c221/engine.log (fallback lines before: 0); vram 4 MiB
+2026-11-21T10:34:29-07:00 dense smoke rc=0
+dense  PASS  speed    warm decode 100.5-113.6 t/s (cold 114.9), prompt 1844 t/s
+dense  PASS  sampling '391', 33 tok, 0.3 s
+dense  PASS  tool     {"city": "Oslo"}
+dense  PASS  needle   36467 tok, 13.8 s, prompt 2942 t/s, decode 99.4 t/s
+dense  PASS  long     137400 tok, 72.2 s, prompt 1933 t/s, decode 78.0 t/s
+2026-11-21T10:34:30-07:00 dense after the long prompt: rc=0
+dense  PASS  shapes     0.4 s  prompt=279  '3 red circles, 2 blue squares.'
+dense  PASS  text       0.3 s  prompt=228  'HALOCLINE 4090'
+dense  PASS  bars       0.4 s  prompt=292  'The tallest bar in the chart is **C**, and its colour is **green**.'
+2026-11-21T10:34:34-07:00 dense hog rc=0 held 102 MiB, free now 198 MiB
+2026-11-21T10:34:35-07:00 dense squeezed (~200 MiB free): rc=0
+dense  PASS  shapes     0.2 s  prompt=279  '3 red circles, 2 blue squares.'
+dense  PASS  text       0.3 s  prompt=228  'HALOCLINE 4090'
+dense  PASS  bars       0.3 s  prompt=292  'The tallest bar in the chart is **C**, and its colour is **green**.'
+2026-11-21T10:34:35-07:00 dense CPU-fallback lines this run: 0; workspace lines: 1; vram peak 23965 MiB
+2026-11-21T10:34:41-07:00 orca start: /home/tcrypt/wt/halocline-orca-lend HEAD 97dca9d8 dirty=5
+2026-11-21T10:34:43-07:00 orca ready, engine log /home/tcrypt/.cache/halo/2017685c8b08c221/engine.log (fallback lines before: 0); vram 4 MiB
+2026-11-21T10:36:18-07:00 orca smoke rc=0
+orca  PASS  speed    warm decode 122.7-123.5 t/s (cold 123.7), prompt 2109 t/s
+orca  PASS  sampling '391', 73 tok, 0.5 s
+orca  PASS  tool     {"city": "Oslo"}
+orca  PASS  needle   36467 tok, 12.3 s, prompt 3373 t/s, decode 112.3 t/s
+orca  PASS  long     137400 tok, 57.1 s, prompt 2444 t/s, decode 96.5 t/s
+2026-11-21T10:36:19-07:00 orca after the long prompt: rc=0
+orca  PASS  shapes     0.3 s  prompt=279  '3 red circles, 2 blue squares'
+orca  PASS  text       0.3 s  prompt=228  'HALOCLINE 4090'
+orca  PASS  bars       0.2 s  prompt=292  'C, green'
+2026-11-21T10:36:23-07:00 orca hog rc=0 held 374 MiB, free now 198 MiB
+2026-11-21T10:36:23-07:00 orca squeezed (~200 MiB free): rc=0
+orca  PASS  shapes     0.2 s  prompt=279  '3 red circles, 2 blue squares'
+orca  PASS  text       0.2 s  prompt=228  'HALOCLINE 4090'
+orca  PASS  bars       0.2 s  prompt=292  'C, green'
+2026-11-21T10:36:24-07:00 orca CPU-fallback lines this run: 0; workspace lines: 1; vram peak 23965 MiB
+2026-11-21T10:36:29-07:00 done

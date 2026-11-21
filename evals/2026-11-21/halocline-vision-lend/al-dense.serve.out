@@ -1,0 +1,61 @@
+[server] legend   pp=prompt read  tg=generation  c=cached  acc=drafts accepted  dl=tokens per window  hit=expert cache  pcie=routed experts over PCIe
+[server] Halocline-27B-UD-Q4_K_XL  long-context draft-vocab=/home/tcrypt/wt/halocline-vision-arena/tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin spec=8 temp=1.0 top_p=0.95 top_k=20 vision=gpu0
+[server] ready    http://127.0.0.1:8097/v1  openai+anthropic  stats http://127.0.0.1:8097/
+[server] warning: lossy flags enabled, these flags will affect the accuracy of the served model
+[server] warning: --long-context stores K and V as rotated 4-bit blocks
+[server] loaded   16.1GiB 3.4s  cuda0=16.1GiB
+[server] weights  loaded, ctx=262144 images=on
+[server] video    on, FFmpeg 9 (libavformat 63.16.100) from /usr/lib/libavformat.so.63
+[server] thinking budget 300 tokens, output cap 600 (answer-room auto)
+[server] live | s1 tg=94/600 99.1t/s | total 99t/s
+[server] live | s1 tg=294/600 98.6t/s | total 99t/s
+[server] thinking budget reached (300 tokens), wrapping up
+[server] live | s1 tg=564/600 112.5t/s | total 113t/s
+[server] s1 done  pp=70/0c 0.0s  tg=600 114.9t/s acc=60%  ttft=0.1s  end=length
+[server] thinking budget 300 tokens, output cap 600 (answer-room auto)
+[server] live | s1 tg=202/600 101.4t/s | total 101t/s
+[server] thinking budget reached (300 tokens), wrapping up
+[server] live | s1 tg=405/600 100.5t/s | total 100t/s
+[server] s1 done  pp=70/69c 0.0s  tg=600 113.6t/s acc=60%  ttft=0.0s  end=length
+[server] thinking budget 300 tokens, output cap 600 (answer-room auto)
+[server] live | s1 tg=94/600 97.5t/s | total 98t/s
+[server] live | s1 tg=277/600 92.9t/s | total 93t/s
+[server] thinking budget reached (300 tokens), wrapping up
+[server] live | s1 tg=476/600 94.9t/s | total 95t/s
+[server] s1 done  pp=66/0c 0.0s  tg=600 101.3t/s acc=55%  ttft=0.1s  end=length
+[server] thinking budget 300 tokens, output cap 600 (answer-room auto)
+[server] live | s1 tg=175/600 87.6t/s | total 88t/s
+[server] thinking budget reached (300 tokens), wrapping up
+[server] live | s1 tg=353/600 88.1t/s | total 88t/s
+[server] s1 done  pp=66/65c 0.0s  tg=600 100.5t/s acc=54%  ttft=0.0s  end=length
+[server] thinking budget 1488 tokens, output cap 2000 (answer-room auto)
+[server] s1 done  pp=67/0c 0.0s  tg=33 138.0t/s acc=80%  ttft=0.1s  end=stop
+[server] thinking budget 1488 tokens, output cap 2000 (answer-room auto)
+[server] s1 done  pp=306/0c 0.1s  tg=64 116.1t/s acc=57%  ttft=0.1s  end=stop
+[server] thinking budget 1488 tokens, output cap 2000 (answer-room auto)
+[server] s1 read  pp=20480/36467 3213t/s 6s
+[server] s1 read  pp=36466/36467 2942t/s 12s
+[server] live | s1 tg=108/2000 108.9t/s | total 109t/s
+[server] s1 done  pp=36467/0c 12.4s 2942t/s  tg=141 99.4t/s acc=51%  ttft=12.4s  end=stop
+[server] thinking budget 1488 tokens, output cap 2000 (answer-room auto)
+[server] s1 read  pp=20480/137400 3218t/s 6s
+[server] s1 read  pp=36864/137400 2943t/s 13s
+[server] s1 read  pp=49152/137400 2769t/s 18s
+[server] s1 read  pp=61440/137400 2614t/s 24s
+[server] s1 read  pp=73728/137400 2476t/s 30s
+[server] s1 read  pp=86016/137400 2350t/s 37s
+[server] s1 read  pp=98304/137400 2236t/s 44s
+[server] s1 read  pp=106496/137400 2166t/s 49s
+[server] s1 read  pp=114688/137400 2099t/s 55s
+[server] s1 read  pp=122880/137400 2037t/s 60s
+[server] s1 read  pp=131072/137400 1978t/s 66s
+[server] live | s1 tg=1/2000 | total 0t/s
+[server] s1 done  pp=137400/0c 71.1s 1933t/s  tg=85 78.0t/s acc=47%  ttft=71.1s  end=stop
+[server] s1 done  pp=279/0c 0.1s  tg=10 107.9t/s acc=100%  ttft=0.2s  end=stop
+[server] s1 done  pp=228/0c 0.1s  tg=10 87.0t/s acc=80%  ttft=0.2s  end=stop
+[server] s1 done  pp=292/0c 0.1s  tg=18 105.6t/s acc=75%  ttft=0.2s  end=stop
+[server] s1 done  pp=279/0c 0.1s  tg=10 107.9t/s acc=100%  ttft=0.2s  end=stop
+[server] s1 done  pp=228/0c 0.1s  tg=10 81.4t/s acc=64%  ttft=0.2s  end=stop
+[server] s1 done  pp=292/0c 0.1s  tg=18 105.9t/s acc=75%  ttft=0.2s  end=stop
+[server] stopping (Ctrl+C again to force)
+[server] stopped
