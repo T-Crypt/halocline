@@ -236,10 +236,31 @@ Split plan_split(int T, int64_t keys) {
     return {splits, (keys + splits - 1) / splits};
 }
 
+// the 4 values of lane `lane` in row (cell, g) of a cache in format F
+template <int F>
+__device__ __forceinline__ float4 kv_load(const void* c, const float* sc, int64_t cell, int g, int lane) {
+    const int64_t row = cell * kNkv + g;
+    if (F == kKvBf16) {
+        const uint2 b = *reinterpret_cast<const uint2*>((const uint16_t*) c + row * kHd + lane * 4);
+        return make_float4(bf16_bits((uint16_t) b.x), bf16_bits((uint16_t) (b.x >> 16)), bf16_bits((uint16_t) b.y),
+                           bf16_bits((uint16_t) (b.y >> 16)));
+    } else if (F == kKvInt8) {
+        const char4 b = *reinterpret_cast<const char4*>((const int8_t*) c + row * kHd + lane * 4);
+        const float d = sc[row];
+        return make_float4(d * b.x, d * b.y, d * b.z, d * b.w);
+    } else {
+        const uint16_t b = *reinterpret_cast<const uint16_t*>((const uint8_t*) c + row * 64 + lane * 2);
+        const float d = sc[row * 4 + lane / 8];
+        return make_float4(d * (float) ((int) (b & 15) - 8), d * (float) ((int) ((b >> 4) & 15) - 8),
+                           d * (float) ((int) ((b >> 8) & 15) - 8), d * (float) ((int) (b >> 12) - 8));
+    }
+}
+
 // One block of 4 warps per (row t, KV head g, split): every warp takes keys of the split in turn and keeps an online
 // softmax for the group's 3 query heads (4 values of each head per lane); the warps merge at the end and the block
 // writes (m, l, acc[128]) per head. A key's score is one warp sum per head: the lanes' q.k parts (scaled) plus, on
 // lanes 0..15, r . relb[dist] parts.
+template <int KF, int VF>
 __global__ void attn_split_kernel(AttnArgs a, int splits, int64_t slice, float* __restrict__ ws) {
     const int tg = blockIdx.x, sp = blockIdx.y;
     const int t = tg / kNkv, g = tg % kNkv;
@@ -268,12 +289,8 @@ __global__ void attn_split_kernel(AttnArgs a, int splits, int64_t slice, float* 
     for (int j = 0; j < kGroup; ++j) m[j] = -INFINITY, l[j] = 0.f, acc[j] = make_float4(0.f, 0.f, 0.f, 0.f);
     for (int64_t p = j0 + warp; p < j1; p += kAttnWarps) {
         const int64_t cell = a.ring ? p % a.ring : p;
-        const uint2 kb = *reinterpret_cast<const uint2*>(a.kc + (cell * kNkv + g) * kHd + lane * 4);
-        const uint2 vb = *reinterpret_cast<const uint2*>(a.vc + (cell * kNkv + g) * kHd + lane * 4);
-        const float k0 = bf16_bits((uint16_t) kb.x), k1 = bf16_bits((uint16_t) (kb.x >> 16));
-        const float k2 = bf16_bits((uint16_t) kb.y), k3 = bf16_bits((uint16_t) (kb.y >> 16));
-        const float v0 = bf16_bits((uint16_t) vb.x), v1 = bf16_bits((uint16_t) (vb.x >> 16));
-        const float v2 = bf16_bits((uint16_t) vb.y), v3 = bf16_bits((uint16_t) (vb.y >> 16));
+        const float4 kk = kv_load<KF>(a.kc, a.ks, cell, g, lane), vv = kv_load<VF>(a.vc, a.vs, cell, g, lane);
+        const float k0 = kk.x, k1 = kk.y, k2 = kk.z, k3 = kk.w, v0 = vv.x, v1 = vv.y, v2 = vv.z, v3 = vv.w;
         const int64_t dist = pt - p;
         const float rb = (lane < kRel && dist < a.extent) ? a.relb[dist * kRel + lane] : 0.f;
 #pragma unroll
@@ -606,16 +623,84 @@ __global__ void softcap_kernel(float* x, int64_t n, float cap) {
     const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n) x[i] = cap * tanhf(x[i] / cap);
 }
-__global__ void kv_store_kernel(const float* __restrict__ k, const float* __restrict__ v, uint16_t* kc, uint16_t* vc,
-                                int64_t pos0, const int64_t* pos_dev, int T, int64_t ring) {
-    const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
+// the normalized 128-point Hadamard transform of a row held 4 values a lane (index lane * 4 + j)
+__device__ __forceinline__ void fwht128(float v[4], int lane) {
+    float a = v[0] + v[1], b = v[0] - v[1], c = v[2] + v[3], d = v[2] - v[3];
+    v[0] = a + c, v[2] = a - c, v[1] = b + d, v[3] = b - d;
+#pragma unroll
+    for (int m = 1; m < 32; m <<= 1) {
+        const bool hi = lane & m;
+#pragma unroll
+        for (int j = 0; j < 4; ++j) {
+            const float o = __shfl_xor_sync(0xffffffffu, v[j], m);
+            v[j] = hi ? o - v[j] : v[j] + o;
+        }
+    }
+    const float n = 0.08838834764831845f;   // 1 / sqrt(128)
+#pragma unroll
+    for (int j = 0; j < 4; ++j) v[j] *= n;
+}
+__global__ void rotate_rows_kernel(float* x, int64_t rows) {
+    const int64_t row = ((int64_t) blockIdx.x * blockDim.x + threadIdx.x) / 32;
+    const int lane = threadIdx.x & 31;
+    if (row >= rows) return;
+    float4* p = reinterpret_cast<float4*>(x + row * kHd + lane * 4);
+    float4 q = *p;
+    float v[4] = {q.x, q.y, q.z, q.w};
+    fwht128(v, lane);
+    *p = make_float4(v[0], v[1], v[2], v[3]);
+}
+// one warp per (row t, KV head, K or V): the row rotated for 4-bit, quantized, stored at its cell
+__global__ void kv_store_kernel(const float* __restrict__ k, const float* __restrict__ v, void* kc, void* vc, float* ks,
+                                float* vs, int kfmt, int vfmt, int64_t pos0, const int64_t* pos_dev, int T, int64_t ring) {
+    const int64_t wid = ((int64_t) blockIdx.x * blockDim.x + threadIdx.x) / 32;
+    const int lane = threadIdx.x & 31;
+    if (wid >= (int64_t) T * kNkv * 2) return;
     if (pos_dev) pos0 = *pos_dev;
-    const int64_t per = (int64_t) kNkv * kHd;
-    if (i >= (int64_t) T * per) return;
-    const int64_t t = i / per, w = i % per, p = pos0 + t, cell = ring ? p % ring : p;
-    const __nv_bfloat16 kb = __float2bfloat16_rn(k[i]), vb = __float2bfloat16_rn(v[i]);
-    kc[cell * per + w] = *reinterpret_cast<const uint16_t*>(&kb);
-    vc[cell * per + w] = *reinterpret_cast<const uint16_t*>(&vb);
+    const bool isv = wid & 1;
+    const int64_t th = wid >> 1, t = th / kNkv, g = th % kNkv, p = pos0 + t, cell = ring ? p % ring : p;
+    const int fmt = isv ? vfmt : kfmt;
+    const float* src = (isv ? v : k) + (t * kNkv + g) * kHd;
+    void* dst = isv ? vc : kc;
+    float* sc = isv ? vs : ks;
+    const int64_t row = cell * kNkv + g;
+    const float4 x4 = *reinterpret_cast<const float4*>(src + lane * 4);
+    float x[4] = {x4.x, x4.y, x4.z, x4.w};
+    if (fmt == kKvBf16) {
+        uint16_t* o = (uint16_t*) dst + row * kHd + lane * 4;
+#pragma unroll
+        for (int j = 0; j < 4; ++j) {
+            const __nv_bfloat16 b = __float2bfloat16_rn(x[j]);
+            o[j] = *reinterpret_cast<const uint16_t*>(&b);
+        }
+        return;
+    }
+    if (fmt == kKvInt8) {
+        float am = fmaxf(fmaxf(fabsf(x[0]), fabsf(x[1])), fmaxf(fabsf(x[2]), fabsf(x[3])));
+        for (int o = 16; o > 0; o >>= 1) am = fmaxf(am, __shfl_xor_sync(0xffffffffu, am, o));
+        const float d = am / 127.f, id = d > 0.f ? 1.f / d : 0.f;
+        char4 q;
+        q.x = (signed char) __float2int_rn(x[0] * id), q.y = (signed char) __float2int_rn(x[1] * id);
+        q.z = (signed char) __float2int_rn(x[2] * id), q.w = (signed char) __float2int_rn(x[3] * id);
+        *reinterpret_cast<char4*>((int8_t*) dst + row * kHd + lane * 4) = q;
+        if (lane == 0) sc[row] = d;
+        return;
+    }
+    // 4-bit: rotate, then q4_0 per 32 values (8 lanes): d = the largest-magnitude value / -8
+    fwht128(x, lane);
+    float mv = x[0];
+#pragma unroll
+    for (int j = 1; j < 4; ++j) mv = fabsf(x[j]) > fabsf(mv) ? x[j] : mv;
+    for (int o = 1; o < 8; o <<= 1) {
+        const float ov = __shfl_xor_sync(0xffffffffu, mv, o);
+        mv = fabsf(ov) > fabsf(mv) ? ov : mv;
+    }
+    const float d = mv / -8.f, id = d != 0.f ? 1.f / d : 0.f;
+    uint32_t nib[4];
+#pragma unroll
+    for (int j = 0; j < 4; ++j) nib[j] = (uint32_t) min(15, max(0, __float2int_rn(x[j] * id) + 8));
+    *reinterpret_cast<uint16_t*>((uint8_t*) dst + row * 64 + lane * 2) = (uint16_t) (nib[0] | nib[1] << 4 | nib[2] << 8 | nib[3] << 12);
+    if ((lane & 7) == 0) sc[row * 4 + lane / 8] = d;
 }
 __global__ void add_rows_kernel(float* x, const float* __restrict__ y, int64_t n) {
     const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
@@ -684,7 +769,14 @@ void ink_attention(const AttnArgs& a, void* stream) {
     }
     // rows before the last have fewer keys (full attention): a slice starting past a row's keys writes an empty partial
     const dim3 grid((unsigned) (a.T * kNkv), (unsigned) sp.splits);
-    attn_split_kernel<<<grid, kAttnWarps * 32, 0, s>>>(a, sp.splits, sp.slice, (float*) a.workspace);
+    float* ws = (float*) a.workspace;
+#define INK_ATTN(KF, VF) attn_split_kernel<KF, VF><<<grid, kAttnWarps * 32, 0, s>>>(a, sp.splits, sp.slice, ws)
+    if (a.kfmt == kKvBf16 && a.vfmt == kKvBf16) INK_ATTN(kKvBf16, kKvBf16);
+    else if (a.kfmt == kKvInt8 && a.vfmt == kKvInt8) INK_ATTN(kKvInt8, kKvInt8);
+    else if (a.kfmt == kKvInt8 && a.vfmt == kKvQ4) INK_ATTN(kKvInt8, kKvQ4);
+    else if (a.kfmt == kKvQ4 && a.vfmt == kKvQ4) INK_ATTN(kKvQ4, kKvQ4);
+    else INK_ATTN(kKvBf16, kKvBf16);
+#undef INK_ATTN
     attn_combine_kernel<<<blocks_for((int64_t) a.T * kNh * 32), 256, 0, s>>>(a, sp.splits, (const float*) a.workspace);
 }
 
@@ -743,9 +835,13 @@ void sigmoid_gate(float* o, const float* g, int64_t n, void* stream) {
 void softcap(float* x, int64_t n, float cap, void* stream) {
     if (cap > 0.f) softcap_kernel<<<blocks_for(n), 256, 0, (cudaStream_t) stream>>>(x, n, cap);
 }
-void kv_store(const float* k, const float* v, uint16_t* kc, uint16_t* vc, int64_t pos0, const int64_t* pos_dev, int T,
-              int64_t ring, void* stream) {
-    kv_store_kernel<<<blocks_for((int64_t) T * kNkv * kHd), 256, 0, (cudaStream_t) stream>>>(k, v, kc, vc, pos0, pos_dev, T, ring);
+void kv_store(const float* k, const float* v, void* kc, void* vc, float* ks, float* vs, int kfmt, int vfmt, int64_t pos0,
+              const int64_t* pos_dev, int T, int64_t ring, void* stream) {
+    kv_store_kernel<<<blocks_for((int64_t) T * kNkv * 2 * 32), 256, 0, (cudaStream_t) stream>>>(k, v, kc, vc, ks, vs, kfmt, vfmt, pos0,
+                                                                                                 pos_dev, T, ring);
+}
+void rotate_rows(float* x, int64_t rows, void* stream) {
+    if (rows > 0) rotate_rows_kernel<<<blocks_for(rows * 32), 256, 0, (cudaStream_t) stream>>>(x, rows);
 }
 void reserve(int T) {
     scratch(0, (size_t) T * 64);

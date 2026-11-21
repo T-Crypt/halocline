@@ -36,8 +36,11 @@ struct AttnArgs {
     const float* r = nullptr;        ///< [T][24][16]
     const float* sink = nullptr;     ///< [T][24]
     const float* relb = nullptr;     ///< [extent][16]
-    const uint16_t* kc = nullptr;    ///< BF16 [cells][8][128]
-    const uint16_t* vc = nullptr;
+    const void* kc = nullptr;        ///< the K cache in kfmt (KvFmt), cell c head g at row c * 8 + g
+    const void* vc = nullptr;
+    const float* ks = nullptr;       ///< int8: a scale per row [cells][8]; q4: per 32 values [cells][8][4]
+    const float* vs = nullptr;
+    int kfmt = 0, vfmt = 0;          ///< KvFmt; a q4 K means q arrives rotated (rotate_rows), a q4 V leaves out rotated
     int64_t ring = 0;                ///< 0: linear (cell = position); else cell = position % ring
     int64_t pos0 = 0;                ///< position of row 0; the cache holds every position <= pos0 + T - 1
     const int64_t* pos_dev = nullptr;   ///< when given, row 0's position is *pos_dev (a CUDA graph replays one launch for
@@ -51,6 +54,15 @@ struct AttnArgs {
     void* workspace = nullptr;
     size_t workspace_bytes = 0;
 };
+
+/// K/V cell formats: BF16 [128] a row; int8 [128] + an fp32 scale; 4-bit after a 128-point Hadamard rotation, [64] bytes
+/// (value 2i low nibble, 2i + 1 high, offset by 8) + an fp32 scale per 32 values (q4_0's rounding).
+enum KvFmt { kKvBf16 = 0, kKvInt8 = 1, kKvQ4 = 2 };
+/// Bytes of a row's codes and the floats of its scales in a format.
+inline size_t kv_row_bytes(int fmt) { return fmt == kKvBf16 ? 256 : fmt == kKvInt8 ? 128 : 64; }
+inline size_t kv_row_scales(int fmt) { return fmt == kKvBf16 ? 0 : fmt == kKvInt8 ? 1 : 4; }
+/// x [rows][128] times the normalized 128-point Hadamard matrix (its own inverse), in place.
+void rotate_rows(float* x, int64_t rows, void* stream);
 
 /// Bytes of ink_attention's split-KV partials for up to T rows over up to n_keys_max keys.
 size_t ink_attention_workspace(int T, int64_t n_keys_max);
@@ -97,8 +109,8 @@ void sigmoid_gate(float* o, const float* g, int64_t n, void* stream);
 /// x = cap tanh(x / cap).
 void softcap(float* x, int64_t n, float cap, void* stream);
 /// K and V rows [T][8][128] into the BF16 caches at the cells of positions pos0.. (ring as in AttnArgs).
-void kv_store(const float* k, const float* v, uint16_t* kc, uint16_t* vc, int64_t pos0, const int64_t* pos_dev, int T,
-              int64_t ring, void* stream);
+void kv_store(const float* k, const float* v, void* kc, void* vc, float* ks, float* vs, int kfmt, int vfmt, int64_t pos0,
+              const int64_t* pos_dev, int T, int64_t ring, void* stream);
 /// Sizes the kernels' own scratch for calls of up to T rows (before a CUDA graph capture, which cannot allocate).
 void reserve(int T);
 /// x += y.

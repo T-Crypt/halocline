@@ -165,7 +165,9 @@ class Model;
 // Per-session state: K/V and convolution state per visit, the scratch of one forward.
 struct State {
     cudaStream_t s = nullptr;
-    std::vector<uint16_t*> kc, vc;   // per visit
+    std::vector<void*> kc, vc;       // per visit
+    std::vector<float*> ks, vs;      // per visit: the scales of a quantized full-attention cache
+    std::vector<int> kf, vf;         // per visit: k::KvFmt
     std::vector<int64_t> ring;       // per visit: cells when a ring, 0 linear
     float* conv_state = nullptr;     // per visit: [k (n_kv hd) | v (n_kv hd) | attn out (D) | ffn out (D)] x (conv - 1)
     int64_t conv_floats = 0;         // per visit
@@ -209,6 +211,7 @@ public:
     Hparams h;
     Weights w;
     int64_t max_ctx_ = 0;
+    int kfmt_ = 0, vfmt_ = 0;   // the full-attention caches' format (--kv)
     std::unique_ptr<mmq::Context> mmq_ctx;
 
 private:
@@ -376,6 +379,19 @@ bool Model::load(const model::LoadRequest& req, std::string& err) {
     gg_ = &gg;
     if (!read_hparams(gg, h, err)) return false;
     max_ctx_ = req.max_context > 0 ? req.max_context : 131072;
+    {   // --kv (or HALO_INK_KV): the 8 full-attention caches; the sliding-window rings stay BF16
+        std::string kv = req.kv;
+        if (kv.empty())
+            if (const char* e = std::getenv("HALO_INK_KV")) kv = e;
+        if (kv.empty() || kv == "bf16" || kv == "fp16") kfmt_ = vfmt_ = k::kKvBf16;
+        else if (kv == "int8") kfmt_ = vfmt_ = k::kKvInt8;
+        else if (kv == "k8v4") kfmt_ = k::kKvInt8, vfmt_ = k::kKvQ4;
+        else if (kv == "q4" || kv == "q4_0" || kv == "rot4") kfmt_ = vfmt_ = k::kKvQ4;
+        else {
+            err = "inkling2: --kv " + kv + " is not bf16, int8, k8v4 or q4";
+            return false;
+        }
+    }
     if (h.context_length > 0) max_ctx_ = std::min<int64_t>(max_ctx_, h.context_length);
     desc_.arch = "inkling2";
     desc_.n_layers = h.n_visit;
@@ -564,16 +580,25 @@ bool Session::init(std::string& err) {
         return false;
     }
     const int D = h_.n_embd, KV = h_.n_kv * h_.head_dim, AQ = h_.n_head * h_.head_dim, R = kChunk * h_.n_used;
-    st_.kc.resize((size_t) h_.n_visit);
-    st_.vc.resize((size_t) h_.n_visit);
+    for (auto* vec : {&st_.kc, &st_.vc}) vec->resize((size_t) h_.n_visit);
+    st_.ks.assign((size_t) h_.n_visit, nullptr);
+    st_.vs.assign((size_t) h_.n_visit, nullptr);
+    st_.kf.assign((size_t) h_.n_visit, k::kKvBf16);
+    st_.vf.assign((size_t) h_.n_visit, k::kKvBf16);
     st_.ring.resize((size_t) h_.n_visit);
     for (int v = 0; v < h_.n_visit; ++v) {
         const bool swa = h_.is_swa[(size_t) v] != 0;
         const int64_t cells = swa ? std::min<int64_t>(kRing, m_.max_ctx_) : m_.max_ctx_;
         st_.ring[(size_t) v] = swa ? cells : 0;
-        if (!(st_.kc[(size_t) v] = alloc<uint16_t>((size_t) cells * KV, err))) return false;
-        if (!(st_.vc[(size_t) v] = alloc<uint16_t>((size_t) cells * KV, err))) return false;
+        const int kf = swa ? k::kKvBf16 : m_.kfmt_, vf = swa ? k::kKvBf16 : m_.vfmt_;
+        st_.kf[(size_t) v] = kf, st_.vf[(size_t) v] = vf;
+        const size_t rows = (size_t) cells * h_.n_kv;
+        if (!(st_.kc[(size_t) v] = alloc<uint8_t>(rows * k::kv_row_bytes(kf), err))) return false;
+        if (!(st_.vc[(size_t) v] = alloc<uint8_t>(rows * k::kv_row_bytes(vf), err))) return false;
+        if (k::kv_row_scales(kf) && !(st_.ks[(size_t) v] = alloc<float>(rows * k::kv_row_scales(kf), err))) return false;
+        if (k::kv_row_scales(vf) && !(st_.vs[(size_t) v] = alloc<float>(rows * k::kv_row_scales(vf), err))) return false;
     }
+    (void) KV;
     st_.conv_floats = (int64_t) (2 * KV + 2 * D) * (h_.conv - 1);
     if (!(st_.conv_state = alloc<float>((size_t) st_.conv_floats * h_.n_visit, err))) return false;
     cudaMemset(st_.conv_state, 0, (size_t) st_.conv_floats * h_.n_visit * 4);
@@ -733,7 +758,10 @@ void Session::attention(int visit, const Layer& L, int T, int64_t pos, bool dev_
         k::scale_heads(st_.r, st_.tau, T, h_.rel_len * h_.n_head, s);
     }
     const int64_t ring = st_.ring[(size_t) visit];
-    k::kv_store(st_.k, st_.v, st_.kc[(size_t) visit], st_.vc[(size_t) visit], pos, dp, T, ring, s);
+    const int kf = st_.kf[(size_t) visit], vf = st_.vf[(size_t) visit];
+    k::kv_store(st_.k, st_.v, st_.kc[(size_t) visit], st_.vc[(size_t) visit], st_.ks[(size_t) visit], st_.vs[(size_t) visit], kf, vf,
+                pos, dp, T, ring, s);
+    if (kf == k::kKvQ4) k::rotate_rows(st_.q, (int64_t) T * h_.n_head, s);   // q . k is the same in the rotated basis
     k::AttnArgs a;
     a.q = st_.q;
     a.r = st_.r;
@@ -741,6 +769,10 @@ void Session::attention(int visit, const Layer& L, int T, int64_t pos, bool dev_
     a.relb = L.rel_bias;
     a.kc = st_.kc[(size_t) visit];
     a.vc = st_.vc[(size_t) visit];
+    a.ks = st_.ks[(size_t) visit];
+    a.vs = st_.vs[(size_t) visit];
+    a.kfmt = kf;
+    a.vfmt = vf;
     a.ring = ring;
     a.pos0 = pos;
     a.pos_dev = dp;
@@ -755,6 +787,7 @@ void Session::attention(int visit, const Layer& L, int T, int64_t pos, bool dev_
     prof_.mark(3, s);
     k::ink_attention(a, s);
     prof_.mark(4, s);
+    if (vf == k::kKvQ4) k::rotate_rows(st_.att, (int64_t) T * h_.n_head, s);   // the V sum back from the rotated basis
     k::sigmoid_gate(st_.att, st_.g, (int64_t) T * AQ, s);
     prof_.mark(2, s);
     q8(L.o, st_.att, st_.y, T);
