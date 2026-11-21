@@ -148,7 +148,7 @@ public:
     std::unique_ptr<vision::Mmproj> mmproj;
     std::unique_ptr<vision::CudaEncoder> encoder;
     // the CPU fallback (branch halo-cyber): when the card has no room for the encoder's arena, a picture is encoded on
-    // the CPU with the same encoder halocline-vision runs for --vision cpu (bf16-rounded GEMM inputs, half the cores),
+    // the CPU with the same encoder halocline-vision runs for --vision cpu (bf16-rounded GEMM inputs, every hardware thread),
     // from its own mapping of the pack's projector, made on first use.
     std::unique_ptr<vision::Mmproj> cpu_mmproj;
     std::unique_ptr<vision::CpuEncoder> cpu_encoder;

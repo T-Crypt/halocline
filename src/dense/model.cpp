@@ -515,7 +515,9 @@ bool Model::vision_attach(int tokens, std::string& err) {
         }
         if (encoder->attach(pre_arena.base(), pre_arena.size(), tokens, err)) {
             enc_lent = true;
-            ++lent_images;
+            if (++lent_images == 1)
+                halo::log::info("halo dense", "image encoder: in the prompt workspace (%llu MiB, the picture needs %llu MiB)",
+                                (unsigned long long) (pre_arena.size() >> 20), (unsigned long long) (need >> 20));
             return true;
         }
         enc_lent = true;   // the attach may have written part of the workspace: hand it back as after an encode
@@ -545,7 +547,9 @@ bool Model::vision_cpu_ready(std::string& err) {
     }
     auto mp = std::make_unique<vision::Mmproj>();
     auto enc = std::make_unique<vision::CpuEncoder>();
-    const int threads = (int) std::max(1u, std::thread::hardware_concurrency() / 2);   // as halocline-vision's default
+    // every hardware thread: the dense path's work is on the card (32 threads: 9.87 s median a picture against 13.05 s
+    // at 16, homelab state/evals/2026-11-21/halocline-vision-lend/threads.txt)
+    const int threads = (int) std::max(1u, std::thread::hardware_concurrency());
     if (!mp->open(o.mmproj, err) || !enc->init(*mp, threads, true, false, err)) {
         err = o.arch + ": the CPU image encoder: " + err;
         return false;
