@@ -223,8 +223,8 @@ void sgemm_xwt(const float* X, const float* W, float* Y, int T, int N, int K, cu
 
 // a growing device scratch per use (one session, one stream: a grow waits for the device in cudaFree)
 float* scratch(int which, size_t floats) {
-    static float* buf[4] = {nullptr, nullptr, nullptr, nullptr};
-    static size_t cap[4] = {0, 0, 0, 0};
+    static float* buf[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    static size_t cap[5] = {0, 0, 0, 0, 0};
     if (floats > cap[which]) {
         if (buf[which]) cudaFree(buf[which]);
         cudaMalloc((void**) &buf[which], floats * sizeof(float));
@@ -305,9 +305,12 @@ __global__ void attn_split_kernel(AttnArgs a, int splits, int64_t slice, float* 
         const int64_t keys = a.window > 0 ? (a.window < last ? a.window : last) : last;
         slice = (keys + splits - 1) / splits;
     }
-    const int64_t pt = pos0 + t;
+    const int64_t pt = a.uniform ? pos0 : pos0 + t;
     const int64_t lo = a.window > 0 ? (pt - a.window + 1 > 0 ? pt - a.window + 1 : 0) : 0;
-    const int64_t j0 = lo + (int64_t) sp * slice, j1 = (pt + 1 < j0 + slice) ? pt + 1 : j0 + slice;
+    const bool xsplit = a.xn > 0 && sp == splits - 1;   // the last split reads the extra keys
+    const int cache_splits = a.xn > 0 ? splits - 1 : splits;
+    if (a.xn > 0 && !a.pos_dev) slice = (pt + 1 - lo + cache_splits - 1) / cache_splits;
+    const int64_t j0 = xsplit ? 0 : lo + (int64_t) sp * slice, j1 = xsplit ? 0 : ((pt + 1 < j0 + slice) ? pt + 1 : j0 + slice);
     float4 q[kGroup];
     float r[kGroup];
 #pragma unroll
@@ -315,7 +318,7 @@ __global__ void attn_split_kernel(AttnArgs a, int splits, int64_t slice, float* 
         const int h = g * kGroup + j;
         q[j] = *reinterpret_cast<const float4*>(a.q + ((int64_t) t * kNh + h) * kHd + lane * 4);
         q[j].x *= a.scale, q[j].y *= a.scale, q[j].z *= a.scale, q[j].w *= a.scale;
-        r[j] = lane < kRel ? a.r[((int64_t) t * kNh + h) * kRel + lane] : 0.f;
+        r[j] = (!a.no_bias && lane < kRel) ? a.r[((int64_t) t * kNh + h) * kRel + lane] : 0.f;
     }
     float m[kGroup], l[kGroup];
     float4 acc[kGroup];
@@ -326,7 +329,7 @@ __global__ void attn_split_kernel(AttnArgs a, int splits, int64_t slice, float* 
         const float4 kk = kv_load<KF>(a.kc, a.ks, cell, g, lane), vv = kv_load<VF>(a.vc, a.vs, cell, g, lane);
         const float k0 = kk.x, k1 = kk.y, k2 = kk.z, k3 = kk.w, v0 = vv.x, v1 = vv.y, v2 = vv.z, v3 = vv.w;
         const int64_t dist = pt - p;
-        const float rb = (lane < kRel && dist < a.extent) ? a.relb[dist * kRel + lane] : 0.f;
+        const float rb = (!a.no_bias && lane < kRel && dist < a.extent) ? a.relb[dist * kRel + lane] : 0.f;
 #pragma unroll
         for (int j = 0; j < kGroup; ++j) {
             const float s = warp_sum(q[j].x * k0 + q[j].y * k1 + q[j].z * k2 + q[j].w * k3 + r[j] * rb);
@@ -340,6 +343,23 @@ __global__ void attn_split_kernel(AttnArgs a, int splits, int64_t slice, float* 
             acc[j].w = acc[j].w * al + e * v3;
         }
     }
+    if (xsplit)
+        for (int p = warp; p < a.xn; p += kAttnWarps) {
+            const float4 kk = *reinterpret_cast<const float4*>(a.xk + ((int64_t) p * kNkv + g) * kHd + lane * 4);
+            const float4 vv = *reinterpret_cast<const float4*>(a.xv + ((int64_t) p * kNkv + g) * kHd + lane * 4);
+#pragma unroll
+            for (int j = 0; j < kGroup; ++j) {
+                const float s = warp_sum(q[j].x * kk.x + q[j].y * kk.y + q[j].z * kk.z + q[j].w * kk.w);
+                const float mn = fmaxf(m[j], s);
+                const float al = __expf(m[j] - mn), e = __expf(s - mn);
+                m[j] = mn;
+                l[j] = l[j] * al + e;
+                acc[j].x = acc[j].x * al + e * vv.x;
+                acc[j].y = acc[j].y * al + e * vv.y;
+                acc[j].z = acc[j].z * al + e * vv.z;
+                acc[j].w = acc[j].w * al + e * vv.w;
+            }
+        }
     // merge the warps
     __shared__ float sm_m[kAttnWarps][kGroup], sm_l[kAttnWarps][kGroup];
     __shared__ float4 sm_acc[kAttnWarps][kGroup][32];
@@ -612,10 +632,10 @@ __global__ void attn_combine_kernel(AttnArgs a, int splits, const float* __restr
     const int lane = threadIdx.x & 31;
     if (wid >= (int64_t) a.T * kNh) return;
     const float* base = ws + wid * splits * (kHd + 2);
-    const float sink = a.sink[wid];
+    const float sink = a.no_bias ? -INFINITY : a.sink[wid];
     float M = sink;
     for (int s = 0; s < splits; ++s) M = fmaxf(M, base[s * (kHd + 2)]);
-    float L = __expf(sink - M);
+    float L = sink == -INFINITY ? 0.f : __expf(sink - M);
     float4 A = make_float4(0.f, 0.f, 0.f, 0.f);
     for (int s = 0; s < splits; ++s) {
         const float* o = base + s * (kHd + 2);
@@ -877,6 +897,84 @@ __global__ void moe_dec_down_kernel(const uint8_t* __restrict__ down, size_t d_b
     if (lane == 0) out[(size_t) t * D + r] = acc;
 }
 
+
+// ---- the DSpark drafter's pieces ----
+__global__ void rope_neox_kernel(float* x, int T, int heads, int64_t pos0, float theta) {
+    const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;   // one pair (d, d + 64)
+    if (i >= (int64_t) T * heads * 64) return;
+    const int64_t th = i / 64;
+    const int d = (int) (i % 64), t = (int) (th / heads);
+    const float inv = powf(theta, -2.f * d / 128.f);
+    float sn, cs;
+    sincosf((float) (pos0 + t) * inv, &sn, &cs);
+    float* r = x + th * kHd;
+    const float a0 = r[d], a1 = r[d + 64];
+    r[d] = a0 * cs - a1 * sn;
+    r[d + 64] = a0 * sn + a1 * cs;
+}
+__global__ void swiglu_kernel(const float* g, const float* u, float* h, int64_t n) {
+    const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) h[i] = g[i] / (1.f + __expf(-g[i])) * u[i];
+}
+__global__ void mix_features_kernel(const float* feat, const float* fuse, float* out, int T, int nj, int D) {
+    const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= (int64_t) T * D) return;
+    const int64_t t = i / D, c = i % D;
+    float m = -INFINITY;
+    for (int j = 0; j < nj; ++j) m = fmaxf(m, fuse[j]);
+    float z = 0.f, a = 0.f;
+    for (int j = 0; j < nj; ++j) {
+        const float w = __expf(fuse[j] - m);
+        z += w;
+        a += w * feat[(t * nj + j) * D + c];
+    }
+    out[i] = a / z;
+}
+__global__ void markov_input_kernel(const float* state, const uint16_t* w1, const int32_t* prev, const float* hidden,
+                                    const float* ctx, float* x, int R, int D) {
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= 2 * R + 2 * D) return;
+    float v;
+    if (i < R) v = state[i];
+    else if (i < 2 * R) v = bf16_bits(w1[(int64_t) prev[0] * R + (i - R)]);
+    else if (i < 2 * R + D) v = hidden[i - 2 * R];
+    else v = ctx[i - 2 * R - D];
+    x[i] = v;
+}
+__global__ void markov_update_kernel(const float* joint, float* state, float* latent, int R) {
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= R) return;
+    const float gate = 1.f / (1.f + __expf(-joint[i])), cand = tanhf(joint[R + i]);
+    state[i] = cand + gate * (state[i] - cand);
+    latent[i] = tanhf(joint[2 * R + i]);
+}
+__global__ void add2_kernel(const float* a, const float* b, float* o, int64_t n) {
+    const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) o[i] = a[i] + b[i];
+}
+__global__ void short_conv_hist_kernel(float* x, int T, int C, const float* __restrict__ w, const float* __restrict__ dyn,
+                                       int n_heads, float* state, float* hist, int64_t hist_row) {
+    const int c = blockIdx.x * blockDim.x + threadIdx.x;
+    if (c >= C) return;
+    const int h = n_heads > 0 ? c / (C / n_heads) : 0;
+    float s0 = state[c * 3 + 0], s1 = state[c * 3 + 1], s2 = state[c * 3 + 2];
+    const float w0 = w[c * 4 + 0], w1 = w[c * 4 + 1], w2 = w[c * 4 + 2], w3 = w[c * 4 + 3];
+    const float sc = 1.0f / sqrtf((dyn ? 2.f : 1.f) * 4.f + 1.f);
+    for (int t = 0; t < T; ++t) {
+        const float xt = x[(int64_t) t * C + c];
+        float o = xt + s0 * w0 + s1 * w1 + s2 * w2 + xt * w3;
+        if (dyn) {
+            const float* d = dyn + ((int64_t) t * n_heads + h) * 4;
+            o += xt * d[0] + s2 * d[1] + s1 * d[2] + s0 * d[3];
+        }
+        x[(int64_t) t * C + c] = o * sc;
+        s0 = s1, s1 = s2, s2 = xt;
+        float* hp = hist + (int64_t) t * hist_row + (int64_t) c * 3;
+        hp[0] = s0, hp[1] = s1, hp[2] = s2;
+    }
+    state[c * 3 + 0] = s0, state[c * 3 + 1] = s1, state[c * 3 + 2] = s2;
+}
+
 // ---- small ----
 __global__ void log_tau_kernel(int64_t pos0, const int64_t* pos_dev, int T, float floor, float alpha, float* tau) {
     const int t = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1063,6 +1161,16 @@ void ink_attention(const AttnArgs& a, void* stream) {
         --sp.splits;
         sp.slice = (keys + sp.splits - 1) / sp.splits;
     }
+    if (a.uniform || a.xn > 0) {   // a draft block: the split-KV kernel, the extra keys in one more split
+        const int64_t kpos = a.pos0 + 1;
+        const int64_t ck = a.window > 0 ? std::min<int64_t>(a.window, kpos) : kpos;
+        int splits = std::max(1, std::min<int>(32, (int) ((ck + 255) / 256))) + (a.xn > 0 ? 1 : 0);
+        while (splits > 1 && per * splits > a.workspace_bytes) --splits;
+        const dim3 dg((unsigned) (a.T * kNkv), (unsigned) splits);
+        attn_split_kernel<kKvBf16, kKvBf16><<<dg, kAttnWarps * 32, 0, s>>>(a, splits, 0, (float*) a.workspace);
+        attn_combine_kernel<<<blocks_for((int64_t) a.T * kNh * 32), 256, 0, s>>>(a, splits, (const float*) a.workspace);
+        return;
+    }
     static const bool fa_off = std::getenv("HALO_INK_FA") && std::atoi(std::getenv("HALO_INK_FA")) == 0;
     if (a.T >= kFaRows && !a.pos_dev && !fa_off) {   // a prompt chunk on the tensor cores
         const int64_t blocks = (int64_t) ((a.T + kFaRows - 1) / kFaRows) * kNkv;
@@ -1153,6 +1261,43 @@ void moe_dec_down(const void* down, size_t d_bytes, int type, const int32_t* sel
     else moe_dec_down_kernel<8, 1><<<grid, kDecWarps * 32, 0, s>>>((const uint8_t*) down, d_bytes, sel, weight, d_scale, h, out, k, D, F);
 }
 
+void rope_neox(float* x, int T, int heads, int64_t pos0, float theta, void* stream) {
+    rope_neox_kernel<<<blocks_for((int64_t) T * heads * 64), 256, 0, (cudaStream_t) stream>>>(x, T, heads, pos0, theta);
+}
+void swiglu(const float* g, const float* u, float* h, int64_t n, void* stream) {
+    swiglu_kernel<<<blocks_for(n), 256, 0, (cudaStream_t) stream>>>(g, u, h, n);
+}
+void mix_features(const float* feat, const float* fuse, float* out, int T, int nj, int D, void* stream) {
+    mix_features_kernel<<<blocks_for((int64_t) T * D), 256, 0, (cudaStream_t) stream>>>(feat, fuse, out, T, nj, D);
+}
+void markov_input(const float* state, const uint16_t* w1, const int32_t* prev, const float* hidden, const float* ctx, float* x,
+                  int R, int D, void* stream) {
+    markov_input_kernel<<<blocks_for(2 * R + 2 * D), 256, 0, (cudaStream_t) stream>>>(state, w1, prev, hidden, ctx, x, R, D);
+}
+void markov_update(const float* joint, float* state, float* latent, int R, void* stream) {
+    markov_update_kernel<<<blocks_for(R), 256, 0, (cudaStream_t) stream>>>(joint, state, latent, R);
+}
+void add2(const float* a, const float* b, float* out, int64_t n, void* stream) {
+    add2_kernel<<<blocks_for(n), 256, 0, (cudaStream_t) stream>>>(a, b, out, n);
+}
+void short_conv_hist(float* x, int T, int C, const float* w, const float* dyn, int n_heads, float* state, float* hist,
+                     int64_t hist_row, void* stream) {
+    short_conv_hist_kernel<<<blocks_for(C, 128), 128, 0, (cudaStream_t) stream>>>(x, T, C, w, dyn, n_heads, state, hist, hist_row);
+}
+__global__ void to_bf16_kernel(const float* x, __nv_bfloat16* y, int64_t n) {
+    const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) y[i] = __float2bfloat16_rn(x[i]);
+}
+void gemm_bf16(const uint16_t* W, const float* X, float* Y, int T, int N, int K, void* stream) {
+    cudaStream_t s = (cudaStream_t) stream;
+    __nv_bfloat16* xb = reinterpret_cast<__nv_bfloat16*>(scratch(4, ((size_t) T * K + 1) / 2 + 1));
+    to_bf16_kernel<<<blocks_for((int64_t) T * K), 256, 0, s>>>(X, xb, (int64_t) T * K);
+    const float one = 1.f, zero = 0.f;
+    cublasSetStream(blas(), s);
+    cublasGemmEx(blas(), CUBLAS_OP_T, CUBLAS_OP_N, N, T, K, &one, W, CUDA_R_16BF, K, xb, CUDA_R_16BF, K, &zero, Y, CUDA_R_32F, N,
+                 CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
+}
+
 void log_tau(int64_t pos0, const int64_t* pos_dev, int T, float floor, float alpha, float* tau, void* stream) {
     log_tau_kernel<<<blocks_for(T), 256, 0, (cudaStream_t) stream>>>(pos0, pos_dev, T, floor, alpha, tau);
 }
@@ -1178,6 +1323,7 @@ void reserve(int T) {
     scratch(1, (size_t) T * (2 + 64));
     scratch(2, (size_t) T * (2 + 4 * 2304 + 64 + 2 * 2304));
     scratch(3, (size_t) T * kNh * 1024);
+    scratch(4, (size_t) T * 9216 / 2 + 1024);
     blas();
 }
 void add_rows(float* x, const float* y, int64_t n, void* stream) {

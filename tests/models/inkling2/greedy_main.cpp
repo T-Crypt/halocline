@@ -26,6 +26,8 @@ int main(int argc, char** argv) {
     halo::model::LoadRequest req;
     req.paths = {argv[1]};
     req.max_context = argc > 4 ? std::atoll(argv[4]) : 32768;
+    const int spec = std::getenv("HALO_INK_SPEC") ? std::atoi(std::getenv("HALO_INK_SPEC")) : 0;   // drafts a window
+    if (spec > 0) req.spec = spec + 1, req.draft = true;
     std::string err;
     auto t0 = std::chrono::steady_clock::now();
     auto m = halo::models::inkling2::load_model(req, err);
@@ -53,7 +55,34 @@ int main(int argc, char** argv) {
     int64_t pos = (int64_t) ids.size() - 1;
     std::vector<int32_t> out;
     auto t3 = std::chrono::steady_clock::now();
-    for (int i = 0; i < n; ++i) {
+    long long windows = 0, accepted = 0;
+    if (spec > 0) {   // speculative greedy: draft, verify [anchor, drafts], keep the agreeing prefix and the next pick
+        while ((int) out.size() < n) {
+            int32_t drafts[16], picks[17];
+            float conf[16];
+            int nd = 0;
+            if (auto r = s->draft_begin(tok, pos, spec); !r.ok()) { std::fprintf(stderr, "draft: %s\n", r.message.c_str()); return 1; }
+            if (auto r = s->draft_end(drafts, conf, spec, nd); !r.ok()) { std::fprintf(stderr, "draft_end: %s\n", r.message.c_str()); return 1; }
+            std::vector<int32_t> win{tok};
+            win.insert(win.end(), drafts, drafts + nd);
+            halo::model::DecodeRequest d;
+            d.tokens = win.data();
+            d.n_tokens = (int) win.size();
+            d.pos = pos;
+            d.row_tokens = picks;
+            if (auto r = s->decode_window(d); !r.ok()) { std::fprintf(stderr, "verify: %s\n", r.message.c_str()); return 1; }
+            int k = 0;
+            while (k < nd && picks[k] == drafts[k]) ++k;
+            for (int i = 0; i <= k && (int) out.size() < n; ++i) out.push_back(picks[i]);
+            ++windows, accepted += k;
+            pos += k + 1;
+            tok = picks[k];
+            if (windows == 1) t3 = std::chrono::steady_clock::now();
+        }
+        std::fprintf(stderr, "spec %d: %lld windows, %.2f drafts accepted a window, %.2f tokens a window\n", spec, windows,
+                     (double) accepted / windows, (double) out.size() / windows);
+    }
+    for (int i = (int) out.size(); i < n; ++i) {
         halo::model::DecodeRequest d;
         int32_t next = -1;
         d.tokens = &tok;
@@ -67,7 +96,7 @@ int main(int argc, char** argv) {
         out.push_back(next);
         tok = next;
         ++pos;
-        if (i == 0) t3 = std::chrono::steady_clock::now();
+        if (i == 0 && spec == 0) t3 = std::chrono::steady_clock::now();
     }
     auto t4 = std::chrono::steady_clock::now();
     const auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };

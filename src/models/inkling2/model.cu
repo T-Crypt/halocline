@@ -158,6 +158,25 @@ struct Weights {
     std::vector<Layer> layers;   // stored layers
 };
 
+// The DSpark drafter (the pack's dspark/gguf section): 3 BF16 layers over the target's features at visits 5, 23, 41 and
+// the final output, a block of [anchor, mask x 7], the target's head, a Markov head chaining the drafts greedily.
+struct DraftLayer {
+    bool swa = false;
+    const float *attn_norm = nullptr, *ffn_norm = nullptr, *dflare_norm = nullptr, *q_norm = nullptr, *k_norm = nullptr,
+                *k_ctx_norm = nullptr;
+    const uint16_t *wq = nullptr, *wk = nullptr, *wv = nullptr, *wo = nullptr, *k_ctx = nullptr, *v_ctx = nullptr, *gate = nullptr,
+                   *up = nullptr, *down = nullptr;
+};
+struct Drafter {
+    bool present = false;
+    std::vector<DraftLayer> L;
+    std::vector<int> targets;   // the target visits whose inputs are the features (the last: the head's input)
+    const float *fuse = nullptr, *dspark_norm = nullptr, *out_norm = nullptr, *mask_embd = nullptr, *joint_b = nullptr, *ho_b = nullptr;
+    const uint16_t *w1 = nullptr, *joint = nullptr, *ho = nullptr;
+    int R = 256, ff = 9216, block = 8, window = 1024;
+    float theta = 1e6f, eps = 1e-6f;
+};
+
 // ---- the model ----------------------------------------------------------------------------------------------------
 
 class Model;
@@ -185,6 +204,21 @@ struct State {
     cudaGraphExec_t graph = nullptr;     // the one-row decode forward
     int graph_state = 0;                 // 0 not yet (warm-up next), 1 warm, 2 captured, -1 off
     void* attn_ws = nullptr;
+    // the drafter
+    uint16_t *dk[4] = {}, *dv[4] = {};      // per draft layer, BF16 [cells][8][128]
+    int64_t dring[4] = {};
+    float *feat = nullptr, *frnn = nullptr;  // [kChunk][4][D] the last forward's features, [kChunk][D] its f_rnn rows
+    int64_t rows_pos0 = -1;
+    int rows_T = 0;
+    float *dx = nullptr, *dres = nullptr, *dh = nullptr, *dq = nullptr, *dk_b = nullptr, *dv_b = nullptr, *datt = nullptr,
+          *dg = nullptr, *du = nullptr, *dcur = nullptr, *dctx = nullptr;
+    float *mstate = nullptr, *mxin = nullptr, *mjoint = nullptr, *mlat = nullptr, *mcorr = nullptr, *mz = nullptr, *dlogits = nullptr;
+    int32_t *dids = nullptr, *dprev = nullptr;
+    float* dconf = nullptr;
+    // per-row convolution state of the last decode window, for a window that keeps fewer rows than it read
+    float* convh = nullptr;
+    int64_t win_pos0 = -1;
+    int win_T = 0;
     size_t attn_ws_bytes = 0;
     std::vector<void*> owned;
     ~State() {
@@ -212,6 +246,8 @@ public:
     Weights w;
     int64_t max_ctx_ = 0;
     int kfmt_ = 0, vfmt_ = 0;   // the full-attention caches' format (--kv)
+    Drafter dr;
+    int spec_ = 1;              // rows a decode window may hold (--spec, with the drafter)
     std::unique_ptr<mmq::Context> mmq_ctx;
 
 private:
@@ -291,6 +327,7 @@ private:
         return l.w != nullptr;
     }
     bool layer(int il, Layer& L, std::string& err);
+    bool drafter(const std::string& path, std::string& err);
 };
 
 bool Model::layer(int il, Layer& L, std::string& err) {
@@ -369,6 +406,85 @@ bool Model::layer(int il, Layer& L, std::string& err) {
     return true;
 }
 
+bool Model::drafter(const std::string& path, std::string& err) {
+    core::ModelFile mf;
+    if (!mf.open(path, err)) return false;
+    const core::ModelFile::Section* sec = mf.find("dspark/gguf");
+    if (!sec) {
+        err = "inkling2: --spec needs the pack's DSpark drafter (tools/convert/convert.py --dspark)";
+        return false;
+    }
+    GgufFile dg(path, sec->offset, sec->bytes);
+    std::map<std::string, TensorInfo> t;
+    for (const TensorInfo& x : dg.tensors()) t[x.name] = x;
+    const auto raw = [&](const std::string& name, int type, int64_t elems) -> const void* {
+        auto it = t.find(name);
+        if (it == t.end() || (int) it->second.type != type || (int64_t) it->second.elements() != elems) {
+            err = "inkling2: the drafter's " + name + " is missing or not the expected type and size";
+            return nullptr;
+        }
+        return upload_bytes(dg.tensor_data(it->second), tensor_payload_bytes(it->second), name, err);
+    };
+    const auto f32 = [&](const std::string& n, int64_t e) { return (const float*) raw(n, kTypeF32, e); };
+    const auto b16 = [&](const std::string& n, int64_t e) { return (const uint16_t*) raw(n, kTypeBf16, e); };
+    const MetaValue* tl = dg.get("dflash.target_layers");
+    const MetaValue* pat = dg.get("dflash.attention.sliding_window_pattern");
+    const MetaValue* bc = dg.get("dflash.block_count");
+    if (!tl || !pat || !bc || tl->items.size() != 4) {
+        err = "inkling2: the drafter's metadata is not Inkling 2's DSpark";
+        return false;
+    }
+    for (const MetaValue& x : tl->items) dr.targets.push_back((int) x.u);
+    if (const MetaValue* v = dg.get("dflash.dspark.markov_rank")) dr.R = (int) v->u;
+    if (const MetaValue* v = dg.get("dflash.feed_forward_length")) dr.ff = (int) v->u;
+    if (const MetaValue* v = dg.get("dflash.block_size")) dr.block = (int) v->u;
+    if (const MetaValue* v = dg.get("dflash.attention.sliding_window")) dr.window = (int) v->u;
+    if (const MetaValue* v = dg.get("dflash.rope.freq_base")) dr.theta = (float) v->num();
+    const int D = h.n_embd, AQ = h.n_head * h.head_dim, KV = h.n_kv * h.head_dim, nl = (int) bc->u;
+    if (dr.targets.back() != h.n_visit || nl != (int) pat->items.size() || dr.block != 8) {
+        err = "inkling2: the drafter does not fit this model (target visits or block size)";
+        return false;
+    }
+    dr.fuse = f32("dspark_fuse.weight", 4 * (int64_t) (nl + 1));
+    dr.dspark_norm = f32("dspark_norm.weight", D);
+    dr.out_norm = f32("output_norm.weight", D);
+    dr.mask_embd = f32("mask_embd.weight", D);
+    dr.joint_b = f32("joint_proj.bias", 3 * (int64_t) dr.R);
+    dr.ho_b = f32("dspark_hidden_out.bias", D);
+    dr.w1 = b16("markov_w1.weight", (int64_t) dr.R * h.n_vocab_padded);
+    dr.joint = b16("joint_proj.weight", (int64_t) (2 * dr.R + 2 * D) * 3 * dr.R);
+    dr.ho = b16("dspark_hidden_out.weight", (int64_t) dr.R * D);
+    if (!dr.fuse || !dr.dspark_norm || !dr.out_norm || !dr.mask_embd || !dr.joint_b || !dr.ho_b || !dr.w1 || !dr.joint || !dr.ho)
+        return false;
+    for (int l = 0; l < nl; ++l) {
+        const std::string p = "blk." + std::to_string(l) + ".";
+        DraftLayer L;
+        L.swa = pat->items[(size_t) l].u != 0;
+        L.attn_norm = f32(p + "attn_norm.weight", D);
+        L.ffn_norm = f32(p + "ffn_norm.weight", D);
+        L.dflare_norm = f32(p + "dflare_norm.weight", D);
+        L.q_norm = f32(p + "attn_q_norm.weight", h.head_dim);
+        L.k_norm = f32(p + "attn_k_norm.weight", h.head_dim);
+        L.k_ctx_norm = f32(p + "attn_k_ctx_norm.weight", h.head_dim);
+        L.wq = b16(p + "attn_q.weight", (int64_t) AQ * D);
+        L.wk = b16(p + "attn_k.weight", (int64_t) KV * D);
+        L.wv = b16(p + "attn_v.weight", (int64_t) KV * D);
+        L.wo = b16(p + "attn_output.weight", (int64_t) D * AQ);
+        L.k_ctx = b16(p + "attn_k_ctx.weight", (int64_t) KV * D);
+        L.v_ctx = b16(p + "attn_v_ctx.weight", (int64_t) KV * D);
+        L.gate = b16(p + "ffn_gate.weight", (int64_t) dr.ff * D);
+        L.up = b16(p + "ffn_up.weight", (int64_t) dr.ff * D);
+        L.down = b16(p + "ffn_down.weight", (int64_t) D * dr.ff);
+        if (!L.attn_norm || !L.ffn_norm || !L.dflare_norm || !L.q_norm || !L.k_norm || !L.k_ctx_norm || !L.wq || !L.wk || !L.wv ||
+            !L.wo || !L.k_ctx || !L.v_ctx || !L.gate || !L.up || !L.down)
+            return false;
+        dr.L.push_back(L);
+    }
+    dr.present = true;
+    halo::log::info("halo inkling2", "DSpark drafter: %d layers, block %d, Markov rank %d", nl, dr.block, dr.R);
+    return true;
+}
+
 bool Model::load(const model::LoadRequest& req, std::string& err) {
     const std::string& path = req.paths.front();
     if (path.size() > 5 && path.compare(path.size() - 5, 5, ".halo") == 0) {   // a pack: its gguf section as a GGUF
@@ -408,6 +524,12 @@ bool Model::load(const model::LoadRequest& req, std::string& err) {
         // F32 widening of BF16 doubles them
         bytes += ((t.type == (uint32_t) kTypeBf16 ? t.elements() * 4 : tensor_payload_bytes(t)) + 255) & ~(uint64_t) 255;
     }
+    if (req.draft || req.spec > 1) {   // the drafter's tensors go in the same block
+        core::ModelFile mf;
+        std::string e2;
+        if (mf.open(path, e2))
+            if (const core::ModelFile::Section* sec = mf.find("dspark/gguf")) bytes += sec->bytes + (1 << 20) * 64;
+    }
     if (cudaMalloc((void**) &block_, bytes) != cudaSuccess) {
         (void) cudaGetLastError();
         err = "inkling2: out of device memory for " + std::to_string((unsigned long long) (bytes >> 20)) + " MiB of weights";
@@ -445,6 +567,8 @@ bool Model::load(const model::LoadRequest& req, std::string& err) {
     w.layers.resize((size_t) h.n_phys);
     for (int il = 0; il < h.n_phys; ++il)
         if (!layer(il, w.layers[(size_t) il], err)) return false;
+    if ((req.draft || req.spec > 1) && !drafter(path, err)) return false;
+    spec_ = dr.present ? std::clamp(req.spec > 1 ? req.spec : 4, 2, dr.block) : 1;
     mmq_ctx = std::make_unique<mmq::Context>();
     gg_ = nullptr;
     size_t free_b = 0, total_b = 0;
@@ -465,7 +589,17 @@ public:
 
     Result decode_window(const model::DecodeRequest& r) override;
     Result prefill_chunk(const model::PrefillRequest& r) override;
-    int max_window() const override { return 1; }
+    int max_window() const override { return m_.dr.present ? m_.spec_ : 1; }
+    Result draft_begin(int32_t anchor, int64_t pos, int n) override;
+    Result draft_end(int32_t* ids, float* conf, int max_n, int& n) override {
+        n = std::min(n_draft_, max_n);
+        if (n <= 0) return {};
+        if (cudaMemcpyAsync(ids, st_.dids, (size_t) n * 4, cudaMemcpyDeviceToHost, st_.s) != cudaSuccess ||
+            cudaMemcpyAsync(conf, st_.dconf, (size_t) n * 4, cudaMemcpyDeviceToHost, st_.s) != cudaSuccess ||
+            cudaStreamSynchronize(st_.s) != cudaSuccess)
+            return {Status::Error, "inkling2: the drafter failed"};
+        return {};
+    }
     Result copy_logits(int row, float* out) override {
         if (row < 0 || row >= last_T_) return {Status::Error, "inkling2: no such row"};
         if (cudaMemcpy(out, st_.logits + (size_t) row * h_.n_vocab, (size_t) h_.n_vocab * 4, cudaMemcpyDeviceToHost) != cudaSuccess)
@@ -541,6 +675,8 @@ private:
     const Hparams& h_;
     State st_;
     int last_T_ = 0;
+    int n_draft_ = 0;
+    bool hist_on_ = false;   // this forward keeps per-row convolution state (a decode window of several rows)
     int32_t h_picks_[kWindow] = {};
     Prof prof_;
     kernels::SamplerParams sampling_{};
@@ -572,6 +708,9 @@ private:
     void q8(const Lin& l, const float* x, float* y, int T);
     void moe(const Layer& L, const float* x, float* out, int T);
     void attention(int visit, const Layer& L, int T, int64_t pos, bool dev_pos);
+    void conv(float* x, int T, int C, const float* w, const float* dyn, int heads, float* state, int visit, int64_t off);
+    void draft_context(int T, int64_t pos);
+    void dgemm(const uint16_t* W, const float* X, float* Y, int T, int N, int K) { k::gemm_bf16(W, X, Y, T, N, K, st_.s); }
 };
 
 bool Session::init(std::string& err) {
@@ -643,6 +782,29 @@ bool Session::init(std::string& err) {
         cudaHostAlloc((void**) &st_.h_tok, sizeof(int32_t) * kChunk, cudaHostAllocDefault) != cudaSuccess) {
         err = "inkling2: out of page-locked memory";
         return false;
+    }
+    if (m_.dr.present) {
+        const Drafter& dr = m_.dr;
+        for (size_t l = 0; l < dr.L.size(); ++l) {
+            const int64_t cells = dr.L[l].swa ? std::min<int64_t>(2048, m_.max_ctx_) : m_.max_ctx_;
+            st_.dring[l] = dr.L[l].swa ? cells : 0;
+            if (!(st_.dk[l] = alloc<uint16_t>((size_t) cells * KV, err)) || !(st_.dv[l] = alloc<uint16_t>((size_t) cells * KV, err)))
+                return false;
+        }
+        const int B = dr.block;
+        if (!(st_.feat = alloc<float>((size_t) kChunk * 4 * D, err)) || !(st_.frnn = alloc<float>((size_t) kChunk * D, err)) ||
+            !(st_.dx = alloc<float>((size_t) kChunk * D, err)) || !(st_.dres = alloc<float>((size_t) B * D, err)) ||
+            !(st_.dh = alloc<float>((size_t) kChunk * D, err)) || !(st_.dq = alloc<float>((size_t) B * AQ, err)) ||
+            !(st_.dk_b = alloc<float>((size_t) kChunk * KV, err)) || !(st_.dv_b = alloc<float>((size_t) kChunk * KV, err)) ||
+            !(st_.datt = alloc<float>((size_t) B * AQ, err)) || !(st_.dg = alloc<float>((size_t) B * dr.ff, err)) ||
+            !(st_.du = alloc<float>((size_t) B * dr.ff, err)) || !(st_.dcur = alloc<float>((size_t) B * D, err)) ||
+            !(st_.dctx = alloc<float>((size_t) kChunk * D, err)) || !(st_.mstate = alloc<float>(dr.R, err)) ||
+            !(st_.mxin = alloc<float>((size_t) 2 * dr.R + 2 * D, err)) || !(st_.mjoint = alloc<float>((size_t) 3 * dr.R, err)) ||
+            !(st_.mlat = alloc<float>(dr.R, err)) || !(st_.mcorr = alloc<float>(D, err)) || !(st_.mz = alloc<float>(D, err)) ||
+            !(st_.dlogits = alloc<float>((size_t) h_.n_vocab_padded, err)) || !(st_.dids = alloc<int32_t>(kWindow, err)) ||
+            !(st_.dprev = alloc<int32_t>(kWindow, err)) || !(st_.dconf = alloc<float>(kWindow, err)))
+            return false;
+        if (!(st_.convh = alloc<float>((size_t) h_.n_visit * kWindow * st_.conv_floats, err))) return false;
     }
     k::reserve(kChunk);
     if (const char* g = std::getenv("HALO_INK_GRAPH"); g && std::atoi(g) == 0) st_.graph_state = -1;
@@ -746,8 +908,8 @@ void Session::attention(int visit, const Layer& L, int T, int64_t pos, bool dev_
         f32_matvec(L.v_cp, iv, st_.vdyn, T, D, h_.conv * h_.n_kv, s);
     }
     prof_.mark(4, s);
-    k::short_conv(st_.k, T, KV, L.k_conv, L.swa ? nullptr : st_.kdyn, h_.n_kv, st_k, s);
-    k::short_conv(st_.v, T, KV, L.v_conv, L.swa ? nullptr : st_.vdyn, h_.n_kv, st_v, s);
+    conv(st_.k, T, KV, L.k_conv, L.swa ? nullptr : st_.kdyn, h_.n_kv, st_k, visit, 0);
+    conv(st_.v, T, KV, L.v_conv, L.swa ? nullptr : st_.vdyn, h_.n_kv, st_v, visit, (int64_t) KV * cw);
     k::clip_rows(st_.q, L.q_clip, h_.n_head, (int64_t) T * h_.n_head, h_.head_dim, h_.qk_clip, s);
     k::clip_rows(st_.k, nullptr, 1, (int64_t) T * h_.n_kv, h_.head_dim, h_.qk_clip, s);
     k::rms_rows(st_.v, nullptr, st_.v, (int64_t) T * h_.n_kv, h_.head_dim, h_.eps, s);
@@ -792,7 +954,116 @@ void Session::attention(int visit, const Layer& L, int T, int64_t pos, bool dev_
     prof_.mark(2, s);
     q8(L.o, st_.att, st_.y, T);
     prof_.mark(4, s);
-    k::short_conv(st_.y, T, D, L.post_conv, nullptr, 1, st_ao, s);
+    conv(st_.y, T, D, L.post_conv, nullptr, 1, st_ao, visit, (int64_t) 2 * KV * cw);
+}
+
+// a short convolution; in a decode window of several rows the state after every row is kept (convh), so a window that
+// keeps fewer rows than it read can go back to the state after its last kept row
+void Session::conv(float* x, int T, int C, const float* w, const float* dyn, int heads, float* state, int visit, int64_t off) {
+    if (hist_on_ && st_.convh)
+        k::short_conv_hist(x, T, C, w, dyn, heads, state, st_.convh + ((size_t) visit * kWindow) * st_.conv_floats + off,
+                           st_.conv_floats, st_.s);
+    else
+        k::short_conv(x, T, C, w, dyn, heads, state, st_.s);
+}
+
+// the drafter's context for the rows of the last forward (positions pos..): per draft layer the features' mixture, its K
+// (normed, rotated) and V into the drafter's cache; the f_rnn rows for the Markov head
+void Session::draft_context(int T, int64_t pos) {
+    cudaStream_t s = st_.s;
+    const Drafter& dr = m_.dr;
+    const int D = h_.n_embd, KV = h_.n_kv * h_.head_dim;
+    const int nl = (int) dr.L.size();
+    for (int l = 0; l < nl; ++l) {
+        const DraftLayer& L = dr.L[(size_t) l];
+        k::mix_features(st_.feat, dr.fuse + l * 4, st_.dctx, T, 4, D, s);
+        k::rms_rows(st_.dctx, L.dflare_norm, st_.dctx, T, D, h_.eps, s);
+        dgemm(L.k_ctx, st_.dctx, st_.dk_b, T, KV, D);
+        dgemm(L.v_ctx, st_.dctx, st_.dv_b, T, KV, D);
+        k::rms_rows(st_.dk_b, L.k_ctx_norm, st_.dk_b, (int64_t) T * h_.n_kv, h_.head_dim, h_.eps, s);
+        k::rope_neox(st_.dk_b, T, h_.n_kv, pos, dr.theta, s);
+        k::kv_store(st_.dk_b, st_.dv_b, st_.dk[l], st_.dv[l], nullptr, nullptr, k::kKvBf16, k::kKvBf16, pos, nullptr, T,
+                    st_.dring[l], s);
+    }
+    k::mix_features(st_.feat, dr.fuse + nl * 4, st_.frnn, T, 4, D, s);
+    k::rms_rows(st_.frnn, dr.dspark_norm, st_.frnn, T, D, h_.eps, s);
+    st_.rows_pos0 = pos;
+    st_.rows_T = T;
+}
+
+Result Session::draft_begin(int32_t anchor, int64_t pos, int n) {
+    if (!m_.dr.present) return {Status::NotImplemented, "inkling2: no drafter is loaded"};
+    const Drafter& dr = m_.dr;
+    n_draft_ = 0;
+    n = std::clamp(n, 1, std::min(dr.block - 1, max_window() - 1));
+    if (pos + dr.block > m_.max_ctx_) return {Status::Error, "inkling2: no room for a draft block"};
+    const int64_t row = pos - 1 - st_.rows_pos0;
+    if (row < 0 || row >= st_.rows_T) return {Status::Error, "inkling2: the drafter has no features before position " + std::to_string((long long) pos)};
+    cudaStream_t s = st_.s;
+    const int D = h_.n_embd, AQ = h_.n_head * h_.head_dim, KV = h_.n_kv * h_.head_dim, B = dr.block;
+    // the block: the anchor's normed embedding, then mask rows
+    cudaMemcpyAsync(st_.tok, &anchor, 4, cudaMemcpyHostToDevice, s);
+    kernels::iq_embed_rows(m_.w.embd_type, m_.w.embd, m_.w.embd_row_bytes, st_.tok, 1, D, st_.dres, s);
+    k::rms_rows(st_.dres, m_.w.embd_norm, st_.dres, 1, D, h_.eps, s);
+    for (int i = 1; i < B; ++i) cudaMemcpyAsync(st_.dres + (size_t) i * D, dr.mask_embd, (size_t) D * 4, cudaMemcpyDeviceToDevice, s);
+    for (size_t l = 0; l < dr.L.size(); ++l) {
+        const DraftLayer& L = dr.L[l];
+        k::rms_rows(st_.dres, L.attn_norm, st_.dh, B, D, h_.eps, s);
+        dgemm(L.wq, st_.dh, st_.dq, B, AQ, D);
+        dgemm(L.wk, st_.dh, st_.dk_b, B, KV, D);
+        dgemm(L.wv, st_.dh, st_.dv_b, B, KV, D);
+        k::rms_rows(st_.dq, L.q_norm, st_.dq, (int64_t) B * h_.n_head, h_.head_dim, h_.eps, s);
+        k::rms_rows(st_.dk_b, L.k_norm, st_.dk_b, (int64_t) B * h_.n_kv, h_.head_dim, h_.eps, s);
+        k::rope_neox(st_.dq, B, h_.n_head, pos, dr.theta, s);
+        k::rope_neox(st_.dk_b, B, h_.n_kv, pos, dr.theta, s);
+        k::AttnArgs a;
+        a.q = st_.dq;
+        a.kc = st_.dk[l];
+        a.vc = st_.dv[l];
+        a.ring = st_.dring[l];
+        a.pos0 = pos - 1;   // the context the block reads: positions before the anchor
+        a.uniform = true;
+        a.no_bias = true;
+        a.T = B;
+        a.window = L.swa ? dr.window : 0;
+        a.xk = st_.dk_b;
+        a.xv = st_.dv_b;
+        a.xn = B;
+        a.scale = 1.0f / std::sqrt((float) h_.head_dim);
+        a.out = st_.datt;
+        a.workspace = st_.attn_ws;
+        a.workspace_bytes = st_.attn_ws_bytes;
+        k::ink_attention(a, s);
+        dgemm(L.wo, st_.datt, st_.dh, B, D, AQ);
+        k::add_rows(st_.dres, st_.dh, (int64_t) B * D, s);
+        k::rms_rows(st_.dres, L.ffn_norm, st_.dh, B, D, h_.eps, s);
+        dgemm(L.gate, st_.dh, st_.dg, B, dr.ff, D);
+        dgemm(L.up, st_.dh, st_.du, B, dr.ff, D);
+        k::swiglu(st_.dg, st_.du, st_.dg, (int64_t) B * dr.ff, s);
+        dgemm(L.down, st_.dg, st_.dh, B, D, dr.ff);
+        k::add_rows(st_.dres, st_.dh, (int64_t) B * D, s);
+    }
+    k::rms_rows(st_.dres, dr.out_norm, st_.dcur, B, D, h_.eps, s);
+    // the Markov chain: drafts 1..n, each from the head of (cur_i + correction_i), greedy
+    cudaMemsetAsync(st_.mstate, 0, (size_t) dr.R * 4, s);
+    cudaMemcpyAsync(st_.dprev, &anchor, 4, cudaMemcpyHostToDevice, s);
+    const float* ctx = st_.frnn + (size_t) row * D;
+    for (int i = 1; i <= n; ++i) {
+        k::markov_input(st_.mstate, dr.w1, st_.dprev + (i - 1), st_.dcur + (size_t) i * D, ctx, st_.mxin, dr.R, D, s);
+        dgemm(dr.joint, st_.mxin, st_.mjoint, 1, 3 * dr.R, 2 * dr.R + 2 * D);
+        k::add_rows(st_.mjoint, dr.joint_b, 3 * dr.R, s);
+        k::markov_update(st_.mjoint, st_.mstate, st_.mlat, dr.R, s);
+        dgemm(dr.ho, st_.mlat, st_.mcorr, 1, D, dr.R);
+        k::add_rows(st_.mcorr, dr.ho_b, D, s);
+        k::add2(st_.dcur + (size_t) i * D, st_.mcorr, st_.mz, D, s);
+        q8(m_.w.head, st_.mz, st_.dlogits, 1);
+        k::softcap(st_.dlogits, h_.n_vocab_padded, h_.softcap, s);
+        if (!kernels::sample_greedy_top_prob(st_.dlogits, 1, (int) h_.n_vocab, nullptr, st_.dids + (i - 1), st_.dconf + (i - 1), s))
+            return {Status::Error, "inkling2: the draft pick failed"};
+        cudaMemcpyAsync(st_.dprev + i, st_.dids + (i - 1), 4, cudaMemcpyDeviceToDevice, s);
+    }
+    n_draft_ = n;
+    return {};
 }
 
 // The forward of T tokens at positions pos..: K/V and convolution state of every visit advance; the logits of the last
@@ -804,6 +1075,14 @@ bool Session::forward(const int32_t* tokens, int T, int64_t pos, bool all_logits
     const Weights& W = m_.w;
     prof_.mark(0, s);
     if (!dev_pos && pos == 0) cudaMemsetAsync(st_.conv_state, 0, (size_t) st_.conv_floats * h_.n_visit * 4, s);   // a new sequence
+    if (!dev_pos && st_.convh && st_.win_T > 1 && pos > st_.win_pos0 && pos < st_.win_pos0 + st_.win_T) {
+        // the last window kept rows up to pos - 1: its convolution state after that row, every visit
+        const int64_t r = pos - st_.win_pos0 - 1;
+        cudaMemcpy2DAsync(st_.conv_state, (size_t) st_.conv_floats * 4, st_.convh + (size_t) r * st_.conv_floats,
+                          (size_t) kWindow * st_.conv_floats * 4, (size_t) st_.conv_floats * 4, (size_t) h_.n_visit,
+                          cudaMemcpyDeviceToDevice, s);
+    }
+    if (!dev_pos) st_.win_T = 0;
     if (!dev_pos) cudaMemcpyAsync(st_.tok, tokens, (size_t) T * 4, cudaMemcpyHostToDevice, s);
     kernels::iq_embed_rows(W.embd_type, W.embd, W.embd_row_bytes, st_.tok, T, D, st_.cur, s);
     k::rms_rows(st_.cur, W.embd_norm, st_.cur, T, D, h_.eps, s);
@@ -822,6 +1101,11 @@ bool Session::forward(const int32_t* tokens, int T, int64_t pos, bool all_logits
         const int ip = h_.phys(v);
         const Layer& L = W.layers[(size_t) ip];
         prof_.mark(1, s);
+        if (m_.dr.present)   // the drafter's features: the inputs of its target visits
+            for (int j = 0; j < 3; ++j)
+                if (m_.dr.targets[(size_t) j] == v)
+                    cudaMemcpy2DAsync(st_.feat + (size_t) j * D, (size_t) 4 * D * 4, st_.cur, (size_t) D * 4, (size_t) D * 4, (size_t) T,
+                                      cudaMemcpyDeviceToDevice, s);
         const bool core = h_.in_core(v);
         const int pass = h_.pass(v);
         bool has_msg = false;
@@ -895,7 +1179,7 @@ bool Session::forward(const int32_t* tokens, int T, int64_t pos, bool all_logits
         prof_.mark(4, s);
         float* cs = st_.conv_state + (size_t) v * st_.conv_floats;
         const int64_t KV = (int64_t) h_.n_kv * h_.head_dim, cw = h_.conv - 1;
-        k::short_conv(st_.moe_out, T, D, L.ffn_post_conv, nullptr, 1, cs + (size_t) (2 * KV + D) * cw, s);
+        conv(st_.moe_out, T, D, L.ffn_post_conv, nullptr, 1, cs + (size_t) (2 * KV + D) * cw, v, (2 * KV + D) * cw);
         k::add_rows(st_.cur, st_.moe_out, TD, s);
         (void) n_core;
     }
@@ -904,7 +1188,14 @@ bool Session::forward(const int32_t* tokens, int T, int64_t pos, bool all_logits
     states(blocks, st_.cur, sv);
     k::depth_mix(sv.data(), (int) sv.size(), W.out_res_query, 1, st_.x, T, D, s);
     const int r0 = all_logits ? 0 : T - 1, rows = all_logits ? T : 1;
-    k::rms_rows(st_.x + (size_t) r0 * D, W.out_norm, st_.x + (size_t) r0 * D, rows, D, h_.eps, s);
+    if (m_.dr.present && !dev_pos) {   // every row normed: the drafter's last feature, then its context
+        k::rms_rows(st_.x, W.out_norm, st_.x, T, D, h_.eps, s);
+        cudaMemcpy2DAsync(st_.feat + (size_t) 3 * D, (size_t) 4 * D * 4, st_.x, (size_t) D * 4, (size_t) D * 4, (size_t) T,
+                          cudaMemcpyDeviceToDevice, s);
+        draft_context(T, pos);
+    } else {
+        k::rms_rows(st_.x + (size_t) r0 * D, W.out_norm, st_.x + (size_t) r0 * D, rows, D, h_.eps, s);
+    }
     q8(W.head, st_.x + (size_t) r0 * D, st_.logits_pad, rows);
     k::softcap(st_.logits_pad, (int64_t) rows * h_.n_vocab_padded, h_.softcap, s);
     const int64_t n = (int64_t) rows * h_.n_vocab;
@@ -922,8 +1213,12 @@ Result Session::decode_window(const model::DecodeRequest& r) {
     if (r.n_tokens < 1 || r.n_tokens > kWindow) return {Status::Error, "inkling2: a decode window of " + std::to_string(r.n_tokens) + " rows"};
     if (r.pos + r.n_tokens > m_.max_ctx_) return {Status::Error, "inkling2: the window passes the context"};
     std::string err;
-    if (r.n_tokens > 1) {   // a verify window: every row's logits, no graph
-        if (!forward(r.tokens, r.n_tokens, r.pos, true, err)) return {Status::Error, err};
+    if (r.n_tokens > 1 || m_.dr.present) {   // a verify window (or the drafter's features): every row, no graph
+        hist_on_ = r.n_tokens > 1;
+        const bool ok = forward(r.tokens, r.n_tokens, r.pos, true, err);
+        hist_on_ = false;
+        if (!ok) return {Status::Error, err};
+        if (r.n_tokens > 1) st_.win_pos0 = r.pos, st_.win_T = r.n_tokens;
     } else if (st_.graph_state >= 1) {   // the captured one-row forward: token and position through device memory
         st_.h_tok[0] = r.tokens[0];
         *st_.h_pos = r.pos;

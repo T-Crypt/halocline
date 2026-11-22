@@ -51,6 +51,11 @@ struct AttnArgs {
     int extent = 1024;               ///< relative bias past this distance is 0
     float scale = 0.0883883476f;     ///< 1 / sqrt(128)
     float* out = nullptr;            ///< [T][24][128]
+    bool uniform = false;            ///< every row at position pos0 (a draft block reads the context before its anchor)
+    const float* xk = nullptr;       ///< extra keys after the cache's, FP32 [xn][8][128] (a draft block's own), seen by
+    const float* xv = nullptr;       ///< every row
+    int xn = 0;
+    bool no_bias = false;            ///< no relative bias and no sink (a drafter's plain attention)
     void* workspace = nullptr;
     size_t workspace_bytes = 0;
 };
@@ -99,6 +104,26 @@ void moe_dec_gu(const void* gu, size_t gu_bytes, int type, const int32_t* sel, c
 /// out[t] = sum_slot weight * d_scale[e] * (W_down[e] h[pick]) for the picks of moe_dec_gu; `down`: [D][F] matrices.
 void moe_dec_down(const void* down, size_t d_bytes, int type, const int32_t* sel, const float* weight, const float* d_scale,
                   const float* h, float* out, int T, int k, int D, int F, void* stream);
+
+/// NeoX rotary embedding of x [T][heads][128] at positions pos0 + t (theta: the base), in place.
+void rope_neox(float* x, int T, int heads, int64_t pos0, float theta, void* stream);
+/// h = silu(g) * u over n values.
+void swiglu(const float* g, const float* u, float* h, int64_t n, void* stream);
+/// out[t] = sum_j softmax(fuse[0..nj))[j] * feat[t][j] for features feat [T][nj][D]; fuse a device row of nj floats.
+void mix_features(const float* feat, const float* fuse, float* out, int T, int nj, int D, void* stream);
+/// The DSpark Markov step's input: x = [state (R) ; w1[prev] (R, BF16 rows of R) ; hidden (D) ; ctx (D)].
+void markov_input(const float* state, const uint16_t* w1, const int32_t* prev, const float* hidden, const float* ctx, float* x,
+                  int R, int D, void* stream);
+/// After joint = J x + b (3R): state = cand + sigmoid(gate) (state - cand), latent = tanh(lat) (cand = tanh(joint[R..2R))).
+void markov_update(const float* joint, float* state, float* latent, int R, void* stream);
+/// x = a + b over n values.
+void add2(const float* a, const float* b, float* out, int64_t n, void* stream);
+/// Per-row state history for decode windows: short_conv_hist is short_conv that also writes the state after every row
+/// to hist [T][C][3]; conv_restore copies row r of a history back into the state.
+void short_conv_hist(float* x, int T, int C, const float* w, const float* dyn, int n_heads, float* state, float* hist,
+                     int64_t hist_row, void* stream);
+/// Y[T][N] = X[T][K] . W[N][K]^T for a BF16 W (cuBLAS, FP32 accumulate; X rounded to BF16 on the way in).
+void gemm_bf16(const uint16_t* W, const float* X, float* Y, int T, int N, int K, void* stream);
 
 /// tau[t] = 1 + alpha log(max(1, (pos0 + t + 1) / floor)); pos_dev, when given, holds pos0.
 void log_tau(int64_t pos0, const int64_t* pos_dev, int T, float floor, float alpha, float* tau, void* stream);

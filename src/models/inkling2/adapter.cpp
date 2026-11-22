@@ -9,6 +9,8 @@
 #include "halo/program/options.hpp"
 #include "halo/program/gpt4o_pretok.hpp"
 
+#include <cstdlib>
+
 namespace halo::models::inkling2 {
 namespace {
 
@@ -69,10 +71,12 @@ public:
 
     const char* model_name() const override { return "Inkling-2-Mini"; }
 
-    // --kv bf16|int8|k8v4|q4: the 8 full-attention caches (the load checks the value)
+    // --kv bf16|int8|k8v4|q4: the 8 full-attention caches (the load checks the value); --spec N: windows of N rows, the
+    // DSpark drafter filling N - 1 of them
     bool parse_flag(const std::string& a, model::FlagArgs& args, program::CommonOptions& o, int& code) const override {
         (void) code;
         if (a == "--kv") o.kv = args.next("--kv");
+        else if (a == "--spec") { o.spec = std::atoi(args.next("--spec")); o.spec_given = true; }
         else return false;
         return true;
     }
