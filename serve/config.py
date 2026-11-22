@@ -19,13 +19,14 @@ from serve.util.console import tagged
 MIN_SLOT_CONTEXT = 256          # the least context a slot is given when --max-context is shared
 CONFIG_VERSION = 2                          # the config file's "version"; a file without one is this format's first
 PARALLEL_MAX = 8                            # the engine's batch slots
-CONFIG_PATHS = ("model", "tokenizer", "image-dir")       # relative to the config file
+CONFIG_PATHS = ("model", "tokenizer", "image-dir", "chat-template")       # relative to the config file
 # a model entry's own, and what it may also inherit from the top-level "engine"; other server options are the server's
 ENTRY_OPTIONS = frozenset({"model", "alias"})
 MODEL_OPTIONS = frozenset({
     "gpu", "vision", "parallel", "slot-full-context", "idle-sleep", "idle-unload", "min-free-vram-mib", "fit-max-tokens",
     "grammar", "reasoning-effort", "reasoning-budget-tokens", "thinking-loop-tokens", "answer-room", "temperature", "top-p", "top-k", "min-p",
-    "presence-penalty", "frequency-penalty", "repetition-penalty", "penalty-last-n", "seed", "video-max-tokens"})
+    "presence-penalty", "frequency-penalty", "repetition-penalty", "penalty-last-n", "seed", "video-max-tokens",
+    "chat-template"})
 GRAMMAR_DEFAULT = True                      # the `grammar` option when neither the file nor the command line sets it
 
 
@@ -607,6 +608,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--reasoning-effort", type=str.lower, choices=("none", "low", "medium", "high", "xhigh", "max"),
                     default=None, help="default reasoning effort for requests that name none (no effort, thinking "
                                        "switch or budget); unset, the model's template decides")
+    ap.add_argument("--chat-template", metavar="FILE", default=None,
+                    help="a Jinja chat template that replaces the model file's; reasoning efforts the server does not "
+                         "know and the request's other chat_template_kwargs go to it as named (a persona template's "
+                         "modes), and later system messages reach it as sent")
     ap.add_argument("--reasoning-budget-tokens", type=budget_count, default=None, metavar="N",
                     help="default thinking budget for requests that leave reasoning_budget_tokens out (0 = none): at "
                          "the budget the thinking is closed and the answer starts, so set it below the request's "

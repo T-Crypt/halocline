@@ -680,7 +680,7 @@ def make_handler(target: Service | Router):
                 self._json(404, responses_error_body(text, "invalid_request_error", "model", "model_not_found"))
 
         def _openai(self, req):
-            messages, tools, kw = openai_to_messages(req)
+            messages, tools, kw = openai_to_messages(req, self.svc.custom_template)
             tools, force = forced_call(req.get("tool_choice"), tools, self.svc.dialect.forced_opening)   # a bad choice is a 400 before streaming
             check_format(req.get("response_format"))
             self.svc.require_grammar(req.get("response_format"))
