@@ -116,6 +116,8 @@ void markov_input(const float* state, const uint16_t* w1, const int32_t* prev, c
                   int R, int D, void* stream);
 /// After joint = J x + b (3R): state = cand + sigmoid(gate) (state - cand), latent = tanh(lat) (cand = tanh(joint[R..2R))).
 void markov_update(const float* joint, float* state, float* latent, int R, void* stream);
+/// The first maximum of logits [n] into *id and its softmax probability into *prob (one block).
+void argmax_prob(const float* logits, int n, int32_t* id, float* prob, void* stream);
 /// x = a + b over n values.
 void add2(const float* a, const float* b, float* out, int64_t n, void* stream);
 /// Per-row state history for decode windows: short_conv_hist is short_conv that also writes the state after every row

@@ -975,6 +975,32 @@ __global__ void short_conv_hist_kernel(float* x, int T, int C, const float* __re
     state[c * 3 + 0] = s0, state[c * 3 + 1] = s1, state[c * 3 + 2] = s2;
 }
 
+
+__global__ void argmax_prob_kernel(const float* __restrict__ x, int n, int32_t* id, float* prob) {
+    __shared__ float sv[32];
+    __shared__ int si[32];
+    __shared__ float red[32];
+    float best = -INFINITY;
+    int bi = 0x7fffffff;
+    for (int i = threadIdx.x; i < n; i += blockDim.x)
+        if (x[i] > best || (x[i] == best && i < bi)) best = x[i], bi = i;
+    for (int o = 16; o > 0; o >>= 1) {
+        const float ob = __shfl_xor_sync(0xffffffffu, best, o);
+        const int oi = __shfl_xor_sync(0xffffffffu, bi, o);
+        if (ob > best || (ob == best && oi < bi)) best = ob, bi = oi;
+    }
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5, nw = blockDim.x >> 5;
+    if (lane == 0) sv[warp] = best, si[warp] = bi;
+    __syncthreads();
+    best = sv[0], bi = si[0];
+    for (int w = 1; w < nw; ++w)
+        if (sv[w] > best || (sv[w] == best && si[w] < bi)) best = sv[w], bi = si[w];
+    float z = 0.f;
+    for (int i = threadIdx.x; i < n; i += blockDim.x) z += __expf(x[i] - best);
+    z = block_sum(z, red);
+    if (threadIdx.x == 0) *id = bi, *prob = 1.f / z;
+}
+
 // ---- small ----
 __global__ void log_tau_kernel(int64_t pos0, const int64_t* pos_dev, int T, float floor, float alpha, float* tau) {
     const int t = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1276,6 +1302,9 @@ void markov_input(const float* state, const uint16_t* w1, const int32_t* prev, c
 }
 void markov_update(const float* joint, float* state, float* latent, int R, void* stream) {
     markov_update_kernel<<<blocks_for(R), 256, 0, (cudaStream_t) stream>>>(joint, state, latent, R);
+}
+void argmax_prob(const float* logits, int n, int32_t* id, float* prob, void* stream) {
+    argmax_prob_kernel<<<1, 1024, 0, (cudaStream_t) stream>>>(logits, n, id, prob);
 }
 void add2(const float* a, const float* b, float* out, int64_t n, void* stream) {
     add2_kernel<<<blocks_for(n), 256, 0, (cudaStream_t) stream>>>(a, b, out, n);

@@ -1058,8 +1058,7 @@ Result Session::draft_begin(int32_t anchor, int64_t pos, int n) {
         k::add2(st_.dcur + (size_t) i * D, st_.mcorr, st_.mz, D, s);
         q8(m_.w.head, st_.mz, st_.dlogits, 1);
         k::softcap(st_.dlogits, h_.n_vocab_padded, h_.softcap, s);
-        if (!kernels::sample_greedy_top_prob(st_.dlogits, 1, (int) h_.n_vocab, nullptr, st_.dids + (i - 1), st_.dconf + (i - 1), s))
-            return {Status::Error, "inkling2: the draft pick failed"};
+        k::argmax_prob(st_.dlogits, (int) h_.n_vocab, st_.dids + (i - 1), st_.dconf + (i - 1), s);
         cudaMemcpyAsync(st_.dprev + i, st_.dids + (i - 1), 4, cudaMemcpyDeviceToDevice, s);
     }
     n_draft_ = n;
