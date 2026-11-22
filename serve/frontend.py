@@ -71,13 +71,17 @@ EFFORT = {"none": None, "off": None, "minimal": None, "disabled": None, "false":
           "low": "low", "medium": "medium", "high": "high", "xhigh": "max", "max": "max", "maximum": "max"}
 
 
-def effort_kwargs(value) -> dict:
-    """A client's reasoning effort as template kwargs; unknown values are a 400."""
+def effort_kwargs(value, passthrough: bool = False) -> dict:
+    """A client's reasoning effort as template kwargs; unknown values are a 400. With `passthrough` (a custom chat
+    template, --chat-template) every effort goes to the template as named, lowercased: the template owns its modes and
+    its spellings (a persona template's "007" is a mode, not a number, and its "off" a mode, not thinking off)."""
     if value is None or value == "":
         return {}
     if value is False:
         return {"enable_thinking": False}
     key = str(value).strip().lower()
+    if passthrough:
+        return {"reasoning_effort": key}
     if key.isdigit() and 1 <= int(key) <= 100:   # the dialect takes a number or refuses it
         return {"reasoning_effort": int(key)}
     if key not in EFFORT:
@@ -449,7 +453,12 @@ def _order_chat_tool_results(messages: list[dict]) -> None:
             call.pop("_call_id", None)
 
 
-def openai_to_messages(req: dict) -> tuple[list[dict], list[dict] | None, dict]:
+# chat_template_kwargs the server sets itself; a custom template gets every other key the request names
+RESERVED_TEMPLATE_KW = frozenset({"messages", "tools", "add_generation_prompt", "reasoning_effort", "enable_thinking",
+                                  "preserve_reasoning", "preserve_thinking"})
+
+
+def openai_to_messages(req: dict, custom_template: bool = False) -> tuple[list[dict], list[dict] | None, dict]:
     """OpenAI Chat Completions -> (template messages, template tools, template kwargs)."""
     messages = []
     for m in _object_list(req.get("messages"), "messages"):
@@ -482,14 +491,19 @@ def openai_to_messages(req: dict) -> tuple[list[dict], list[dict] | None, dict]:
     reasoning = req.get("reasoning") if isinstance(req.get("reasoning"), dict) else {}
     template_kw = req.get("chat_template_kwargs") or {}
     kwargs = {**llama_budget(req.get("reasoning_budget")),
-              **effort_kwargs(req.get("reasoning_effort") or reasoning.get("effort"))}
+              **effort_kwargs(req.get("reasoning_effort") or reasoning.get("effort"), custom_template)}
     if "reasoning_effort" in template_kw:
-        kwargs.update(effort_kwargs(template_kw["reasoning_effort"]))
+        kwargs.update(effort_kwargs(template_kw["reasoning_effort"], custom_template))
     if "enable_thinking" in template_kw and not template_kw["enable_thinking"]:
         kwargs["enable_thinking"] = False
-    if kwargs.get("enable_thinking") is False:
-        kwargs = {"enable_thinking": False}
+    if kwargs.get("enable_thinking") is False:   # a custom template keeps the mode: its instruct form of the mode
+        kwargs = {"enable_thinking": False, **({"reasoning_effort": kwargs["reasoning_effort"]}
+                                               if custom_template and "reasoning_effort" in kwargs else {})}
     kwargs.update(preserve_kwargs(template_kw.get("preserve_reasoning")))
+    if custom_template:   # the template's own switches (e.g. a persona template's preamble), plain values only
+        kwargs.update({k: v for k, v in template_kw.items()
+                       if k not in RESERVED_TEMPLATE_KW and isinstance(v, (str, int, float, bool))})
+        return messages, tools, kwargs   # its author decides what a later system message does
     return _late_system_to_user(messages), tools, kwargs
 
 

@@ -261,8 +261,11 @@ def build_model(a, cfg: dict, logs, multi: bool, known) -> Service:
             "Thinking about it.</think>\n\nHello from the mock engine."], batch=a.parallel or 0), None, dict(a.sampling_launch)
     # the model's exported template, else the bundled one
     dialect = dialect_for(cfg.get("arch"))
-    template = files["chat_template.jinja"].decode("utf-8") if "chat_template.jinja" in files else \
-        (ROOT / "serve/chat_template.jinja").read_text(encoding="utf-8")
+    if a.chat_template:   # --chat-template: a template of the operator's own replaces the model's
+        template = Path(a.chat_template).expanduser().read_text(encoding="utf-8")
+    else:
+        template = files["chat_template.jinja"].decode("utf-8") if "chat_template.jinja" in files else \
+            (ROOT / "serve/chat_template.jinja").read_text(encoding="utf-8")
     svc = Service(engine, tok, dialect.template(template),
                   model_name=cfg.get("model_name", "halo"), vision=vision,
                   sampling_defaults=sampling_defaults, fit_max_tokens=a.fit_max_tokens, grammar=a.grammar,
@@ -274,6 +277,7 @@ def build_model(a, cfg: dict, logs, multi: bool, known) -> Service:
     svc.reasoning_budget_tokens = a.reasoning_budget_tokens or 0
     svc.answer_room = a.answer_room
     svc.reasoning_effort = a.reasoning_effort
+    svc.custom_template = bool(a.chat_template)
     svc.thinking_loop_tokens = a.thinking_loop_tokens
     svc.gpu_indices = gpus_in_play(cfg, engine_args(cfg) if not a.mock_engine else [])   # the cards /metrics reads
     svc.gpu_index = svc.gpu_indices[0]

@@ -113,6 +113,7 @@ class Service:
         self.images_waiting = 0                         # bytes of read images waiting for their turn to encode
         # put a non-default reasoning effort in a system turn before the answer so the cached prefix survives
         self.effort_end = False
+        self.custom_template = False   # --chat-template: the model's modes go to the template as named
         self.logs = LogBuffer()                         # server and engine output
         # origins allowed to call /v1/* (CORS; "*" = any); empty: no CORS headers
         self.cors_origins: list[str] = []
@@ -781,12 +782,13 @@ class Service:
     def render_prompt(self, messages, tools, kwargs) -> str:
         """Render the template. With `effort_end`, a non-default effort is rendered as the default up to the answer
         (same prefix, cache kept) and follows as a short system turn right before it."""
-        if kwargs.get("reasoning_effort") not in (None, ""):
+        if kwargs.get("reasoning_effort") not in (None, "") and not self.custom_template:   # a custom template's own
             kwargs = dict(kwargs, reasoning_effort=self.dialect.effort_level(kwargs["reasoning_effort"]))
         kwargs = self.dialect.template_kwargs(kwargs)
         effort = kwargs.get("reasoning_effort")
         off = kwargs.get("enable_thinking") is False
-        if not self.effort_end or not self.dialect.effort_turn or (not off and effort in (None, "", "xhigh", "high")):
+        if self.custom_template or not self.effort_end or not self.dialect.effort_turn or \
+                (not off and effort in (None, "", "xhigh", "high")):
             return self.template.render(messages, tools=tools, **kwargs)
         base = {k: v for k, v in kwargs.items() if k not in ("reasoning_effort", "enable_thinking")}
         history = self.template.render(messages, tools=tools, add_generation_prompt=False, **base)
