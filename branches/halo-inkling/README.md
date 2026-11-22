@@ -19,7 +19,8 @@ top 8, in NVFP4 (layers 0-19) and MXFP8 (layers 20-23) as trained. Vocabulary 20
 |---|---|
 | `src/models/inkling2/model.cu` | the weights as the GGUF stores them, the 48-visit forward, the session (prefill chunks, decode windows, a CUDA graph for one-row decode, logit bias, log-probabilities, running-state checkpoints) |
 | `src/models/inkling2/kernels/ink_ops.*` | the model's own kernels: relative-bias attention with a sink (split-K, any window), depth mix, loop controllers, short convolutions, MoE routing |
-| `src/models/inkling2/adapter.cpp` | registration, tokenizer, special tokens, tool-call form |
+| `src/models/inkling2/adapter.cpp` | registration, tokenizer, special tokens, tool-call form, `--kv` and `--spec` |
+| DSpark (in `model.cu`) | the drafter in the pack: features at visits 5, 23, 41 and the head input, its context K/V per position, the block [anchor, mask x 7] through 3 BF16 layers, the Markov chain on the target head; verify windows keep per-row short-convolution state and roll back to the last kept row |
 | `src/program/tokenizer/pretok_gpt4o.cpp` | the GPT-4o pre-tokenizer (300 fixed cases and 35,000 random ones agree with Python's `regex`) |
 | `tools/convert/gguf_inkling2.py` | the `.halo` pack from Unsloth's GGUF: every tensor copied as stored, the DSpark drafter carried as a section |
 | `serve/models/inkling.py` | the chat dialect: the model's template, thinking, and its JSON tool calls |
@@ -37,7 +38,7 @@ ninja -C build-89 halocline inkling2_greedy inkling2_kld
 python3 tools/convert/convert.py --gguf Inkling-2-Mini-UD-Q4_K_XL.gguf --no-vision \
     --dspark dspark/dspark-Inkling-2-Mini-BF16.gguf --out Inkling-2-Mini-UD-Q4_K_XL.halo
 bin/halocline serve Inkling-2-Mini-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8097 --alias Inkling-2-Mini \
-    --max-context 262144 --kv int8 --no-grammar
+    --max-context 262144 --kv int8 --spec 4 --no-grammar
 ```
 
 `--no-grammar`: the shared tool grammar has no form for JSON arguments yet. The dialect still parses the model's calls.
@@ -51,6 +52,7 @@ Reference: llama.cpp from Unsloth's `b12588-mix-c0c3de8` release source, on the 
 | Greedy, a 26-token chat prompt | identical to llama.cpp, 24 of 24 tokens and through the end of the answer ([`first-light`](evals/2026-11-21/first-light/)) |
 | KLD against UD-Q8_K_XL (the released NVFP4 experts with the rest in BF16), wikitext-2, 100 x 512 | Halocline, BF16 K/V: **0.003247 +- 0.000138**, top-1 97.65%, PPL 7.0747 (base 7.0623). llama.cpp, same weights, f16 K/V: 0.003199 +- 0.000102, top-1 97.74% ([`kld-short`](evals/2026-11-21/kld-short/)) |
 | Decode | 84.5 t/s after a short prompt, 74.2 t/s after 4K |
+| Decode with the DSpark drafter (`--spec 4`: 3 drafts a window) | 162.9 t/s in `inkling2_greedy` (2.35 drafts accepted a window), about 131 t/s through the server; `--spec 8` gives output identical to plain greedy decoding (drafts are verified: the output is the target's) |
 | Prefill | 2,053 t/s at 4,095 tokens |
 | Server | chat, a coding answer, a tool call and its result, prefix reuse (169 of 191 tokens cached on the second turn) |
 | VRAM | 18.7 GB at 32K context, 21.8 GB at 131K (BF16 K/V); int8 K/V at 262,144: 21.6 GB |
@@ -78,5 +80,5 @@ Quantizing the 40 sliding-window caches costs as much as the 8 full ones, and th
 
 - KLD at depth (65K, 262K) for the K/V formats; `--kv q4` decodes far too slowly at a 246K prefix (0.3 t/s), a bug
 - prefill: the MoE grouped GEMM (~107 ms a 512-row chunk) and the depth mixes are the next costs
-- the DSpark drafter, a JSON tool grammar, images
+- a JSON tool grammar, images; the drafter on a reduced head vocabulary (each draft reads the full 200K-row head)
 - faster decode: the bandwidth floor is about 4 GB a token, near 225 t/s on a 4090
