@@ -55,7 +55,8 @@ Reference: llama.cpp from Unsloth's `b12588-mix-c0c3de8` release source, on the 
 | Server | chat, a coding answer, a tool call and its result, prefix reuse (169 of 191 tokens cached on the second turn) |
 | VRAM | 18.7 GB at 32K context, 21.8 GB at 131K (BF16 K/V); int8 K/V at 262,144: 21.6 GB |
 | K/V formats in the engine (`--kv`, full-attention caches only), KLD 100 x 512 | bf16 0.003204, int8 **0.003274**, k8v4 0.003930, rotated q4 0.005406: the same as llama.cpp's split (0.00320 / 0.00327 / 0.00386 / 0.00541) |
-| Long context, int8 K/V, served | a fact placed at 30% of 191,486 tokens of wikitext is retrieved; prefill 592 t/s on average over that prompt, decode 55.5 t/s at that depth (70.2 t/s at 29K) |
+| Long context, int8 K/V, served | a fact placed at 30% of 191,486 tokens of wikitext is retrieved: 129 s for the whole request with the prompt attention on the tensor cores (325 s before, prefill 592 t/s); decode 55.5 t/s at that depth (70.2 t/s at 29K) |
+| Prefill at a 64K prompt | 1,993 t/s (1,136 before the tensor-core attention and the cuBLAS loop controllers) |
 
 Quant: UD-Q4_K_XL. Every Unsloth 4-bit file keeps the released NVFP4 experts byte for byte; in llama.cpp UD-Q4_K_XL scores
 0.00320 and UD-IQ4_XS 0.00397 against UD-Q8_K_XL.
@@ -76,6 +77,6 @@ Quantizing the 40 sliding-window caches costs as much as the 8 full ones, and th
 ## Not done yet
 
 - KLD at depth (65K, 262K) for the K/V formats; `--kv q4` decodes far too slowly at a 246K prefix (0.3 t/s), a bug
-- prefill at depth: the attention reads every key once per query row; a tiled kernel is next
+- prefill: the MoE grouped GEMM (~107 ms a 512-row chunk) and the depth mixes are the next costs
 - the DSpark drafter, a JSON tool grammar, images
 - faster decode: the bandwidth floor is about 4 GB a token, near 225 t/s on a 4090
