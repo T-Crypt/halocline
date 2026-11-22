@@ -234,7 +234,7 @@ add_library(model_inkling2 STATIC src/models/inkling2/adapter.cpp src/models/ink
             src/models/inkling2/kernels/ink_ops.cu)
 target_include_directories(model_inkling2 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include
                            PRIVATE ${_gpu_include_directories})
-target_link_libraries(model_inkling2 PUBLIC model tokenizer kernels mmq core warnings ${_gpu_runtime_target})
+target_link_libraries(model_inkling2 PUBLIC model tokenizer kernels mmq core warnings ${_gpu_runtime_target} ${_gpu_blas_target})
 set_target_properties(model_inkling2 PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)
 add_executable(inkling2_greedy tests/models/inkling2/greedy_main.cpp)
 target_link_libraries(inkling2_greedy PRIVATE model_inkling2 ${_gpu_runtime_target})
