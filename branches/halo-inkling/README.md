@@ -37,7 +37,7 @@ ninja -C build-89 halocline inkling2_greedy inkling2_kld
 python3 tools/convert/convert.py --gguf Inkling-2-Mini-UD-Q4_K_XL.gguf --no-vision \
     --dspark dspark/dspark-Inkling-2-Mini-BF16.gguf --out Inkling-2-Mini-UD-Q4_K_XL.halo
 bin/halocline serve Inkling-2-Mini-UD-Q4_K_XL.halo --host 127.0.0.1 --port 8097 --alias Inkling-2-Mini \
-    --max-context 131072 --no-grammar
+    --max-context 262144 --kv int8 --no-grammar
 ```
 
 `--no-grammar`: the shared tool grammar has no form for JSON arguments yet. The dialect still parses the model's calls.
@@ -53,7 +53,9 @@ Reference: llama.cpp from Unsloth's `b12588-mix-c0c3de8` release source, on the 
 | Decode | 84.5 t/s after a short prompt, 74.2 t/s after 4K |
 | Prefill | 2,053 t/s at 4,095 tokens |
 | Server | chat, a coding answer, a tool call and its result, prefix reuse (169 of 191 tokens cached on the second turn) |
-| VRAM | 18.7 GB at 32K context, 21.8 GB at 131K (BF16 K/V) |
+| VRAM | 18.7 GB at 32K context, 21.8 GB at 131K (BF16 K/V); int8 K/V at 262,144: 21.6 GB |
+| K/V formats in the engine (`--kv`, full-attention caches only), KLD 100 x 512 | bf16 0.003204, int8 **0.003274**, k8v4 0.003930, rotated q4 0.005406: the same as llama.cpp's split (0.00320 / 0.00327 / 0.00386 / 0.00541) |
+| Long context, int8 K/V, served | a fact placed at 30% of 191,486 tokens of wikitext is retrieved; prefill 592 t/s on average over that prompt, decode 55.5 t/s at that depth (70.2 t/s at 29K) |
 
 Quant: UD-Q4_K_XL. Every Unsloth 4-bit file keeps the released NVFP4 experts byte for byte; in llama.cpp UD-Q4_K_XL scores
 0.00320 and UD-IQ4_XS 0.00397 against UD-Q8_K_XL.
@@ -73,6 +75,7 @@ Quantizing the 40 sliding-window caches costs as much as the 8 full ones, and th
 
 ## Not done yet
 
-- int8 and 4-bit K/V on the full-attention caches (toward 262K and ~570K tokens), and KLD at depth
+- KLD at depth (65K, 262K) for the K/V formats; `--kv q4` decodes far too slowly at a 246K prefix (0.3 t/s), a bug
+- prefill at depth: the attention reads every key once per query row; a tiled kernel is next
 - the DSpark drafter, a JSON tool grammar, images
 - faster decode: the bandwidth floor is about 4 GB a token, near 225 t/s on a 4090
