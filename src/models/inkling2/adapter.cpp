@@ -55,7 +55,8 @@ public:
     model::TokenNames token_names() const override {
         // the template ends a reply with <|content_model_end_sampling|> (the GGUF's eos); a reply opens with the model's
         // message token
-        return {{"<|content_model_end_sampling|>", "<|endoftext|>"}, "<|message_model|>", "<|content_image|>", "", ""};
+        // the template writes a picture as <|content_image|><|unused_200054|><|end_message|>: the placeholder is its rows
+        return {{"<|content_model_end_sampling|>", "<|endoftext|>"}, "<|message_model|>", "<|unused_200054|>", "", ""};
     }
 
     program::grammar::ToolForm tool_form() const override {

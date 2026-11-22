@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 
 namespace halo::models::inkling2::k {
@@ -227,7 +228,13 @@ float* scratch(int which, size_t floats) {
     static size_t cap[5] = {0, 0, 0, 0, 0};
     if (floats > cap[which]) {
         if (buf[which]) cudaFree(buf[which]);
-        cudaMalloc((void**) &buf[which], floats * sizeof(float));
+        buf[which] = nullptr;
+        cap[which] = 0;
+        if (cudaMalloc((void**) &buf[which], floats * sizeof(float)) != cudaSuccess) {
+            (void) cudaGetLastError();
+            std::fprintf(stderr, "halo inkling2: out of device memory for a %zu MiB kernel scratch\n", (floats * 4) >> 20);
+            std::abort();   // a null scratch would be written through; better a clean stop the server restarts
+        }
         cap[which] = floats;
     }
     return buf[which];
@@ -1193,7 +1200,8 @@ void ink_attention(const AttnArgs& a, void* stream) {
         int splits = std::max(1, std::min<int>(32, (int) ((ck + 255) / 256))) + (a.xn > 0 ? 1 : 0);
         while (splits > 1 && per * splits > a.workspace_bytes) --splits;
         const dim3 dg((unsigned) (a.T * kNkv), (unsigned) splits);
-        attn_split_kernel<kKvBf16, kKvBf16><<<dg, kAttnWarps * 32, 0, s>>>(a, splits, 0, (float*) a.workspace);
+        if (a.kfmt == kKvInt8 && a.vfmt == kKvInt8) attn_split_kernel<kKvInt8, kKvInt8><<<dg, kAttnWarps * 32, 0, s>>>(a, splits, 0, (float*) a.workspace);
+        else attn_split_kernel<kKvBf16, kKvBf16><<<dg, kAttnWarps * 32, 0, s>>>(a, splits, 0, (float*) a.workspace);
         attn_combine_kernel<<<blocks_for((int64_t) a.T * kNh * 32), 256, 0, s>>>(a, splits, (const float*) a.workspace);
         return;
     }
@@ -1352,7 +1360,7 @@ void reserve(int T) {
     scratch(1, (size_t) T * (2 + 64));
     scratch(2, (size_t) T * (2 + 4 * 2304 + 64 + 2 * 2304));
     scratch(3, (size_t) T * kNh * 1024);
-    scratch(4, (size_t) T * 9216 / 2 + 1024);
+    scratch(4, std::max((size_t) T * 9216 / 2, (size_t) 4097 * 4096 / 2) + 1024);   // BF16 activations: text chunks, a picture
     blas();
 }
 void add_rows(float* x, const float* y, int64_t n, void* stream) {

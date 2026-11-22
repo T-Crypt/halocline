@@ -4,6 +4,7 @@
 // experts grouped by expert) and native mmvq (Q8_0 decode rows), the rest on the model's own kernels (kernels/ink_ops).
 #include "models/inkling2/model.hpp"
 #include "models/inkling2/kernels/ink_ops.hpp"
+#include "models/inkling2/vision.hpp"
 
 #include "halo/artifact/gguf_reader.hpp"
 #include "halo/core/load_progress.hpp"
@@ -205,7 +206,8 @@ struct State {
     int graph_state = 0;                 // 0 not yet (warm-up next), 1 warm, 2 captured, -1 off
     void* attn_ws = nullptr;
     // the drafter
-    uint16_t *dk[4] = {}, *dv[4] = {};      // per draft layer, BF16 [cells][8][128]
+    void *dk[4] = {}, *dv[4] = {};          // per draft layer, int8 [cells][8][128] (drafts are verified: only acceptance
+    float *dks[4] = {}, *dvs[4] = {};       // depends on them) and their row scales
     int64_t dring[4] = {};
     float *feat = nullptr, *frnn = nullptr;  // [kChunk][4][D] the last forward's features, [kChunk][D] its f_rnn rows
     int64_t rows_pos0 = -1;
@@ -247,6 +249,7 @@ public:
     int64_t max_ctx_ = 0;
     int kfmt_ = 0, vfmt_ = 0;   // the full-attention caches' format (--kv)
     Drafter dr;
+    std::unique_ptr<VisionEncoder> vision;
     int spec_ = 1;              // rows a decode window may hold (--spec, with the drafter)
     std::unique_ptr<mmq::Context> mmq_ctx;
 
@@ -568,6 +571,18 @@ bool Model::load(const model::LoadRequest& req, std::string& err) {
     for (int il = 0; il < h.n_phys; ++il)
         if (!layer(il, w.layers[(size_t) il], err)) return false;
     if ((req.draft || req.spec > 1) && !drafter(path, err)) return false;
+    if (req.vision) {   // the pack's vision/mmproj, streamed to the card a layer at a time per picture
+        core::ModelFile mf;
+        if (!mf.open(path, err)) return false;
+        const core::ModelFile::Section* sec = mf.find("vision/mmproj");
+        if (!sec) {
+            err = "inkling2: --vision needs the pack's vision/mmproj (tools/convert/convert.py --mmproj)";
+            return false;
+        }
+        GgufFile vg(path, sec->offset, sec->bytes);
+        vision = std::make_unique<VisionEncoder>();
+        if (!vision->load(vg, err)) return false;
+    }
     spec_ = dr.present ? std::clamp(req.spec > 1 ? req.spec : 4, 2, dr.block) : 1;
     mmq_ctx = std::make_unique<mmq::Context>();
     gg_ = nullptr;
@@ -633,6 +648,30 @@ public:
     }
     bool parks_cells() const override { return false; }
 
+    Result encode_image(const uint8_t* data, size_t bytes, std::vector<float>& rows, int& n_rows, model::ImageGrid& grid) override {
+        if (!m_.vision) return {Status::NotImplemented, "inkling2: started without --vision"};
+        std::string err;
+        int gx = 0, gy = 0;
+        if (!m_.vision->encode(data, bytes, rows, n_rows, gx, gy, err, st_.s)) return {Status::Error, err};
+        grid = {gx, gy};
+        return {};
+    }
+    Result prefill_embeddings(const float* rows, int n_rows, int64_t pos, model::ImageGrid grid) override {
+        (void) grid;   // Inkling places image rows as a sequence: no 2D positions in the text model
+        if (pos + n_rows > m_.max_ctx_) return {Status::Error, "inkling2: the picture passes the context"};
+        for (int at = 0; at < n_rows;) {
+            const int n = std::min(kChunk, n_rows - at);
+            std::string err;
+            embd_rows_ = rows + (size_t) at * h_.n_embd;
+            const bool ok = forward(nullptr, n, pos + at, false, err);
+            embd_rows_ = nullptr;
+            if (!ok) return {Status::Error, err};
+            if (cudaStreamSynchronize(st_.s) != cudaSuccess) return {Status::Error, std::string("inkling2: ") + cudaGetErrorString(cudaGetLastError())};
+            at += n;
+        }
+        return {};
+    }
+
     Result set_logit_bias(const float* bias) override {
         bias_on_ = bias != nullptr;
         if (!bias_on_) return {};
@@ -676,7 +715,8 @@ private:
     State st_;
     int last_T_ = 0;
     int n_draft_ = 0;
-    bool hist_on_ = false;   // this forward keeps per-row convolution state (a decode window of several rows)
+    bool hist_on_ = false;
+    const float* embd_rows_ = nullptr;   // host rows a forward reads instead of token embeddings (a picture)   // this forward keeps per-row convolution state (a decode window of several rows)
     int32_t h_picks_[kWindow] = {};
     Prof prof_;
     kernels::SamplerParams sampling_{};
@@ -788,7 +828,8 @@ bool Session::init(std::string& err) {
         for (size_t l = 0; l < dr.L.size(); ++l) {
             const int64_t cells = dr.L[l].swa ? std::min<int64_t>(2048, m_.max_ctx_) : m_.max_ctx_;
             st_.dring[l] = dr.L[l].swa ? cells : 0;
-            if (!(st_.dk[l] = alloc<uint16_t>((size_t) cells * KV, err)) || !(st_.dv[l] = alloc<uint16_t>((size_t) cells * KV, err)))
+            if (!(st_.dk[l] = alloc<int8_t>((size_t) cells * KV, err)) || !(st_.dv[l] = alloc<int8_t>((size_t) cells * KV, err)) ||
+                !(st_.dks[l] = alloc<float>((size_t) cells * h_.n_kv, err)) || !(st_.dvs[l] = alloc<float>((size_t) cells * h_.n_kv, err)))
                 return false;
         }
         const int B = dr.block;
@@ -982,7 +1023,7 @@ void Session::draft_context(int T, int64_t pos) {
         dgemm(L.v_ctx, st_.dctx, st_.dv_b, T, KV, D);
         k::rms_rows(st_.dk_b, L.k_ctx_norm, st_.dk_b, (int64_t) T * h_.n_kv, h_.head_dim, h_.eps, s);
         k::rope_neox(st_.dk_b, T, h_.n_kv, pos, dr.theta, s);
-        k::kv_store(st_.dk_b, st_.dv_b, st_.dk[l], st_.dv[l], nullptr, nullptr, k::kKvBf16, k::kKvBf16, pos, nullptr, T,
+        k::kv_store(st_.dk_b, st_.dv_b, st_.dk[l], st_.dv[l], st_.dks[l], st_.dvs[l], k::kKvInt8, k::kKvInt8, pos, nullptr, T,
                     st_.dring[l], s);
     }
     k::mix_features(st_.feat, dr.fuse + nl * 4, st_.frnn, T, 4, D, s);
@@ -1020,6 +1061,9 @@ Result Session::draft_begin(int32_t anchor, int64_t pos, int n) {
         a.q = st_.dq;
         a.kc = st_.dk[l];
         a.vc = st_.dv[l];
+        a.ks = st_.dks[l];
+        a.vs = st_.dvs[l];
+        a.kfmt = a.vfmt = k::kKvInt8;
         a.ring = st_.dring[l];
         a.pos0 = pos - 1;   // the context the block reads: positions before the anchor
         a.uniform = true;
@@ -1082,9 +1126,13 @@ bool Session::forward(const int32_t* tokens, int T, int64_t pos, bool all_logits
                           cudaMemcpyDeviceToDevice, s);
     }
     if (!dev_pos) st_.win_T = 0;
-    if (!dev_pos) cudaMemcpyAsync(st_.tok, tokens, (size_t) T * 4, cudaMemcpyHostToDevice, s);
-    kernels::iq_embed_rows(W.embd_type, W.embd, W.embd_row_bytes, st_.tok, T, D, st_.cur, s);
-    k::rms_rows(st_.cur, W.embd_norm, st_.cur, T, D, h_.eps, s);
+    if (embd_rows_) {   // a picture's rows enter as they are (no embedding norm)
+        cudaMemcpyAsync(st_.cur, embd_rows_, (size_t) T * D * 4, cudaMemcpyHostToDevice, s);
+    } else {
+        if (!dev_pos) cudaMemcpyAsync(st_.tok, tokens, (size_t) T * 4, cudaMemcpyHostToDevice, s);
+        kernels::iq_embed_rows(W.embd_type, W.embd, W.embd_row_bytes, st_.tok, T, D, st_.cur, s);
+        k::rms_rows(st_.cur, W.embd_norm, st_.cur, T, D, h_.eps, s);
+    }
 
     // blocks: indexes into st_.blocks; the list a mix reads is `blocks` then cur
     std::vector<int> blocks, prelude_blocks, bank;
