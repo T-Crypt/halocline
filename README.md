@@ -124,6 +124,12 @@ The config serves `Halocline-OrcaSAQ-27B` on port 8096, beside `main`'s 8092 and
 8095. Point its `model` at your pack. In llama-swap it serves as `Halocline-OrcaSAQ-27B`. For the draft head the table used, add
 `--draft-vocab tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin`.
 
+To serve a persona template, such as the
+[Defiance-Cyber](https://huggingface.co/ttindall/Qwen3.8-27B-Defiance-Cyber-MTP-GGUF) modes, add
+`"chat-template": "defiance-cyber-27b.jinja"` to the model entry (a path relative to the config) or pass
+`--chat-template FILE`. Each request's `reasoning_effort` then reaches the template as sent, so `"redteam"` picks that
+mode. Details in [`branches/halo-cyber/`](branches/halo-cyber/#engine-changes-against-main).
+
 ## No weights here
 
 This repository does not host, mirror or link a download of the model. The branch is for people who already have

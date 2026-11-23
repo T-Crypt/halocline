@@ -9,7 +9,7 @@ This branch's own files. `main` never writes here, so a merge from `main` cannot
 
 ## Engine changes against `main`
 
-Two. The first is in the dense loader. Halocline's Gated DeltaNet gating kernels read `ssm_alpha` and `ssm_beta` as BF16 rows.
+Three. The first is in the dense loader. Halocline's Gated DeltaNet gating kernels read `ssm_alpha` and `ssm_beta` as BF16 rows.
 `main` loads Unsloth's Q8_0 copies of those two tensors by decoding them to fp32 and rounding each value to BF16 once,
 the one rounding a GGUF pack's load makes (roadmap D2). OrcaRouter stores them as IQ4_XS, which `main` refuses with
 `blk.0.ssm_alpha.weight is not the expected type and size`. This branch decodes IQ4_XS the same way, with the engine's
@@ -45,3 +45,20 @@ llama-swap, before this, 15 pictures had gone to the CPU (`no device memory for 
 `--vision cpu`, engine peak 23,198 MiB
 ([`evals/2026-11-21/orcasaq-vision-lend/`](evals/2026-11-21/orcasaq-vision-lend/); the same change on `main` is branch
 `vision-pre-arena`, measured in its `evals/2026-11-21/halocline-vision-lend/`).
+
+The third is in the server: **`--chat-template FILE`** renders prompts with the given Jinja file instead of the pack's
+template, for persona templates such as
+[Defiance-Cyber](https://huggingface.co/ttindall/Qwen3.8-27B-Defiance-Cyber-MTP-GGUF), whose modes are
+`reasoning_effort` values the stock handling would reject.
+
+| File | Change |
+|---|---|
+| `serve/config.py` | the flag, and `chat-template` as a config key whose path is relative to the config file |
+| `serve/server.py` | reads the file at start |
+| `serve/frontend.py` | with a custom template: `reasoning_effort` goes to the template as sent, other `chat_template_kwargs` pass through by name, a system message after the first turn stays in place |
+| `serve/service.py`, `serve/handler.py` | the stock effort handling is skipped for a custom template |
+| `serve/tests/test_custom_template.py` | six tests |
+
+Without the flag nothing changes; the server suite passes (1,101 tests). Checked with the Defiance-Cyber template on this
+branch's OrcaSAQ pack at 262,144 tokens: 11 of 11 template checks, every cyber mode answers in character, 3 of 3
+images, 23,192 MiB peak.
