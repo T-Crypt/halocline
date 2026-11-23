@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8098
+  },
+  "models": [
+    {
+      "model": "../../../models/Qwen3.8-27B-HauhauCS-Aggressive-Q4_K_P-vision.halo",
+      "alias": "Halocline-HauhauCS-27B",
+      "gpu": "0",
+      "spec": 8,
+      "kv": "q4_0",
+      "mtp-kv": "int8",
+      "mtp-window": 32768,
+      "max-context": 249856,
+      "fit-max-tokens": true,
+      "vision": "dynamic"
+    }
+  ]
+}

@@ -3,20 +3,23 @@
 </p>
 
 <p align="center">
-  <b>Halocline: the engine that hides nothing.</b><br>
-  <b>One engine, two paths: sparse and dense.</b> Qwen mixture-of-experts and dense models on one NVIDIA Ada GPU
-  (sm_89), a 24 GB RTX 4090. Each result names the run directory that produced it.
+  <b>Halocline <code>halo-uncensored</code>: a research branch.</b><br>
+  HauhauCS's Qwen3.8-27B Uncensored Aggressive on Halocline's dense path, tensors copied byte for byte, at 249,856
+  tokens with vision on one 24 GB Ada card.
 </p>
 
 <p align="center">
-  <code>status: pre-alpha</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>models: Qwen4 family</code> &nbsp; <code>licence: MIT</code>
+  <code>status: research, runs, vision</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>model: bring your own</code> &nbsp; <code>licence: MIT</code>
 </p>
+
+> [!WARNING]
+> **This is not `main`.** [`main`](https://github.com/T-Crypt/halocline/tree/main) is the supported Halocline:
+> Unsloth's UD packs, tensors copied byte for byte, every change gated on KLD against BF16. This branch is research.
+> I gated it once, against HauhauCS's own Q8_K_P, and it can change or vanish without notice.
 
 ## Branches
 
-This branch, `main`, is the default install and the one the rest of this README describes. Three optional research
-branches add other weights for people who want them: install none, one or more, alone or beside `main`. Only `main` is
-supported; the others are published for people to build and test on their own.
+`main` is the default install. The other branches are optional research configurations for people who want them.
 Each keeps its own docs, configs and data under `branches/<name>/`; an engine change a branch needs for its model is
 listed in that folder's README.
 
@@ -25,12 +28,120 @@ listed in that folder's README.
 | [`main`](https://github.com/T-Crypt/halocline/tree/main) | Both paths, sparse and dense, gated on KLD against BF16 | Unsloth UD-IQ4_XS (sparse); UD-Q4_K_XL and UD-IQ4_XS (dense), tensors copied byte for byte | supported, the default |
 | [`halo-ista`](https://github.com/T-Crypt/halocline/tree/halo-ista) | The sparse path on ISTA-DASLab's per-tensor bit allocation, a smaller expert pool for Ada cards with less VRAM | ISTA-DASLab GSQ-RCO IQ3_S, and SC117's abliterated build of it | experimental, untested |
 | [`halo-cyber`](https://github.com/T-Crypt/halocline/tree/halo-cyber) | The dense path on OrcaRouter's OrcaSAQ-2 Cyber 27B Uncensored, byte-identical, at its native 262,144 tokens | bring your own copy; the repository hosts none | research |
-| [`halo-inkling`](https://github.com/T-Crypt/halocline/tree/halo-inkling) | Inkling 2 Mini (Thinking Machines' looped MoE, 26B with 3.4B active) on its own forward: greedy identical to llama.cpp, KLD 0.0032 against the released precision | Unsloth UD-Q4_K_XL, tensors copied byte for byte | experimental |
+| [`halo-inkling`](https://github.com/T-Crypt/halocline/tree/halo-inkling) | Inkling 2 Mini (Thinking Machines' looped MoE, 26B with 3.4B active) on its own forward | Unsloth UD-Q4_K_XL, tensors copied byte for byte | experimental |
+| [`halo-uncensored`](https://github.com/T-Crypt/halocline/tree/halo-uncensored) | The dense path on HauhauCS's Qwen3.8-27B Uncensored Aggressive, byte-identical, at 249,856 tokens; `--chat-template` for persona templates such as Defiance | bring your own copy; the repository hosts none | research |
 
 Each branch builds from its own clone and serves on its own ports (`main` 8092 and 8093, `halo-ista` 8094 and 8095,
-`halo-cyber` 8096, `halo-inkling` 8097), so they never share a build, a pack or a port.
+`halo-cyber` 8096, `halo-inkling` 8097, `halo-uncensored` 8098), so they never share a build, a pack or a port.
+
+## What this branch does
+
+Runs one model on the dense path: **Qwen3.8-27B Uncensored HauhauCS Aggressive**
+(`HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF`), a Qwen3.8-27B with its refusals removed. HauhauCS
+quantized it with his own `_P` recipes. This branch serves his **Q4_K_P** file:
+
+| | |
+|---|---|
+| Architecture | `qwen35`, 64 layers plus one MTP layer (`nextn_predict_layers = 1`) |
+| Tensor types | Q4_K, Q5_K, Q6_K, IQ4_XS and F32, all types `main` already loads for UD-Q4_K_XL. The one difference: the 96 Gated DeltaNet gate tensors (`ssm_alpha`, `ssm_beta`) are Q4_K, where Unsloth stores Q8_0 |
+| File | `Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf`, 17,923,393,664 bytes, sha256 `ba36dc3c2b2ff5e0aa5d71092a8894546996a6a119ae391803dda07cdc08516d` |
+| Projector | HauhauCS's `mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf`, unchanged |
+| Licence | Apache-2.0 |
+
+The pack is lossless: `gguf_qwen35.py verify` reports 866 tensors, 5 tokenizer files, 2 vision sections, 0 mismatches.
+The one engine change (below and in [`branches/halo-uncensored/`](branches/halo-uncensored/)) decodes Q4_K gates to
+BF16 with the same single rounding `main` applies to Q8_0 ones. On `main`'s UD-Q4_K_XL pack this branch and `main`'s
+release give byte-identical KLD rows.
+
+## Quality: against HauhauCS's own Q8_K_P
+
+The reference is HauhauCS's Q8_K_P in llama.cpp with f16 K and V. NInfer exposes no logits, so its column is the
+change in negative log-likelihood (dNLL) on the same tokens, with a 95% interval.
+
+| Depth | Engine, weights, K/V | Mean KLD | Top-1 | dNLL vs Q8_K_P |
+|---|---|---|---|---|
+| 512 (wikitext-2, 100 chunks) | Halocline, Q4_K_P, int8 | 0.008864 | 96.07% | |
+| 512 | Halocline, Q4_K_P, rotated 4-bit (served) | 0.011277 | 95.38% | |
+| 512 | llama.cpp, HauhauCS IQ4_XS, q8_0 | 0.019033 | 94.14% | |
+| 65,536 | Halocline, Q4_K_P, rotated 4-bit (served) | 0.007665 | 95.96% | +0.0065 [+0.0042, +0.0088] |
+| 65,536 | Halocline, Q4_K_P, int8 | 0.006093 | 96.36% | +0.0042 [+0.0022, +0.0062] |
+| 65,536 | llama.cpp, HauhauCS IQ4_XS, q8_0 | 0.013111 | 94.74% | |
+| 65,536 | NInfer, its requant of the same weights, served K/V | no logits | | +0.0224 [+0.0188, +0.0260] |
+| 140,288 | Halocline, Q4_K_P, rotated 4-bit (served) | 0.009663 | 95.82% | +0.0070 [+0.0043, +0.0096] |
+| 140,288 | NInfer, served K/V | no logits | | +0.0204 [+0.0136, +0.0271] |
+
+At both depths the served Halocline profile sits about three times closer to Q8_K_P than NInfer's served profile; the
+paired intervals exclude zero. Runs: [`branches/halo-uncensored/evals/2026-11-22/gate/`](branches/halo-uncensored/evals/2026-11-22/gate/).
+
+## Context and speed
+
+- **249,856 tokens**, with the projector and `--vision dynamic`, is the most the planner fits on a 24 GB card. 262,144
+  misses by 215 MiB under `main`'s 512 MiB margin, because Q4_K_P is larger than UD-Q4_K_XL. A 200,887-token needle
+  came back right, three known-answer images gave 3 of 3, peak 23,478 MiB.
+- Against NInfer serving the same weights, same card, thinking off, greedy, 1,200 tokens, two runs each:
+
+| Workload | Halocline tok/s | NInfer tok/s | Halocline vs NInfer |
+|---|---|---|---|
+| short prose | 91.1 | 91.2 | -0.2% (inside the run spread) |
+| short JSON | 155.5 | 154.9 | +0.4% |
+| 36K prose | 79.3 | 82.4 | -3.8% |
+| 36K JSON | 144.7 | 134.4 | +7.6% |
+| 137K prose | 67.0 | 72.7 | -7.8% |
+| 137K JSON | 130.8 | 121.8 | +7.4% |
+
+Halocline wins structured output at depth and loses prose at depth, the same shape as `main`. The 24-case tool-call set
+gave 24 of 24 on both. Runs: [`branches/halo-uncensored/evals/2026-11-22/bar/`](branches/halo-uncensored/evals/2026-11-22/bar/).
+
+## Build and serve
+
+Clone it in its own folder, so it installs beside `main` (or without it) and neither touches the other's build, packs
+or ports. Build from this branch: the Q4_K gate decoding is not on `main`.
+
+```sh
+git clone -b halo-uncensored https://github.com/T-Crypt/halocline.git halocline-halo-uncensored && cd halocline-halo-uncensored
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89
+ninja -C build
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+hf download HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF \
+    Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf \
+    --local-dir hauhaucs
+.venv/bin/python tools/convert/convert.py --gguf hauhaucs/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf \
+    --mmproj hauhaucs/mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf \
+    --name Qwen3.8-27B-HauhauCS-Aggressive-Q4_K_P --out models/Qwen3.8-27B-HauhauCS-Aggressive-Q4_K_P-vision.halo
+.venv/bin/python tools/convert/gguf_qwen35.py verify models/Qwen3.8-27B-HauhauCS-Aggressive-Q4_K_P-vision.halo \
+    hauhaucs/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf \
+    --mmproj hauhaucs/mmproj-Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-BF16.gguf
+
+bin/halocline serve --config branches/halo-uncensored/examples/hauhaucs-27b.json
+```
+
+The config serves `Halocline-HauhauCS-27B` on port 8098: rotated 4-bit K and V, int8 MTP cache over a 32,768-token
+window, the image encoder on the card, 249,856 tokens. For the draft head the speed table used, add
+`--draft-vocab tools/draft_vocab/data/qwen38-27b-wikitext103-src-n32768.bin`.
+
+### A persona template: `--chat-template`
+
+`--chat-template FILE` replaces the template inside the pack. Whatever a request sends as `reasoning_effort` reaches
+the template as sent, other `chat_template_kwargs` pass through by name, and a system message after the first turn
+stays where it is. [`examples/defiance-cyber-27b.json`](branches/halo-uncensored/examples/defiance-cyber-27b.json)
+serves the [Defiance-Cyber](https://huggingface.co/ttindall/Qwen3.8-27B-Defiance-Cyber-MTP-GGUF) template on the same
+pack: put `defiance-cyber-27b.jinja` from that repo next to the config, then pick a mode per request with
+`"reasoning_effort": "redteam"`. Without the flag the server behaves as `main`.
+
+## No weights here
+
+This repository does not host or mirror the model. The branch is for people who download it from HauhauCS. Check
+your file against the sha256 above before you convert it.
+
+The model has no reliable refusals. Serve it only behind your own access control, and never give it a router or role
+alias that other agents pick up on their own.
 
 <img src="assets/halocline-divider.svg" width="100%" alt="">
+
+> [!NOTE]
+> **Everything below is `main`'s README**, about the Unsloth UD reference builds. Its quality numbers, gates and
+> byte-for-byte claims describe those packs, not this branch's model.
 
 ## Two paths
 
