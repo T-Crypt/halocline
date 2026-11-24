@@ -1,0 +1,27 @@
+# A Halocline console fleet: one page and one API port for every model this machine serves with Halocline.
+#   python -m console --fleet examples/console/fleet.toml
+# Each model names its own release, so builds from different branches run side by side, one on the card at a time.
+
+[console]
+host = "127.0.0.1"            # loopback; publish it through your own proxy or tailnet if you want it elsewhere
+port = 9785
+data = "~/.local/state/halocline-console"   # history (SQLite) and engine logs
+# berth = "berth"             # optional: start each engine under `berth run --as <lease>`, so the card is leased
+retention_days = 30
+
+[[model]]
+name    = "Qwen-Sparse"
+label   = "Flash-Next sparse"
+release = "~/halocline/releases/main"       # holds bin/halocline
+branch  = "main"
+port    = 8092
+args    = ["serve", "/models/sparse.halo", "--spec", "8", "--max-context", "262144", "--kv", "int8"]
+# lease = "halocline"
+
+[[model]]
+name    = "Qwen-Dense-27B"
+label   = "27B dense"
+release = "~/halocline/releases/dense-branch"
+branch  = "dense-branch"
+port    = 8093
+args    = ["serve", "/models/dense-27b.halo", "--spec", "8", "--long-context"]
