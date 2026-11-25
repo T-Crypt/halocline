@@ -351,3 +351,20 @@ class GatewayModeCase(unittest.TestCase):
                                      headers={"Content-Type": "application/json"})
         self.assertEqual(urllib.request.urlopen(req, timeout=90).status, 200)
         self.assertEqual(self.calls[n][0], "/v1/berth/switch")
+
+
+class PrefillPointsCase(unittest.TestCase):
+    """A prompt read is over between two readings; each finished request's own rate is the prefill point."""
+
+    def test_new_requests_only_once(self):
+        from console.collector import Collector
+        col = Collector.__new__(Collector)
+        import collections
+        col.seen, col.prefill_done = collections.defaultdict(set), []
+        old = {"id": "r_1", "time": 1.0, "timings": {"prompt_per_second": 900.0, "prompt_n": 50}}
+        self.assertEqual(col._new_prefill("M", {"requests": [old]}), [])          # already there at start: marked only
+        new = {"id": "r_2", "time": 2.0, "timings": {"prompt_per_second": 4500.0, "prompt_n": 38000}}
+        cached = {"id": "r_3", "time": 3.0, "timings": {"prompt_per_second": None, "prompt_n": 0}}
+        self.assertEqual(col._new_prefill("M", {"requests": [cached, new, old]}), [4500.0])
+        self.assertEqual(col._new_prefill("M", {"requests": [cached, new, old]}), [])
+        self.assertEqual([v for _, v in col.prefill_done], [4500.0])

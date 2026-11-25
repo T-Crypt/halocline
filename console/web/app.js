@@ -158,7 +158,8 @@
     $("o-dec").innerHTML = dec != null ? `${n1(dec)}<span class="u">tok/s</span>` : lastDec != null ? `${n1(lastDec)}<span class="u">last</span>` : "-";
     $("o-dec").classList.toggle("dim", dec == null);
     $("o-dec-mean").textContent = n1(live.tok_s_mean ?? lastReq(m)?.decode_tok_s);
-    $("o-dec-best").textContent = n1(best.decode?.tok_s);
+    const sb = S.stats[st.active] || {};
+    $("o-dec-best").textContent = n1(Math.max(best.decode?.tok_s || 0, sb.decode_best || 0) || null);
     $("o-dec-sub").textContent = st.active ? label(st.active) : "tokens / s";
     HC.line($("o-dec-chart"), { xs, series: [{ name: "Decode", color: css("--accent"), values: S.live.map((r) => r.state ? r.tok_s || 0 : null) }], compact: true, unit: "t/s" });
     const lr = lastReq(m);
@@ -166,8 +167,8 @@
     $("o-pre").innerHTML = live.phase === "prefill" ? `${n0(live.prefill_tok_s_mean)}<span class="u">tok/s</span>` : lastPre != null ? `${n0(lastPre)}<span class="u">last</span>` : "-";
     $("o-pre").classList.toggle("dim", live.phase !== "prefill");
     $("o-pre-last").textContent = lr ? `${tok(lr.timings?.prompt_n ?? lr.prompt_tokens)} read in ${secs((lr.prompt_ms || 0) / 1000)}` : "-";
-    $("o-pre-best").textContent = n0(best.prefill?.tok_s);
-    HC.line($("o-pre-chart"), { xs, series: [{ name: "Prefill", color: css("--accent-2"), values: S.live.map((r) => r.state ? r.prefill_tok_s || 0 : null) }], compact: true, unit: "t/s" });
+    $("o-pre-best").textContent = n0(Math.max(best.prefill?.tok_s || 0, sb.prefill_best || 0) || null);
+    HC.line($("o-pre-chart"), { xs, series: [{ name: "Prefill", color: css("--accent-2"), values: S.live.map((r) => r.state ? r.prefill_tok_s || 0 : null), bars: true }], compact: true, unit: "t/s" });
 
     // the request: context fill, draft acceptance, prefix-cache hit
     const slot = (st.slots || []).find((s) => s.is_processing) || (st.slots || [])[0];
