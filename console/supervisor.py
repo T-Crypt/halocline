@@ -146,14 +146,25 @@ class Supervisor:
             self.history.event(model, kind, detail or {})
 
     # ------------------------------------------------------------------ watching
+    def transitioning(self) -> bool:
+        with self.lock:
+            return self.swap is not None or any(s in (STARTING, LOADING, STOPPING) for s in self.state.values())
+
     def _watch(self):
+        """Every second while something starts, loads or stops; otherwise the model on the card every 3 s and the rest
+        (only to notice an engine started elsewhere) every 15 s."""
+        n = 0
         while not self.stopping.is_set():
+            hot = self.transitioning()
             for m in self.fleet.models:
+                if not (hot or n % 5 == 0 or self.state[m.name] != UNLOADED):
+                    continue
                 try:
                     self._check(m)
                 except Exception as e:  # noqa: BLE001 - the watcher must keep running
                     self._line(m.name, f"console: health check failed: {e}")
-            self.stopping.wait(self.poll_s)
+            n += 1
+            self.stopping.wait(self.poll_s if hot else 3 * self.poll_s)
 
     def _check(self, m: Model) -> None:
         h = get_json(m.base + "/health", timeout=1.5)

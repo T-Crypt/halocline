@@ -31,7 +31,8 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "console" / "web"
 FONTS = ROOT / "serve" / "web" / "fonts"
 TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-         ".svg": "image/svg+xml", ".woff2": "font/woff2", ".png": "image/png"}
+         ".svg": "image/svg+xml", ".woff2": "font/woff2", ".png": "image/png",
+         ".webmanifest": "application/manifest+json"}
 RANGES = {"15m": 900, "1h": 3600, "6h": 6 * 3600, "24h": 86400, "7d": 7 * 86400, "30d": 30 * 86400}
 LOAD_WAIT_S = 900                      # how long a passed-through request waits for its model to load
 
@@ -142,7 +143,7 @@ def make_handler(con: Console):
             if base.resolve() not in f.parents or f.suffix not in TYPES or not f.is_file():
                 self._json(404, {"error": {"message": "not found"}})
                 return
-            cache = "max-age=86400" if f.suffix == ".woff2" else "no-cache"
+            cache = "max-age=86400" if f.suffix in (".woff2", ".png") else "no-cache"
             self._send(200, f.read_bytes(), TYPES[f.suffix], cache)
 
         # -------------------------------------------------------------- GET
@@ -154,6 +155,8 @@ def make_handler(con: Console):
             q = self._query()
             if path == "/":
                 return self._static(WEB, "index.html")
+            if path in ("/manifest.webmanifest", "/sw.js"):
+                return self._static(WEB, path[1:])
             if path.startswith("/web/"):
                 return self._static(WEB, path[5:])
             if path.startswith("/fonts/"):
@@ -196,6 +199,8 @@ def make_handler(con: Console):
             self._json(404, {"error": {"message": "not found"}})
 
         def _stream(self):
+            """One state a second. After the first, a key whose value has not changed since this connection last got it
+            is left out (and a request list or engine shape the page already holds), so an idle page costs ~2 KB/s."""
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
@@ -203,16 +208,46 @@ def make_handler(con: Console):
             self.send_header("Connection", "close")
             self.end_headers()
             self.close_connection = True
+            sent: dict[str, str] = {}
             first = True
+            with con.col.lock:
+                con.col.viewers += 1
             try:
                 while True:
-                    body = json.dumps(con.state(300 if first else 1), default=str)
-                    self.wfile.write(f"data: {body}\n\n".encode())
+                    st = con.state(300 if first else 1)
+                    m = st.get("metrics")
+                    if m:
+                        st["metrics"] = m = {k: v for k, v in m.items()
+                                             if k not in ("history", "hardware_static", "models", "swap")}
+                    if st.get("metrics_model") != sent.get("_mm"):       # another engine: send its metrics whole
+                        sent = {k: v for k, v in sent.items() if not k.startswith("m.")}
+                        sent["_mm"] = st.get("metrics_model")
+                    out = {}
+                    for k, v in st.items():
+                        if k == "metrics" and m:
+                            mo = {}
+                            for mk, mv in m.items():
+                                body = json.dumps(mv, default=str, sort_keys=True)
+                                if mk in ("requests", "engine", "best", "totals") and sent.get("m." + mk) == body:
+                                    continue
+                                sent["m." + mk] = body
+                                mo[mk] = mv
+                            out[k] = mo
+                            continue
+                        body = json.dumps(v, default=str, sort_keys=True)
+                        if k in ("models", "static", "title", "since") and sent.get(k) == body:
+                            continue
+                        sent[k] = body
+                        out[k] = v
+                    self.wfile.write(f"data: {json.dumps(out, default=str)}\n\n".encode())
                     self.wfile.flush()
                     first = False
                     time.sleep(1.0)
             except (BrokenPipeError, ConnectionResetError, OSError):
                 return
+            finally:
+                with con.col.lock:
+                    con.col.viewers -= 1
 
         # -------------------------------------------------------------- POST
         def do_POST(self):

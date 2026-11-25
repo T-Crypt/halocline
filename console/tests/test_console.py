@@ -94,9 +94,14 @@ class ConsoleCase(unittest.TestCase):
     def test_1_page_and_state(self):
         with urllib.request.urlopen(self.base + "/", timeout=5) as r:
             self.assertIn(b"Halocline", r.read())
-        for asset in ("/web/app.js", "/web/charts.js", "/web/app.css", "/web/mark.svg", "/fonts/geist-latin-wght.woff2"):
+        for asset in ("/web/app.js", "/web/charts.js", "/web/app.css", "/web/mark.svg", "/fonts/geist-latin-wght.woff2",
+                      "/manifest.webmanifest", "/sw.js", "/web/icons/icon-512.png", "/web/icons/icon-maskable-512.png",
+                      "/web/icons/apple-touch-icon.png"):
             with urllib.request.urlopen(self.base + asset, timeout=5) as r:
                 self.assertEqual(r.status, 200, asset)
+        man = self.get("/manifest.webmanifest")
+        self.assertEqual(man["display"], "standalone")
+        self.assertTrue(any(i["purpose"] == "maskable" and i["sizes"] == "512x512" for i in man["icons"]))
         st = self.get("/api/state")
         self.assertEqual([m["name"] for m in st["models"]], ["ModelA", "ModelB"])
         self.assertIsNone(st["active"])
@@ -147,6 +152,21 @@ class ConsoleCase(unittest.TestCase):
         one = self.get("/api/models/ModelB")
         self.assertEqual(one["state"], "ready")
         self.assertEqual(one["stats"]["requests"], 1)
+
+    def test_5b_stream_sends_deltas(self):
+        import http.client
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        c.request("GET", "/api/stream")
+        r = c.getresponse()
+        msgs = []
+        while len(msgs) < 3:
+            line = r.fp.readline()
+            if line.startswith(b"data: "):
+                msgs.append(json.loads(line[6:]))
+        c.close()
+        self.assertIn("models", msgs[0])
+        self.assertNotIn("models", msgs[2])              # unchanged since the first message
+        self.assertIn("live", msgs[2])
 
     def test_6_unload(self):
         code, _ = self.post("/api/models/ModelB/unload")          # berth's drain posts with no Origin

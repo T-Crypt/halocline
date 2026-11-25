@@ -17,13 +17,20 @@ from serve.util.telemetry import Telemetry
 
 LIVE_POINTS = 300            # 5 minutes of one-second points for the live charts
 SAMPLE_EVERY = 10.0          # seconds between history rows
-APPS_EVERY = 5.0
+APPS_EVERY = 5.0             # card holders while a page watches
+APPS_IDLE = 60.0             # and while none does
+IDLE_TICK = 5.0              # the engine and host while no page watches and nothing generates
 
 
 class Collector:
     def __init__(self, sup: Supervisor, history=None, telemetry: Telemetry | None = None):
         self.sup, self.history = sup, history
-        self.tel = telemetry if telemetry is not None else Telemetry()
+        if telemetry is None:
+            telemetry = Telemetry()
+            telemetry.stop()             # its own 1 Hz thread: the collector samples on its own clock instead
+        self.tel = telemetry
+        self.host: dict = {}
+        self.viewers = 0                 # open /api/stream connections: a page watching gets one-second readings
         self.lock = threading.Lock()
         self.metrics: dict[str, dict] = {}        # the last /metrics each model answered, kept after it unloads
         self.metrics_at: dict[str, float] = {}
@@ -45,7 +52,9 @@ class Collector:
                 self.tick(t0)
             except Exception as e:  # noqa: BLE001 - collection must never stop
                 self.sup._line(self.sup.active() or self.sup.fleet.models[0].name, f"console: collector: {e}")
-            self.stopping.wait(max(0.05, 1.0 - (time.time() - t0)))
+            busy = (self.live[-1].get("tok_s") or 0) > 0 if self.live else False
+            fast = self.viewers > 0 or busy or self.sup.transitioning()
+            self.stopping.wait(max(0.05, (1.0 if fast else IDLE_TICK) - (time.time() - t0)))
 
     def tick(self, now: float) -> None:
         name = self.sup.active()
@@ -54,7 +63,8 @@ class Collector:
         if m is not None and self.sup.state[name] in ("ready", "loading", "external", "stopping"):
             metrics = get_json(m.base + "/metrics", timeout=2.0)
             slots = get_json(m.base + "/slots", timeout=2.0)
-            self._pull_logs(m)
+            if self.viewers:
+                self._pull_logs(m)
         with self.lock:
             if isinstance(metrics, dict) and "engine" in metrics:
                 self.metrics[name] = metrics
@@ -63,7 +73,14 @@ class Collector:
                 self.slots[name] = slots
         if isinstance(metrics, dict) and self.history is not None and metrics.get("requests"):
             self.history.requests(name, metrics["requests"])
-        host = self.tel.snapshot()["now"]
+        if hasattr(self.tel, "sample"):
+            try:
+                self.host = self.tel.sample()
+            except Exception:  # noqa: BLE001 - host readings must never stop collection
+                pass
+            host = self.host
+        else:
+            host = self.tel.snapshot()["now"]
         live = (metrics or {}).get("live") or {}
         gpu = (host.get("gpus") or [{}])[0]
         slot_rows = slots if isinstance(slots, list) else []
@@ -89,7 +106,7 @@ class Collector:
                 vals = [r[k] for r in recent if r.get(k)]
                 agg[k] = sum(vals) / len(vals) if vals else 0.0
             self.history.sample(agg)
-        if now - self.apps_at >= APPS_EVERY:
+        if now - self.apps_at >= (APPS_EVERY if self.viewers else APPS_IDLE):
             self.apps_at = now
             self.apps = gpu_apps()
 

@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#04161e">
+<meta name="description" content="Every model this machine serves with Halocline: load, swap and watch them.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Halocline">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="web/icons/apple-touch-icon.png">
 <title>Halocline</title>
 <link rel="icon" type="image/svg+xml" href="web/mark.svg">
 <link rel="preload" href="fonts/geist-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
@@ -22,11 +30,11 @@
   </a>
   <nav class="views" id="views" role="tablist" aria-label="Views">
     <button role="tab" data-view="overview" aria-selected="true">Overview</button>
-    <button role="tab" data-view="fleet">Fleet</button>
-    <button role="tab" data-view="engine">Engine</button>
-    <button role="tab" data-view="history">History</button>
-    <button role="tab" data-view="hardware">Hardware</button>
-    <button role="tab" data-view="logs">Logs</button>
+    <button role="tab" data-view="fleet" tabindex="-1">Fleet</button>
+    <button role="tab" data-view="engine" tabindex="-1">Engine</button>
+    <button role="tab" data-view="history" tabindex="-1">History</button>
+    <button role="tab" data-view="hardware" tabindex="-1">Hardware</button>
+    <button role="tab" data-view="logs" tabindex="-1">Logs</button>
   </nav>
   <span class="grow"></span>
   <div class="onair" id="onair">
@@ -47,7 +55,7 @@
 
   <!-- ============================================================ Overview -->
   <section class="view" data-view="overview">
-    <div class="hero">
+    <div class="hero" id="hero">
       <div class="tile t-dec">
         <div class="tile-h">Decode<span class="tile-sub" id="o-dec-sub">tokens / s</span></div>
         <div class="big num" id="o-dec">-</div>
@@ -79,7 +87,7 @@
       </div>
     </div>
 
-    <div class="strip-h"><h2>Fleet</h2><span class="hint">Click a model to load it. A swap drains the one on the card first.</span></div>
+    <div class="strip-h"><h2>Fleet</h2><span class="hint">Load or swap from any card. A swap lets running requests finish first.</span></div>
     <div class="strip" id="o-fleet"></div>
 
     <div class="cols">
@@ -138,7 +146,7 @@
       </div>
       <select id="h-model" aria-label="Model"><option value="">Every model</option></select>
     </div>
-    <div class="hgrid">
+    <div class="hgrid" id="hgrid-h">
       <div class="panel"><div class="panel-h"><h3>Decode</h3><span class="hint">tokens / s while generating</span></div><div class="chart c-mid" id="h-dec"></div></div>
       <div class="panel"><div class="panel-h"><h3>Prefill</h3><span class="hint">tokens / s while reading</span></div><div class="chart c-mid" id="h-pre"></div></div>
       <div class="panel"><div class="panel-h"><h3>GPU utilisation</h3><span class="hint">%</span></div><div class="chart c-mid" id="h-util"></div></div>
@@ -160,7 +168,7 @@
       <div class="panel"><div class="panel-h"><h3 id="hw-gpu-name">GPU</h3><span class="hint" id="hw-gpu-sub"></span></div><div class="gauges big4" id="hw-gauges"></div><div id="hw-gpu-kv"></div></div>
       <div class="panel"><div class="panel-h"><h3>Who holds the card</h3><span class="hint">anything not ours is a squatter</span></div><div id="hw-holders"></div></div>
     </div>
-    <div class="hgrid">
+    <div class="hgrid" id="hgrid-hw">
       <div class="panel"><div class="panel-h"><h3>Utilisation</h3><span class="hint">%, last 5 min</span></div><div class="chart c-mid" id="hw-util"></div></div>
       <div class="panel"><div class="panel-h"><h3>Power</h3><span class="hint">W, last 5 min</span></div><div class="chart c-mid" id="hw-power"></div></div>
       <div class="panel"><div class="panel-h"><h3>Temperature</h3><span class="hint">°C, last 5 min</span></div><div class="chart c-mid" id="hw-temp"></div></div>
@@ -184,6 +192,6 @@
 
 </main>
 <div class="tip" id="tip" role="tooltip" hidden></div>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

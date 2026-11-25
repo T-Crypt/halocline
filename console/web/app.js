@@ -17,6 +17,7 @@
   const gib = (b) => b == null ? "-" : (b / 2 ** 30).toFixed(1);
   const mibToGib = (m) => m == null ? "-" : (m / 1024).toFixed(1);
   const tok = (v) => v == null ? "-" : v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : v >= 1e4 ? (v / 1e3).toFixed(1) + "k" : Math.round(v).toLocaleString();
+  const tokc = (v) => v == null ? "-" : v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e4 ? Math.round(v / 1e3) + "k" : v >= 1e3 ? (v / 1e3).toFixed(1) + "k" : String(Math.round(v));
   const secs = (v) => v == null ? "-" : v < 1 ? Math.round(v * 1000) + " ms" : v < 120 ? v.toFixed(1) + " s" : Math.round(v / 60) + " min";
   function ago(t) {
     if (!t) return "never";
@@ -44,10 +45,15 @@
     const es = new EventSource("api/stream");
     S.es = es;
     es.onmessage = (ev) => {
-      const st = JSON.parse(ev.data);
-      if (!S.connected) { S.live = []; }
+      const d = JSON.parse(ev.data);
+      if (!S.connected) { S.live = []; S.state = null; }
       S.connected = true;
-      S.live.push(...st.live);
+      // the stream leaves out what has not changed since the last message: keep the held value
+      const prev = S.state || {};
+      const st = { ...prev, ...d };
+      if ("metrics" in d && d.metrics && prev.metrics && d.metrics_model === undefined) st.metrics = { ...prev.metrics, ...d.metrics };
+      else if ("metrics" in d && d.metrics && prev.metrics && d.metrics_model === prev.metrics_model) st.metrics = { ...prev.metrics, ...d.metrics };
+      S.live.push(...(d.live || []));
       const cut = st.now - 300;
       S.live = S.live.filter((r) => r.t >= cut);
       S.state = st;
@@ -60,6 +66,11 @@
       if (r && r.status === 401) { es.close(); $("auth").hidden = false; }
     };
   }
+  // a hidden tab holds no stream; coming back reconnects and refills the last five minutes
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { if (S.es) { S.es.close(); S.es = null; S.connected = false; } }
+    else if (!S.es && $("auth").hidden) connect();
+  });
   $("auth").addEventListener("submit", (e) => {
     e.preventDefault();
     document.cookie = `hc_key=${encodeURIComponent($("key").value)}; path=/; SameSite=Strict`;
@@ -80,13 +91,21 @@
     const b = e.target.closest("button[data-view]");
     if (!b) return;
     S.view = b.dataset.view;
-    for (const x of $("views").children) x.setAttribute("aria-selected", String(x === b));
+    for (const x of $("views").children) { x.setAttribute("aria-selected", String(x === b)); x.tabIndex = x === b ? 0 : -1; }
     for (const v of document.querySelectorAll(".view")) v.hidden = v.dataset.view !== S.view;
     history.replaceState(null, "", "#" + S.view);
     HC.hideTip();
     if (S.view === "history") loadHistory(true);
     if (S.view === "logs") { S.logs.model = null; pollLogs(); }
     render();
+  });
+
+  $("views").addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const tabs = [...$("views").children], i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus(); next.click(); e.preventDefault();
   });
 
   function render() {
@@ -114,14 +133,14 @@
     const bar = $("swapbar");
     if (st.swap) {
       setOnAir("loading", `${label(st.swap.from) !== "-" ? label(st.swap.from) + " → " : ""}${label(st.swap.to)}`, st.swap.phase === "draining" ? "draining the card" : "starting");
-      bar.hidden = false; bar.firstChild.style.width = "20%";
+      bar.hidden = false; bar.classList.add("indet"); bar.firstChild.style.width = "";
     } else if (a) {
       const busy = a.state === "ready" && live.state && live.state !== "idle";
       let sub = STATE_TEXT[a.state] || a.state;
       if (busy) sub = live.phase === "prefill" ? "reading the prompt" : `generating · ${n1(live.tok_s)} t/s`;
       if (a.state === "loading" && a.percent != null) sub = `Loading ${Math.round(a.percent)}%`;
       setOnAir(busy ? "busy" : a.state, a.label, sub);
-      bar.hidden = a.state !== "loading";
+      bar.hidden = a.state !== "loading"; bar.classList.remove("indet");
       if (a.state === "loading") bar.firstChild.style.width = (a.percent || 2) + "%";
     } else {
       setOnAir("unloaded", "Card free", "no Halocline model loaded");
@@ -154,12 +173,12 @@
     const slot = (st.slots || []).find((s) => s.is_processing) || (st.slots || [])[0];
     $("o-phase").textContent = live.state && live.state !== "idle" ? (live.phase || live.state) : "idle";
     const ctx = slot && slot.n_ctx ? slot.ctx_used / slot.n_ctx : null;
-    HC.gauge($("g-ctx"), { value: ctx, label: "Context", text: ctx == null ? "-" : pct(ctx), sub: slot ? `${tok(slot.ctx_used)} / ${tok(slot.n_ctx)}` : "", color: css("--accent") });
+    HC.gauge($("g-ctx"), { value: ctx, label: "Context", text: ctx == null ? "-" : pct(ctx), sub: slot ? `${tokc(slot.ctx_used)} of ${tokc(slot.n_ctx)}` : "", color: css("--accent") });
     const off = slot?.drafts_offered ?? lr?.drafts_offered, acc = slot?.drafts_accepted ?? lr?.drafts_accepted;
     const da = off ? acc / off : null;
-    HC.gauge($("g-draft"), { value: da, label: "Drafts kept", text: da == null ? "-" : pct(da), sub: off ? `${tok(acc)} / ${tok(off)}` : "no drafter", color: css("--s3") });
+    HC.gauge($("g-draft"), { value: da, label: "Drafts kept", text: da == null ? "-" : pct(da), sub: off ? `${tokc(acc)} of ${tokc(off)}` : "no drafter", color: css("--s3") });
     const hit = lr && lr.prompt_tokens ? (lr.reused || 0) / lr.prompt_tokens : null;
-    HC.gauge($("g-hit"), { value: hit, label: "Prefix reuse", text: hit == null ? "-" : pct(hit), sub: lr ? `${tok(lr.reused)} cached` : "", color: css("--s6") });
+    HC.gauge($("g-hit"), { value: hit, label: "Prefix reuse", text: hit == null ? "-" : pct(hit), sub: lr ? `${tokc(lr.reused)} cached` : "", color: css("--s6") });
     $("o-ttft").textContent = secs(slot?.ttft_s ?? lr?.ttft_s);
     $("o-queue").textContent = live.queued != null ? `${live.queued} waiting` : "-";
     $("o-gen").textContent = live.generated != null ? tok(live.generated) : lr ? tok(lr.output_tokens) : "-";
@@ -211,20 +230,22 @@
     const btn = m.state === "ready" ? `<button class="btn danger" data-act="unload" data-m="${esc(m.name)}">Unload</button>`
       : `<button class="btn primary" data-act="load" data-m="${esc(m.name)}" ${canLoad ? "" : "disabled"}>${st.active && st.active !== m.name && !busy ? "Swap to" : "Load"}</button>`;
     const prog = m.state === "loading" ? `<div class="mprog"><i style="width:${m.percent || 3}%"></i></div>` : "";
-    return `<div class="mcard ${on ? "on" : ""}" style="--c:${color(m.name)}">
-      <div class="mh"><span class="mn">${esc(m.label)}</span><span class="grow"></span><span class="pill"><i class="dot" data-s="${esc(m.state)}"></i>${esc(m.state === "loading" && m.percent != null ? `Loading ${Math.round(m.percent)}%` : m.state === "external" ? "External" : STATE_TEXT[m.state] || m.state)}</span></div>
-      <div class="mid">${esc(m.name)} · :${m.port}${m.lease ? " · lease " + esc(m.lease) : ""}</div>
+    return `<div class="mcard ${on ? "on" : ""}" style="--c:${color(m.name)}" aria-busy="${busy}">
+      <div class="mh"><span class="mn">${esc(m.label)}</span><span class="pill"><i class="dot" data-s="${esc(m.state)}"></i>${esc(m.state === "loading" && m.percent != null ? `Loading ${Math.round(m.percent)}%` : m.state === "external" ? "External" : STATE_TEXT[m.state] || m.state)}</span></div>
+      <div class="mid">${esc(m.name)}<span class="mport"> :${m.port}${full && m.lease ? " · lease " + esc(m.lease) : ""}</span></div>
       <div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
-      ${(s.recent || []).length > 1 ? `<div class="spark" data-spark="${esc(m.name)}"></div>` : `<div class="spark-empty">${m.state === "external" ? "history starts now" : "no requests stored yet"}</div>`}
-      <div class="mstats"><span>mean decode<b>${n1(s.decode_mean)}</b></span><span>best<b>${n1(s.decode_best)}</b></span><span>requests<b>${n0(s.requests)}</b></span>
+      ${(s.recent || []).length > 1 ? `<div class="spark" data-spark="${esc(m.name)}"></div>` : `<div class="spark-empty">${m.state === "external" ? "history starts now" : m.state === "ready" ? "waiting for its first request" : "no requests yet · load it to start its history"}</div>`}
+      <div class="mstats"><span>decode<b>${n1(s.decode_mean)}</b></span><span>best<b>${n1(s.decode_best)}</b></span><span>requests<b>${n0(s.requests)}</b></span>
         ${full ? `<span>mean prefill<b>${n0(s.prefill_mean)}</b></span><span>mean load<b>${s.load_mean_s != null ? secs(s.load_mean_s) : "-"}</b></span><span>last used<b>${esc(ago(s.last))}</b></span>
         <span>tokens out<b>${tok(s.output_tokens)}</b></span><span>drafts kept<b>${s.drafts_offered ? pct(s.drafts_accepted / s.drafts_offered) : "-"}</b></span><span>TTFT<b>${secs(s.ttft_mean)}</b></span>` : ""}</div>
       ${prog}${m.error ? `<div class="merr">${esc(m.error)}</div>` : ""}
-      ${full ? `<div class="mcmd" title="engine command">${esc(m.args)}</div>${m.notes ? `<div class="hint">${esc(m.notes)}</div>` : ""}` : ""}
+      ${full ? `<details class="mcmdd"><summary>Engine command</summary><div class="mcmd">${esc(m.args)}</div></details>${m.notes ? `<div class="hint">${esc(m.notes)}</div>` : ""}` : ""}
       <div class="mact">${m.state === "external" ? '<span class="hint">started outside the console · watched, not controlled</span>' : ""}<span class="grow"></span>${m.state === "external" ? "" : btn}</div>
     </div>`;
   }
   document.addEventListener("click", (e) => {
+    const g = e.target.closest("button[data-goto]");
+    if (g) { document.querySelector(`.views button[data-view="${g.dataset.goto}"]`).click(); return; }
     const b = e.target.closest("button[data-act]");
     if (!b || b.disabled) return;
     const name = b.dataset.m, verb = b.dataset.act;
@@ -297,8 +318,9 @@
     const m = st.metrics, e = m?.engine;
     $("e-title").textContent = st.active ? label(st.active) : "Engine";
     if (!e) {
-      $("e-sub").textContent = "No engine is up. Load a model from the Fleet view to see its shape.";
-      for (const id of ["e-shape", "e-mem", "e-totals", "e-reqs"]) $(id).innerHTML = '<div class="empty">No engine on the card</div>';
+      $("e-sub").textContent = "";
+      $("e-shape").innerHTML = '<div class="empty">No engine on the card.<br><button class="btn primary" data-goto="fleet">Choose a model</button></div>';
+      for (const id of ["e-mem", "e-totals", "e-reqs"]) $(id).innerHTML = '<div class="empty">Shown once a model is loaded</div>';
       HC.line($("e-req-dec"), { xs: [], series: [], empty: "No engine" }); HC.line($("e-req-draft"), { xs: [], series: [], empty: "No engine" });
       return;
     }
@@ -479,8 +501,30 @@
     if ($("l-follow").checked) el.scrollTop = el.scrollHeight;
   }
 
+  // ------------------------------------------------------------------------------------------------ balanced tiling
+  // A grid takes the fewest rows its width allows, then the fewest columns that still fill them evenly:
+  // 6 cards are 6, 3+3 or 2+2+2, never 5+1; 4 tiles are 4 or 2+2. One observer; it reruns only on resize.
+  const GRIDS = [["hero", 280], ["o-fleet", 220], ["f-cards", 330], ["hgrid-h", 420], ["hgrid-hw", 420]];
+  const tileRO = new ResizeObserver((entries) => { for (const e of entries) balance(e.target); });
+  function balance(el) {
+    const min = +el.dataset.min, n = el.children.length;
+    if (!n) return;
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 16;
+    const fit = Math.max(1, Math.floor((el.clientWidth + gap) / (min + gap)));
+    const cols = Math.ceil(n / Math.ceil(n / Math.min(fit, n)));
+    if (el.dataset.cols !== String(cols)) { el.dataset.cols = cols; el.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`; }
+  }
+  for (const [id, min] of GRIDS) {
+    const el = $(id) || document.querySelector("." + id);
+    if (!el) continue;
+    el.dataset.min = min;
+    tileRO.observe(el);
+    new MutationObserver(() => balance(el)).observe(el, { childList: true });
+  }
+
   // ------------------------------------------------------------------------------------------------ start
   const start = (location.hash || "").slice(1);
   if (start && document.querySelector(`.views button[data-view="${CSS.escape(start)}"]`)) document.querySelector(`.views button[data-view="${CSS.escape(start)}"]`).click();
   connect();
+  if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

@@ -45,11 +45,12 @@
     return b;
   }
 
+  // the smallest round number >= v that splits into four round ticks (4, 8, 20, 40, 100, 200, 400 ...)
   function niceMax(v) {
-    if (!(v > 0)) return 1;
-    const p = Math.pow(10, Math.floor(Math.log10(v)));
-    for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p;
-    return 10 * p;
+    if (!(v > 0)) return 4;
+    const step = v / 4, p = Math.pow(10, Math.floor(Math.log10(step)));
+    for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= step) return 4 * m * p;
+    return 40 * p;
   }
   const fmtDefault = (v) => v == null ? "-" : Math.abs(v) >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "k" : (Math.round(v * 10) / 10).toString();
   function timeFmt(t, span) {
