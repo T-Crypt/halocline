@@ -47,6 +47,7 @@ class Model:
     exe: str | None = None                      # the engine binary; default RELEASE/bin/halocline
     aliases: list[str] = field(default_factory=list)   # other names clients may ask for (renamed to `name` upstream)
     engine: str | None = None                   # gateway mode: the berth engine that serves it (default: lease)
+    meta: dict = field(default_factory=dict)    # free-form, unread by the console: for tools that render client configs
 
     @property
     def base(self) -> str:
@@ -118,7 +119,7 @@ def _expand(p: str, here: Path) -> str:
 
 
 MODEL_KEYS = {"name", "label", "release", "port", "args", "lease", "branch", "priority", "min_turn", "notes", "env",
-              "exe", "aliases", "engine"}
+              "exe", "aliases", "engine", "meta"}
 CONSOLE_KEYS = {"host", "port", "data", "berth", "berth_config", "retention_days", "title", "gateway", "gateway_key_file"}
 
 
@@ -164,7 +165,7 @@ def parse(raw: dict, here: Path) -> Fleet:
                   priority=e.get("priority", "foreground"), min_turn=e.get("min_turn"), notes=e.get("notes", ""),
                   env={str(k): str(v) for k, v in e.get("env", {}).items()},
                   exe=_expand(e["exe"], here) if e.get("exe") else None, aliases=list(aliases),
-                  engine=e.get("engine"))
+                  engine=e.get("engine"), meta=dict(e.get("meta", {})))
         models.append(m)
     f = Fleet(models=models, **{k: con[k] for k in con if k not in ("berth_config", "gateway_key_file")})
     if con.get("gateway_key_file"):
