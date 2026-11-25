@@ -296,20 +296,13 @@ def make_handler(con: Console):
                     body = json.dumps(doc).encode()
                 except (ValueError, TypeError):
                     pass
+            # berth mode: berth loads it (a switch under its lease); the request itself goes to the engine, which speaks
+            # every API Halocline has (the gateway is OpenAI-only: no /v1/messages, no /v1/responses)
             host, port, extra = "127.0.0.1", m.port, {}
-            if con.fleet.gateway:
-                # berth's gateway loads the model under its lease and streams keepalives while it does
-                u = urlsplit(con.fleet.gateway)
-                host, port = u.hostname, u.port or 80
-                key = con.fleet.gateway_key()
-                extra = {"Authorization": f"Bearer {key}"} if key else {}
-                with con.sup.lock:
-                    if con.sup.state[name] in ("unloaded", "failed"):
-                        con.sup.pending[name] = con.sup.gw_started[name] = time.time()
-                        con.sup.state[name] = "starting"
-            elif con.sup.state[name] not in (READY, EXTERNAL):
+            if con.sup.state[name] not in (READY, EXTERNAL):
                 threading.Thread(target=con.sup.load, args=(name,), daemon=True).start()
                 end = time.time() + LOAD_WAIT_S
+                time.sleep(0.3)
                 while time.time() < end and con.sup.state[name] not in (READY, EXTERNAL, "failed"):
                     time.sleep(0.5)
                 if con.sup.state[name] not in (READY, EXTERNAL):

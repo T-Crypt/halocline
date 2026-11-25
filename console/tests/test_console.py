@@ -320,14 +320,21 @@ class GatewayModeCase(unittest.TestCase):
         self.assertEqual(urllib.request.urlopen(req, timeout=10).status, 202)
         self.wait("ready")
         self.assertEqual(self.calls[0], ("/v1/berth/switch", {"engine": "halocline", "model": "Sparse"}, "Bearer sekrit"))
-        # an alias reaches berth renamed, with the console's key in place of the client's
+        # an alias reaches the engine renamed (it answers only to its own name); berth saw only the switch
         req = urllib.request.Request(self.base + "/v1/chat/completions", method="POST",
                                      data=json.dumps({"model": "router-halocline", "max_tokens": 4,
                                                       "messages": [{"role": "user", "content": "hi"}]}).encode(),
                                      headers={"Content-Type": "application/json", "Authorization": "Bearer client"})
-        self.assertEqual(urllib.request.urlopen(req, timeout=60).status, 200)
-        path, body, auth = self.calls[-1]
-        self.assertEqual((path, body["model"], auth), ("/v1/chat/completions", "Sparse", "Bearer sekrit"))
+        with urllib.request.urlopen(req, timeout=60) as r:
+            self.assertEqual(json.loads(r.read())["model"], "Sparse")
+        # and the Anthropic API, which berth's gateway does not route, works the same way
+        req = urllib.request.Request(self.base + "/v1/messages", method="POST",
+                                     data=json.dumps({"model": "router-halocline", "max_tokens": 4,
+                                                      "messages": [{"role": "user", "content": "hi"}]}).encode(),
+                                     headers={"Content-Type": "application/json", "anthropic-version": "2023-06-01"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            self.assertEqual(r.status, 200)
+        self.assertEqual([c[0] for c in self.calls], ["/v1/berth/switch"])
         ids = {m["id"] for m in json.load(urllib.request.urlopen(self.base + "/v1/models", timeout=10))["data"]}
         self.assertEqual(ids, {"Sparse", "router-halocline"})
         req = urllib.request.Request(self.base + "/api/models/Sparse/unload", data=b"{}", method="POST",
@@ -335,3 +342,12 @@ class GatewayModeCase(unittest.TestCase):
         urllib.request.urlopen(req, timeout=10)
         self.wait("unloaded")
         self.assertEqual(self.calls[-1][:2], ("/v1/berth/stop", {"engine": "halocline"}))
+
+    def test_unloaded_request_asks_berth_first(self):
+        n = len(self.calls)
+        req = urllib.request.Request(self.base + "/v1/chat/completions", method="POST",
+                                     data=json.dumps({"model": "Sparse", "max_tokens": 4,
+                                                      "messages": [{"role": "user", "content": "hi"}]}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        self.assertEqual(urllib.request.urlopen(req, timeout=90).status, 200)
+        self.assertEqual(self.calls[n][0], "/v1/berth/switch")
