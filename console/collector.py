@@ -41,6 +41,7 @@ class Collector:
         self.apps: list[dict] = []
         self.apps_at = 0.0
         self.sampled = 0.0
+        self.read_prev: dict = {}                                   # (model, slot) -> (time, prefill_done) during a read
         self.seen: dict[str, set] = collections.defaultdict(set)    # request ids already turned into prefill points
         self.prefill_done: list[tuple[float, float]] = []            # (time, t/s) of requests finished since the sample
         self.stopping = threading.Event()
@@ -92,7 +93,8 @@ class Collector:
         row = {
             "t": now, "model": name, "state": self.sup.state.get(name) if name else None,
             "tok_s": live.get("tok_s") or 0.0,
-            "prefill_tok_s": (live.get("prefill_tok_s_mean") if live.get("phase") == "prefill" else None)
+            "prefill_tok_s": self._read_rate(name, slot_rows, now)
+                             or (live.get("prefill_tok_s_mean") if live.get("phase") == "prefill" else None)
                              or (max(finished) if finished else 0.0),
             "active": (live.get("slots") or {}).get("active"), "queued": live.get("queued"),
             "ctx_used": max((s.get("ctx_used") or 0 for s in slot_rows), default=None),
@@ -118,6 +120,23 @@ class Collector:
         if now - self.apps_at >= (APPS_EVERY if self.viewers else APPS_IDLE):
             self.apps_at = now
             self.apps = gpu_apps()
+
+    def _read_rate(self, name: str, slots: list, now: float) -> float | None:
+        """Live prefill t/s from the slots' read progress: a long prompt shows its rate while it reads, not only at the
+        end. None when no slot is reading."""
+        total, reading = 0.0, False
+        for s in slots:
+            key = (name, s.get("id"))
+            done = s.get("prefill_done")
+            if s.get("state") != "prefill" or not isinstance(done, (int, float)):
+                self.read_prev.pop(key, None)
+                continue
+            reading = True
+            prev = self.read_prev.get(key)
+            self.read_prev[key] = (now, done)
+            if prev and now > prev[0] and done >= prev[1]:
+                total += (done - prev[1]) / (now - prev[0])
+        return total if reading and total > 0 else None
 
     def _new_prefill(self, name: str, metrics: dict) -> list[float]:
         """Read rates (t/s) of the requests this engine finished since the last reading. The first reading after the

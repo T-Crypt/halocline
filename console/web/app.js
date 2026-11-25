@@ -135,9 +135,12 @@
       setOnAir("loading", `${label(st.swap.from) !== "-" ? label(st.swap.from) + " → " : ""}${label(st.swap.to)}`, st.swap.phase === "draining" ? "draining the card" : "starting");
       bar.hidden = false; bar.classList.add("indet"); bar.firstChild.style.width = "";
     } else if (a) {
-      const busy = a.state === "ready" && live.state && live.state !== "idle";
+      const rd = (st.slots || []).find((x) => x.state === "prefill");
+      const busy = a.state === "ready" && ((live.state && live.state !== "idle") || rd);
       let sub = STATE_TEXT[a.state] || a.state;
-      if (busy) sub = live.phase === "prefill" ? "reading the prompt" : `generating · ${n1(live.tok_s)} t/s`;
+      const lastRow = S.live[S.live.length - 1] || {};
+      if (busy) sub = rd ? `reading the prompt · ${pct(rd.prompt_tokens ? rd.prefill_done / rd.prompt_tokens : null)}${lastRow.prefill_tok_s ? ` · ${n0(lastRow.prefill_tok_s)} t/s` : ""}`
+        : live.tok_s ? `generating · ${n1(live.tok_s)} t/s` : "generating";
       if (a.state === "loading" && a.percent != null) sub = `Loading ${Math.round(a.percent)}%`;
       setOnAir(busy ? "busy" : a.state, a.label, sub);
       bar.hidden = a.state !== "loading"; bar.classList.remove("indet");
@@ -164,15 +167,19 @@
     HC.line($("o-dec-chart"), { xs, series: [{ name: "Decode", color: css("--accent"), values: S.live.map((r) => r.state ? r.tok_s || 0 : null) }], compact: true, unit: "t/s" });
     const lr = lastReq(m);
     const lastPre = lr?.timings?.prompt_per_second;
-    $("o-pre").innerHTML = live.phase === "prefill" ? `${n0(live.prefill_tok_s_mean)}<span class="u">tok/s</span>` : lastPre != null ? `${n0(lastPre)}<span class="u">last</span>` : "-";
-    $("o-pre").classList.toggle("dim", live.phase !== "prefill");
-    $("o-pre-last").textContent = lr ? `${tok(lr.timings?.prompt_n ?? lr.prompt_tokens)} read in ${secs((lr.prompt_ms || 0) / 1000)}` : "-";
+    const reading = (st.slots || []).find((x) => x.state === "prefill");
+    const nowPre = reading ? (S.live[S.live.length - 1] || {}).prefill_tok_s : null;
+    $("o-pre").innerHTML = nowPre ? `${n0(nowPre)}<span class="u">tok/s</span>` : lastPre != null ? `${n0(lastPre)}<span class="u">last</span>` : "-";
+    $("o-pre").classList.toggle("dim", !nowPre);
+    if (reading) $("o-pre-last").textContent = `${tok(reading.prefill_done)} of ${tok(reading.prompt_tokens)} read`;
+    if (!reading) $("o-pre-last").textContent = lr ? `${tok(lr.timings?.prompt_n ?? lr.prompt_tokens)} read in ${secs((lr.prompt_ms || 0) / 1000)}` : "-";
     $("o-pre-best").textContent = n0(Math.max(best.prefill?.tok_s || 0, sb.prefill_best || 0) || null);
     HC.line($("o-pre-chart"), { xs, series: [{ name: "Prefill", color: css("--accent-2"), values: S.live.map((r) => r.state ? r.prefill_tok_s || 0 : null), bars: true }], compact: true, unit: "t/s" });
 
     // the request: context fill, draft acceptance, prefix-cache hit
     const slot = (st.slots || []).find((s) => s.is_processing) || (st.slots || [])[0];
-    $("o-phase").textContent = live.state && live.state !== "idle" ? (live.phase || live.state) : "idle";
+    $("o-phase").textContent = (st.slots || []).some((x) => x.state === "prefill") ? "reading the prompt"
+      : live.state && live.state !== "idle" ? (live.phase || live.state) : "idle";
     const ctx = slot && slot.n_ctx ? slot.ctx_used / slot.n_ctx : null;
     HC.gauge($("g-ctx"), { value: ctx, label: "Context", text: ctx == null ? "-" : pct(ctx), sub: slot ? `${tokc(slot.ctx_used)} of ${tokc(slot.n_ctx)}` : "", color: css("--accent") });
     const off = slot?.drafts_offered ?? lr?.drafts_offered, acc = slot?.drafts_accepted ?? lr?.drafts_accepted;

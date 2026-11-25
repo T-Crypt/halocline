@@ -368,3 +368,15 @@ class PrefillPointsCase(unittest.TestCase):
         self.assertEqual(col._new_prefill("M", {"requests": [cached, new, old]}), [4500.0])
         self.assertEqual(col._new_prefill("M", {"requests": [cached, new, old]}), [])
         self.assertEqual([v for _, v in col.prefill_done], [4500.0])
+
+
+class ReadRateCase(unittest.TestCase):
+    def test_rate_from_slot_progress(self):
+        from console.collector import Collector
+        col = Collector.__new__(Collector)
+        col.read_prev = {}
+        slot = {"id": 0, "state": "prefill", "prefill_done": 10000, "prompt_tokens": 133000}
+        self.assertIsNone(col._read_rate("M", [slot], 100.0))                   # first look: no rate yet
+        self.assertEqual(col._read_rate("M", [{**slot, "prefill_done": 13000}], 101.0), 3000.0)
+        self.assertIsNone(col._read_rate("M", [{**slot, "state": "decoding"}], 102.0))
+        self.assertEqual(col.read_prev, {})
