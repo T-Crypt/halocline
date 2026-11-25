@@ -1,6 +1,6 @@
 # Running the server
 
-Settings: [configuration](configuration/index.md). Diagnostic flags: `bin/halocline --help`. Several models: [models and the router](configuration/models.md).
+Settings: [configuration](configuration/index.md). Diagnostic flags: `bin/halocline --help`. Several models: [models and the router](configuration/models.md); several releases (branches) behind one page and port: [the console](console.md).
 
 ## Start-up
 
