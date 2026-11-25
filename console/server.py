@@ -46,6 +46,8 @@ class Console:
         self.sup = Supervisor(fleet, self.history)
         self.col = Collector(self.sup, self.history, telemetry)
         self.started = time.time()
+        self.inflight = 0                   # passed-through requests still answering: a stop waits for them
+        self.inflight_lock = threading.Lock()
 
     def state(self, points: int = 120) -> dict:
         snap = self.col.snapshot(points)
@@ -308,6 +310,15 @@ def make_handler(con: Console):
                 if con.sup.state[name] not in (READY, EXTERNAL):
                     why = con.sup.errors.get(name) or "it did not load in time"
                     return self._json(503, {"error": {"message": f"{name} is not ready: {why}", "type": "server_error"}})
+            with con.inflight_lock:
+                con.inflight += 1
+            try:
+                self._pass(host, port, extra, body, name)
+            finally:
+                with con.inflight_lock:
+                    con.inflight -= 1
+
+        def _pass(self, host, port, extra, body, name):
             conn = http.client.HTTPConnection(host, port, timeout=3600)
             headers = {k: v for k, v in self.headers.items()
                        if k.lower() not in ("host", "connection", "content-length", "accept-encoding", "authorization",

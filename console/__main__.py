@@ -6,6 +6,9 @@ import os
 import signal
 import sys
 import threading
+import time
+
+DRAIN_S = 600          # how long a stop waits for passed-through requests to finish
 
 
 def main(argv=None) -> int:
@@ -50,12 +53,23 @@ def main(argv=None) -> int:
     print(f"halocline-console: {len(fleet.models)} models, http://{fleet.host}:{fleet.port}/", flush=True)
 
     def stop(*_):
-        threading.Thread(target=httpd.shutdown, daemon=True).start()
+        # stop taking requests, then let the ones being answered finish (a deploy must not cut a long prompt off)
+        def drain():
+            httpd.shutdown()
+            end = time.time() + DRAIN_S
+            while con.inflight and time.time() < end:
+                time.sleep(0.5)
+            done.set()
+        threading.Thread(target=drain, daemon=True).start()
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
+    done = threading.Event()
     try:
         httpd.serve_forever(poll_interval=0.5)
+        done.wait(DRAIN_S + 5)
     finally:
+        if con.inflight:
+            print(f"halocline-console: stopping with {con.inflight} request(s) still answering", file=sys.stderr)
         con.sup.shutdown()
     return 0
 
