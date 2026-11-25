@@ -12,6 +12,13 @@
   <code>status: pre-alpha</code> &nbsp; <code>target: sm_89 only</code> &nbsp; <code>models: Qwen4 family</code> &nbsp; <code>licence: MIT</code>
 </p>
 
+<p align="center">
+  <img src="docs/img/console.png" alt="The Halocline console: live decode and prefill speed, context fill, drafts kept and prefix reuse for the request in flight, the card's VRAM, power and temperature, and a card per model with Load, Swap and Unload. Here a 46,791-token prompt reads at 6,719 tok/s." width="100%">
+</p>
+<p align="center">
+  <sub><a href="docs/console.md">The console</a>: one page and one API port for every model on the machine. Six models from four releases, one on the card, a 46,791-token prompt reading at 6,719 tok/s. Monitoring only, no chat.</sub>
+</p>
+
 ## Branches
 
 This branch, `main`, is the default install and the one the rest of this README describes. Three optional research
