@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#04161e">
+<meta name="description" content="Every model this machine serves with Halocline: load, swap and watch them.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Halocline">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="web/icons/apple-touch-icon.png">
+<title>Halocline</title>
+<link rel="icon" type="image/svg+xml" href="web/mark.svg">
+<link rel="preload" href="fonts/geist-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist-mono-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="web/app.css">
+<script defer src="web/charts.js"></script>
+<script defer src="web/app.js"></script>
+</head>
+<body>
+<div class="abyss" aria-hidden="true"><i class="band"></i></div>
+
+<header class="top">
+  <a class="brand" href="./" aria-label="Halocline console">
+    <img src="web/mark.svg" alt="" width="28" height="28">
+    <span class="word">Halocline</span>
+  </a>
+  <nav class="views" id="views" role="tablist" aria-label="Views">
+    <button role="tab" data-view="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-view="fleet" tabindex="-1">Fleet</button>
+    <button role="tab" data-view="engine" tabindex="-1">Engine</button>
+    <button role="tab" data-view="history" tabindex="-1">History</button>
+    <button role="tab" data-view="hardware" tabindex="-1">Hardware</button>
+    <button role="tab" data-view="logs" tabindex="-1">Logs</button>
+  </nav>
+  <span class="grow"></span>
+  <div class="onair" id="onair">
+    <span class="dot" id="onair-dot" data-s="offline"></span>
+    <span class="onair-txt"><b id="onair-model">Connecting</b><small id="onair-state"></small></span>
+    <span class="swapbar" id="swapbar" hidden><i></i></span>
+  </div>
+  <span class="clock num" id="clock"></span>
+</header>
+
+<form class="auth" id="auth" hidden>
+  <label for="key">API key</label>
+  <input id="key" type="password" autocomplete="off" placeholder="This console needs its key">
+  <button>Connect</button>
+</form>
+
+<main id="main">
+
+  <!-- ============================================================ Overview -->
+  <section class="view" data-view="overview">
+    <div class="hero" id="hero">
+      <div class="tile t-dec">
+        <div class="tile-h">Decode<span class="tile-sub" id="o-dec-sub">tokens / s</span></div>
+        <div class="big num" id="o-dec">-</div>
+        <div class="tile-foot"><span>mean <b class="num" id="o-dec-mean">-</b></span><span>best <b class="num" id="o-dec-best">-</b></span></div>
+        <div class="chart c-hero" id="o-dec-chart"></div>
+      </div>
+      <div class="tile t-pre">
+        <div class="tile-h">Prefill<span class="tile-sub">tokens / s</span></div>
+        <div class="big num" id="o-pre">-</div>
+        <div class="tile-foot"><span>prompt <b class="num" id="o-pre-last">-</b></span><span>best <b class="num" id="o-pre-best">-</b></span></div>
+        <div class="chart c-hero" id="o-pre-chart"></div>
+      </div>
+      <div class="tile t-gauges">
+        <div class="tile-h">Request<span class="tile-sub" id="o-phase">idle</span></div>
+        <div class="gauges">
+          <div class="gauge" id="g-ctx"></div>
+          <div class="gauge" id="g-draft"></div>
+          <div class="gauge" id="g-hit"></div>
+        </div>
+        <dl class="kv3">
+          <div><dt>TTFT</dt><dd class="num" id="o-ttft">-</dd></div>
+          <div><dt>Queue</dt><dd class="num" id="o-queue">-</dd></div>
+          <div><dt>Generated</dt><dd class="num" id="o-gen">-</dd></div>
+        </dl>
+      </div>
+      <div class="tile t-card">
+        <div class="tile-h">Card<span class="tile-sub" id="o-gpu-name"></span></div>
+        <div class="meters" id="o-meters"></div>
+      </div>
+    </div>
+
+    <div class="strip-h"><h2>Fleet</h2><span class="hint">Load or swap from any card. A swap lets running requests finish first.</span></div>
+    <div class="strip" id="o-fleet"></div>
+
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-h"><h2>Slots</h2><span class="hint" id="o-slot-note"></span></div>
+        <div id="o-slots"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h2>Recent requests</h2><span class="hint">queue · load · prefill · decode</span></div>
+        <div id="o-reqs"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ Fleet -->
+  <section class="view" data-view="fleet" hidden>
+    <div class="panel-h"><h2>Models</h2><span class="hint" id="f-hint">Each runs its own release, so builds from different branches share one console. One on the card at a time.</span></div>
+    <div class="fleet" id="f-cards"></div>
+    <div class="panel">
+      <div class="panel-h"><h2>Compare</h2><span class="hint">All stored requests</span></div>
+      <div class="chart c-bars" id="f-compare"></div>
+      <div id="f-table"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ Engine -->
+  <section class="view" data-view="engine" hidden>
+    <div class="panel-h"><h2 id="e-title">Engine</h2><span class="hint" id="e-sub"></span></div>
+    <div class="egrid">
+      <div class="panel"><div class="panel-h"><h3>Shape</h3></div><div id="e-shape"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Memory</h3><span class="hint">where the model lives</span></div><div id="e-mem"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Session</h3><span class="hint" id="e-since"></span></div><div id="e-totals"></div></div>
+    </div>
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-h"><h3>Decode per request</h3><span class="hint">tokens / s, oldest left</span></div>
+        <div class="chart c-mid" id="e-req-dec"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3>Draft acceptance per request</h3><span class="hint">accepted / offered</span></div>
+        <div class="chart c-mid" id="e-req-draft"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Requests</h3><span class="hint">this engine run</span></div>
+      <div id="e-reqs"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ History -->
+  <section class="view" data-view="history" hidden>
+    <div class="filters">
+      <div class="seg" id="h-range" role="radiogroup" aria-label="Range">
+        <button data-r="15m">15m</button><button data-r="1h">1h</button><button data-r="6h" aria-pressed="true">6h</button>
+        <button data-r="24h">24h</button><button data-r="7d">7d</button><button data-r="30d">30d</button>
+      </div>
+      <select id="h-model" aria-label="Model"><option value="">Every model</option></select>
+    </div>
+    <div class="hgrid" id="hgrid-h">
+      <div class="panel"><div class="panel-h"><h3>Decode</h3><span class="hint">tokens / s while generating</span></div><div class="chart c-mid" id="h-dec"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Prefill</h3><span class="hint">tokens / s while reading</span></div><div class="chart c-mid" id="h-pre"></div></div>
+      <div class="panel"><div class="panel-h"><h3>GPU utilisation</h3><span class="hint">%</span></div><div class="chart c-mid" id="h-util"></div></div>
+      <div class="panel"><div class="panel-h"><h3>GPU power</h3><span class="hint">W</span></div><div class="chart c-mid" id="h-power"></div></div>
+      <div class="panel"><div class="panel-h"><h3>VRAM</h3><span class="hint">GiB</span></div><div class="chart c-mid" id="h-vram"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Host RAM</h3><span class="hint">GiB</span></div><div class="chart c-mid" id="h-ram"></div></div>
+    </div>
+    <div class="panel"><div class="panel-h"><h3>Timeline</h3><span class="hint">which model held the card</span></div><div class="chart c-band" id="h-band"></div></div>
+    <div class="cols">
+      <div class="panel"><div class="panel-h"><h3>Prompt size vs decode speed</h3><span class="hint">one dot per request</span></div><div class="chart c-tall" id="h-scatter"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Events</h3></div><div id="h-events" class="scroll"></div></div>
+    </div>
+    <div class="panel"><div class="panel-h"><h3>Per model</h3><span class="hint" id="h-stats-note"></span></div><div id="h-stats"></div></div>
+  </section>
+
+  <!-- ============================================================ Hardware -->
+  <section class="view" data-view="hardware" hidden>
+    <div class="hwgrid">
+      <div class="panel"><div class="panel-h"><h3 id="hw-gpu-name">GPU</h3><span class="hint" id="hw-gpu-sub"></span></div><div class="gauges big4" id="hw-gauges"></div><div id="hw-gpu-kv"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Who holds the card</h3><span class="hint">anything not ours is a squatter</span></div><div id="hw-holders"></div></div>
+    </div>
+    <div class="hgrid" id="hgrid-hw">
+      <div class="panel"><div class="panel-h"><h3>Utilisation</h3><span class="hint">%, last 5 min</span></div><div class="chart c-mid" id="hw-util"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Power</h3><span class="hint">W, last 5 min</span></div><div class="chart c-mid" id="hw-power"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Temperature</h3><span class="hint">°C, last 5 min</span></div><div class="chart c-mid" id="hw-temp"></div></div>
+      <div class="panel"><div class="panel-h"><h3>PCIe</h3><span class="hint">MB/s host → card, last 5 min</span></div><div class="chart c-mid" id="hw-pcie"></div></div>
+      <div class="panel"><div class="panel-h"><h3>CPU</h3><span class="hint" id="hw-cpu-name">%</span></div><div class="chart c-mid" id="hw-cpu"></div></div>
+      <div class="panel"><div class="panel-h"><h3>Host RAM</h3><span class="hint">GiB, last 5 min</span></div><div class="chart c-mid" id="hw-ram"></div></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ Logs -->
+  <section class="view" data-view="logs" hidden>
+    <div class="filters">
+      <select id="l-model" aria-label="Model"></select>
+      <div class="seg" id="l-src"><button data-s="all" aria-pressed="true">All</button><button data-s="engine">Engine</button><button data-s="out">Output</button></div>
+      <div class="seg" id="l-lvl"><button data-l="all" aria-pressed="true">Any level</button><button data-l="warn">Warn+</button><button data-l="error">Errors</button></div>
+      <input id="l-q" type="search" placeholder="Filter" aria-label="Filter log lines">
+      <label class="chk"><input type="checkbox" id="l-follow" checked> Follow</label>
+    </div>
+    <div class="panel logs-panel"><div class="logs" id="l-lines" role="log" tabindex="0"></div></div>
+  </section>
+
+</main>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

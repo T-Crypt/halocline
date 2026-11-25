@@ -12,6 +12,7 @@ What runs today, what each gate proves, and what is still missing. The method pa
 | CPU suite | host logic, formats, tokenizers, planning | `ctest -L cpu -j 16` | 93 registered, all pass (2026-11-18, `tools/verify.sh`) |
 | GPU suite | kernels and their parity tests against CPU or double references | `ctest -L gpu -j 1` under a GPU lease | 124 of 124 (2026-11-18); with `HALO_QWEN35_PACK` set the 27B round trip runs too |
 | Python server suite | request parsing, streaming, tools, config, images | `python -m unittest discover -s serve/tests -t .` | 1,089 OK, 4 skips (2026-11-19) |
+| Console suite | fleet file, load, swap through `/v1`, unload, an outside engine left alone, origin checks, static paths, stream deltas, Berth mode against a stand-in gateway (mock engine, no GPU) | `python -m unittest console.tests.test_console` | 13 OK (2026-11-24) |
 | No-GPU checks, one command | the structure checks, the Python suites, the label rule and the CPU suite, as a reviewer runs them | `tools/verify.sh [BUILD_DIR]` (see below) | all pass, 2026-11-18 |
 | KLD gate, sparse | output distribution against the frozen BF16 base | `halocline-bench --quality 100 --kld-base ...` | mean 0.08195, top-1 90.45% |
 | KLD gate, dense | the same, against `qwen38-27b-bf16-base.kld` | the same | UD-Q4_K_XL 0.00582 / 96.67%; UD-IQ4_XS 0.01618 / 94.31% (int8 KV) |

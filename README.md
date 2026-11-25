@@ -128,7 +128,7 @@ from 4-bit weights, an int8 KV cache and a draft layer, on a single 24 GB card.
 | **Sparse** | Qwen3.8-Flash-Next (`qwen4_exp`): 512 experts, 10 active plus 1 shared, QSA sparse attention, gated residual, n-gram embedding, MTP drafter. Experts that do not fit the card live in page-locked RAM. **Runs.** |
 | **Dense** | Qwen3.8-27B (`qwen35`), standing in for Qwen4-27B until its weights exist: Gated DeltaNet and gated attention (3 to 1), SwiGLU, MTP drafter. Unsloth's v3.1 UD GGUFs repacked with every tensor as stored; the matrices run on llama.cpp's MMQ and MMVQ kernels in their stored types. **Runs, at 262,144 tokens by default** ([two profiles](docs/models/qwen38-27b.md#two-profiles)). |
 | **Weights** | Unsloth GGUFs, converted to a pack that copies the quantized tensors byte for byte. One interim exception: the 195 `hc_*` tensors (Q8_0 in the GGUF) are cast to BF16. |
-| **API** | OpenAI chat completions and Responses, Anthropic Messages, streaming and tool calls, and a stats page, all from one standalone server (`halocline serve`). One request at a time is the supported mode. Run it alone, or add it to [llama-swap](https://github.com/mostlygeek/llama-swap) as one entry ([Ada user?](#ada-user) step 6). No chat UI. |
+| **API** | OpenAI chat completions and Responses, Anthropic Messages, streaming and tool calls, and a stats page, all from one standalone server (`halocline serve`). One request at a time is the supported mode. Run it alone, or add it to [llama-swap](https://github.com/mostlygeek/llama-swap) as one entry ([Ada user?](#ada-user) step 6). No chat UI. Several models, from any branch: [the console](docs/console.md), one page and one port that loads, swaps and watches them. |
 
 
 ## The question
@@ -346,6 +346,7 @@ size does to the expert pool, and what a row records.
 | `gates/` | SASS hashes per step, whole objects and per function |
 | `logs/` | build and test logs per step |
 | `docs/design/` | the build spec and the review notes the engine was planned from |
+| `console/`, [`docs/console.md`](docs/console.md) | the console: one page and one API port for every model on the machine |
 | [`docs/roadmap.md`](docs/roadmap.md) | the ordered open work, with accept criteria |
 | [`docs/testing.md`](docs/testing.md) | every gate, what it proves, and what is still missing |
 | `docs/research/` | the research notes behind the design, with sources |
