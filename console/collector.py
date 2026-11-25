@@ -41,6 +41,9 @@ class Collector:
         self.apps: list[dict] = []
         self.apps_at = 0.0
         self.sampled = 0.0
+        self.read_prev: dict = {}                                   # (model, slot) -> (time, prefill_done) during a read
+        self.seen: dict[str, set] = collections.defaultdict(set)    # request ids already turned into prefill points
+        self.prefill_done: list[tuple[float, float]] = []            # (time, t/s) of requests finished since the sample
         self.stopping = threading.Event()
         threading.Thread(target=self._loop, daemon=True, name="collector").start()
 
@@ -73,6 +76,9 @@ class Collector:
                 self.slots[name] = slots
         if isinstance(metrics, dict) and self.history is not None and metrics.get("requests"):
             self.history.requests(name, metrics["requests"])
+        # A prompt read is usually over between two readings (a cached prompt reads in milliseconds), so live.phase
+        # rarely says prefill. Each finished request reports its own read rate: that is the prefill point.
+        finished = self._new_prefill(name, metrics) if isinstance(metrics, dict) else []
         if hasattr(self.tel, "sample"):
             try:
                 self.host = self.tel.sample()
@@ -87,7 +93,9 @@ class Collector:
         row = {
             "t": now, "model": name, "state": self.sup.state.get(name) if name else None,
             "tok_s": live.get("tok_s") or 0.0,
-            "prefill_tok_s": live.get("prefill_tok_s_mean") if live.get("phase") == "prefill" else 0.0,
+            "prefill_tok_s": self._read_rate(name, slot_rows, now)
+                             or (live.get("prefill_tok_s_mean") if live.get("phase") == "prefill" else None)
+                             or (max(finished) if finished else 0.0),
             "active": (live.get("slots") or {}).get("active"), "queued": live.get("queued"),
             "ctx_used": max((s.get("ctx_used") or 0 for s in slot_rows), default=None),
             "gpu_util": gpu.get("util"), "gpu_power": gpu.get("power"), "gpu_temp": gpu.get("temp"),
@@ -105,10 +113,50 @@ class Collector:
             for k in ("tok_s", "prefill_tok_s"):
                 vals = [r[k] for r in recent if r.get(k)]
                 agg[k] = sum(vals) / len(vals) if vals else 0.0
+            if self.prefill_done:                       # requests that finished since the last sample, between polls too
+                agg["prefill_tok_s"] = sum(v for _, v in self.prefill_done) / len(self.prefill_done)
+                self.prefill_done = []
             self.history.sample(agg)
         if now - self.apps_at >= (APPS_EVERY if self.viewers else APPS_IDLE):
             self.apps_at = now
             self.apps = gpu_apps()
+
+    def _read_rate(self, name: str, slots: list, now: float) -> float | None:
+        """Live prefill t/s from the slots' read progress: a long prompt shows its rate while it reads, not only at the
+        end. None when no slot is reading."""
+        total, reading = 0.0, False
+        for s in slots:
+            key = (name, s.get("id"))
+            done = s.get("prefill_done")
+            if s.get("state") != "prefill" or not isinstance(done, (int, float)):
+                self.read_prev.pop(key, None)
+                continue
+            reading = True
+            prev = self.read_prev.get(key)
+            self.read_prev[key] = (now, done)
+            if prev and now > prev[0] and done >= prev[1]:
+                total += (done - prev[1]) / (now - prev[0])
+        return total if reading and total > 0 else None
+
+    def _new_prefill(self, name: str, metrics: dict) -> list[float]:
+        """Read rates (t/s) of the requests this engine finished since the last reading. The first reading after the
+        console starts only marks what is already there, so old requests do not show as a burst."""
+        seen = self.seen[name]
+        first = not seen
+        out = []
+        for r in metrics.get("requests") or []:
+            key = (r.get("id"), r.get("time"))
+            if key in seen:
+                continue
+            seen.add(key)
+            rate = (r.get("timings") or {}).get("prompt_per_second")
+            if not first and rate and (r.get("timings") or {}).get("prompt_n"):
+                out.append(float(rate))
+        if len(seen) > 2000:
+            seen.clear()
+            seen.update((r.get("id"), r.get("time")) for r in metrics.get("requests") or [])
+        self.prefill_done += [(time.time(), v) for v in out]
+        return out
 
     def _pull_logs(self, m) -> None:
         after = self.log_after.get(m.name)

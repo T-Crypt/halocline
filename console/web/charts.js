@@ -107,6 +107,18 @@
       }
       for (const se of s.series) {
         const col = se.color;
+        if (se.bars) {
+          const bw = Math.max(2, Math.min(8, pw / Math.max(n, 1) * 0.8));
+          ctx.fillStyle = css("--grid");
+          ctx.fillRect(pad.l, Math.round(Y(min)) - 0.5, pw, 1);
+          se.values.forEach((v, i) => {
+            if (!v) return;
+            const x = X(i), y = Y(Math.min(v, max));
+            ctx.fillStyle = col;
+            ctx.beginPath(); ctx.roundRect(x - bw / 2, y, bw, Y(min) - y, [2, 2, 0, 0]); ctx.fill();
+          });
+          continue;
+        }
         // runs of non-null values
         let run = [];
         const runs = [];
