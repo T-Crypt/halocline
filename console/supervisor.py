@@ -31,6 +31,7 @@ UNLOADED, STARTING, LOADING, READY, STOPPING, FAILED, EXTERNAL = (
 LIVE = (STARTING, LOADING, READY, STOPPING)
 LOG_KEEP = 4000                       # engine output lines kept in memory per model
 LOG_FILE_MAX = 32 * 2**20             # the per-model log file rolls over at this size
+GATEWAY_LOAD_S = 900                  # gateway mode: how long a switch may take before the model is marked failed
 
 
 def get_json(url: str, timeout: float = 2.0):
@@ -100,6 +101,9 @@ class Supervisor:
         self.swaps = 0
         self.stopping = threading.Event()
         self.poll_s = poll_s
+        self.pending: dict[str, float] = {}                  # gateway mode: switch asked, engine not answering yet
+        self.gw_started: dict[str, float] = {}
+        self.gw_ready: dict[str, float] = {}
         threading.Thread(target=self._watch, daemon=True, name="supervisor").start()
 
     # ------------------------------------------------------------------ the engine's output, for the page's log
@@ -130,16 +134,17 @@ class Supervisor:
             for m in self.fleet.models:
                 run = self.runs.get(m.name)
                 h = self.health.get(m.name) or {}
+                started = run.started if run else self.gw_started.get(m.name)
+                ready = run.ready_at if run else self.gw_ready.get(m.name)
                 out.append({**m.public(), "state": self.state[m.name], "error": self.errors.get(m.name),
                             "percent": h.get("percent") if self.state[m.name] == LOADING else None,
                             "pid": run.proc.pid if run and run.alive() else None,
-                            "started": run.started if run else None,
-                            "ready_at": run.ready_at if run else None,
-                            "load_s": round(run.ready_at - run.started, 1) if run and run.ready_at else None,
+                            "started": started, "ready_at": ready,
+                            "load_s": round(ready - started, 1) if started and ready and ready >= started else None,
                             "exit_code": run.exit_code if run else None,
                             "max_context": h.get("max_context"), "images": h.get("images")})
             return {"models": out, "active": self.active(), "swap": dict(self.swap) if self.swap else None,
-                    "swaps": self.swaps}
+                    "swaps": self.swaps, "mode": "berth" if self.fleet.gateway else "console"}
 
     def _event(self, model: str, kind: str, detail: dict | None = None) -> None:
         if self.history is not None:
@@ -148,7 +153,8 @@ class Supervisor:
     # ------------------------------------------------------------------ watching
     def transitioning(self) -> bool:
         with self.lock:
-            return self.swap is not None or any(s in (STARTING, LOADING, STOPPING) for s in self.state.values())
+            return self.swap is not None or bool(self.pending) or \
+                any(s in (STARTING, LOADING, STOPPING) for s in self.state.values())
 
     def _watch(self):
         """Every second while something starts, loads or stops; otherwise the model on the card every 3 s and the rest
@@ -167,6 +173,8 @@ class Supervisor:
             self.stopping.wait(self.poll_s if hot else 3 * self.poll_s)
 
     def _check(self, m: Model) -> None:
+        if self.fleet.gateway:
+            return self._check_gw(m)
         h = get_json(m.base + "/health", timeout=1.5)
         with self.lock:
             self.health[m.name] = h
@@ -210,6 +218,112 @@ class Supervisor:
                 self.state[m.name] = UNLOADED
                 self._event(m.name, "external-gone", {})
 
+    def _check_gw(self, m: Model) -> None:
+        """Gateway mode: berth starts and stops the engine, so whatever answers on the model's port is berth's (and ours
+        to control through it). Starting means a switch was asked and the port does not answer yet."""
+        h = get_json(m.base + "/health", timeout=1.5)
+        now = time.time()
+        with self.lock:
+            self.health[m.name] = h
+            state = self.state[m.name]
+            if state == STOPPING and h is not None:
+                return
+            if h is not None and h.get("status") == "ok":
+                self.pending.pop(m.name, None)
+                if h.get("loading") or not h.get("loaded", True):
+                    self.state[m.name] = LOADING
+                    self.gw_started.setdefault(m.name, now)
+                else:
+                    if state != READY:
+                        self.gw_ready[m.name] = now
+                        self.errors.pop(m.name, None)
+                        started = self.gw_started.get(m.name)
+                        self._event(m.name, "ready", {"load_s": round(now - started, 1) if started else None})
+                    self.state[m.name] = READY
+                return
+            if m.name in self.pending:
+                if now - self.pending[m.name] > GATEWAY_LOAD_S:
+                    self.pending.pop(m.name)
+                    self.state[m.name] = FAILED
+                    self.errors[m.name] = f"no answer on :{m.port} {GATEWAY_LOAD_S // 60} min after berth was asked"
+                    self._event(m.name, "failed", {"error": self.errors[m.name]})
+                else:
+                    self.state[m.name] = STARTING
+                return
+            if state in (READY, LOADING, STOPPING):
+                self._event(m.name, "stopped" if state == STOPPING else "exited", {})
+                self.gw_started.pop(m.name, None)
+                self.gw_ready.pop(m.name, None)
+            if state != FAILED:
+                self.state[m.name] = UNLOADED
+
+    def _gateway(self, path: str, body: dict, timeout: float = 30.0) -> tuple[int, dict]:
+        key = self.fleet.gateway_key()
+        req = urllib.request.Request(self.fleet.gateway.rstrip("/") + path, data=json.dumps(body).encode(),
+                                     method="POST", headers={"Content-Type": "application/json",
+                                                             **({"Authorization": f"Bearer {key}"} if key else {})})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read()
+                code = r.status
+        except urllib.error.HTTPError as e:
+            raw, code = e.read(), e.code
+        except OSError as e:
+            return 0, {"error": {"message": f"berth gateway: {e}"}}
+        try:
+            return code, json.loads(raw or b"{}")
+        except ValueError:
+            return code, {"message": raw[:300].decode("utf-8", "replace")}
+
+    def _load_gw(self, m: Model) -> dict:
+        with self.lock:
+            if self.state[m.name] in (READY, LOADING, STARTING):
+                return {"status": self.state[m.name]}
+            current = next((o.name for o in self.fleet.models if o.name != m.name and self.state[o.name] in (READY, LOADING)), None)
+            now = time.time()
+            self.pending[m.name] = now
+            self.gw_started[m.name] = now
+            self.gw_ready.pop(m.name, None)
+            self.state[m.name] = STARTING
+            self.errors.pop(m.name, None)
+            self.swap = {"from": current, "to": m.name, "phase": "draining" if current else "starting", "since": now}
+            if current:
+                self.swaps += 1
+        self._event(m.name, "start", {"from": current, "via": "berth"})
+        try:
+            code, body = self._gateway("/v1/berth/switch", {"engine": m.engine or m.lease or m.name, "model": m.name},
+                                       timeout=GATEWAY_LOAD_S)
+        finally:
+            with self.lock:
+                self.swap = None
+        if code >= 400 or code == 0:
+            why = (body.get("error") or {}).get("message") if isinstance(body.get("error"), dict) else \
+                body.get("error") or body.get("message") or f"HTTP {code}"
+            with self.lock:
+                self.pending.pop(m.name, None)
+                self.state[m.name] = FAILED
+                self.errors[m.name] = f"berth refused the switch: {why}"
+            self._event(m.name, "failed", {"error": self.errors[m.name]})
+            return {"status": FAILED, "error": self.errors[m.name]}
+        return {"status": STARTING}
+
+    def _unload_gw(self, m: Model) -> dict:
+        with self.lock:
+            if self.state[m.name] in (UNLOADED, FAILED) and self.health.get(m.name) is None:
+                return {"status": "unloaded"}
+            self.state[m.name] = STOPPING
+            self.pending.pop(m.name, None)
+        self._event(m.name, "stop", {"via": "berth"})
+        code, body = self._gateway("/v1/berth/stop", {"engine": m.engine or m.lease or m.name}, timeout=300)
+        end = time.time() + 180
+        while time.time() < end and get_json(m.base + "/health", timeout=1.5) is not None:
+            time.sleep(1.0)
+        with self.lock:
+            self.state[m.name] = UNLOADED if get_json(m.base + "/health", timeout=1.5) is None else READY
+            if code >= 400 or code == 0:
+                self.errors[m.name] = f"berth stop: {body}"
+        return {"status": self.state[m.name]}
+
     # ------------------------------------------------------------------ control
     def argv(self, m: Model) -> list[str]:
         engine = m.engine_argv()
@@ -231,6 +345,9 @@ class Supervisor:
         m = self.fleet.get(name)
         if m is None:
             raise KeyError(name)
+        if self.fleet.gateway:
+            with self.switch:
+                return self._load_gw(m)
         with self.switch:
             with self.lock:
                 if self.state[name] in (READY, LOADING, STARTING):
@@ -269,6 +386,8 @@ class Supervisor:
         m = self.fleet.get(name)
         if m is None:
             raise KeyError(name)
+        if self.fleet.gateway:
+            return self._unload_gw(m)
         with self.lock:
             run = self.runs.get(name)
             if self.state[name] == EXTERNAL:
@@ -308,6 +427,8 @@ class Supervisor:
 
     def shutdown(self) -> None:
         self.stopping.set()
+        if self.fleet.gateway:              # berth's engines outlive the console
+            return
         for m in self.fleet.models:
             run = self.runs.get(m.name)
             if run and run.alive():

@@ -191,8 +191,9 @@ def make_handler(con: Console):
                 return self._json(200, {**snap, "last": con.col.model_metrics(name),
                                         "stats": con.history.model_stats(0).get(name)})
             if path in ("/v1/models", "/models"):
-                data = [{"id": x["name"], "object": "model", "owned_by": "halocline",
-                         "status": {"value": x["state"]}} for x in con.sup.snapshot()["models"]]
+                data = [{"id": n, "object": "model", "owned_by": "halocline", "status": {"value": x["state"]},
+                         **({"alias_of": x["name"]} if n != x["name"] else {})}
+                        for x in con.sup.snapshot()["models"] for n in (x["name"], *x["aliases"])]
                 return self._json(200, {"object": "list", "data": data})
             if path.startswith("/v1/"):
                 return self._proxy(None)
@@ -282,12 +283,31 @@ def make_handler(con: Console):
                     name = json.loads(body).get("model")
                 except (ValueError, AttributeError):
                     name = None
-            name = name or con.sup.active() or con.fleet.models[0].name
-            m = con.fleet.get(name)
+            asked = name or con.sup.active() or con.fleet.models[0].name
+            m = con.fleet.resolve(asked)
             if m is None:
-                return self._json(404, {"error": {"message": f"model {name!r} is not in this Halocline fleet",
+                return self._json(404, {"error": {"message": f"model {asked!r} is not in this Halocline fleet",
                                                   "type": "invalid_request_error"}})
-            if con.sup.state[name] not in (READY, EXTERNAL):
+            name = m.name
+            if body and asked != name:              # an alias: the engine answers only to its own name
+                try:
+                    doc = json.loads(body)
+                    doc["model"] = name
+                    body = json.dumps(doc).encode()
+                except (ValueError, TypeError):
+                    pass
+            host, port, extra = "127.0.0.1", m.port, {}
+            if con.fleet.gateway:
+                # berth's gateway loads the model under its lease and streams keepalives while it does
+                u = urlsplit(con.fleet.gateway)
+                host, port = u.hostname, u.port or 80
+                key = con.fleet.gateway_key()
+                extra = {"Authorization": f"Bearer {key}"} if key else {}
+                with con.sup.lock:
+                    if con.sup.state[name] in ("unloaded", "failed"):
+                        con.sup.pending[name] = con.sup.gw_started[name] = time.time()
+                        con.sup.state[name] = "starting"
+            elif con.sup.state[name] not in (READY, EXTERNAL):
                 threading.Thread(target=con.sup.load, args=(name,), daemon=True).start()
                 end = time.time() + LOAD_WAIT_S
                 while time.time() < end and con.sup.state[name] not in (READY, EXTERNAL, "failed"):
@@ -295,9 +315,11 @@ def make_handler(con: Console):
                 if con.sup.state[name] not in (READY, EXTERNAL):
                     why = con.sup.errors.get(name) or "it did not load in time"
                     return self._json(503, {"error": {"message": f"{name} is not ready: {why}", "type": "server_error"}})
-            conn = http.client.HTTPConnection("127.0.0.1", m.port, timeout=3600)
+            conn = http.client.HTTPConnection(host, port, timeout=3600)
             headers = {k: v for k, v in self.headers.items()
-                       if k.lower() not in ("host", "connection", "content-length", "accept-encoding")}
+                       if k.lower() not in ("host", "connection", "content-length", "accept-encoding", "authorization",
+                                            "x-api-key", "cookie")}
+            headers.update(extra)
             try:
                 conn.request(self.command, self.path, body=body if body is not None else None, headers=headers)
                 r = conn.getresponse()

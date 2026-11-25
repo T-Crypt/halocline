@@ -239,3 +239,99 @@ class HoldersCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GatewayModeCase(unittest.TestCase):
+    """Berth's gateway starts and stops the engines; the console asks it to and passes requests through it."""
+
+    @classmethod
+    def setUpClass(cls):
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.port, cls.pe, cls.gport = free_port(), free_port(), free_port()
+        keyfile = Path(cls.tmp.name) / "api.key"
+        keyfile.write_text("sekrit\n")
+        cls.calls, cls.procs = [], {}
+        case = cls
+
+        class Gateway(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                case.calls.append((self.path, body, self.headers.get("Authorization")))
+                if self.headers.get("Authorization") != "Bearer sekrit":
+                    self.send_response(401); self.end_headers(); return
+                if self.path == "/v1/berth/switch":
+                    case.procs["e"] = subprocess.Popen(
+                        [sys.executable, "-m", "serve.server", "--mock-engine", "--host", "127.0.0.1", "--port",
+                         str(case.pe), "--alias", body["model"]], cwd=ROOT, stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL)
+                    out = b'{"status":"switched"}'
+                elif self.path == "/v1/berth/stop":
+                    p = case.procs.pop("e", None)
+                    if p:
+                        p.terminate(); p.wait(10)
+                    out = b'{"status":"stopped"}'
+                else:                                 # a chat request: answered as the gateway would, by the engine
+                    req = urllib.request.Request(f"http://127.0.0.1:{case.pe}{self.path}", data=json.dumps(body).encode(),
+                                                 headers={"Content-Type": "application/json"})
+                    out = urllib.request.urlopen(req, timeout=60).read()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(out)))
+                self.end_headers()
+                self.wfile.write(out)
+
+        cls.gw = ThreadingHTTPServer(("127.0.0.1", cls.gport), Gateway)
+        threading.Thread(target=cls.gw.serve_forever, daemon=True).start()
+        path = Path(cls.tmp.name) / "fleet.toml"
+        path.write_text(f'[console]\nport = {cls.port}\ndata = "{cls.tmp.name}/data"\n'
+                        f'gateway = "http://127.0.0.1:{cls.gport}"\ngateway_key_file = "{keyfile}"\n\n'
+                        f'[[model]]\nname = "Sparse"\nrelease = "{ROOT}"\nport = {cls.pe}\nargs = []\n'
+                        f'lease = "halocline"\naliases = ["router-halocline"]\n')
+        cls.con = Console(fleet_mod.load(str(path)), telemetry=FakeTelemetry())
+        cls.httpd = serve(cls.con, "127.0.0.1", cls.port)
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+        cls.base = f"http://127.0.0.1:{cls.port}"
+
+    @classmethod
+    def tearDownClass(cls):
+        for p in cls.procs.values():
+            p.terminate(); p.wait(10)
+        cls.httpd.shutdown(); cls.gw.shutdown()
+        cls.con.sup.stopping.set(); cls.con.col.stopping.set()
+        cls.tmp.cleanup()
+
+    def state(self):
+        return json.load(urllib.request.urlopen(self.base + "/api/state", timeout=10))["models"][0]
+
+    def wait(self, want, timeout=60):
+        end = time.time() + timeout
+        while time.time() < end and self.state()["state"] != want:
+            time.sleep(0.25)
+        self.assertEqual(self.state()["state"], want)
+
+    def test_load_alias_request_and_stop(self):
+        req = urllib.request.Request(self.base + "/api/models/Sparse/load", data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
+        self.assertEqual(urllib.request.urlopen(req, timeout=10).status, 202)
+        self.wait("ready")
+        self.assertEqual(self.calls[0], ("/v1/berth/switch", {"engine": "halocline", "model": "Sparse"}, "Bearer sekrit"))
+        # an alias reaches berth renamed, with the console's key in place of the client's
+        req = urllib.request.Request(self.base + "/v1/chat/completions", method="POST",
+                                     data=json.dumps({"model": "router-halocline", "max_tokens": 4,
+                                                      "messages": [{"role": "user", "content": "hi"}]}).encode(),
+                                     headers={"Content-Type": "application/json", "Authorization": "Bearer client"})
+        self.assertEqual(urllib.request.urlopen(req, timeout=60).status, 200)
+        path, body, auth = self.calls[-1]
+        self.assertEqual((path, body["model"], auth), ("/v1/chat/completions", "Sparse", "Bearer sekrit"))
+        ids = {m["id"] for m in json.load(urllib.request.urlopen(self.base + "/v1/models", timeout=10))["data"]}
+        self.assertEqual(ids, {"Sparse", "router-halocline"})
+        req = urllib.request.Request(self.base + "/api/models/Sparse/unload", data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+        self.wait("unloaded")
+        self.assertEqual(self.calls[-1][:2], ("/v1/berth/stop", {"engine": "halocline"}))

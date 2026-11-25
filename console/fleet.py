@@ -45,6 +45,8 @@ class Model:
     notes: str = ""
     env: dict[str, str] = field(default_factory=dict)
     exe: str | None = None                      # the engine binary; default RELEASE/bin/halocline
+    aliases: list[str] = field(default_factory=list)   # other names clients may ask for (renamed to `name` upstream)
+    engine: str | None = None                   # gateway mode: the berth engine that serves it (default: lease)
 
     @property
     def base(self) -> str:
@@ -66,6 +68,7 @@ class Model:
     def public(self) -> dict:
         """What the page shows about the model's setup (no environment, which may hold paths a user keeps private)."""
         return {"name": self.name, "label": self.label or self.name, "release": Path(self.release).name,
+                "aliases": list(self.aliases),
                 "branch": self.branch, "port": self.port, "lease": self.lease, "notes": self.notes,
                 "args": shlex.join(self.args)}
 
@@ -80,6 +83,23 @@ class Fleet:
     berth_config: str | None = None
     retention_days: int = 30
     title: str = "Halocline"
+    gateway: str | None = None                  # berth gateway URL: berth starts and stops the engines, not the console
+    gateway_key_file: str | None = None
+
+    def resolve(self, name: str) -> Model | None:
+        """The model a client's name means: its own name or one of its aliases."""
+        for m in self.models:
+            if name == m.name or name in m.aliases:
+                return m
+        return None
+
+    def gateway_key(self) -> str | None:
+        if not self.gateway_key_file:
+            return None
+        try:
+            return Path(os.path.expanduser(self.gateway_key_file)).read_text().strip() or None
+        except OSError:
+            return None
 
     def get(self, name: str) -> Model | None:
         for m in self.models:
@@ -98,8 +118,8 @@ def _expand(p: str, here: Path) -> str:
 
 
 MODEL_KEYS = {"name", "label", "release", "port", "args", "lease", "branch", "priority", "min_turn", "notes", "env",
-              "exe"}
-CONSOLE_KEYS = {"host", "port", "data", "berth", "berth_config", "retention_days", "title"}
+              "exe", "aliases", "engine"}
+CONSOLE_KEYS = {"host", "port", "data", "berth", "berth_config", "retention_days", "title", "gateway", "gateway_key_file"}
 
 
 def parse(raw: dict, here: Path) -> Fleet:
@@ -128,20 +148,29 @@ def parse(raw: dict, here: Path) -> Fleet:
             raise ValueError(f"{where}.args: a list of strings")
         if not isinstance(e["port"], int) or not 0 < e["port"] < 65536:
             raise ValueError(f"{where}.port: a TCP port")
-        if e["name"] in names:
-            raise ValueError(f"{where}: {e['name']!r} is named twice")
+        aliases = e.get("aliases", [])
+        if not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases):
+            raise ValueError(f"{where}.aliases: a list of strings")
+        for n in (e["name"], *aliases):
+            if n in names:
+                raise ValueError(f"{where}: {n!r} is named twice")
+            names.add(n)
         if e["port"] in ports:
             raise ValueError(f"{where}: port {e['port']} is also {ports[e['port']]!r}'s")
-        names.add(e["name"])
         ports[e["port"]] = e["name"]
         m = Model(name=e["name"], release=_expand(e["release"], here), port=e["port"],
                   args=[os.path.expanduser(a) if a.startswith("~/") else a for a in e["args"]],
                   label=e.get("label", ""), lease=e.get("lease"), branch=e.get("branch"),
                   priority=e.get("priority", "foreground"), min_turn=e.get("min_turn"), notes=e.get("notes", ""),
                   env={str(k): str(v) for k, v in e.get("env", {}).items()},
-                  exe=_expand(e["exe"], here) if e.get("exe") else None)
+                  exe=_expand(e["exe"], here) if e.get("exe") else None, aliases=list(aliases),
+                  engine=e.get("engine"))
         models.append(m)
-    f = Fleet(models=models, **{k: con[k] for k in con if k != "berth_config"})
+    f = Fleet(models=models, **{k: con[k] for k in con if k not in ("berth_config", "gateway_key_file")})
+    if con.get("gateway_key_file"):
+        f.gateway_key_file = os.path.expanduser(con["gateway_key_file"])
+    if f.gateway and f.berth:
+        raise ValueError("[console] gateway and berth: choose one (the gateway already leases what it starts)")
     if con.get("berth_config"):
         f.berth_config = _expand(con["berth_config"], here)
     if f.port in ports:

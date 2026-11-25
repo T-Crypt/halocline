@@ -258,6 +258,7 @@
   });
 
   function renderFleet(st) {
+    if (st.mode === "berth") $("f-hint").textContent = "Each runs its own release, started and stopped by Berth under its lease. One on the card at a time.";
     renderStrip(st, $("f-cards"), true);
     const names = st.models.map((m) => m.name);
     HC.bars($("f-compare"), { name: "mean decode", unit: "t/s", labels: names.map(label), values: names.map((n) => S.stats[n]?.decode_mean || 0),
